@@ -6,10 +6,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { filterProjectFeatures } from "../projects/filterProjectFeatures.js";
-import {
-  isBelowProjectPledgeMinimum,
-  normalizeEuroAmountForApi,
-} from "../projects/projectPledgeAmount.js";
+import { parseProjectPledgeAmount } from "../projects/projectPledgeAmount.js";
 import { visibleProjectFeatures } from "../projects/visibleProjectFeatures.js";
 import { PledgeButton } from "./PledgeButton";
 
@@ -24,8 +21,7 @@ function ProjectPledgeForm({ project, contributor, onAuthorized }) {
   const [who, setWho] = useState(contributor || "");
   const title = props.title || props.id || "";
   const description = t("projects.pledgeDescription", { title });
-  const belowMin = isBelowProjectPledgeMinimum(amount);
-  const apiAmount = normalizeEuroAmountForApi(amount) || MIN_EUR;
+  const parsed = parseProjectPledgeAmount(amount);
 
   return (
     <div className="project-pledge" data-testid="project-pledge" data-project-id={props.id}>
@@ -45,17 +41,20 @@ function ProjectPledgeForm({ project, contributor, onAuthorized }) {
           onChange={(event) => setWho(event.target.value)}
         />
       </label>
-      {belowMin ? <p className="notice warn">{t("projects.minAmount")}</p> : null}
+      {parsed.kind === "invalid" ? <p className="notice warn">{t("projects.invalidAmount")}</p> : null}
+      {parsed.kind === "empty" || parsed.kind === "below_min" ? (
+        <p className="notice warn">{t("projects.minAmount")}</p>
+      ) : null}
       <PledgeButton
         values={{
-          amount_eur: apiAmount,
+          amount_eur: parsed.apiAmount || MIN_EUR,
           description,
           milestone_id: "",
           contributor: who.trim() || undefined,
           kind: "project_pledge",
           target_id: props.id,
         }}
-        disabled={belowMin}
+        disabled={parsed.kind !== "ok"}
         onAuthorized={onAuthorized}
       />
     </div>

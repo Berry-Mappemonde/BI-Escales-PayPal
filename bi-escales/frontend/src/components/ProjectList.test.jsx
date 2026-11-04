@@ -87,6 +87,32 @@ describe("ProjectList", () => {
     expect(screen.getByText(/Minimum 1.00 EUR/)).toBeInTheDocument();
   });
 
+  it("affiche format invalide pour trop de décimales ou séparateurs mixtes", async () => {
+    await i18n.changeLanguage("en");
+    function OpenHarness() {
+      const [selectedProjectId, setSelectedProjectId] = useState("proj-1");
+      return (
+        <ProjectList
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          onSelectProject={setSelectedProjectId}
+          onFlyTo={() => {}}
+        />
+      );
+    }
+    render(
+      <I18nextProvider i18n={i18n}>
+        <OpenHarness />
+      </I18nextProvider>,
+    );
+    const input = screen.getByTestId("project-pledge-amount");
+    fireEvent.change(input, { target: { value: "1,005" } });
+    expect(screen.getByText(/Invalid amount/)).toBeInTheDocument();
+    expect(screen.queryByText(/Minimum 1.00 EUR/)).toBeNull();
+    fireEvent.change(input, { target: { value: "1.234,56" } });
+    expect(screen.getByText(/Invalid amount/)).toBeInTheDocument();
+  });
+
   it("épinglé depuis la carte : formulaire visible malgré le filtre recherche", async () => {
     await i18n.changeLanguage("fr");
     render(

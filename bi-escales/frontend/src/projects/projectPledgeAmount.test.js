@@ -1,18 +1,20 @@
 import { describe, expect, it } from "vitest";
-import {
-  isBelowProjectPledgeMinimum,
-  normalizeEuroAmountForApi,
-} from "./projectPledgeAmount.js";
+import { parseProjectPledgeAmount } from "./projectPledgeAmount.js";
 
-describe("projectPledgeAmount", () => {
-  it("accepte la virgule décimale", () => {
-    expect(normalizeEuroAmountForApi("1,50")).toBe("1.50");
-    expect(isBelowProjectPledgeMinimum("1,50")).toBe(false);
+describe("parseProjectPledgeAmount", () => {
+  it("accepte la virgule décimale simple", () => {
+    expect(parseProjectPledgeAmount("1,50")).toEqual({ kind: "ok", apiAmount: "1.50" });
   });
 
-  it("signale vide, zéro et sous le minimum", () => {
-    expect(isBelowProjectPledgeMinimum("")).toBe(true);
-    expect(isBelowProjectPledgeMinimum("0")).toBe(true);
-    expect(isBelowProjectPledgeMinimum("0,50")).toBe(true);
+  it("refuse plus de deux décimales et les séparateurs mixtes", () => {
+    expect(parseProjectPledgeAmount("1,005").kind).toBe("invalid");
+    expect(parseProjectPledgeAmount("1.005").kind).toBe("invalid");
+    expect(parseProjectPledgeAmount("1.234,56").kind).toBe("invalid");
+  });
+
+  it("distingue format invalide et sous-minimum", () => {
+    expect(parseProjectPledgeAmount("0,50").kind).toBe("below_min");
+    expect(parseProjectPledgeAmount("").kind).toBe("empty");
+    expect(parseProjectPledgeAmount("abc").kind).toBe("invalid");
   });
 });

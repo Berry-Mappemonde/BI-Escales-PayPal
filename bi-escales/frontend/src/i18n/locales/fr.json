@@ -34,6 +34,7 @@
     "search": "Chercher un projet",
     "truncated": "{{shown}} sur {{total}} projets (affinez avec la recherche)",
     "minAmount": "Minimum 1,00 EUR.",
+    "invalidAmount": "Montant invalide (deux décimales maximum).",
     "pledgeDescription": "Promesse projet — {{title}}"
   },
   "marinas": {

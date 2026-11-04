@@ -543,7 +543,7 @@ def test_declined_or_expired_capture_is_a_conflict(api, monkeypatch):
     assert declined.status_code == 409
     assert "DECLINED" in declined.json()["detail"]
     stored = client.get(f"/api/escales/pledges/{declined_pledge['id']}")
-    assert stored.json()["status"] == "authorized"
+    assert stored.json()["status"] == "capture_failed"
 
     def failed_capture(authorization_id, final=True):
         fake.calls.append(("capture", authorization_id))
@@ -981,8 +981,11 @@ def test_declined_capture_does_not_stop_the_clock(api, monkeypatch):
     assert actions[first.json()["id"]]["action"] == "error"
     assert "DECLINED" in actions[first.json()["id"]]["detail"]
     assert actions[second["id"]]["action"] == "capture"
+    assert client.get(f"/api/escales/pledges/{first.json()['id']}").json()["status"] == "capture_failed"
     again = client.post("/api/escales/clock/settle", headers=ADMIN)
     assert again.status_code == 200, again.text
+    again_ids = [row["pledge_id"] for row in again.json()["settled"]["actions"]]
+    assert first.json()["id"] not in again_ids
     assert client.get(f"/api/escales/pledges/{second['id']}").json()["status"] == "captured"
 
 

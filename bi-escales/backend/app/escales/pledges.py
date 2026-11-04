@@ -809,6 +809,8 @@ async def _finish_capture(pledge: dict, payload: Any, *, finance: dict) -> dict:
         await record_finance("pledge_capture_pending", status="pending", **base)
         return saved
 
+    if status in {"DECLINED", "FAILED", "EXPIRED"}:
+        pledge["status"] = "capture_failed"
     pledge["history"] = list(pledge.get("history") or []) + ["capture_failed"]
     saved = await get_ledger().save_pledge(pledge)
     await record("capture_failed", status=saved.get("status"), **audit_fields)

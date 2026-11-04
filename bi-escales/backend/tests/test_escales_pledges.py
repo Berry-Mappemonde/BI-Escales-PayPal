@@ -91,7 +91,13 @@ def test_create_authorize_order_is_eur_and_idempotent():
     seen = []
 
     def handler(request: httpx.Request):
-        seen.append((request.method, request.url.path, request.headers.get("PayPal-Request-Id"), request.content))
+        seen.append((
+            request.method,
+            request.url.path,
+            request.headers.get("PayPal-Request-Id"),
+            request.content,
+            request.headers.get("Prefer"),
+        ))
         path = request.url.path
         if path == "/v1/oauth2/token":
             return httpx.Response(200, json={"access_token": "T", "expires_in": 3600})
@@ -142,7 +148,29 @@ def test_create_authorize_order_is_eur_and_idempotent():
         "/v2/payments/authorizations/AUTH1/void",
     ]
     assert seen[1][2] == "pledge-key-1"
+    assert seen[1][4] == "return=representation"
+    assert seen[2][4] == "return=representation"
+    assert seen[3][4] is None
     assert all("capture" not in path for path in paths)
+
+
+def test_charge_vaulted_sends_the_matching_payment_source():
+    bodies = []
+
+    def handler(request: httpx.Request):
+        if request.url.path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "T", "expires_in": 3600})
+        bodies.append(json.loads(request.content))
+        return httpx.Response(201, json={"id": "ORD-V", "status": "COMPLETED", "intent": "CAPTURE"})
+
+    client = PayPalClient(
+        EscalesConfig("test-client-id", "test-client-secret"),
+        transport=httpx.MockTransport(handler),
+    )
+    client.charge_vaulted("WALLET1", "1.00", "ref-wallet")
+    client.charge_vaulted("CARD1", "1.00", "ref-card", source="card")
+    assert bodies[0]["payment_source"] == {"paypal": {"vault_id": "WALLET1"}}
+    assert bodies[1]["payment_source"] == {"card": {"vault_id": "CARD1"}}
 
 
 def test_non_sandbox_env_is_refused(monkeypatch):
@@ -249,12 +277,15 @@ def test_live_sandbox_create_authorize_order():
     if not os.environ.get("PAYPAL_CLIENT_SECRET"):
         pytest.skip("PAYPAL_CLIENT_SECRET is not set")
     client = PayPalClient(load_config())
+    # New key: escales-live-probe cached a minimal body that omitted intent.
     order = client.create_authorize_order(
         "1.00",
         "BI Escales live probe",
         "live-probe",
-        idempotency_key="escales-live-probe",
+        idempotency_key="escales-live-probe-v2",
     )
     assert order.get("id")
-    assert order.get("intent") == "AUTHORIZE"
+    shown = order if order.get("intent") else client.get_order(order["id"])
+    assert shown.get("intent") == "AUTHORIZE"
+    assert shown.get("status") in {"CREATED", "PAYER_ACTION_REQUIRED", "APPROVED"}
     assert approve_link(order)

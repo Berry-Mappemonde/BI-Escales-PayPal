@@ -44,6 +44,15 @@ def authorization_from(order: dict) -> tuple[str, Optional[str]]:
     raise PayPalError(502, "authorization id missing")
 
 
+def vault_source_from_token(payload: dict) -> str:
+    """``card`` or ``paypal`` from a payment-token response. Wallet is the default."""
+    source = payload.get("payment_source") or {}
+    card = source.get("card")
+    if isinstance(card, dict) and card:
+        return "card"
+    return "paypal"
+
+
 def vault_id_from_token(payload: dict) -> str:
     """Payment token id from ``POST /v3/vault/payment-tokens``."""
     token_id = payload.get("id")
@@ -96,6 +105,8 @@ class PayPalClient:
         }
         if method in ("POST", "PATCH"):
             headers["PayPal-Request-Id"] = idempotency_key or str(uuid.uuid4())
+            # Sandbox create/authorize omit intent and purchase_units unless asked.
+            headers["Prefer"] = "return=representation"
         response = self._http.request(method, path, json=json, headers=headers)
         if response.status_code >= 400:
             raise PayPalError(response.status_code, response.text)
@@ -204,10 +215,18 @@ class PayPalClient:
         body = {"payment_source": {"token": {"id": setup_token_id, "type": "SETUP_TOKEN"}}}
         return self._req("POST", "/v3/vault/payment-tokens", body)
 
-    def charge_vaulted(self, vault_id: str, amount_eur: str, reference_id: str) -> dict:
+    def charge_vaulted(
+        self,
+        vault_id: str,
+        amount_eur: str,
+        reference_id: str,
+        source: str = "paypal",
+    ) -> dict:
+        """Charge a saved payment token. ``source`` is ``paypal`` or ``card``."""
+        kind = "card" if source == "card" else "paypal"
         body = {
             "intent": "CAPTURE",
-            "payment_source": {"paypal": {"vault_id": vault_id}},
+            "payment_source": {kind: {"vault_id": vault_id}},
             "purchase_units": [{
                 "reference_id": reference_id,
                 "amount": {"currency_code": self.cfg.currency, "value": amount_eur},

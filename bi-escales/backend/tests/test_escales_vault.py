@@ -54,8 +54,8 @@ class VaultPayPal:
         self.calls.append(("payment_token", setup_token_id))
         return {"id": f"VAULT-{setup_token_id}"}
 
-    def charge_vaulted(self, vault_id, amount_eur, reference_id):
-        self.calls.append(("charge_vaulted", vault_id, amount_eur, reference_id))
+    def charge_vaulted(self, vault_id, amount_eur, reference_id, source="paypal"):
+        self.calls.append(("charge_vaulted", vault_id, amount_eur, reference_id, source))
         return {"id": "CAP-V", "status": "COMPLETED"}
 
     def delete_payment_token(self, vault_id):
@@ -112,7 +112,7 @@ def test_vault_pledge_lifecycle():
 
         captured = await capture_pledge(created["_id"], client)
         assert captured["status"] == "captured"
-        assert ("charge_vaulted", "VAULT-SETUP1", "25.00", created["_id"]) in client.calls
+        assert ("charge_vaulted", "VAULT-SETUP1", "25.00", created["_id"], "paypal") in client.calls
 
         other_client = VaultPayPal()
         await _seed_far_milestone("dep-other")
@@ -127,6 +127,33 @@ def test_vault_pledge_lifecycle():
         voided = await void_pledge(other["_id"], other_client)
         assert voided["status"] == "voided"
         assert ("delete_token", "VAULT-SETUP1") in other_client.calls
+
+    asyncio.run(body())
+
+
+def test_card_token_is_charged_with_card_source():
+    async def body():
+        await _seed_far_milestone("dep-card")
+        client = VaultPayPal()
+        created = await create_pledge(
+            amount_eur="1.00",
+            description="carte",
+            milestone_id="dep-card",
+            client=client,
+            client_key="vault-card",
+        )
+
+        def card_token(setup_token_id):
+            client.calls.append(("payment_token", setup_token_id))
+            return {"id": "CARDTOK", "payment_source": {"card": {"last_digits": "1881"}}}
+
+        client.create_payment_token = card_token
+        vaulted = await register_vault_pledge(created["_id"], client)
+        assert vaulted["vault_source"] == "card"
+        assert vaulted["vault_id"] == "CARDTOK"
+        captured = await capture_pledge(created["_id"], client)
+        assert captured["status"] == "captured"
+        assert ("charge_vaulted", "CARDTOK", "1.00", created["_id"], "card") in client.calls
 
     asyncio.run(body())
 

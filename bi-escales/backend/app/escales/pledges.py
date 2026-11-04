@@ -29,6 +29,7 @@ from .paypal_client import (
     authorization_from,
     setup_token_approve_link,
     vault_id_from_token,
+    vault_source_from_token,
 )
 
 PLEDGES_COLLECTION = "escales_pledges"
@@ -194,6 +195,7 @@ async def _create_authorize_pledge(
         "authorization_id": None,
         "authorization_expires_at": None,
         "vault_id": None,
+        "vault_source": None,
         "setup_token_id": None,
         "created_at": now_iso(),
         "history": ["created"],
@@ -254,6 +256,7 @@ async def _create_vault_pledge(
         "authorization_id": None,
         "authorization_expires_at": None,
         "vault_id": None,
+        "vault_source": None,
         "setup_token_id": str(setup_id),
         "created_at": now_iso(),
         "history": ["created"],
@@ -291,6 +294,7 @@ async def register_vault_pledge(
     vault_id = vault_id_from_token(payment_token)
     pledge["status"] = "vaulted"
     pledge["vault_id"] = vault_id
+    pledge["vault_source"] = vault_source_from_token(payment_token)
     pledge["setup_token_id"] = token_id
     pledge["history"] = list(pledge.get("history") or []) + ["vaulted"]
     saved = await get_ledger().save_pledge(pledge)
@@ -342,7 +346,12 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
         vault_id = pledge.get("vault_id")
         if not vault_id:
             raise IllegalTransition("vaulted", "captured")
-        client.charge_vaulted(vault_id, pledge["amount_eur"], pledge_id)
+        client.charge_vaulted(
+            vault_id,
+            pledge["amount_eur"],
+            pledge_id,
+            source=pledge.get("vault_source") or "paypal",
+        )
         pledge["status"] = "captured"
         pledge["history"] = list(pledge.get("history") or []) + ["captured"]
         saved = await get_ledger().save_pledge(pledge)

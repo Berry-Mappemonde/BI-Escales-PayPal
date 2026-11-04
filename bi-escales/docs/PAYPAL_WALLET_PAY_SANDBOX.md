@@ -15,7 +15,7 @@ These buttons are gated by `ESCALES_WALLET_PAY_ENABLED=1` on the API and the mat
 1. Same PayPal app → **Google Pay** → add the same **origin** (scheme + host + port) as the Escales page.
 2. Use Chrome with a **Google Pay test card** in sandbox mode (PayPal docs: Google Pay sandbox card suite).
 3. Confirm the origin matches `ESCALES_PUBLIC_URL` / the page the buyer uses (no mixed http/https).
-4. With the flag on, the pledge sheet shows Google Pay when the SDK reports eligibility.
+4. With the flag on, wire `loadPayPalWalletPaySdk` in the pledge sheet (see `paypalSdk.ts`) and render Apple Pay / Google Pay when the SDK reports eligibility.
 
 ## After registration
 

@@ -8,6 +8,8 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { HELLOASSO_MEMBERSHIP_URL } from "../config/helloasso.js";
 import { PledgeButton } from "./PledgeButton";
+import { formatStopoverDate, portHoldHours } from "../voyage/voyageClock.js";
+import { formatLogbookEntry } from "../voyage/journalDisplay.js";
 
 const STOP_KINDS = ["mile", "night", "meal", "care", "common_fund"];
 const FIXED_AMOUNT = { night: "60.00", meal: "60.00", care: "40.00" };
@@ -55,14 +57,22 @@ export const EscaleSheet = memo(function EscaleSheet({
   onClose,
   pledge,
   onPledgeAuthorized,
+  arrivalIso,
+  logbookEntries,
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language?.startsWith("en") ? "en" : "fr";
   if (!stop) return null;
   const sections = visibleSections(fiche?.sections);
   const keys = Object.keys(sections);
   const pledgeDescription = pledge
     ? `${stop.name} — ${t(`pledge.kinds.${pledge.kind}`)}`
     : "";
+  const holdHours = portHoldHours(stop.name);
+  const arrivalLabel = arrivalIso
+    ? formatStopoverDate(arrivalIso, holdHours, lang)
+    : "";
+  const logLines = (logbookEntries || []).map((entry) => formatLogbookEntry(entry, lang));
 
   return (
     <div data-testid="escale-sheet" className="escale-sheet">
@@ -70,6 +80,11 @@ export const EscaleSheet = memo(function EscaleSheet({
         <div>
           <div className="escale-kicker">{t("sheet.title")}</div>
           <strong>{stop.name}</strong>
+          {arrivalLabel ? (
+            <p className="hint escale-eta" data-testid="escale-estimated-arrival">
+              {t("sheet.estimatedArrival")}: {arrivalLabel}
+            </p>
+          ) : null}
         </div>
         {onClose ? (
           <button type="button" data-testid="escale-close" onClick={onClose} aria-label={t("sheet.close")}>
@@ -79,6 +94,16 @@ export const EscaleSheet = memo(function EscaleSheet({
       </div>
       {loading ? <p className="hint">{t("sheet.loading")}</p> : null}
       {error ? <p className="notice error">{error}</p> : null}
+      {logLines.length ? (
+        <div className="escale-logbook" data-testid="escale-logbook">
+          <div className="escale-kicker">{t("sheet.logbookTitle")}</div>
+          <ul className="escale-items">
+            {logLines.map((line, index) => (
+              <li key={`${line}-${index}`}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {!loading && fiche && !keys.length ? <p className="hint">{t("sheet.empty")}</p> : null}
       {keys.map((section) => (
         <div key={section}>

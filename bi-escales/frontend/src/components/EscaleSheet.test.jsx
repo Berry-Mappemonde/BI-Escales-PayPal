@@ -12,6 +12,21 @@ vi.mock("./PledgeButton", () => ({
 
 const stop = { name: "La Rochelle", lat: 46.15, lon: -1.15, milestoneId: "dep-la-rochelle" };
 
+const logbook = [
+  {
+    t: "2026-11-10T08:00:00.000Z",
+    pos: { lat: 46.2, lon: -1.1 },
+    label_fr: "Position — en route vers La Rochelle",
+    label_en: "Position — underway for La Rochelle",
+  },
+  {
+    t: "2026-11-12T08:00:00.000Z",
+    pos: { lat: 46.15, lon: -1.15 },
+    label_fr: "Escale — arrivée La Rochelle",
+    label_en: "Stopover — arrival at La Rochelle",
+  },
+];
+
 describe("EscaleSheet", () => {
   it("envoie le type de promesse avec description auto", async () => {
     await i18n.changeLanguage("fr");
@@ -70,5 +85,39 @@ describe("EscaleSheet", () => {
     const sent = JSON.parse(screen.getByTestId("pledge-values").textContent || "{}");
     expect(sent.kind).toBe("night");
     expect(sent.amount_eur).toBe("60.00");
+  });
+
+  it("affiche l'arrivée estimée et le carnet en FR", async () => {
+    await i18n.changeLanguage("fr");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EscaleSheet
+          stop={stop}
+          fiche={null}
+          arrivalIso="2026-11-12T08:00:00.000Z"
+          logbookEntries={logbook}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("escale-estimated-arrival")).toHaveTextContent(/Arrivée estimée/);
+    expect(screen.getByTestId("escale-logbook")).toHaveTextContent("en route vers La Rochelle");
+    expect(screen.getByTestId("escale-logbook")).toHaveTextContent("arrivée La Rochelle");
+  });
+
+  it("shows estimated arrival and logbook in EN", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EscaleSheet
+          stop={stop}
+          fiche={null}
+          arrivalIso="2026-11-12T08:00:00.000Z"
+          logbookEntries={logbook}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("escale-estimated-arrival")).toHaveTextContent(/Estimated arrival/);
+    expect(screen.getByTestId("escale-logbook")).toHaveTextContent("underway for La Rochelle");
+    expect(screen.getByTestId("escale-logbook")).toHaveTextContent("arrival at La Rochelle");
   });
 });

@@ -21,6 +21,7 @@ import { ficheMarinas, loadEscaleFiche } from "./marinas/escaleFiche.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
 import { formatCivilDate } from "./voyage/voyageClock.js";
+import { escaleArrivalIso, logbookEntriesForStop } from "./voyage/journalDisplay.js";
 import "./styles/app.css";
 import "./styles/naviguide-shell.css";
 
@@ -98,6 +99,14 @@ export default function App() {
     [voyage, now],
   );
   const cumNm = Number(sample?.sailNm ?? sample?.cumNm ?? 0);
+  const sheetArrivalIso = useMemo(
+    () => (stop?.milestoneId && schedule ? escaleArrivalIso(schedule, stop.milestoneId) : ""),
+    [stop?.milestoneId, schedule],
+  );
+  const sheetLogbook = useMemo(
+    () => (stop?.milestoneId && schedule ? logbookEntriesForStop(schedule, stop.milestoneId) : []),
+    [stop?.milestoneId, schedule],
+  );
 
   useEffect(() => {
     document.body.classList.add("ng-naviguide-shell");
@@ -133,10 +142,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!bryntumEnabled) {
-      setSchedule(null);
-      return undefined;
-    }
     let cancelled = false;
     void fetchSchedule()
       .then((row) => {
@@ -148,7 +153,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [bryntumEnabled]);
+  }, []);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 30000);
@@ -693,6 +698,8 @@ export default function App() {
               loading={ficheLoading}
               error={ficheError}
               onClose={() => setStop(null)}
+              arrivalIso={sheetArrivalIso}
+              logbookEntries={sheetLogbook}
               pledge={{
                 amount,
                 milestoneId,

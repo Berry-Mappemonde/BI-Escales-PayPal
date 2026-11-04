@@ -82,6 +82,15 @@ export interface ScheduleResponse {
   export?: { escales?: ScheduleEscale[] };
   milestones?: ScheduleEscale[];
   legs?: ScheduleLeg[];
+  logbook?: Record<string, LogbookEntry[]>;
+}
+
+export interface LogbookEntry {
+  t: string;
+  pos?: { lat?: number; lon?: number };
+  label_fr?: string;
+  label_en?: string;
+  kind?: string;
 }
 
 export interface FeatureFlags {

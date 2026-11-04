@@ -78,6 +78,9 @@ export interface ScheduleResponse {
 export interface FeatureFlags {
   bryntum?: boolean;
   vault?: boolean;
+  card_fields?: boolean;
+  vault_on_purchase?: boolean;
+  wallet_pay?: boolean;
   clock_pinned?: boolean;
   crew_supporter_plan_id?: string | null;
 }

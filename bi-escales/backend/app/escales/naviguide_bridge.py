@@ -656,6 +656,8 @@ async def sync_milestone_shells(export: Optional[dict[str, Any]] = None) -> list
                 "title": row.get("title"),
                 "display_name": row.get("display_name"),
                 "arrival_iso": row.get("arrival_iso"),
+                "departure_iso": row.get("departure_iso") or row.get("arrival_iso"),
+                "capture_on": "departure",
                 "lat": row.get("lat"),
                 "lon": row.get("lon"),
                 "source": row.get("source"),

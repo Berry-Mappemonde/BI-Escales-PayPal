@@ -140,7 +140,8 @@
       "subscriptions": "Crew subscriptions: {{count}}",
       "setupCrew": "Ensure Crew supporter plan (sandbox)",
       "setupDone": "Crew supporter catalog already configured.",
-      "setupCreated": "Crew supporter product and plan created."
+      "setupCreated": "Crew supporter product and plan created.",
+      "reconcileLag": "Reconcile matches capture_id to PayPal transaction_id; sandbox reporting can lag about 3 hours."
     }
   },
   "grid": {

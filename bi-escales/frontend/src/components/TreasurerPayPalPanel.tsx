@@ -84,6 +84,9 @@ export function TreasurerPayPalPanel({ adminKey }: TreasurerPayPalPanelProps) {
       </button>
       {setupNote ? <p className="notice">{setupNote}</p> : null}
       {planId ? <CrewSubscribeButton planId={planId} adminKey={adminKey} /> : null}
+      <p className="hint" data-testid="reconcile-lag-note">
+        {t("treasurer.paypal.reconcileLag")}
+      </p>
       {error ? <p className="notice error">{error}</p> : null}
     </section>
   );

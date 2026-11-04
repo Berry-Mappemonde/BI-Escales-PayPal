@@ -140,7 +140,8 @@
       "subscriptions": "Abonnements équipage : {{count}}",
       "setupCrew": "Préparer le plan Équipage (sandbox)",
       "setupDone": "Catalogue Équipage déjà configuré.",
-      "setupCreated": "Produit et plan Équipage créés."
+      "setupCreated": "Produit et plan Équipage créés.",
+      "reconcileLag": "Le rapprochement lie capture_id et transaction_id PayPal ; le sandbox accuse ~3 h de retard."
     }
   },
   "grid": {

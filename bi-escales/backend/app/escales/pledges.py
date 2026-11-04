@@ -412,8 +412,17 @@ async def require_pledge(pledge_id: str) -> dict:
 
 
 async def resolve_payment_mode(milestone_id: str) -> PaymentMode:
-    """Public default before ``create_pledge`` runs the departure-day fallback."""
-    _ = milestone_id
+    """AUTHORIZE when departure is within 29 days; otherwise VAULT when enabled."""
+    from .config import vault_enabled
+    from .departure_clock import refuse_early_authorization
+
+    if not vault_enabled():
+        return "AUTHORIZE"
+    draft = {"milestone_id": milestone_id, "kind": "mile"}
+    try:
+        await refuse_early_authorization(draft)
+    except ValueError:
+        return "VAULT"
     return "AUTHORIZE"
 
 
@@ -749,7 +758,7 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     order = client.authorize_order(order_id, pledge_id=pledge_id)
     auth_id, expiration = authorization_from(order)
     pledge["status"] = "authorized"
-    pledge["authorized_at"] = now_iso()
+    pledge["authorized_at"] = _event_timestamp()
     pledge["authorization_id"] = auth_id
     pledge["authorization_expires_at"] = expiration or default_expiration()
     pledge["history"] = list(pledge.get("history") or []) + ["authorized"]
@@ -767,6 +776,11 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     return saved
 
 
+def _event_timestamp(at: Optional[dt.datetime] = None) -> str:
+    moment = (at or simulated_now()).replace(microsecond=0)
+    return moment.isoformat()
+
+
 def _parse_moment(value: Optional[str]) -> Optional[dt.datetime]:
     text = (value or "").strip()
     if not text:
@@ -779,7 +793,7 @@ def _parse_moment(value: Optional[str]) -> Optional[dt.datetime]:
         return None
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=dt.timezone.utc)
-    return moment
+    return moment.astimezone(dt.timezone.utc)
 
 
 def _prepare_authorization_capture(pledge: dict, client: Any) -> bool:
@@ -791,21 +805,32 @@ def _prepare_authorization_capture(pledge: dict, client: Any) -> bool:
     authorized_at = _parse_moment(pledge.get("authorized_at"))
     if authorized_at is None or now <= authorized_at + dt.timedelta(days=HONOR_DAYS):
         return False
-    refreshed = client.reauthorize(
-        pledge["authorization_id"],
-        pledge_id=str(pledge.get("_id") or ""),
-    ) or {}
+    try:
+        refreshed = client.reauthorize(
+            pledge["authorization_id"],
+            pledge_id=str(pledge.get("_id") or ""),
+        ) or {}
+    except PayPalError:
+        if expires is not None and now >= expires:
+            raise ValueError("PayPal authorization has expired") from None
+        return False
     new_id = refreshed.get("id") or pledge.get("authorization_id")
     pledge["authorization_id"] = str(new_id)
     expiration = refreshed.get("expiration_time")
     if expiration:
         pledge["authorization_expires_at"] = str(expiration)
-    pledge["authorized_at"] = now.replace(microsecond=0).isoformat()
+    pledge["authorized_at"] = _event_timestamp(now)
     pledge["history"] = list(pledge.get("history") or []) + ["reauthorized"]
     return True
 
 
-async def _finish_capture(pledge: dict, payload: Any, *, finance: dict) -> dict:
+async def _finish_capture(
+    pledge: dict,
+    payload: Any,
+    *,
+    finance: dict,
+    effective_at: Optional[dt.datetime] = None,
+) -> dict:
     """Record PayPal's capture status. COMPLETED and PENDING are kept; anything else can be retried."""
     from .audit import record
 
@@ -846,7 +871,7 @@ async def _finish_capture(pledge: dict, payload: Any, *, finance: dict) -> dict:
     if status == "COMPLETED":
         pledge["status"] = "captured"
         if not str(pledge.get("captured_at") or "").strip():
-            pledge["captured_at"] = simulated_now().replace(microsecond=0).isoformat()
+            pledge["captured_at"] = _event_timestamp(effective_at)
         pledge["history"] = list(pledge.get("history") or []) + ["captured"]
         saved = await get_ledger().save_pledge(pledge)
         await record("capture", status="captured", **audit_fields)
@@ -955,7 +980,12 @@ async def mark_token_delete_pending(pledge_id: str, detail: str) -> dict:
     return saved
 
 
-async def capture_pledge(pledge_id: str, client: Any) -> dict:
+async def capture_pledge(
+    pledge_id: str,
+    client: Any,
+    *,
+    effective_at: Optional[dt.datetime] = None,
+) -> dict:
     pledge = await require_pledge(pledge_id)
     mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
     if mode == "VAULT":
@@ -974,6 +1004,7 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
             pledge,
             payload,
             finance={"vault_id": vault_id, "payment_mode": "VAULT"},
+            effective_at=effective_at,
         )
         if saved.get("status") == "captured":
             try:
@@ -998,6 +1029,7 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
         pledge,
         payload,
         finance={"authorization_id": pledge.get("authorization_id")},
+        effective_at=effective_at,
     )
 
 
@@ -1080,18 +1112,25 @@ async def release_vault_token_if_unused(
     return True
 
 
-def _finish_vault_void(pledge: dict, *, token_deleted: bool) -> None:
+def _finish_vault_void(pledge: dict, *, token_deleted: bool, effective_at: Optional[dt.datetime] = None) -> None:
     """Void a vaulted pledge without storing PayPal authorization void_id fields."""
     pledge.pop("void_id", None)
     pledge.pop("void_id_source", None)
     pledge.pop("void_note", None)
     pledge["vault_token_deleted"] = token_deleted
-    pledge["vault_voided_at"] = simulated_now().replace(microsecond=0).isoformat()
+    pledge["vault_voided_at"] = _event_timestamp(effective_at)
     pledge["status"] = "voided"
     pledge["history"] = list(pledge.get("history") or []) + ["voided"]
 
 
-def _stamp_void(pledge: dict, payload: Any, fallback_id: str, *, hold: str) -> None:
+def _stamp_void(
+    pledge: dict,
+    payload: Any,
+    fallback_id: str,
+    *,
+    hold: str,
+    effective_at: Optional[dt.datetime] = None,
+) -> None:
     """Store the id PayPal's void returns.
 
     A void of an authorization is often HTTP 204 with no body, or a body whose
@@ -1113,12 +1152,17 @@ def _stamp_void(pledge: dict, payload: Any, fallback_id: str, *, hold: str) -> N
         pledge["void_id"] = fallback
         pledge["void_id_source"] = hold
         pledge["void_note"] = f"PayPal's void returned no id. void_id is the {hold} id."
-    pledge["voided_at"] = simulated_now().replace(microsecond=0).isoformat()
+    pledge["voided_at"] = _event_timestamp(effective_at)
     pledge["status"] = "voided"
     pledge["history"] = list(pledge.get("history") or []) + ["voided"]
 
 
-async def void_pledge(pledge_id: str, client: Any) -> dict:
+async def void_pledge(
+    pledge_id: str,
+    client: Any,
+    *,
+    effective_at: Optional[dt.datetime] = None,
+) -> dict:
     pledge = await require_pledge(pledge_id)
     mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
     if mode == "VAULT":
@@ -1131,7 +1175,7 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
             str(vault_id),
             exclude_pledge_id=pledge_id,
         )
-        _finish_vault_void(pledge, token_deleted=token_deleted)
+        _finish_vault_void(pledge, token_deleted=token_deleted, effective_at=effective_at)
         saved = await get_ledger().save_pledge(pledge)
         from .audit import record
         await record(
@@ -1166,7 +1210,13 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "voided")
     released = client.void_authorization(pledge["authorization_id"], pledge_id=pledge_id)
-    _stamp_void(pledge, released, str(pledge["authorization_id"]), hold="authorization")
+    _stamp_void(
+        pledge,
+        released,
+        str(pledge["authorization_id"]),
+        hold="authorization",
+        effective_at=effective_at,
+    )
     saved = await get_ledger().save_pledge(pledge)
     from .audit import record
     await record(
@@ -1197,7 +1247,13 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
     return saved
 
 
-async def refund_pledge(pledge_id: str, client: Any, *, amount_eur: Optional[str] = None) -> dict:
+async def refund_pledge(
+    pledge_id: str,
+    client: Any,
+    *,
+    amount_eur: Optional[str] = None,
+    effective_at: Optional[dt.datetime] = None,
+) -> dict:
     """Treasurer refund for a captured pledge. Does not run without admin approval."""
     from .audit import record
 
@@ -1235,7 +1291,7 @@ async def refund_pledge(pledge_id: str, client: Any, *, amount_eur: Optional[str
     pledge["paypal_status"] = str(payload.get("status") or "COMPLETED") if isinstance(payload, dict) else "COMPLETED"
     if refund_id:
         pledge["refund_id"] = str(refund_id)
-    pledge["refunded_at"] = simulated_now().replace(microsecond=0).isoformat()
+    pledge["refunded_at"] = _event_timestamp(effective_at)
     pledge["history"] = list(pledge.get("history") or []) + [event]
     saved = await get_ledger().save_pledge(pledge)
     milestone_id = finance_milestone_id(saved)

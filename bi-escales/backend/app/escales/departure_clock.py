@@ -20,6 +20,16 @@ from .pledges import (
     void_pledge,
 )
 
+_STOP_DEPARTURE_KINDS = frozenset({
+    "mile",
+    "miles",
+    "night",
+    "meal",
+    "care",
+    "berth",
+    "cabin_leg",
+})
+
 
 def _parse_moment(value: Optional[str]) -> Optional[dt.datetime]:
     text = (value or "").strip()
@@ -63,16 +73,27 @@ async def departure_milestone(pledge: dict) -> Optional[dict]:
     from .naviguide_bridge import leg_by_id, leg_milestone_meta
 
     leg = leg_by_id(milestone_id)
-    if not leg:
-        return None
-    merged = leg_milestone_meta(leg)
-    if isinstance(meta, dict):
-        merged = {**merged, **meta}
-    if merged.get("capture_on") != "departure":
-        return None
-    base = dict(doc or {"_id": leg["id"], "evidence": []})
-    base["meta"] = merged
-    return base
+    if leg:
+        merged = leg_milestone_meta(leg)
+        if isinstance(meta, dict):
+            merged = {**merged, **meta}
+        if merged.get("capture_on") != "departure":
+            return None
+        base = dict(doc or {"_id": leg["id"], "evidence": []})
+        base["meta"] = merged
+        return base
+    kind = str(pledge.get("kind") or "mile").lower()
+    if milestone_id.startswith(("dep-", "ret-")) and kind in _STOP_DEPARTURE_KINDS:
+        stop_meta = dict(meta) if isinstance(meta, dict) else {}
+        departure = stop_meta.get("departure_iso") or stop_meta.get("arrival_iso")
+        if not departure:
+            return None
+        stop_meta.setdefault("capture_on", "departure")
+        stop_meta.setdefault("departure_iso", departure)
+        base = dict(doc or {"_id": milestone_id, "evidence": []})
+        base["meta"] = stop_meta
+        return base
+    return None
 
 
 async def refuse_cancelled_departure(pledge: dict) -> None:
@@ -110,9 +131,10 @@ async def _void_cancelled_departure(
     *,
     mode: str,
     actions: list[dict],
+    effective_at: Optional[dt.datetime] = None,
 ) -> None:
     try:
-        saved = await void_pledge(pledge_id, client)
+        saved = await void_pledge(pledge_id, client, effective_at=effective_at)
         actions.append({"pledge_id": saved["_id"], "action": "void"})
     except Exception as exc:
         if mode == "VAULT":
@@ -153,7 +175,9 @@ async def run_departure_clock(client: Any, *, now: Optional[dt.datetime] = None)
             continue
         if mode == "VAULT" and status == "token_delete_pending":
             if _cancelled(doc):
-                await _void_cancelled_departure(pledge_id, client, mode=mode, actions=actions)
+                await _void_cancelled_departure(
+                    pledge_id, client, mode=mode, actions=actions, effective_at=moment,
+                )
             continue
         if mode == "VAULT":
             if status != "vaulted":
@@ -162,13 +186,15 @@ async def run_departure_clock(client: Any, *, now: Optional[dt.datetime] = None)
             continue
         try:
             if _cancelled(doc):
-                await _void_cancelled_departure(pledge_id, client, mode=mode, actions=actions)
+                await _void_cancelled_departure(
+                    pledge_id, client, mode=mode, actions=actions, effective_at=moment,
+                )
                 continue
             departure = _parse_moment((doc.get("meta") or {}).get("departure_iso"))
             if departure is None or moment.date() < departure.date():
                 actions.append({"pledge_id": pledge_id, "action": "wait"})
                 continue
-            saved = await capture_pledge(pledge_id, client)
+            saved = await capture_pledge(pledge_id, client, effective_at=moment)
             actions.append({"pledge_id": saved["_id"], "action": "capture"})
         except Exception as exc:
             if mode == "VAULT":

@@ -7,10 +7,12 @@ from typing import Any, Optional
 
 from .ledger import list_finance_entries, now_iso, record_finance, update_finance_entry
 from .paypal_idempotency import paypal_request_id
+from .pledges import _client_key
 
 CREW_PRODUCT_NAME = "Crew supporter"
 CREW_PLAN_NAME = "Crew supporter monthly"
 CREW_SETUP_KEY = "crew_supporter_catalog"
+SUBSCRIPTION_CREATE_CACHE_KIND = "paypal_subscription_create_cache"
 
 
 async def _catalog_row() -> Optional[dict]:
@@ -73,6 +75,41 @@ def _subscription_approve_link(payload: dict) -> Optional[str]:
     return None
 
 
+async def _subscription_create_cache_get(client_key: str) -> Optional[dict]:
+    for entry in await list_finance_entries():
+        if entry.get("kind") != SUBSCRIPTION_CREATE_CACHE_KIND:
+            continue
+        if str(entry.get("client_key") or "") != client_key:
+            continue
+        cached = entry.get("create_response")
+        if isinstance(cached, dict):
+            return dict(cached)
+    return None
+
+
+async def _subscription_create_cache_put(client_key: str, response: dict) -> None:
+    await record_finance(
+        SUBSCRIPTION_CREATE_CACHE_KIND,
+        client_key=client_key,
+        create_response=response,
+    )
+
+
+def _subscription_create_response(
+    catalog: dict,
+    plan_id: str,
+    payload: dict,
+) -> dict:
+    subscription_id = str(payload.get("id") or "")
+    return {
+        "product_id": catalog.get("product_id"),
+        "plan_id": plan_id,
+        "subscription_id": subscription_id,
+        "approve_link": _subscription_approve_link(payload),
+        "status": payload.get("status"),
+    }
+
+
 async def create_crew_subscription(
     client: Any,
     *,
@@ -85,21 +122,22 @@ async def create_crew_subscription(
     plan_id = str(catalog.get("plan_id") or "")
     if not plan_id:
         raise ValueError("crew supporter plan is not configured")
-    ref = str(client_key or "").strip() or secrets.token_hex(16)
+    replay_key = _client_key(client_key)
+    if replay_key:
+        cached = await _subscription_create_cache_get(replay_key)
+        if cached:
+            return cached
+    idempotency = replay_key[:127] if replay_key else secrets.token_hex(16)
     payload = client.create_billing_subscription(
         plan_id=plan_id,
         return_url=return_url,
         cancel_url=cancel_url,
-        idempotency_key=paypal_request_id(ref, "sub-create"),
+        idempotency_key=idempotency,
     )
-    subscription_id = str(payload.get("id") or "")
-    return {
-        "product_id": catalog.get("product_id"),
-        "plan_id": plan_id,
-        "subscription_id": subscription_id,
-        "approve_link": _subscription_approve_link(payload),
-        "status": payload.get("status"),
-    }
+    result = _subscription_create_response(catalog, plan_id, payload)
+    if replay_key:
+        await _subscription_create_cache_put(replay_key, result)
+    return result
 
 
 async def approve_crew_subscription(
@@ -114,7 +152,11 @@ async def approve_crew_subscription(
         raise ValueError("subscription_id is required")
     remote = client.get_subscription(sub_id)
     remote_plan = str(remote.get("plan_id") or plan_id or "").strip()
-    status = str(remote.get("status") or "ACTIVE")
+    status = str(remote.get("status") or "").strip().upper()
+    if status != "ACTIVE":
+        raise ValueError(
+            f"subscription status is {status or 'unknown'}; complete PayPal approval before recording"
+        )
     subscriber = remote.get("subscriber") if isinstance(remote.get("subscriber"), dict) else {}
     email = subscriber.get("email_address") if isinstance(subscriber, dict) else None
     return await record_subscription(

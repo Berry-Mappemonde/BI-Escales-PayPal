@@ -117,8 +117,17 @@ _TIMEOUT_ENV = {
     "tokenfactory": "ESCALES_LLM_TIMEOUT_TOKENFACTORY_S",
 }
 _TRUTHY = {"1", "true", "yes", "on"}
-_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
-_THINK_OPEN_RE = re.compile(r"<think\b[^>]*>.*\Z", re.IGNORECASE | re.DOTALL)
+_THINK_TAG = "think"
+_THINK_OPEN_MARK = "<" + _THINK_TAG
+_THINK_CLOSE_MARK = "</" + _THINK_TAG + ">"
+_THINK_BLOCK_RE = re.compile(
+    re.escape(_THINK_OPEN_MARK) + r"\b[^>]*>.*?" + re.escape(_THINK_CLOSE_MARK),
+    re.IGNORECASE | re.DOTALL,
+)
+_THINK_OPEN_RE = re.compile(
+    re.escape(_THINK_OPEN_MARK) + r"\b[^>]*>.*\Z",
+    re.IGNORECASE | re.DOTALL,
+)
 
 _DEFAULT_SYSTEM = (
     "You are the Blue Intelligence Escales captain. "
@@ -465,7 +474,7 @@ def _client() -> httpx.AsyncClient:
 
 
 def _clean_text(txt: str | None) -> str:
-    """Drop thinking traces and a wrapping code fence. Keep the visitor sentence."""
+    """Drop reasoning traces and a wrapping code fence. Keep the visitor sentence."""
     text = _THINK_BLOCK_RE.sub("", txt or "")
     text = _THINK_OPEN_RE.sub("", text).strip()
     if text.startswith("```"):
@@ -475,7 +484,18 @@ def _clean_text(txt: str | None) -> str:
         if lines and lines[-1].strip() == "```":
             lines = lines[:-1]
         text = "\n".join(lines).strip()
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text, re.IGNORECASE)
+    if fence:
+        text = fence.group(1).strip()
     return text.strip()
+
+
+def _json_object_slice(cleaned: str) -> str:
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start < 0 or end <= start:
+        raise RuntimeError("LLM JSON parse failed")
+    return cleaned[start : end + 1]
 
 
 class ProviderHTTPError(RuntimeError):
@@ -1071,16 +1091,13 @@ def advisory_matches_schema(data: Any) -> bool:
 
 
 def parse_json_object(text: str) -> dict[str, Any]:
-    """Accept a raw object or one JSON object wrapped in prose or a fence."""
+    """Accept a raw object or one JSON object wrapped in prose, fences, or reasoning."""
     cleaned = _clean_text(text)
+    snippet = _json_object_slice(cleaned)
     try:
-        data = json.loads(cleaned)
-    except json.JSONDecodeError:
-        start = cleaned.find("{")
-        end = cleaned.rfind("}")
-        if start < 0 or end <= start:
-            raise RuntimeError("LLM JSON parse failed")
-        data = json.loads(cleaned[start:end + 1])
+        data = json.loads(snippet)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("LLM JSON parse failed") from exc
     if not isinstance(data, dict):
         raise RuntimeError("LLM JSON was not an object")
     return data

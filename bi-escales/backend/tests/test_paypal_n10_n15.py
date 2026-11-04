@@ -94,6 +94,4 @@ def test_n15_subscription_create_idempotency_key_unique_per_request():
     assert one.status_code == 200
     assert two.status_code == 200
     assert len(captured) == 2
-    assert captured[0] != captured[1]
-    assert "buyer-a" in captured[0]
-    assert "buyer-b" in captured[1]
+    assert captured == ["buyer-a", "buyer-b"]

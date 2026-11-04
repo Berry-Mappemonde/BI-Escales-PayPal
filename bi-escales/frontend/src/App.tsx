@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { fetchHealth, listMilestones } from "./api/escales";
 import type { Milestone, PublicPledge } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
-import { TreasurerGrid } from "./components/TreasurerGrid";
+import { TreasurerGrid, TreasurerStudioSection } from "./components/TreasurerGrid";
 import { TreasurerQueue } from "./components/TreasurerQueue";
 import { setLanguage } from "./i18n";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
@@ -104,6 +104,7 @@ export default function App() {
           />
         </div>
       </main>
+      <TreasurerStudioSection pledges={pledges} />
     </div>
   );
 }

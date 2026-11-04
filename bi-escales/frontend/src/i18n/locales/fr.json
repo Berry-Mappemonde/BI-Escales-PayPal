@@ -62,5 +62,22 @@
     "applyCapture": "Encaisser (selon proposition)",
     "applyVoid": "Annuler (selon proposition)",
     "noProposal": "Aucune proposition enregistrée pour ce jalon."
+  },
+  "studio": {
+    "heading": "Tableau de bord AG Studio",
+    "loading": "Chargement d’AG Studio…",
+    "scoreTitle": "Validation humaine",
+    "scoreHint": "Le capitaine propose. Seul le trésorier encaisse ou annule.",
+    "authorized": "Autorisées",
+    "captured": "Encaissées",
+    "voided": "Annulées",
+    "agentDelegating": "Je passe la question à l’agent data d’AG Studio.",
+    "agentAdding": "J’ajoute la jauge de validation humaine.",
+    "agentReply": "Le capitaine propose, le trésorier décide. Aucune promesse n’est encaissée sans validation humaine.",
+    "agentReplyAdded": "La jauge de validation humaine est sur la page. Le débit reste une décision humaine.",
+    "promptTotals": "Totaux par statut",
+    "promptTotalsText": "Quels sont les montants autorisés, encaissés et annulés ? Rappelle que seul un humain peut encaisser.",
+    "promptWidget": "Ajouter la jauge",
+    "promptWidgetText": "Ajoute la jauge de validation humaine sur le tableau de bord."
   }
 }

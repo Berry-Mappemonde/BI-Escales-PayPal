@@ -19,10 +19,11 @@
   },
   "optionalDependencies": {
     "ag-grid-community": "^34.3.0",
-    "ag-grid-react": "^34.3.0"
+    "ag-grid-react": "^34.3.0",
+    "ag-studio": "^3.0.0",
+    "ag-studio-react": "^3.0.0"
   },
-    "devDependencies": {
-    "@testing-library/dom": "^10.4.1",
+  "devDependencies": {
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",

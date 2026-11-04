@@ -2,10 +2,11 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { captainReview, capturePledge, voidPledge } from "../api/escales";
 import type { CaptainProposal, Milestone, PublicPledge } from "../api/types";
-import { featureAgGridEnabled } from "../config/features";
+import { featureAgGridEnabled, featureAgStudioEnabled } from "../config/features";
 import { buildGaugeRows, gaugePercent } from "../utils/gauges";
 
 const AgGridTreasurerTable = lazy(() => import("./TreasurerGridAg"));
+const TreasurerStudio = lazy(() => import("./TreasurerStudio"));
 
 export interface TreasurerGridProps {
   pledges: PublicPledge[];
@@ -209,6 +210,20 @@ export function TreasurerGrid(props: TreasurerGridProps) {
         onProposal={mergeProposal}
         onPledgeUpdated={props.onPledgeUpdated}
       />
+    </section>
+  );
+}
+
+/** Full-width AG Studio report. Renders nothing while the feature flag is off. */
+export function TreasurerStudioSection({ pledges }: { pledges: PublicPledge[] }) {
+  const { t, i18n } = useTranslation();
+  if (!featureAgStudioEnabled()) return null;
+  return (
+    <section className="panel studio-block">
+      <h2>{t("studio.heading")}</h2>
+      <Suspense fallback={<p className="hint">{t("studio.loading")}</p>}>
+        <TreasurerStudio key={i18n.language} pledges={pledges} />
+      </Suspense>
     </section>
   );
 }

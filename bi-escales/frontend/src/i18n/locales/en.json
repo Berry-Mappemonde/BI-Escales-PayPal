@@ -62,5 +62,22 @@
     "applyCapture": "Capture (per proposal)",
     "applyVoid": "Void (per proposal)",
     "noProposal": "No proposal stored for this milestone."
+  },
+  "studio": {
+    "heading": "AG Studio dashboard",
+    "loading": "Loading AG Studio…",
+    "scoreTitle": "Human validation",
+    "scoreHint": "The captain proposes. Only the treasurer captures or voids.",
+    "authorized": "Authorized",
+    "captured": "Captured",
+    "voided": "Voided",
+    "agentDelegating": "Handing the question to AG Studio's data agent.",
+    "agentAdding": "Adding the human-validation gauge.",
+    "agentReply": "The captain proposes, the treasurer decides. No pledge is captured without a human validation.",
+    "agentReplyAdded": "The human-validation gauge is on the page. Capture stays a human decision.",
+    "promptTotals": "Totals by status",
+    "promptTotalsText": "What are the authorized, captured and voided amounts? Remind me that only a human can capture.",
+    "promptWidget": "Add the gauge",
+    "promptWidgetText": "Add the human-validation gauge to the dashboard."
   }
 }

@@ -37,6 +37,10 @@ HEADERS = {
 
 
 class FakePayPal:
+    """Test double. Signature checks never call PayPal."""
+
+    webhook_signature_mock = True
+
     def __init__(self):
         self.verify_calls = 0
 

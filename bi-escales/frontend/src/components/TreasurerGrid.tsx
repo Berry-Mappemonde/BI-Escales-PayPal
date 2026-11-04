@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { captainReview, capturePledge, voidPledge } from "../api/escales";
 import type { CaptainProposal, Milestone, PublicPledge } from "../api/types";
-import { featureAgGridEnabled } from "../config/features";
+import { featureAgGridEnabled, featureAgStudioEnabled } from "../config/features";
 import { buildGaugeRows, gaugePercent } from "../utils/gauges";
+import { formatMoney } from "../utils/money";
 
 type AgTableProps = { rows: ReturnType<typeof buildGaugeRows> };
 
@@ -58,41 +59,54 @@ function GaugeBar({ label, percent, tone }: { label: string; percent: number; to
 }
 
 function FallbackTreasurerTable({ rows }: { rows: ReturnType<typeof buildGaugeRows> }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const money = (value: number) => formatMoney(value, i18n.language);
   return (
     <table className="fallback-table grid-table" data-testid="treasurer-fallback-table">
       <thead>
         <tr>
           <th>{t("grid.milestone")}</th>
+          <th>{t("grid.created")}</th>
           <th>{t("grid.authorized")}</th>
+          <th>{t("grid.vaulted")}</th>
+          <th>{t("grid.pending")}</th>
           <th>{t("grid.captured")}</th>
+          <th>{t("grid.settled")}</th>
+          <th>{t("grid.failed")}</th>
           <th>{t("grid.voided")}</th>
+          <th>{t("grid.refunded")}</th>
         </tr>
       </thead>
       <tbody>
         {rows.map((row) => (
           <tr key={row.milestone_id}>
             <td>{row.milestone_id}</td>
+            <td>{row.created_count}</td>
             <td>
-              {row.authorized_count} ({row.authorized_total_eur.toFixed(2)} €)
+              {row.authorized_count} ({money(row.authorized_total_eur)})
               <GaugeBar
                 label={t("grid.authorized")}
                 percent={gaugePercent(row, "authorized")}
                 tone="tone-auth"
               />
             </td>
+            <td>{row.vaulted_count}</td>
+            <td>{row.pending_count}</td>
             <td>
-              {row.captured_count} ({row.captured_total_eur.toFixed(2)} €)
+              {row.captured_count} ({money(row.captured_total_eur)})
               <GaugeBar
                 label={t("grid.captured")}
                 percent={gaugePercent(row, "captured")}
                 tone="tone-cap"
               />
             </td>
+            <td>{row.settled_count}</td>
+            <td>{row.failed_count}</td>
             <td>
               {row.voided_count}
               <GaugeBar label={t("grid.voided")} percent={gaugePercent(row, "voided")} tone="tone-void" />
             </td>
+            <td>{row.refunded_count}</td>
           </tr>
         ))}
       </tbody>
@@ -190,12 +204,12 @@ export function CaptainProposalWidget({
           ) : null}
           {stored.justification ? <p>{stored.justification}</p> : null}
           <p>IDs: {stored.pledge_ids.join(", ") || "—"}</p>
-          {stored.proposal === "capture" ? (
+          {stored.proposal === "capture" && stored.pledge_ids.length > 0 ? (
             <button type="button" disabled={busy} onClick={() => void applyProposal("capture")}>
               {t("grid.applyCapture")}
             </button>
           ) : null}
-          {stored.proposal === "void" ? (
+          {stored.proposal === "void" && stored.pledge_ids.length > 0 ? (
             <button type="button" disabled={busy} onClick={() => void applyProposal("void")}>
               {t("grid.applyVoid")}
             </button>
@@ -238,6 +252,22 @@ export function TreasurerGrid(props: TreasurerGridProps) {
         onProposal={mergeProposal}
         onPledgeUpdated={props.onPledgeUpdated}
       />
+    </section>
+  );
+}
+
+const TreasurerStudio = lazy(() => import("./TreasurerStudio"));
+
+/** Full-width AG Studio report. The chunk loads only when the flag is on. */
+export function TreasurerStudioSection({ pledges }: { pledges: PublicPledge[] }) {
+  const { t, i18n } = useTranslation();
+  if (!featureAgStudioEnabled()) return null;
+  return (
+    <section className="panel studio-block">
+      <h2>{t("studio.heading")}</h2>
+      <Suspense fallback={<p className="hint">{t("studio.loading")}</p>}>
+        <TreasurerStudio key={i18n.language} pledges={pledges} />
+      </Suspense>
     </section>
   );
 }

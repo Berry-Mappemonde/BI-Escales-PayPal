@@ -2,7 +2,9 @@
 // This is not AG Studio and not the Studio Agent Framework.
 import { useMemo } from "react";
 import { AgGridReact } from "ag-grid-react";
-import type { ColDef } from "ag-grid-community";
+import { AllCommunityModule, ModuleRegistry, type ColDef } from "ag-grid-community";
+
+ModuleRegistry.registerModules([AllCommunityModule]);
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import type { PledgeGaugeRow } from "../api/types";

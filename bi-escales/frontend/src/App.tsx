@@ -7,7 +7,7 @@ import { EscalesPanel } from "./components/EscalesPanel";
 import { EscalesScheduler } from "./components/EscalesScheduler";
 import { FinanceLedgerPanel } from "./components/FinanceLedgerPanel";
 import { PledgeLifecycle } from "./components/PledgeLifecycle";
-import { TreasurerGrid } from "./components/TreasurerGrid";
+import { TreasurerGrid, TreasurerStudioSection } from "./components/TreasurerGrid";
 import { TreasurerQueue } from "./components/TreasurerQueue";
 import { setLanguage } from "./i18n";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
@@ -120,6 +120,7 @@ export default function App() {
           <FinanceLedgerPanel adminKey={adminKey} />
         </div>
       </main>
+      <TreasurerStudioSection pledges={pledges} />
     </div>
   );
 }

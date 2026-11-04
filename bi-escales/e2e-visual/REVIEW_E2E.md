@@ -1,5 +1,42 @@
 # End-to-end review — BI Escales (Pay Only If We Sail)
 
+## Ledger persistence (decision)
+
+Render’s free web service disk is ephemeral. The docs say local files, including a SQLite database, are lost on redeploy, restart, and whenever the free instance spins down after 15 minutes without traffic. A JSON snapshot on that disk has the same fate. Free Render Key Value is in-memory and also drops its data on restart.
+
+Free Render Postgres is the option that keeps the ledger across those events. Limits, from [Render’s free-instance docs](https://render.com/docs/free): one free database per workspace, 1 GB, no backups, and the database expires 30 days after creation (14-day grace, then deletion). That window covers a hackathon demo if the database is created near the jury date. The web service can reach it on the private network. `render.yaml` creates `bi-escales-db` (plan `free`) and injects `DATABASE_URL`. `ESCALES_POSTGRES_ENABLED` stays empty in `.env.example`, so local pytest and the demo script keep the in-memory ledger. The blueprint turns the flag on for the deployed demo.
+
+SQLite was rejected for this host. It would only be durable with a paid persistent disk, which free web services cannot attach.
+
+## Live sandbox attempt (2026-11-04, later run)
+
+`PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` were **not** in this process environment. They are also absent from `CLOUD_AGENT_INJECTED_SECRET_NAMES` (that list is `NVIDIA_API_KEY`, `EARTHDATA_TOKEN`, plus non-PayPal names on `CLOUD_AGENT_ALL_SECRET_NAMES`). `PAYPAL_WEBHOOK_ID` and `PAYPAL_ENV` are unset too. No values were printed or written down.
+
+Because of that, none of the live flows ran: create order, AUTHORIZE, capture, void, Vault (≥ 29 days), or `verify-webhook-signature`. `test_live_sandbox_create_authorize_order` and `test_live_webhook_verify_reaches_sandbox` stay skipped. No sandbox webhook was created. A public URL was not required, and the webhook simulator was not called.
+
+This VM was already running when the secrets were added to Cursor Cloud Agents. A **new** agent run, started after those secrets are saved for this environment, is what injects them. Re-run the live tests on that run.
+
+## PayPal webhook signatures
+
+`PayPalClient.verify_webhook_signature` posts the original raw body to `POST /v1/notifications/verify-webhook-signature`. `signature_client` uses that live client when a client id, a secret, and `PAYPAL_WEBHOOK_ID` are set. Test doubles and `DemoPayPalClient` set `webhook_signature_mock` and never call PayPal. `test_live_webhook_verify_reaches_sandbox` is skipped until those sandbox values exist; it then calls the real endpoint. A forged body is expected to come back `FAILURE` (or HTTP below 500), which is enough to prove the call left the process. No sandbox credentials are in this environment, so that live test is skipped here.
+
+The AG Studio / AG Grid trial watermark stays. No license key is set for the hackathon.
+
+## This fix branch
+
+`hackathon/e2e-fixes` starts from `cursor/visual-review-playwright-4bec` and merges `hackathon/l8-llm` at `76b8a49`.
+
+Checks on this branch:
+
+| Suite | Result |
+| --- | --- |
+| `bi-escales/backend` pytest | 147 passed, 2 skipped (live PayPal order, live webhook verify — no sandbox credentials) |
+| `bi-escales/frontend` vitest | 13 passed |
+| `advisoryLabel.node-test.mjs` (`node --test`) | 3 passed |
+| `npm run build` | passed; `TreasurerStudio-*.js` is a separate chunk (~6 MB), not the main bundle |
+| Playwright `user-journey` + `paypal-journey` | 2 passed |
+| `naviguide-escales` pytest | 1692 passed, 2 failed, 3 skipped, 1 collection error. The failures and `test_wind_float16` are the gaps PR #5 already fixes. That PR is not in this branch. |
+
 Date of the run: 2026-11-04. Desktop Chromium, 1440×900. This file is the full review Clément asked for. The shorter visual pass remains in `REVIEW.md`.
 
 ## Scope and how the branches were combined

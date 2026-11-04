@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { isQueuedPledge } from "./queueFilter";
+import { canCapturePledge, canVoidPledge, isQueuedPledge } from "./queueFilter";
 
 describe("isQueuedPledge", () => {
-  it("includes authorized, vaulted and pending pledges", () => {
-    expect(isQueuedPledge("authorized")).toBe(true);
-    expect(isQueuedPledge("vaulted")).toBe(true);
-    expect(isQueuedPledge("pending")).toBe(true);
-    expect(isQueuedPledge("created")).toBe(false);
-    expect(isQueuedPledge("captured")).toBe(false);
+  it("shows every PayPal status the treasurer should see", () => {
+    for (const status of ["created", "authorized", "vaulted", "pending", "captured", "settled", "failed", "voided", "refunded"]) {
+      expect(isQueuedPledge(status)).toBe(true);
+    }
+  });
+});
+
+describe("actions", () => {
+  it("voids a pending pledge and captures only a hold", () => {
+    expect(canVoidPledge("pending")).toBe(true);
+    expect(canCapturePledge("pending")).toBe(false);
+    expect(canCapturePledge("authorized")).toBe(true);
+    expect(canCapturePledge("vaulted")).toBe(true);
   });
 });

@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 
-from .config import paypal_webhook_id, zapiper_enabled
+from .config import load_config, paypal_webhook_id, zapiper_enabled
 from .ledger import get_ledger, record_finance
 from .paypal_client import PayPalClient, PayPalError
 
@@ -30,6 +30,7 @@ _EVENT_STATUS = {
     "PAYMENT.CAPTURE.COMPLETED": ("settled", "COMPLETED"),
     "PAYMENT.CAPTURE.DENIED": ("failed", "DENIED"),
     "PAYMENT.CAPTURE.PENDING": ("pending", "PENDING"),
+    "PAYMENT.CAPTURE.REFUNDED": ("refunded", "REFUNDED"),
 }
 
 
@@ -44,15 +45,36 @@ def _dedup_key(event: dict, transmission_id: str) -> str:
 
 
 def _webhook_may_update(current: str, target: str) -> bool:
-    if current in {"voided", "failed", "settled"}:
+    if current in {"voided", "failed", "refunded"}:
+        return False
+    if current == "settled" and target != "refunded":
         return False
     if target == "voided":
         return current in {"created", "authorized", "vaulted", "pending"}
     if target == "pending":
         return current in {"created", "authorized", "vaulted"}
+    if target == "refunded":
+        return current in {"captured", "settled", "pending"}
     if target in {"settled", "failed"}:
         return current in {"created", "authorized", "vaulted", "pending", "captured"}
     return False
+
+
+def signature_client(client: Any) -> Any:
+    """Pick who calls PayPal ``verify-webhook-signature``.
+
+    A test double or the local demo stand-in sets ``webhook_signature_mock``.
+    Those stay in-process. When a client id, secret, and ``PAYPAL_WEBHOOK_ID``
+    are set and the caller is not a mock, the live ``PayPalClient`` is used.
+    """
+    if getattr(client, "webhook_signature_mock", False):
+        return client
+    cfg = load_config()
+    if cfg.configured and paypal_webhook_id():
+        if isinstance(client, PayPalClient):
+            return client
+        return PayPalClient(cfg)
+    return client
 
 
 async def verify_and_process(
@@ -87,7 +109,7 @@ async def verify_and_process(
         raise WebhookDuplicate(transmission_id)
 
     try:
-        verification = client.verify_webhook_signature(
+        verification = signature_client(client).verify_webhook_signature(
             auth_algo=auth_algo,
             cert_url=cert_url,
             transmission_id=transmission_id,

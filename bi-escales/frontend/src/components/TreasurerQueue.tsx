@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { capturePledge, voidPledge } from "../api/escales";
 import type { PublicPledge } from "../api/types";
-import { isQueuedPledge } from "../hooks/queueFilter";
+import { canCapturePledge, canVoidPledge, isQueuedPledge } from "../hooks/queueFilter";
+import { formatMoney } from "../utils/money";
 import { PayPalStatusBadge } from "./PayPalStatusBadge";
 
 export interface TreasurerQueueProps {
@@ -24,7 +25,7 @@ export function TreasurerQueue({
   onRefresh,
   onUpdated,
 }: TreasurerQueueProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -98,27 +99,29 @@ export function TreasurerQueue({
                 <td>
                   <PayPalStatusBadge pledge={p} />
                 </td>
-                <td>
-                  {p.amount_eur} {p.currency}
-                </td>
+                <td>{formatMoney(p.amount_eur, i18n.language)}</td>
                 <td>{p.description}</td>
                 <td>{p.milestone_id}</td>
                 <td className="actions">
-                  <button
-                    type="button"
-                    disabled={busyId === p.id}
-                    onClick={() => void runAction(p.id, "capture")}
-                  >
-                    {t("treasurer.capture")}
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={busyId === p.id}
-                    onClick={() => void runAction(p.id, "void")}
-                  >
-                    {t("treasurer.void")}
-                  </button>
+                  {canCapturePledge(p.status) ? (
+                    <button
+                      type="button"
+                      disabled={busyId === p.id}
+                      onClick={() => void runAction(p.id, "capture")}
+                    >
+                      {t("treasurer.capture")}
+                    </button>
+                  ) : null}
+                  {canVoidPledge(p.status) ? (
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busyId === p.id}
+                      onClick={() => void runAction(p.id, "void")}
+                    >
+                      {t("treasurer.void")}
+                    </button>
+                  ) : null}
                 </td>
               </tr>
             ))}

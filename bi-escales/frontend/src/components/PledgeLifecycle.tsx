@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { PublicPledge } from "../api/types";
 import { PayPalStatusBadge } from "./PayPalStatusBadge";
+import { formatMoney } from "../utils/money";
 
 const KNOWN_STATUSES = [
   "created",
@@ -20,7 +21,7 @@ export function PledgeLifecycle({
   pledges: PublicPledge[];
   needsKey?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const seen = new Set(pledges.map((p) => p.status));
 
   return (
@@ -56,7 +57,7 @@ export function PledgeLifecycle({
             >
               <PayPalStatusBadge pledge={pledge} />
               <p>
-                {pledge.amount_eur} {pledge.currency} — {pledge.description}
+                {formatMoney(pledge.amount_eur, i18n.language)} — {pledge.description}
               </p>
               <ol className="timeline">
                 {(pledge.history && pledge.history.length > 0 ? pledge.history : [pledge.status]).map(

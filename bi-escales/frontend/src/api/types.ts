@@ -6,7 +6,8 @@ export type PledgeStatus =
   | "captured"
   | "settled"
   | "failed"
-  | "voided";
+  | "voided"
+  | "refunded";
 
 export interface PublicPledge {
   id: string;
@@ -97,4 +98,10 @@ export interface PledgeGaugeRow {
   captured_count: number;
   captured_total_eur: number;
   voided_count: number;
+  created_count: number;
+  vaulted_count: number;
+  pending_count: number;
+  failed_count: number;
+  settled_count: number;
+  refunded_count: number;
 }

@@ -1,5 +1,15 @@
 # Render blueprint (optional). Core runs locally without Render.
 # Enable deployment only when you set ESCALES_ENABLED on the service.
+databases:
+  # Free Postgres survives a free web service spin-down. The service disk does not.
+  # The database expires 30 days after creation (Render free plan). One free
+  # database per workspace, 1 GB, no backups.
+  - name: bi-escales-db
+    plan: free
+    region: frankfurt
+    databaseName: escales
+    user: escales
+
 services:
   - type: web
     name: bi-escales-api
@@ -17,6 +27,12 @@ services:
         sync: false
       - key: ESCALES_STORE
         sync: false
+      - key: ESCALES_POSTGRES_ENABLED
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bi-escales-db
+          property: connectionString
       - key: MONGO_URL
         sync: false
       - key: PAYPAL_CLIENT_ID
@@ -53,3 +69,12 @@ services:
         value: "false"
       - key: HELLOASSO_MEMBERSHIP_URL
         sync: false
+      # Captain IP limit and LLM daily cap are off unless this is production.
+      - key: ESCALES_ENV
+        value: production
+      - key: ESCALES_CAPTAIN_RATE_PER_MINUTE
+        value: "10"
+      - key: ESCALES_CAPTAIN_RATE_PER_DAY
+        value: "100"
+      - key: ESCALES_LLM_DAILY_CAP
+        value: "100"

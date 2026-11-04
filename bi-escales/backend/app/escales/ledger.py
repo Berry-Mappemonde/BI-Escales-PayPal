@@ -198,6 +198,15 @@ class MemoryLedger:
             self._finance.append(stored)
             return copy.deepcopy(stored)
 
+    async def update_finance(self, entry_id: str, patch: dict) -> Optional[dict]:
+        with self._lock:
+            for row in self._finance:
+                if str(row.get("_id") or "") != entry_id:
+                    continue
+                row.update(copy.deepcopy(patch))
+                return copy.deepcopy(row)
+        return None
+
     async def list_finance(self) -> list[dict]:
         with self._lock:
             return [copy.deepcopy(entry) for entry in self._finance]
@@ -377,6 +386,17 @@ class MongoLedger:
         await self._finance.insert_one(stored)
         return stored
 
+    async def update_finance(self, entry_id: str, patch: dict) -> Optional[dict]:
+        await self._ensure()
+        result = await self._finance.update_one(
+            {"_id": entry_id},
+            {"$set": copy.deepcopy(patch)},
+        )
+        if not result.matched_count:
+            return None
+        doc = await self._finance.find_one({"_id": entry_id})
+        return doc
+
     async def list_finance(self) -> list[dict]:
         await self._ensure()
         cursor = self._finance.find({}).sort("at", 1)
@@ -460,6 +480,10 @@ async def record_finance(kind: str, **fields) -> dict:
 
 async def list_finance_entries() -> list[dict]:
     return await get_ledger().list_finance()
+
+
+async def update_finance_entry(entry_id: str, patch: dict) -> Optional[dict]:
+    return await get_ledger().update_finance(entry_id, patch)
 
 
 async def record_webhook_outcome(entry: dict) -> dict:

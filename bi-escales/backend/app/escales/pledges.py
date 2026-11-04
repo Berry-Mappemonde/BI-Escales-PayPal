@@ -367,9 +367,13 @@ def _create_authorize_order(client: Any, **kwargs: Any) -> dict:
         return client.create_authorize_order(**kwargs)
     except TypeError as exc:
         message = str(exc)
-        if "return_url" not in message and "cancel_url" not in message:
+        if not any(token in message for token in ("return_url", "cancel_url", "checkout_locale")):
             raise
-        slim = {key: value for key, value in kwargs.items() if key not in {"return_url", "cancel_url"}}
+        slim = {
+            key: value
+            for key, value in kwargs.items()
+            if key not in {"return_url", "cancel_url", "checkout_locale"}
+        }
         return client.create_authorize_order(**slim)
 
 
@@ -427,6 +431,7 @@ async def create_pledge(
     return_url: Optional[str] = None,
     cancel_url: Optional[str] = None,
     caller_origin: Optional[str] = None,
+    checkout_locale: Optional[str] = None,
 ) -> dict:
     amount = normalize_amount(amount_eur)
     description = _require_text(description, "description")
@@ -499,6 +504,7 @@ async def create_pledge(
             contributor=contributor,
             kind=pledge_kind,
             target_id=resolved_target,
+            checkout_locale=checkout_locale,
         )
     return await _create_authorize_pledge(
         amount=amount,
@@ -512,6 +518,7 @@ async def create_pledge(
         return_url=return_url,
         cancel_url=cancel_url,
         caller_origin=caller_origin,
+        checkout_locale=checkout_locale,
     )
 
 
@@ -528,6 +535,7 @@ async def _create_authorize_pledge(
     return_url: Optional[str] = None,
     cancel_url: Optional[str] = None,
     caller_origin: Optional[str] = None,
+    checkout_locale: Optional[str] = None,
 ) -> dict:
     key = _client_key(client_key)
     ledger = get_ledger()
@@ -555,6 +563,7 @@ async def _create_authorize_pledge(
         idempotency_key=idempotency_key,
         return_url=back,
         cancel_url=cancel,
+        checkout_locale=checkout_locale,
     )
     order_id = order.get("id")
     if not order_id:
@@ -583,6 +592,7 @@ async def _create_authorize_pledge(
         "vault_id": None,
         "vault_source": None,
         "setup_token_id": None,
+        "checkout_locale": (checkout_locale or "").strip() or None,
         "created_at": now_iso(),
         "history": ["created"],
     }
@@ -613,6 +623,7 @@ async def _create_vault_pledge(
     contributor: Optional[str],
     kind: str,
     target_id: str,
+    checkout_locale: Optional[str] = None,
 ) -> dict:
     key = _client_key(client_key)
     ledger = get_ledger()
@@ -627,6 +638,7 @@ async def _create_vault_pledge(
         _vault_callback_url(vault_cancel_url(), pledge_id, "cancel"),
         customer_id=sponsor_customer_id(pledge_id, contributor),
         idempotency_key=idempotency_key,
+        checkout_locale=checkout_locale,
     )
     setup_id = setup.get("id")
     if not setup_id:
@@ -655,6 +667,7 @@ async def _create_vault_pledge(
         "vault_id": None,
         "vault_source": None,
         "setup_token_id": str(setup_id),
+        "checkout_locale": (checkout_locale or "").strip() or None,
         "created_at": now_iso(),
         "history": ["created"],
     }
@@ -884,6 +897,44 @@ async def mark_vault_charge_failed(pledge_id: str, detail: str) -> dict:
     return saved
 
 
+async def mark_vault_token_delete_after_capture(pledge_id: str, detail: str) -> dict:
+    """Vault charge succeeded but token delete failed — keep captured, retry delete later."""
+    from .audit import record
+
+    pledge = await require_pledge(pledge_id)
+    if str(pledge.get("status") or "") != "captured":
+        raise ValueError("vault token delete retry applies only to captured pledges")
+    pledge["vault_token_delete_pending"] = True
+    pledge["vault_delete_detail"] = str(detail or "")[:200]
+    pledge["history"] = list(pledge.get("history") or []) + ["vault_token_delete_pending"]
+    saved = await get_ledger().save_pledge(pledge)
+    await record(
+        "vault_token_delete_pending",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        detail=str(detail or "")[:200],
+        payment_mode="VAULT",
+        **_identity(saved),
+    )
+    return saved
+
+
+async def retry_vault_token_delete(pledge_id: str, client: Any) -> dict:
+    """Retry PayPal vault token delete for a captured pledge."""
+    pledge = await require_pledge(pledge_id)
+    if not pledge.get("vault_token_delete_pending"):
+        return pledge
+    vault_id = str(pledge.get("vault_id") or "").strip()
+    if not vault_id:
+        raise ValueError("vault_id is required to delete token")
+    await release_vault_token_if_unused(client, vault_id, exclude_pledge_id=pledge_id)
+    pledge = await require_pledge(pledge_id)
+    pledge["vault_token_delete_pending"] = False
+    pledge.pop("vault_delete_detail", None)
+    pledge["history"] = list(pledge.get("history") or []) + ["vault_token_deleted"]
+    return await get_ledger().save_pledge(pledge)
+
+
 async def mark_token_delete_pending(pledge_id: str, detail: str) -> dict:
     """PayPal vault token delete failed on void — retry on the next departure settle."""
     from .audit import record
@@ -925,10 +976,17 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
             finance={"vault_id": vault_id, "payment_mode": "VAULT"},
         )
         if saved.get("status") == "captured":
-            await release_vault_token_if_unused(client, str(vault_id), exclude_pledge_id=pledge_id)
-            reloaded = await get_ledger().get_pledge(pledge_id)
-            if reloaded:
-                saved = reloaded
+            try:
+                await release_vault_token_if_unused(
+                    client, str(vault_id), exclude_pledge_id=pledge_id,
+                )
+                reloaded = await get_ledger().get_pledge(pledge_id)
+                if reloaded:
+                    saved = reloaded
+            except Exception as exc:
+                saved = await mark_vault_token_delete_after_capture(
+                    pledge_id, _vault_delete_failure_detail(exc),
+                )
         return saved
     _require_status(pledge, "authorized", "captured")
     if not pledge.get("authorization_id"):
@@ -943,7 +1001,19 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
     )
 
 
-_VAULT_VOID_CLOSED = frozenset({"voided", "captured", "charge_failed"})
+_VAULT_VOID_CLOSED = frozenset({
+    "voided",
+    "captured",
+    "charge_failed",
+    "refunded",
+    "partially_refunded",
+})
+
+
+def _vault_delete_failure_detail(exc: Exception) -> str:
+    if isinstance(exc, PayPalError):
+        return str(exc.body or exc)[:200]
+    return str(exc)[:200]
 
 
 async def _other_open_pledges_share_vault(vault_id: str, exclude_pledge_id: str) -> bool:
@@ -1132,22 +1202,41 @@ async def refund_pledge(pledge_id: str, client: Any, *, amount_eur: Optional[str
     from .audit import record
 
     pledge = await require_pledge(pledge_id)
-    _require_status(pledge, "captured", "refunded")
+    current = str(pledge.get("status") or "")
+    if current not in ("captured", "partially_refunded"):
+        raise IllegalTransition(current, "refunded")
     capture_id = str(pledge.get("capture_id") or "").strip()
     if not capture_id:
         raise ValueError("capture_id is required to refund")
+    capture_total = Decimal(str(pledge.get("amount_eur") or "0"))
+    already_refunded = Decimal(str(pledge.get("refunded_amount_eur") or "0"))
+    if amount_eur:
+        refund_this = Decimal(normalize_amount(amount_eur))
+    else:
+        refund_this = capture_total - already_refunded
+    if refund_this <= Decimal("0"):
+        raise ValueError("refund amount must be positive")
+    if already_refunded + refund_this > capture_total:
+        raise ValueError("refund exceeds captured amount")
     payload = client.refund_capture(
         capture_id,
-        amount_eur=amount_eur,
+        amount_eur=f"{refund_this:.2f}",
         pledge_id=pledge_id,
     )
     refund_id = payload.get("id") if isinstance(payload, dict) else None
-    pledge["status"] = "refunded"
+    total_refunded = already_refunded + refund_this
+    pledge["refunded_amount_eur"] = f"{total_refunded:.2f}"
+    if total_refunded >= capture_total:
+        pledge["status"] = "refunded"
+        event = "refunded"
+    else:
+        pledge["status"] = "partially_refunded"
+        event = "partially_refunded"
     pledge["paypal_status"] = str(payload.get("status") or "COMPLETED") if isinstance(payload, dict) else "COMPLETED"
     if refund_id:
         pledge["refund_id"] = str(refund_id)
     pledge["refunded_at"] = simulated_now().replace(microsecond=0).isoformat()
-    pledge["history"] = list(pledge.get("history") or []) + ["refunded"]
+    pledge["history"] = list(pledge.get("history") or []) + [event]
     saved = await get_ledger().save_pledge(pledge)
     milestone_id = finance_milestone_id(saved)
     await record(
@@ -1155,21 +1244,23 @@ async def refund_pledge(pledge_id: str, client: Any, *, amount_eur: Optional[str
         actor="treasurer",
         pledge_id=saved["_id"],
         milestone_id=milestone_id,
-        amount_eur=saved.get("amount_eur"),
+        amount_eur=f"{refund_this:.2f}",
         currency="EUR",
         capture_id=capture_id,
         refund_id=saved.get("refund_id"),
+        refunded_amount_eur=saved.get("refunded_amount_eur"),
         **_identity(saved),
     )
     await record_finance(
         "pledge_refunded",
         pledge_id=saved["_id"],
         milestone_id=milestone_id,
-        amount_eur=amount_eur or saved.get("amount_eur"),
+        amount_eur=f"{refund_this:.2f}",
         currency="EUR",
         capture_id=capture_id,
         refund_id=saved.get("refund_id"),
-        status="refunded",
+        refunded_amount_eur=saved.get("refunded_amount_eur"),
+        status=saved.get("status"),
         actor="treasurer",
         **_identity(saved),
     )

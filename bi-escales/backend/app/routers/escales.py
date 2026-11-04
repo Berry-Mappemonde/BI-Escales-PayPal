@@ -147,6 +147,7 @@ class PledgeIn(BaseModel):
     )
     return_url: Optional[str] = None
     cancel_url: Optional[str] = None
+    lang: Optional[str] = None
 
 
 class EvidenceIn(BaseModel):
@@ -409,6 +410,7 @@ async def post_pledge(body: PledgeIn, request: Request):
             return_url=body.return_url,
             cancel_url=body.cancel_url,
             caller_origin=f"{request.url.scheme}://{request.url.netloc}",
+            checkout_locale=body.lang or lang_for(request.headers.get("accept-language", "")),
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
@@ -508,7 +510,11 @@ async def post_payout_approve(payout_id: str, request: Request):
         return await approve_project_payout(payout_id, _paypal())
     except PayoutNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except (PayoutStateError, PayPalError, ValueError) as exc:
+    except PayoutStateError as exc:
+        if "already" in str(exc).lower():
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise _as_http(exc) from exc
+    except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
 
 

@@ -2659,9 +2659,28 @@ def _cabin_price_reply(lang: str) -> str:
 
 
 _PAYPAL_READONLY = re.compile(
-    r"\b(?:paypal\s+)?(?:transaction|dispute|order|authorization)s?\b",
+    r"\b(?:list|show|search|check)\s+(?:paypal\s+)?(?:transactions?|disputes?)\b",
     re.IGNORECASE,
 )
+
+
+def _is_paypal_readonly_question(message: str) -> bool:
+    text = message or ""
+    if _PAYPAL_READONLY.search(text):
+        return True
+    if re.search(
+        r"\bpaypal\s+(?:transaction|dispute)\s+(?:search|list)\b",
+        text,
+        re.I,
+    ):
+        return True
+    if re.search(
+        r"\b(?:tr[ée]sorier|treasurer)\b.*\b(?:transaction|dispute)s?\b",
+        text,
+        re.I,
+    ):
+        return True
+    return False
 
 
 def _paypal_search_window() -> tuple[str, str]:
@@ -2671,33 +2690,36 @@ def _paypal_search_window() -> tuple[str, str]:
 
 
 def _paypal_readonly_reply(message: str, lang: str, reader: ReadOnlyTools) -> Optional[str]:
-    if not _PAYPAL_READONLY.search(message or ""):
+    if not _is_paypal_readonly_question(message):
         return None
-    if re.search(r"\bdisputes?\b", message, re.I):
-        payload = reader.get("disputes.list")
-        items = payload.get("items") if isinstance(payload, dict) else []
-        count = len(items or [])
-        if lang == "en":
-            return f"PayPal disputes (read-only): {count} open item(s)."
-        return f"Litiges PayPal (lecture seule) : {count} dossier(s)."
-    if re.search(r"\btransactions?\b", message, re.I):
-        start, end = _paypal_search_window()
-        payload = reader.get("transactions.search", f"{start}|{end}")
-        details = payload.get("transaction_details") if isinstance(payload, dict) else []
-        count = len(details or [])
-        if lang == "en":
+    try:
+        if re.search(r"\bdisputes?\b", message, re.I):
+            payload = reader.get("disputes.list")
+            items = payload.get("items") if isinstance(payload, dict) else []
+            count = len(items or [])
+            if lang == "en":
+                return f"PayPal disputes (read-only): {count} open item(s)."
+            return f"Litiges PayPal (lecture seule) : {count} dossier(s)."
+        if re.search(r"\btransactions?\b", message, re.I):
+            start, end = _paypal_search_window()
+            payload = reader.get("transactions.search", f"{start}|{end}")
+            details = payload.get("transaction_details") if isinstance(payload, dict) else []
+            count = len(details or [])
+            if lang == "en":
+                return (
+                    f"PayPal transactions from {start[:10]} to {end[:10]} (read-only): "
+                    f"{count} row(s)."
+                )
             return (
-                f"PayPal transactions from {start[:10]} to {end[:10]} (read-only): "
-                f"{count} row(s)."
+                f"Transactions PayPal du {start[:10]} au {end[:10]} (lecture seule) : "
+                f"{count} ligne(s)."
             )
-        return (
-            f"Transactions PayPal du {start[:10]} au {end[:10]} (lecture seule) : "
-            f"{count} ligne(s)."
-        )
-    tools = ", ".join(reader.allowed())
-    if lang == "en":
-        return f"Read-only PayPal tools available: {tools}."
-    return f"Outils PayPal en lecture seule disponibles : {tools}."
+    except Exception as exc:
+        detail = str(exc)[:120]
+        if lang == "en":
+            return f"PayPal read-only lookup failed: {detail}"
+        return f"Échec de la lecture PayPal (lecture seule) : {detail}"
+    return None
 
 
 async def chat(

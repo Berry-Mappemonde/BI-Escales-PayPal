@@ -9,7 +9,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
-from .ledger import list_finance_entries, record_finance
+from .ledger import _euros, get_ledger, list_finance_entries, record_finance, update_finance_entry
 
 
 class PayoutNotFound(LookupError):
@@ -28,6 +28,58 @@ def _amount(value: str) -> Decimal:
     if amount <= 0:
         raise ValueError("amount_eur must be positive")
     return amount.quantize(Decimal("0.01"))
+
+
+async def _payout_sent_for_proposal(payout_id: str) -> Optional[dict]:
+    for entry in await list_finance_entries():
+        if entry.get("kind") != "payout_sent":
+            continue
+        if str(entry.get("proposal_id") or "") == payout_id:
+            return entry
+    return None
+
+
+async def project_captured_eur(project_id: str) -> Decimal:
+    """Sum of captured project pledges for one BI project id."""
+    pid = str(project_id or "").strip()
+    total = Decimal("0.00")
+    for row in await get_ledger().list_pledges():
+        if str(row.get("kind") or "") != "project_pledge":
+            continue
+        if str(row.get("target_id") or "") != pid:
+            continue
+        if str(row.get("status") or "") not in ("captured", "partially_refunded"):
+            continue
+        total += _euros(row.get("amount_eur")) - _euros(row.get("refunded_amount_eur"))
+    return total
+
+
+async def project_payout_committed_eur(
+    project_id: str,
+    *,
+    exclude_proposal_id: str = "",
+) -> Decimal:
+    """Pending proposals plus sent payouts for one project."""
+    pid = str(project_id or "").strip()
+    skip = str(exclude_proposal_id or "")
+    total = Decimal("0.00")
+    for entry in await list_finance_entries():
+        if str(entry.get("project_id") or "") != pid:
+            continue
+        if str(entry.get("_id") or "") == skip:
+            continue
+        if entry.get("kind") == "payout_sent":
+            total += _euros(entry.get("amount_eur"))
+            continue
+        if entry.get("kind") == "payout_proposed" and entry.get("status") == "pending_approval":
+            total += _euros(entry.get("amount_eur"))
+    return total
+
+
+async def project_payout_available_eur(project_id: str, *, exclude_proposal_id: str = "") -> Decimal:
+    captured = await project_captured_eur(project_id)
+    committed = await project_payout_committed_eur(project_id, exclude_proposal_id=exclude_proposal_id)
+    return captured - committed
 
 
 async def find_payout_proposal(payout_id: str) -> dict:
@@ -52,9 +104,13 @@ async def propose_project_payout(
     if "@" not in email:
         raise ValueError("receiver_email is required")
     amount = _amount(amount_eur)
+    pid = str(project_id or "").strip()
+    available = await project_payout_available_eur(pid)
+    if amount > available:
+        raise ValueError(f"payout exceeds captured project funds ({available:.2f} EUR)")
     return await record_finance(
         "payout_proposed",
-        project_id=str(project_id or "").strip(),
+        project_id=pid,
         amount_eur=f"{amount:.2f}",
         receiver_email=email,
         note=(note or "")[:200],
@@ -64,23 +120,31 @@ async def propose_project_payout(
 
 async def approve_project_payout(payout_id: str, client: Any) -> dict:
     """Send a previously proposed payout to PayPal. Requires a second human step."""
+    if await _payout_sent_for_proposal(payout_id):
+        raise PayoutStateError("payout already approved")
     proposal = await find_payout_proposal(payout_id)
     if str(proposal.get("status") or "") != "pending_approval":
-        raise PayoutStateError("payout is not pending approval")
+        raise PayoutStateError("payout already approved")
+    project_id = str(proposal.get("project_id") or "")
+    amount = _amount(str(proposal.get("amount_eur") or "0"))
+    available = await project_payout_available_eur(project_id, exclude_proposal_id=payout_id)
+    if amount > available:
+        raise ValueError(f"payout exceeds captured project funds ({available:.2f} EUR)")
     batch_id = f"payout-{payout_id}"
     payload = client.create_payout(
         batch_id=batch_id,
         receiver_email=str(proposal.get("receiver_email") or ""),
-        amount_eur=str(proposal.get("amount_eur") or "0.00"),
+        amount_eur=f"{amount:.2f}",
         note=str(proposal.get("note") or ""),
         item_id=payout_id,
     )
     batch_header = payload.get("batch_header") if isinstance(payload, dict) else {}
+    await update_finance_entry(payout_id, {"status": "approved"})
     return await record_finance(
         "payout_sent",
         proposal_id=payout_id,
-        project_id=proposal.get("project_id"),
-        amount_eur=proposal.get("amount_eur"),
+        project_id=project_id,
+        amount_eur=f"{amount:.2f}",
         receiver_email=proposal.get("receiver_email"),
         payout_batch_id=batch_header.get("payout_batch_id") if isinstance(batch_header, dict) else None,
         status="sent",

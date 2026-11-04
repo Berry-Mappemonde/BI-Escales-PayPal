@@ -18,7 +18,17 @@ from .paypal_idempotency import paypal_request_id
 
 SOFT_DESCRIPTOR = "BERRYMAPPEMONDE"
 VAULT_BRAND_NAME = "Berry-Mappemonde"
-PAYPAL_EXPERIENCE_LOCALE = "fr-FR"
+DEFAULT_PAYPAL_LOCALE = "fr-FR"
+
+
+def paypal_checkout_locale(app_lang: Optional[str] = None) -> str:
+    """Map app language (fr/en) to PayPal experience_context locale."""
+    raw = (app_lang or "").strip().lower()
+    if raw.startswith("en"):
+        return "en-US"
+    if raw.startswith("fr"):
+        return "fr-FR"
+    return DEFAULT_PAYPAL_LOCALE
 
 log = logging.getLogger("escales.paypal")
 
@@ -159,11 +169,17 @@ class PayPalClient:
         self._token_exp = 0.0
         self.mock_response: Optional[str] = None
 
-    def _experience_context(self, return_url: str, cancel_url: str) -> dict:
+    def _experience_context(
+        self,
+        return_url: str,
+        cancel_url: str,
+        *,
+        locale: Optional[str] = None,
+    ) -> dict:
         """Checkout experience_context shared by orders and vault setup."""
         return {
             "brand_name": VAULT_BRAND_NAME,
-            "locale": PAYPAL_EXPERIENCE_LOCALE,
+            "locale": paypal_checkout_locale(locale),
             "return_url": return_url,
             "cancel_url": cancel_url,
             "user_action": "CONTINUE",
@@ -230,6 +246,7 @@ class PayPalClient:
         idempotency_key: Optional[str] = None,
         return_url: Optional[str] = None,
         cancel_url: Optional[str] = None,
+        checkout_locale: Optional[str] = None,
     ) -> dict:
         """Classic AUTHORIZE order. Return and cancel URLs match the vault order."""
         back = (return_url or "").strip() or order_return_url()
@@ -238,7 +255,9 @@ class PayPalClient:
             "intent": "AUTHORIZE",
             "payment_source": {
                 "paypal": {
-                    "experience_context": self._experience_context(back, cancel),
+                    "experience_context": self._experience_context(
+                        back, cancel, locale=checkout_locale,
+                    ),
                 },
             },
             "purchase_units": [self._purchase_unit(reference_id, description, amount_eur)],
@@ -259,6 +278,7 @@ class PayPalClient:
         return_url: str,
         cancel_url: str,
         idempotency_key: Optional[str] = None,
+        checkout_locale: Optional[str] = None,
     ) -> dict:
         """Orders v2 AUTHORIZE with store_in_vault ON_SUCCESS (production vault path)."""
         body = {
@@ -266,7 +286,9 @@ class PayPalClient:
             "payment_source": {
                 "paypal": {
                     "attributes": {"vault": {"store_in_vault": "ON_SUCCESS", "usage_type": "MERCHANT"}},
-                    "experience_context": self._experience_context(return_url, cancel_url),
+                    "experience_context": self._experience_context(
+                        return_url, cancel_url, locale=checkout_locale,
+                    ),
                 },
             },
             "purchase_units": [self._purchase_unit(reference_id, description, amount_eur)],
@@ -330,6 +352,7 @@ class PayPalClient:
         *,
         customer_id: str,
         idempotency_key: Optional[str] = None,
+        checkout_locale: Optional[str] = None,
     ) -> dict:
         body = {
             "customer": {"id": str(customer_id)[:127]},
@@ -338,7 +361,9 @@ class PayPalClient:
                     "usage_type": "MERCHANT",
                     "usage_pattern": "UNSCHEDULED_POSTPAID",
                     "permit_multiple_payment_tokens": False,
-                    "experience_context": self._experience_context(return_url, cancel_url),
+                    "experience_context": self._experience_context(
+                        return_url, cancel_url, locale=checkout_locale,
+                    ),
                 },
             },
         }
@@ -452,18 +477,15 @@ class PayPalClient:
         )
 
     def search_transactions(self, *, start_date: str, end_date: str) -> dict:
-        body = {
+        from urllib.parse import urlencode
+
+        query = urlencode({
             "start_date": start_date,
             "end_date": end_date,
             "fields": "all",
-            "page_size": 100,
-        }
-        return self._req(
-            "POST",
-            "/v1/reporting/transactions",
-            body,
-            idempotency_key=paypal_request_id(f"{start_date}-{end_date}", "txn-search"),
-        )
+            "page_size": "100",
+        })
+        return self._req("GET", f"/v1/reporting/transactions?{query}")
 
     def list_invoices(self, *, page: int = 1, page_size: int = 20) -> dict:
         return self._req("GET", f"/v2/invoicing/invoices?page={page}&page_size={page_size}&total_required=true")

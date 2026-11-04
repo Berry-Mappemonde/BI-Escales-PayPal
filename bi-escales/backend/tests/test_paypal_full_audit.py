@@ -161,6 +161,15 @@ def test_refund_captured_pledge():
 
 def test_payout_requires_approval_before_paypal():
     async def run():
+        await get_ledger().save_pledge({
+            "_id": "proj-pledge-1",
+            "kind": "project_pledge",
+            "target_id": "proj-1",
+            "status": "captured",
+            "amount_eur": "20.00",
+            "capture_id": "CAP-P1",
+            "history": [],
+        })
         proposal = await propose_project_payout(
             "proj-1",
             amount_eur="12.50",
@@ -211,7 +220,7 @@ def test_treasurer_chat_exposes_readonly_paypal_tools():
     assert "read-only" not in denied.json()["reply"].lower()
     ok = client.post(
         "/api/escales/captain/chat",
-        json={"message": "List PayPal transactions", "lang": "en"},
+        json={"message": "List PayPal transactions for the treasurer", "lang": "en"},
         headers={"x-admin-key": "audit-admin"},
     )
     body = ok.json()

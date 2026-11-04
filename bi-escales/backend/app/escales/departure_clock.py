@@ -12,7 +12,13 @@ from typing import Any, Optional
 from .config import AUTH_MAX_DAYS, simulated_now
 from .ledger import get_ledger
 from .paypal_client import PayPalError
-from .pledges import capture_pledge, mark_token_delete_pending, mark_vault_charge_failed, void_pledge
+from .pledges import (
+    capture_pledge,
+    mark_token_delete_pending,
+    mark_vault_charge_failed,
+    retry_vault_token_delete,
+    void_pledge,
+)
 
 
 def _parse_moment(value: Optional[str]) -> Optional[dt.datetime]:
@@ -130,6 +136,21 @@ async def run_departure_clock(client: Any, *, now: Optional[dt.datetime] = None)
         if not doc:
             continue
         pledge_id = str(pledge.get("_id") or "")
+        if (
+            mode == "VAULT"
+            and status == "captured"
+            and pledge.get("vault_token_delete_pending")
+        ):
+            try:
+                await retry_vault_token_delete(pledge_id, client)
+                actions.append({"pledge_id": pledge_id, "action": "vault_token_deleted"})
+            except Exception as exc:
+                actions.append({
+                    "pledge_id": pledge_id,
+                    "action": "vault_token_delete_pending",
+                    "detail": _vault_failure_detail(exc),
+                })
+            continue
         if mode == "VAULT" and status == "token_delete_pending":
             if _cancelled(doc):
                 await _void_cancelled_departure(pledge_id, client, mode=mode, actions=actions)

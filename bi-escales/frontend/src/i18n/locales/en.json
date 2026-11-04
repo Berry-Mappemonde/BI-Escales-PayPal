@@ -101,6 +101,7 @@
     "vaulting": "Saving the payment method…",
     "vaulted": "Payment method saved",
     "vaultSaved": "Saved — charged only if we sail",
+    "vaultFailed": "Could not save the payment method. Try again from the pledge button.",
     "vaultRedirect": "Redirecting to PayPal to save your payment method…",
     "vaultRetry": "Vault setup cancelled. You can try again from the pledge button.",
     "vaultCancelled": "Vault setup cancelled. Nothing was saved.",

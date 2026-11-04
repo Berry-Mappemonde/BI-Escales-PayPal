@@ -217,6 +217,9 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
+  const pledgeQueueRef = useRef({ updatePledge, refresh });
+  pledgeQueueRef.current = { updatePledge, refresh };
+
   useEffect(() => {
     const vaultParsed = readVaultReturn(window.location.search);
     if (vaultParsed) {
@@ -224,6 +227,8 @@ export default function App() {
       next.searchParams.delete("vault");
       next.searchParams.delete("pledge_id");
       next.searchParams.delete("token");
+      next.searchParams.delete("approval_token_id");
+      next.searchParams.delete("approval_session_id");
       window.history.replaceState({}, "", `${next.pathname}${next.search}${next.hash}`);
       if (vaultParsed.action === "cancel") {
         setPaypalNote("vaultRetry");
@@ -233,12 +238,13 @@ export default function App() {
       setPaypalNote("vaulting");
       void registerVault(vaultParsed.pledgeId, vaultParsed.approvalTokenId)
         .then((pledge) => {
-          onAuthorized(pledge);
+          pledgeQueueRef.current.updatePledge(pledge);
+          void pledgeQueueRef.current.refresh();
           setPaypalNote("vaultSaved");
           setHealthOk(true);
         })
-        .catch((err: unknown) => {
-          setPaypalNote(err instanceof Error ? err.message : String(err));
+        .catch(() => {
+          setPaypalNote("vaultFailed");
         });
       return undefined;
     }
@@ -259,13 +265,15 @@ export default function App() {
     setPaypalNote("authorizing");
     void authorizePledge(parsed.pledgeId)
       .then((pledge) => {
-        onAuthorized(pledge);
+        pledgeQueueRef.current.updatePledge(pledge);
+        void pledgeQueueRef.current.refresh();
+        setPaypalNote("authorized");
         setHealthOk(true);
       })
       .catch((err: unknown) => {
         setPaypalNote(err instanceof Error ? err.message : String(err));
       });
-  }, [onAuthorized]);
+  }, []);
 
   const onKind = (next: string) => {
     setKind(next);
@@ -418,6 +426,7 @@ export default function App() {
       {paypalNote === "authorized" ? <p className="status">{t("pledge.authorized")}</p> : null}
       {paypalNote === "vaulted" ? <p className="status">{t("pledge.vaultSaved")}</p> : null}
       {paypalNote === "vaultSaved" ? <p className="status">{t("pledge.vaultSaved")}</p> : null}
+      {paypalNote === "vaultFailed" ? <p className="notice error">{t("pledge.vaultFailed")}</p> : null}
       {paypalNote &&
       paypalNote !== "cancel" &&
       paypalNote !== "vaultCancel" &&
@@ -426,7 +435,8 @@ export default function App() {
       paypalNote !== "vaulting" &&
       paypalNote !== "authorized" &&
       paypalNote !== "vaulted" &&
-      paypalNote !== "vaultSaved" ? (
+      paypalNote !== "vaultSaved" &&
+      paypalNote !== "vaultFailed" ? (
         <p className="notice error">{paypalNote}</p>
       ) : null}
 

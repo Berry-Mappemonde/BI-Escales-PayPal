@@ -23,6 +23,8 @@ from app.escales.config import (
     bryntum_scheduler_enabled,
     channel3_enabled,
     clock_start,
+    clock_now_pinned,
+    parse_clock_moment,
     simulated_now,
     elastic_evidence_enabled,
     escales_enabled,
@@ -156,6 +158,10 @@ class SpendingIn(BaseModel):
 
 class VaultRegisterIn(BaseModel):
     setup_token_id: Optional[str] = None
+
+
+class ClockSettleIn(BaseModel):
+    now: Optional[str] = None
 
 
 def _paypal() -> Any:
@@ -321,13 +327,23 @@ async def get_clock():
 
 
 @router.post("/clock/settle")
-async def post_clock_settle(request: Request):
+async def post_clock_settle(request: Request, payload: ClockSettleIn = ClockSettleIn()):
     """Settle departure pledges. Treasurer key. Uses the simulated clock."""
     from app.escales.departure_clock import run_departure_clock
 
     _require_treasurer(request)
+    settle_at = None
+    if payload.now is not None and str(payload.now).strip():
+        if not clock_now_pinned():
+            raise HTTPException(
+                status_code=400,
+                detail="clock settle override requires ESCALES_CLOCK_NOW",
+            )
+        settle_at = parse_clock_moment(str(payload.now))
     body = _clock_body()
-    body["settled"] = await run_departure_clock(_paypal())
+    if settle_at is not None:
+        body["now"] = settle_at.replace(microsecond=0).isoformat()
+    body["settled"] = await run_departure_clock(_paypal(), now=settle_at)
     return body
 
 

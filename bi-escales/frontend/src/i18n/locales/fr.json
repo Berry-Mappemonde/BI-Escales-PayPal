@@ -101,6 +101,7 @@
     "vaulting": "Enregistrement du moyen de paiement…",
     "vaulted": "Moyen de paiement enregistré",
     "vaultSaved": "Enregistré — débit seulement si nous appareillons",
+    "vaultFailed": "Impossible d’enregistrer le moyen de paiement. Réessayez depuis le bouton de promesse.",
     "vaultRedirect": "Redirection vers PayPal pour enregistrer le moyen de paiement…",
     "vaultRetry": "Enregistrement Vault annulé. Vous pouvez réessayer via le bouton Promettre.",
     "vaultCancelled": "Enregistrement Vault annulé. Rien n’a été enregistré.",

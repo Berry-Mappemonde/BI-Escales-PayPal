@@ -984,6 +984,31 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     assert any(call[0] == "capture" for call in fake.calls)
 
 
+def test_clock_settle_rejects_now_without_pinned_clock(api, monkeypatch):
+    client, _fake = api
+    monkeypatch.delenv("ESCALES_CLOCK_NOW", raising=False)
+    denied = client.post(
+        "/api/escales/clock/settle",
+        headers=ADMIN,
+        json={"now": "2026-11-20T08:00:00Z"},
+    )
+    assert denied.status_code == 400
+    assert "ESCALES_CLOCK_NOW" in denied.json()["detail"]
+
+
+def test_clock_settle_accepts_now_when_clock_pinned(api, monkeypatch):
+    client, _fake = api
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-10-01T08:00:00Z")
+    ok = client.post(
+        "/api/escales/clock/settle",
+        headers=ADMIN,
+        json={"now": "2026-11-20T08:00:00Z"},
+    )
+    assert ok.status_code == 200
+    assert ok.json()["now"].startswith("2026-11-20")
+    assert "settled" in ok.json()
+
+
 def test_declined_capture_does_not_stop_the_clock(api, monkeypatch):
     """One DECLINED capture is recorded and the next pledge still settles."""
     import asyncio

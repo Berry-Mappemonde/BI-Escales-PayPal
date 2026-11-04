@@ -79,7 +79,17 @@ def simulated_now() -> dt.datetime:
     raw = (os.environ.get("ESCALES_CLOCK_NOW") or "").strip()
     if not raw:
         return dt.datetime.now(dt.timezone.utc)
-    text = raw
+    return parse_clock_moment(raw)
+
+
+def clock_now_pinned() -> bool:
+    """True when ``ESCALES_CLOCK_NOW`` pins the simulated clock (tests / dev)."""
+    return bool((os.environ.get("ESCALES_CLOCK_NOW") or "").strip())
+
+
+def parse_clock_moment(raw: str) -> dt.datetime:
+    """Parse an ISO instant the same way as ``ESCALES_CLOCK_NOW``."""
+    text = (raw or "").strip()
     if len(text) == 10 and "T" not in text:
         text = f"{text}T08:00:00+00:00"
     if text.endswith("Z"):
@@ -87,7 +97,7 @@ def simulated_now() -> dt.datetime:
     try:
         moment = dt.datetime.fromisoformat(text)
     except ValueError:
-        log.warning("ESCALES_CLOCK_NOW is not a time; using UTC now")
+        log.warning("clock moment is not a time; using UTC now")
         return dt.datetime.now(dt.timezone.utc)
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=dt.timezone.utc)

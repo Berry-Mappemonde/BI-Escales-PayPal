@@ -918,6 +918,36 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
     )
 
 
+_VAULT_VOID_CLOSED = frozenset({"voided", "captured", "charge_failed"})
+
+
+async def _other_open_pledges_share_vault(vault_id: str, exclude_pledge_id: str) -> bool:
+    """True when another non-terminal pledge still references the same vault token."""
+    vid = str(vault_id or "").strip()
+    if not vid:
+        return False
+    for row in await get_ledger().list_pledges():
+        if str(row.get("_id") or "") == exclude_pledge_id:
+            continue
+        if str(row.get("vault_id") or "") != vid:
+            continue
+        if str(row.get("status") or "") in _VAULT_VOID_CLOSED:
+            continue
+        return True
+    return False
+
+
+def _finish_vault_void(pledge: dict, *, token_deleted: bool) -> None:
+    """Void a vaulted pledge without storing PayPal authorization void_id fields."""
+    pledge.pop("void_id", None)
+    pledge.pop("void_id_source", None)
+    pledge.pop("void_note", None)
+    pledge["vault_token_deleted"] = token_deleted
+    pledge["vault_voided_at"] = simulated_now().replace(microsecond=0).isoformat()
+    pledge["status"] = "voided"
+    pledge["history"] = list(pledge.get("history") or []) + ["voided"]
+
+
 def _stamp_void(pledge: dict, payload: Any, fallback_id: str, *, hold: str) -> None:
     """Store the id PayPal's void returns.
 
@@ -953,8 +983,10 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
         vault_id = pledge.get("vault_id")
         if not vault_id:
             raise IllegalTransition("vaulted", "voided")
-        released = client.delete_payment_token(vault_id)
-        _stamp_void(pledge, released, str(vault_id), hold="vault")
+        keep_token = await _other_open_pledges_share_vault(str(vault_id), pledge_id)
+        if not keep_token:
+            client.delete_payment_token(vault_id)
+        _finish_vault_void(pledge, token_deleted=not keep_token)
         saved = await get_ledger().save_pledge(pledge)
         from .audit import record
         await record(
@@ -966,8 +998,8 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
             amount_eur=saved.get("amount_eur"),
             currency="EUR",
             payment_mode="VAULT",
-            void_id=saved.get("void_id"),
-            voided_at=saved.get("voided_at"),
+            vault_token_deleted=saved.get("vault_token_deleted"),
+            vault_voided_at=saved.get("vault_voided_at"),
             **_identity(saved),
         )
         await record_finance(
@@ -980,8 +1012,8 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
             status="voided",
             actor="treasurer",
             payment_mode="VAULT",
-            void_id=saved.get("void_id"),
-            voided_at=saved.get("voided_at"),
+            vault_token_deleted=saved.get("vault_token_deleted"),
+            vault_voided_at=saved.get("vault_voided_at"),
             **_identity(saved),
         )
         return saved

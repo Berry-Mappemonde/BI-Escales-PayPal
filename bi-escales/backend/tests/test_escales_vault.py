@@ -256,6 +256,108 @@ def test_http_vault_requires_admin_to_capture(api):
     assert any(call[0] == "charge_vaulted" for call in fake.calls)
 
 
+def test_void_keeps_shared_vault_token_until_last_open_pledge(monkeypatch):
+    monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+
+    async def body():
+        await _seed_far_milestone()
+        await _seed_far_milestone("dep-share-b")
+        client = VaultPayPal()
+        first = await create_pledge(
+            amount_eur="1.00",
+            description="a",
+            milestone_id="dep-long-haul",
+            client=client,
+            client_key="share-a",
+        )
+        await register_vault_pledge(first["_id"], client)
+        first = await get_ledger().get_pledge(first["_id"])
+        second = await create_pledge(
+            amount_eur="2.00",
+            description="b",
+            milestone_id="dep-share-b",
+            client=client,
+            client_key="share-b",
+        )
+        await register_vault_pledge(second["_id"], client)
+        second = await get_ledger().get_pledge(second["_id"])
+        shared_vault = first["vault_id"]
+        twin = await get_ledger().get_pledge(second["_id"])
+        twin["vault_id"] = shared_vault
+        await get_ledger().save_pledge(twin)
+
+        void_first = await void_pledge(first["_id"], client)
+        assert void_first["status"] == "voided"
+        assert void_first["vault_token_deleted"] is False
+        assert void_first.get("void_id") is None
+        assert void_first["vault_voided_at"]
+        assert not any(call[0] == "delete_token" for call in client.calls)
+
+        still = await get_ledger().get_pledge(second["_id"])
+        assert still["status"] == "vaulted"
+        captured = await capture_pledge(second["_id"], client)
+        assert captured["status"] == "captured"
+
+        client.calls.clear()
+        solo_a = await create_pledge(
+            amount_eur="5.00",
+            description="e",
+            milestone_id="dep-long-haul",
+            client=client,
+            client_key="share-e",
+        )
+        await register_vault_pledge(solo_a["_id"], client)
+        solo_a = await get_ledger().get_pledge(solo_a["_id"])
+        solo_b = await create_pledge(
+            amount_eur="6.00",
+            description="f",
+            milestone_id="dep-share-b",
+            client=client,
+            client_key="share-f",
+        )
+        await register_vault_pledge(solo_b["_id"], client)
+        solo_b = await get_ledger().get_pledge(solo_b["_id"])
+        shared2 = solo_a["vault_id"]
+        twin = await get_ledger().get_pledge(solo_b["_id"])
+        twin["vault_id"] = shared2
+        await get_ledger().save_pledge(twin)
+
+        void_a = await void_pledge(solo_a["_id"], client)
+        assert void_a["vault_token_deleted"] is False
+        assert not any(call[0] == "delete_token" for call in client.calls)
+
+        void_b = await void_pledge(solo_b["_id"], client)
+        assert void_b["vault_token_deleted"] is True
+        assert ("delete_token", shared2) in client.calls
+
+    asyncio.run(body())
+
+
+def test_vault_void_records_token_deleted_not_void_id(monkeypatch):
+    monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-03-01T09:00:00Z")
+
+    async def body():
+        await _seed_far_milestone()
+        client = VaultPayPal()
+        created = await create_pledge(
+            amount_eur="1.00",
+            description="solo",
+            milestone_id="dep-long-haul",
+            client=client,
+            client_key="solo-v",
+        )
+        await register_vault_pledge(created["_id"], client)
+        vaulted = await get_ledger().get_pledge(created["_id"])
+        voided = await void_pledge(created["_id"], client)
+        assert voided["vault_token_deleted"] is True
+        assert voided.get("void_id") is None
+        assert voided["vault_voided_at"].startswith("2026-03-01")
+        assert ("delete_token", vaulted["vault_id"]) in client.calls
+
+    asyncio.run(body())
+
+
 def test_vault_route_hidden_when_flag_off(monkeypatch):
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.delenv("ESCALES_VAULT_ENABLED", raising=False)

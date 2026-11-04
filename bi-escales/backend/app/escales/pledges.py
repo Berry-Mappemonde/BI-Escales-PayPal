@@ -742,7 +742,7 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     _require_status(pledge, "created", "authorized")
     order_id = str(pledge.get("order_id") or "")
     if not _buyer_approved(client, order_id):
-        raise IllegalTransition(str(pledge.get("status")), "authorized")
+        raise ValueError("order not approved yet")
     from .departure_clock import refuse_cancelled_departure
 
     await refuse_cancelled_departure(pledge)

@@ -216,3 +216,97 @@ def test_captain_transactions_need_explicit_intent():
         headers={"x-admin-key": "fix-admin"},
     ).json()
     assert body["model_source"] == "paypal_readonly_tools"
+
+
+def test_transaction_search_clamps_future_end_to_real_utc():
+    import datetime as dt
+
+    from app.escales.paypal_txn_search import clamp_transaction_search_range
+
+    wall = dt.datetime(2026, 11, 4, 12, 0, 0, tzinfo=dt.timezone.utc)
+    start, end = clamp_transaction_search_range(
+        "2026-11-01T00:00:00Z",
+        "2026-11-12T23:59:59Z",
+        now=wall,
+    )
+    assert end <= wall.isoformat()
+    assert start <= end
+    span = dt.datetime.fromisoformat(end.replace("Z", "+00:00")) - dt.datetime.fromisoformat(
+        start.replace("Z", "+00:00")
+    )
+    assert span.days <= 31
+
+
+def test_transaction_search_ignores_simulated_clock(monkeypatch):
+    import datetime as dt
+
+    from app.escales.config import parse_clock_moment
+    from app.escales.paypal_txn_search import real_utc_now
+
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-12")
+    seen: dict = {}
+
+    def handler(request: httpx.Request):
+        if request.url.path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "T", "expires_in": 3600})
+        seen["query"] = str(request.url.query)
+        return httpx.Response(200, json={"transaction_details": []})
+
+    client = PayPalClient(
+        EscalesConfig("cid", "secret"),
+        transport=httpx.MockTransport(handler),
+    )
+    client.search_transactions(
+        start_date="2026-11-01T00:00:00Z",
+        end_date="2026-11-12T23:59:59Z",
+    )
+    assert "query" in seen
+    from urllib.parse import parse_qs
+
+    params = parse_qs(seen["query"])
+    end = parse_clock_moment(params["end_date"][0])
+    assert end <= real_utc_now().replace(microsecond=0) + dt.timedelta(seconds=5)
+
+
+def test_reconcile_paypal_404_is_not_502(monkeypatch):
+    class TxnClient:
+        def search_transactions(self, **kwargs):
+            raise PayPalError(404, {"name": "INVALID_RESOURCE", "message": "not found"})
+
+    async def empty_finance():
+        return []
+
+    monkeypatch.setattr("app.routers.escales.list_finance_entries", empty_finance)
+    set_paypal_client_factory(lambda: TxnClient())
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+    response = client.get(
+        "/api/escales/paypal/reconcile",
+        params={"start_date": "2026-11-01T00:00:00Z", "end_date": "2026-11-12T00:00:00Z"},
+        headers={"x-admin-key": "fix-admin"},
+    )
+    assert response.status_code == 404
+    assert "502" not in response.text
+
+
+def test_treasurer_chat_english_without_lang_param():
+    spy = type("C", (), {
+        "get_order": lambda self, oid: {"id": oid},
+        "get_authorization": lambda self, aid: {"id": aid},
+        "list_disputes": lambda self, **k: {"items": []},
+        "search_transactions": lambda self, **k: {"transaction_details": []},
+        "list_invoices": lambda self, **k: {"items": []},
+    })()
+    set_paypal_client_factory(lambda: spy)
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+    body = client.post(
+        "/api/escales/captain/chat",
+        json={"message": "List PayPal transactions for the treasurer"},
+        headers={"x-admin-key": "fix-admin", "Accept-Language": "fr-FR,fr;q=0.9"},
+    ).json()
+    assert body["model_source"] == "paypal_readonly_tools"
+    assert "PayPal transactions" in body["reply"]
+    assert "Transactions PayPal" not in body["reply"]

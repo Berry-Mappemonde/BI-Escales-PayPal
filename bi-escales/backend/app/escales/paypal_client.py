@@ -479,6 +479,9 @@ class PayPalClient:
     def search_transactions(self, *, start_date: str, end_date: str) -> dict:
         from urllib.parse import urlencode
 
+        from .paypal_txn_search import clamp_transaction_search_range
+
+        start_date, end_date = clamp_transaction_search_range(start_date, end_date)
         query = urlencode({
             "start_date": start_date,
             "end_date": end_date,

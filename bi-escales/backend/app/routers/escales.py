@@ -235,9 +235,53 @@ def _capture_conflict(exc: Exception) -> bool:
     return any(token in text for token in ("DECLINED", "FAILED", "EXPIRED"))
 
 
+def _paypal_error_blob(exc: PayPalError) -> str:
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        import json
+
+        return json.dumps(body)
+    return str(body or "")
+
+
+def _paypal_order_not_approved(exc: PayPalError) -> bool:
+    blob = _paypal_error_blob(exc).upper()
+    if "ORDER_NOT_APPROVED" in blob:
+        return True
+    if exc.status in {400, 422} and "UNPROCESSABLE_ENTITY" in blob:
+        return "ORDER" in blob and "APPROV" in blob
+    return False
+
+
+def _paypal_client_error_detail(exc: PayPalError) -> str:
+    body = exc.body
+    if isinstance(body, dict):
+        for key in ("message", "error_description", "name"):
+            value = body.get(key)
+            if value:
+                return str(value)
+        details = body.get("details")
+        if isinstance(details, list):
+            parts: list[str] = []
+            for item in details:
+                if not isinstance(item, dict):
+                    continue
+                issue = item.get("issue") or item.get("description")
+                if issue:
+                    parts.append(str(issue))
+            if parts:
+                return "; ".join(parts)
+    if exc.status == 404:
+        return "PayPal transaction search returned no data for this date window"
+    return "PayPal request rejected"
+
+
 def _money_http(exc: Exception) -> HTTPException:
-    if isinstance(exc, ValueError) and _capture_conflict(exc):
-        return HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, ValueError):
+        if str(exc) == "order not approved yet":
+            return HTTPException(status_code=409, detail=str(exc))
+        if _capture_conflict(exc):
+            return HTTPException(status_code=409, detail=str(exc))
     return _as_http(exc)
 
 
@@ -247,9 +291,13 @@ def _as_http(exc: Exception) -> HTTPException:
     if isinstance(exc, IllegalTransition):
         return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, PayPalError):
-        # 48b7f5a mapped every PayPal error to 502, including ORDER_NOT_APPROVED.
-        if "ORDER_NOT_APPROVED" in str(getattr(exc, "body", "") or ""):
-            return HTTPException(status_code=409, detail="order not approved")
+        if _paypal_order_not_approved(exc):
+            return HTTPException(status_code=409, detail="order not approved yet")
+        if 400 <= exc.status < 500:
+            return HTTPException(
+                status_code=exc.status,
+                detail=_paypal_client_error_detail(exc),
+            )
         return HTTPException(status_code=502, detail="PayPal request failed")
     if isinstance(exc, ValueError):
         return HTTPException(status_code=422, detail=str(exc))

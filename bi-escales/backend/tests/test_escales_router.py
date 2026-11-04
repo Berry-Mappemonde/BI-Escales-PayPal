@@ -194,8 +194,28 @@ def test_paypal_order_not_approved_is_409_not_502(api):
     fake.authorize_order = boom
     response = client.post(f"/api/escales/pledges/{created.json()['id']}/authorize")
     assert response.status_code == 409
-    assert response.json()["detail"] == "order not approved"
+    assert response.json()["detail"] == "order not approved yet"
     assert client.get(f"/api/escales/pledges/{created.json()['id']}").json()["status"] == "created"
+
+
+def test_authorize_unprocessable_entity_is_409_not_502(api):
+    from app.escales.paypal_client import PayPalError
+
+    client, fake = api
+    created = _create(client, "unprocessable-auth")
+
+    def boom(order_id, **kwargs):
+        fake.calls.append(("authorize", order_id))
+        raise PayPalError(
+            422,
+            {"name": "UNPROCESSABLE_ENTITY", "details": [{"issue": "ORDER_NOT_APPROVED"}]},
+        )
+
+    fake.authorize_order = boom
+    fake.order_status = "APPROVED"
+    response = client.post(f"/api/escales/pledges/{created.json()['id']}/authorize")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "order not approved yet"
 
 
 def test_cabin_leg_capture_lands_in_the_leg_fund(api):

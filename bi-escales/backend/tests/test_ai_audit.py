@@ -432,7 +432,13 @@ def test_router_uses_lang_then_accept_language(monkeypatch):
             json={"message": FRENCH},
             headers={"accept-language": "en-GB,en;q=0.8"},
         )
-        assert "sponsored miles" in header.json()["reply"]
+        assert "milles parrain" in header.json()["reply"]
+        detected = client.post(
+            "/api/escales/captain/chat",
+            json={"message": "I'd like to sponsor 120 miles near Ajaccio"},
+            headers={"accept-language": "fr-FR,fr;q=0.9"},
+        )
+        assert "sponsored miles" in detected.json()["reply"]
         unknown = client.post(
             "/api/escales/captain/chat",
             json={"message": FRENCH, "lang": "de"},

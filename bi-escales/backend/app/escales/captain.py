@@ -16,6 +16,7 @@ from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
 from .config import AUTH_MAX_DAYS, membership_url, simulated_now
+from .paypal_txn_search import default_transaction_search_window
 from .milestones import (
     amount_in_text,
     decision_for,
@@ -527,17 +528,20 @@ def resolve_chat_lang(
     requested: Optional[str] = None,
     accept_language: str = "",
 ) -> str:
-    """App language wins. Then Accept-Language. Then the message. Unknown is English."""
+    """App language wins. Then the message when clear. Then Accept-Language. Unknown is English."""
     if (requested or "").strip():
         return _forced_lang(requested) or "en"
+    en = len(_EN_HINT.findall(message or ""))
+    fr = len(_FR_HINT.findall(message or ""))
+    if en > fr:
+        return "en"
+    if fr > en:
+        return "fr"
     token = (accept_language or "").split(",")[0].split(";")[0].strip()
     header = _forced_lang(token)
     if header:
         return header
-    detected = message_lang(message)
-    if detected in {"fr", "en"}:
-        return detected
-    return "en"
+    return message_lang(message)
 
 
 # A distorted spelling maps onto a slug from the display table.
@@ -2684,9 +2688,7 @@ def _is_paypal_readonly_question(message: str) -> bool:
 
 
 def _paypal_search_window() -> tuple[str, str]:
-    end = simulated_now().replace(microsecond=0)
-    start = end - dt.timedelta(days=7)
-    return start.isoformat(), end.isoformat()
+    return default_transaction_search_window()
 
 
 def _paypal_readonly_reply(message: str, lang: str, reader: ReadOnlyTools) -> Optional[str]:

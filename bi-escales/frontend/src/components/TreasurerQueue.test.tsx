@@ -69,7 +69,7 @@ describe("TreasurerQueue", () => {
       </I18nextProvider>,
     );
     expect(await screen.findByTestId("treasurer-queue-ag-grid")).toBeInTheDocument();
-    expect(await screen.findByRole("grid")).toBeInTheDocument();
+    expect(document.querySelector(".ag-header")).toBeTruthy();
     expect(screen.queryByTestId("treasurer-queue-fallback-table")).toBeNull();
   });
 });

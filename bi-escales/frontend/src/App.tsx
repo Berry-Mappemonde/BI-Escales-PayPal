@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, fetchFund, fetchHealth, fetchSchedule, listMilestones, readPaypalReturn, recordSpending } from "./api/escales";
+import { authorizePledge, fetchFund, fetchHealthRetrying, fetchSchedule, healthBanner, listMilestones, readPaypalReturn, recordSpending } from "./api/escales";
 import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
@@ -112,11 +112,21 @@ export default function App() {
   );
 
   useEffect(() => {
-    void fetchHealth().then(() => setHealthOk(true)).catch(() => setHealthOk(false));
+    let cancelled = false;
+    void fetchHealthRetrying()
+      .then(() => {
+        if (!cancelled) setHealthOk(true);
+      })
+      .catch(() => {
+        if (!cancelled) setHealthOk((current) => (current === true ? true : false));
+      });
     void listMilestones().then(() => setEscalesOk(true)).catch(() => setEscalesOk(false));
     void fetchSchedule().then(setSchedule).catch(() => setSchedule(null));
     void fetchJson("/route.geojson").then(setRouteFc).catch(() => setRouteFc(null));
     void fetchJson("/bi-projects.geojson").then(setProjects).catch(() => setProjects({ features: [] }));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -231,7 +241,10 @@ export default function App() {
     if (!parsed.pledgeId) return;
     setPaypalNote("authorizing");
     void authorizePledge(parsed.pledgeId)
-      .then((pledge) => onAuthorized(pledge))
+      .then((pledge) => {
+        onAuthorized(pledge);
+        setHealthOk(true);
+      })
       .catch((err: unknown) => {
         setPaypalNote(err instanceof Error ? err.message : String(err));
       });
@@ -374,9 +387,11 @@ export default function App() {
         </button>
       </div>
 
-      <p className={`health ${healthOk ? "ok" : "bad"}`}>
-        {healthOk ? t("app.healthOk") : t("app.healthFail")}
-      </p>
+      {healthBanner(healthOk) === "wait" ? null : (
+        <p className={`health ${healthOk ? "ok" : "bad"}`}>
+          {healthOk ? t("app.healthOk") : t("app.healthFail")}
+        </p>
+      )}
       {escalesOk === false ? <p className="notice warn">{t("app.escalesOff")}</p> : null}
       {paypalNote === "cancel" ? <p className="notice warn">{t("pledge.cancelled")}</p> : null}
       {paypalNote === "authorizing" ? <p className="status">{t("pledge.authorizing")}</p> : null}

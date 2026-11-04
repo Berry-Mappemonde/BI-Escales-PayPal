@@ -48,6 +48,37 @@ export async function fetchHealth(): Promise<{ status: string }> {
   return res.json();
 }
 
+/** A cold Render start often answers 502 before the process is up. */
+export const HEALTH_ATTEMPTS = 6;
+export const HEALTH_WAIT_MS = 3000;
+
+export type HealthBanner = "ok" | "wait" | "down";
+
+/** ``null`` is still retrying. The failure text waits until the retries end. */
+export function healthBanner(ok: boolean | null): HealthBanner {
+  if (ok === null) return "wait";
+  return ok ? "ok" : "down";
+}
+
+export async function fetchHealthRetrying(
+  attempt: () => Promise<{ status: string }> = fetchHealth,
+  options?: { attempts?: number; waitMs?: number; sleep?: (ms: number) => Promise<void> },
+): Promise<{ status: string }> {
+  const attempts = options?.attempts ?? HEALTH_ATTEMPTS;
+  const waitMs = options?.waitMs ?? HEALTH_WAIT_MS;
+  const sleep = options?.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
+  let last: unknown;
+  for (let index = 0; index < attempts; index += 1) {
+    try {
+      return await attempt();
+    } catch (err) {
+      last = err;
+      if (index < attempts - 1) await sleep(waitMs);
+    }
+  }
+  throw last instanceof Error ? last : new Error(String(last ?? "health failed"));
+}
+
 export async function createPledge(
   body: {
     amount_eur: string;

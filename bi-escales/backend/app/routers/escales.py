@@ -268,7 +268,11 @@ async def get_channel3_gear():
     items = await search_gear()
     return {
         "items": items,
-        "label": "Channel3 onboard gear (authorize now, capture on stopover arrival)",
+        "label": (
+            "Channel3 onboard gear (authorize as close to departure as possible; "
+            "capture on departure day; void if stopover cancelled)"
+        ),
+        "capture_on": "departure",
         "source": "channel3",
         "docs": "https://channel3.ai/docs/api-reference/v1/search",
     }

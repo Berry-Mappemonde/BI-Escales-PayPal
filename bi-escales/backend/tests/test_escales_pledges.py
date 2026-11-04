@@ -387,7 +387,7 @@ def test_kind_and_target_are_stored_and_unknown_kind_is_rejected():
                 kind="yacht",
             )
         assert set(PLEDGE_KINDS) == {
-            "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "common_fund",
+            "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "gear", "common_fund",
         }
 
     asyncio.run(body())

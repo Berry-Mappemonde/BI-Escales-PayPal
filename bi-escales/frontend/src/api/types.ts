@@ -94,6 +94,7 @@ export interface Channel3GearItem {
 
 export interface Channel3GearResponse {
   items: Channel3GearItem[];
+  capture_on?: "departure";
   label?: string;
   source?: string;
   docs?: string;

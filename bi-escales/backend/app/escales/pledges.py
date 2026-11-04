@@ -59,6 +59,7 @@ PLEDGE_KINDS = (
     "meal",
     "care",
     "cabin_leg",
+    "gear",
     "common_fund",
 )
 
@@ -379,7 +380,7 @@ async def create_pledge(
             raise ValueError("milestone_id must name a known stopover")
         milestone_id = str(canonical)
     resolved_target = await _resolve_target(target_id, milestone_id, pledge_kind)
-    # A cabin is always an authorization. Capture waits for the departure.
+    # Cabine et équipement Channel3 : autorisation au plus près du départ, capture le jour du départ.
     if pledge_kind == "cabin_leg":
         mode = "AUTHORIZE"
         from .naviguide_bridge import leg_by_id, leg_milestone_meta
@@ -387,6 +388,11 @@ async def create_pledge(
         leg = leg_by_id(resolved_target)
         if leg:
             await get_ledger().ensure_milestone(leg["id"], meta=leg_milestone_meta(leg))
+    elif pledge_kind == "gear":
+        mode = "AUTHORIZE"
+        from .naviguide_bridge import stopover_departure_meta
+
+        await get_ledger().ensure_milestone(milestone_id, meta=stopover_departure_meta(milestone_id))
     else:
         mode = payment_mode or await resolve_payment_mode(milestone_id)
     if mode == "VAULT":

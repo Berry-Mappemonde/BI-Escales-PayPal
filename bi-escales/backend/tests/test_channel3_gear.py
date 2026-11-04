@@ -81,7 +81,54 @@ def test_gear_route_calls_channel3_with_mock(api, monkeypatch):
     monkeypatch.setattr("app.routers.escales.search_gear", fake_search)
     res = client.get("/api/escales/channel3/gear")
     assert res.status_code == 200
-    assert res.json()["items"][0]["title"] == "Chart"
+    body = res.json()
+    assert body["items"][0]["title"] == "Chart"
+    assert body["capture_on"] == "departure"
+    assert "departure" in body["label"].lower()
+    assert "void" in body["label"].lower() or "cancel" in body["label"].lower()
+
+
+def test_gear_pledge_authorizes_and_waits_for_departure(monkeypatch):
+    """Équipement Channel3 : autorisation ; capture au départ ; void si escale annulée."""
+    from app.escales.milestones import decision_for_evidence, record_evidence
+    from app.escales.pledges import create_pledge, get_ledger
+    from app.escales.naviguide_bridge import sync_leg_shells
+
+    monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
+    reset_ledger()
+
+    class Spy:
+        def create_authorize_order(self, *args, **kwargs):
+            return {"id": "ORDER-GEAR", "links": [{"rel": "approve", "href": "https://example/approve"}]}
+
+    stop = "dep-la-rochelle"
+
+    async def body():
+        await sync_leg_shells()
+        created = await create_pledge(
+            amount_eur="49.90",
+            description="Life jacket",
+            milestone_id=stop,
+            client=Spy(),
+            kind="gear",
+            target_id="prod-life-jacket",
+        )
+        assert created["intent"] == "AUTHORIZE"
+        assert created["kind"] == "gear"
+        assert created["target_id"] == "prod-life-jacket"
+        milestone = await get_ledger().get_milestone(stop)
+        assert milestone["meta"]["capture_on"] == "departure"
+        assert milestone["meta"].get("departure_iso")
+        departed = await record_evidence(stop, met=True, facts={"departed": True})
+        assert decision_for_evidence({"facts": departed["facts"], "met": True}, milestone) == "capture"
+        cancelled = await record_evidence(stop, met=False, facts={"cancelled": True})
+        assert decision_for_evidence(
+            {"facts": cancelled["facts"], "met": False}, milestone,
+        ) == "void"
+
+    asyncio.run(body())
+    reset_ledger()
 
 
 def test_search_gear_uses_http_client(monkeypatch):

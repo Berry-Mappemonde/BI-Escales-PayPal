@@ -12,7 +12,7 @@ import httpx
 
 CHANNEL3_SEARCH_URL = "https://api.trychannel3.com/v1/search"
 
-# Onboard gear we may crowdfund before the next stopover.
+# Onboard gear: authorize near departure; capture on departure day; void if stop cancelled.
 ONBOARD_GEAR_QUERIES = (
     "sailing life jacket",
     "nautical chart",

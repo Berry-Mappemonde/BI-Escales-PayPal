@@ -1,4 +1,4 @@
-/** Channel3 onboard gear list — optional module (ESCALES_CHANNEL3_ENABLED + CHANNEL3_API_KEY). */
+/** Channel3 onboard gear — authorize near departure; capture on departure day. */
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchChannel3Gear } from "../api/escales";

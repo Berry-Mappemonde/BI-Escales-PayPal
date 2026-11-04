@@ -63,6 +63,7 @@ def test_channel3_enriches_proposal_without_capture(monkeypatch):
         proposal = await review("dep-mayotte", reader=None)
         assert proposal["proposal"] == "capture"
         assert proposal["channel3"]["status"] == "proposed"
+        assert "départ" in proposal["channel3"]["note"].lower()
         assert "automatique" in proposal["channel3"]["note"].lower()
 
     asyncio.run(run())

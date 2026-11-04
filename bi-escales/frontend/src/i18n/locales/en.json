@@ -100,7 +100,7 @@
   },
   "channel3": {
     "heading": "Onboard gear (Channel3)",
-    "hint": "PayPal authorize now; captured only if the boat arrives at the stopover.",
+    "hint": "PayPal authorize as close to departure as possible; captured on the day of departure from this stopover; void if the stopover is cancelled.",
     "productLink": "Product page"
   },
   "treasurer": {

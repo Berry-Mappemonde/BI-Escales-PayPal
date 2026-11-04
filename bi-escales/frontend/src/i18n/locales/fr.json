@@ -100,7 +100,7 @@
   },
   "channel3": {
     "heading": "Équipement de bord (Channel3)",
-    "hint": "Autorisation PayPal maintenant ; encaissement si le bateau arrive à l’escale.",
+    "hint": "Autorisation PayPal au plus près du départ ; encaissement le jour du départ de l’escale ; annulation si l’escale est annulée.",
     "productLink": "Fiche produit"
   },
   "treasurer": {

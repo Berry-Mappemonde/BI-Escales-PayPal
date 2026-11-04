@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, fetchFund, fetchHealthRetrying, fetchSchedule, readPaypalReturn, readVaultReturn, recordSpending, registerVault } from "./api/escales";
+import { authorizePledge, fetchFund, fetchHealthRetrying, fetchSchedule, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { nextStopover } from "./voyage/nextStopover.js";
 import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
@@ -96,6 +96,8 @@ export default function App() {
   const [spendAmount, setSpendAmount] = useState("10.00");
   const [spendNote, setSpendNote] = useState("");
   const [spendError, setSpendError] = useState<string | null>(null);
+  const [settleBusy, setSettleBusy] = useState(false);
+  const [settleNote, setSettleNote] = useState<string | null>(null);
   const [projectFund, setProjectFund] = useState<FundView | null | undefined>(undefined);
   const [boatFund, setBoatFund] = useState<FundView | null | undefined>(undefined);
 
@@ -282,6 +284,21 @@ export default function App() {
     else if (next === "mile") setAmount("1.00");
   };
 
+  const onSettle = async () => {
+    const key = adminKey.trim();
+    if (!key) return;
+    setSettleBusy(true);
+    setSettleNote(null);
+    try {
+      await settleClock(key);
+      setSettleNote(t("treasurer.settleDone"));
+    } catch (err: unknown) {
+      setSettleNote(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSettleBusy(false);
+    }
+  };
+
   const onSpend = async () => {
     if (!adminKey.trim() || !milestoneId) return;
     setSpendError(null);
@@ -333,6 +350,15 @@ export default function App() {
             data-testid="admin-key-input"
           />
         </label>
+        <button
+          type="button"
+          data-testid="departure-settle"
+          disabled={!adminKey.trim() || settleBusy}
+          onClick={() => void onSettle()}
+        >
+          {t("treasurer.settle")}
+        </button>
+        {settleNote ? <p className="notice" data-testid="settle-note">{settleNote}</p> : null}
         <label>
           {t("pledge.milestone")}
           <input value={milestoneId} onChange={(event) => setMilestoneId(event.target.value)} />

@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 import httpx
@@ -85,7 +87,9 @@ def test_1_english_sponsorship_names_the_computed_line(monkeypatch):
         _english_only(reply)
         assert "120 sponsored miles (120.00 EUR)" in reply
         assert "Ajaccio" in reply
-        assert reply.casefold().count("treasurer decides") == 1
+        assert reply.casefold().count("treasurer decides") == 0
+        assert "captured on the departure day" in reply
+        assert "PayPal Vault" in reply
         source = result["model_source"]
         super_answered = source.get("provider") == "nim" and "super" in source.get("model", "")
         assert super_answered or source.get("fallback_reason")
@@ -108,7 +112,10 @@ def test_3_english_cabin_between_la_rochelle_and_ajaccio():
         result = await chat("How much is a cabin from La Rochelle to Ajaccio?", lang="en")
         reply = result["reply"]
         assert "1 cabin leg (80.00 EUR)" in reply
-        assert "2026-11-12 -> 2026-11-29" in reply or "2026-11-" not in reply
+        assert "2026-11-12 -> 2026-11-29" in reply
+        dates = [s for s in re.split(r"(?<=[.!?])\s+", reply) if re.search(r"\d{4}-\d{2}-\d{2}", s)]
+        assert dates == ["Schedule dates: 2026-11-12 -> 2026-11-29."]
+        assert not reply.startswith("2026-")
         assert "2025" not in reply
         assert result["suggested_pledge"]["amount_eur"] == "80.00"
 
@@ -211,10 +218,16 @@ def test_12_huge_mileage_keeps_only_the_computed_price(monkeypatch):
     async def body():
         result = await chat("Sponsor 1000000 miles near Ajaccio", lang="en")
         reply = result["reply"]
-        assert result["suggested_pledge"]["amount_eur"] == "1000000.00"
-        assert "1000000.00" in reply
+        amount = result["suggested_pledge"]["amount_eur"]
+        assert amount != "1000000.00"
+        assert Decimal(amount) < Decimal("1000000")
+        assert Decimal(amount) >= Decimal("1")
+        assert "1000000" not in reply
         assert "999999" not in reply
         assert "7 EUR" not in reply
+        dates = [s for s in re.split(r"(?<=[.!?])\s+", reply) if re.search(r"\d{4}-\d{2}-\d{2}", s)]
+        assert len(dates) == 1
+        assert not reply.startswith("2026-")
 
     asyncio.run(body())
 

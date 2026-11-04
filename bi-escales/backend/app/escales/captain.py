@@ -271,17 +271,19 @@ def _is_capture_rule_question(message: str) -> bool:
 
 
 def _public_rule(lang: str) -> str:
-    """Authorize near departure, capture that day, void if the stopover is cancelled."""
+    """Authorize near departure, capture that day, void if cancelled, Vault past 29 days."""
     if lang == "en":
         return (
             "A pledge is authorized as close to departure as possible. "
             "The money is captured on the departure day. "
-            "If the stopover is cancelled, the authorization is voided."
+            "If the stopover is cancelled, the authorization is voided. "
+            "When the departure is more than 29 days away, the pledge uses PayPal Vault."
         )
     return (
         "Une promesse est autorisée au plus près du départ. "
         "L'argent est capturé le jour du départ. "
-        "Si l'escale est annulée, l'autorisation est annulée."
+        "Si l'escale est annulée, l'autorisation est annulée. "
+        "Quand le départ est à plus de 29 jours, la promesse utilise PayPal Vault."
     )
 
 
@@ -696,6 +698,21 @@ def _pledge_description(total_miles: Decimal, dinners: int, lang: str) -> str:
     return parts[0]
 
 
+def _mile_cap(place: str) -> Optional[Decimal]:
+    """Whole nautical miles of the real outgoing leg. None when the leg is not measured."""
+    from .naviguide_bridge import leg_by_id, leg_departing_from, leg_distance_nm
+
+    leg = leg_by_id(place) if str(place or "").startswith("leg-") else None
+    if leg is None:
+        leg = leg_departing_from(place)
+    if not leg:
+        return None
+    distance = leg_distance_nm(str(leg.get("id") or ""))
+    if distance is None or distance < 1:
+        return None
+    return Decimal(int(distance))
+
+
 def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
     """Compose one AUTHORIZE pledge from every catalogue item in the message.
 
@@ -722,6 +739,9 @@ def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
     if not counts and dinners == 0:
         counts = [Decimal("1")]
     total_miles = sum(counts, Decimal("0"))
+    cap = _mile_cap(place) if total_miles > 0 else None
+    if cap is not None and total_miles > cap:
+        total_miles = cap
     amount = (total_miles * MILE_EUR + DINNER_EUR * dinners).quantize(Decimal("0.01"))
     if total_miles > 0 and dinners:
         item = "mixed"
@@ -769,8 +789,6 @@ def _covered_miles_sentence(evidence: dict, lang: str = "fr") -> str:
     return f"La preuve {provider} ({flag}) indique {shown} milles parcourus."
 
 
-_TREASURER_DECIDES = "Seul le trésorier décide si l'argent est prélevé ou libéré."
-_TREASURER_RULES_EN = "Only the treasurer decides whether the money is captured or released."
 # The model still writes this. Ordinary replies use the public capture rule instead.
 _TREASURER_ONLY = re.compile(
     r"only the treasurer decides"
@@ -801,12 +819,12 @@ def _fallback_report(milestone_id: str, decision: str, evidence: dict, lang: str
         return (
             f"Milestone {port}: {provider} evidence marked {flag} "
             f"(source {source}). Proposal: {decision}. "
-            f"{_TREASURER_RULES_EN}"
+            f"{_public_rule('en')}"
         )
     return (
         f"Jalon {port} : la preuve {provider} porte la marque {flag} (source {source}). "
         f"La proposition est {decision}. "
-        f"{_TREASURER_DECIDES}"
+        f"{_public_rule('fr')}"
     )
 
 
@@ -1484,8 +1502,10 @@ def _compose_chat_reply(
     prose = _drop_standalone_intent(prose)
     required: list[str] = [_pledge_line(suggested, lang)]
     dates = _code_dates_sentence(str(suggested.get("milestone_id") or ""), lang)
-    if dates and dates.casefold() not in (prose or "").casefold():
-        required.append(dates)
+    if dates:
+        prose = _drop_date_sentences(prose)
+        if dates.casefold() not in (prose or "").casefold():
+            required.append(dates)
     rules = _public_rule(lang)
     if rules.casefold() not in (prose or "").casefold():
         required.append(rules)
@@ -1503,9 +1523,6 @@ def _compose_chat_reply(
         reply = _standardise_french(reply)
     elif lang == "en":
         reply = _english_labels(reply)
-    if suggested and not _TREASURER_ONLY.search(reply):
-        sentence = _TREASURER_RULES_EN if lang == "en" else _TREASURER_DECIDES
-        reply = _fix_sentence_starts(f"{reply} {sentence}".strip())
     return _fix_sentence_starts(reply)
 
 
@@ -1848,27 +1865,36 @@ def _spoken_date(moment: dt.datetime, lang: str) -> str:
     return arrival_phrase({"facts": {"arrival_iso": moment.date().isoformat()}}, lang)
 
 
+def _drop_date_sentences(text: str) -> str:
+    """Price replies keep the one code date sentence, not a model date."""
+    kept = [
+        sentence
+        for sentence in _split_sentences(text or "")
+        if sentence.strip() and not _DATE_PHRASE.search(sentence)
+    ]
+    return " ".join(kept).strip()
+
+
 def _code_dates_sentence(milestone_id: str, lang: str) -> str:
-    """One schedule sentence. An inverted range is never written."""
+    """One schedule sentence. A leg is a range. A stopover is arrival and departure."""
     block = _schedule_slice(milestone_id)
     departure = str(block.get("departure_iso") or "")[:10]
     arrival = str(block.get("arrival_iso") or "")[:10]
-    if departure and arrival and departure <= arrival:
-        moment = _parse_clock(arrival)
-        spoken = _spoken_date(moment, "en" if lang == "en" else "fr") if moment else ""
+    is_leg = str(milestone_id or "").startswith("leg-")
+    if is_leg and departure and arrival and departure <= arrival:
         if lang == "en":
-            extra = f", {spoken}" if spoken else ""
-            return f"Schedule dates: {departure} -> {arrival}{extra}."
-        extra = f", {spoken}" if spoken else ""
-        return f"Dates de l'escale : {departure} -> {arrival}{extra}."
+            return f"Schedule dates: {departure} -> {arrival}."
+        return f"Dates de l'étape : {departure} -> {arrival}."
+    if arrival and departure:
+        if lang == "en":
+            return f"Arrival {arrival}, departure {departure}."
+        return f"Arrivée {arrival}, départ {departure}."
     day = arrival or departure
-    moment = _parse_clock(day) if day else None
-    if moment is None:
+    if not day:
         return ""
-    spoken = _spoken_date(moment, "en" if lang == "en" else "fr")
     if lang == "en":
-        return f"The schedule date is {spoken}."
-    return f"La date de l'escale est {spoken}."
+        return f"The schedule date is {day}."
+    return f"La date de l'escale est {day}."
 
 
 def _drop_inverted_ranges(text: str) -> str:

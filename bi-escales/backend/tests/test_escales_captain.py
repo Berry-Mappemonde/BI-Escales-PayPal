@@ -273,7 +273,10 @@ def test_chat_replaces_an_invented_date_and_drops_a_broken_fragment(monkeypatch)
         assert "2025" not in reply
         assert "2024" not in reply
         assert "As the" not in reply
-        assert "12 November 2026" in reply
+        assert not reply.startswith("2026-")
+        dates = [s for s in re.split(r"(?<=[.!?])\s+", reply) if re.search(r"\d{4}-\d{2}-\d{2}", s)]
+        assert dates == ["Arrival 2026-11-12, departure 2026-11-12."]
+        assert "29 November" not in reply
         assert "La Rochelle" in reply
 
     asyncio.run(body())
@@ -301,15 +304,19 @@ def test_arrival_dates_stay_on_the_injected_schedule_day(monkeypatch):
         assert "departure_iso" in schedule
         assert "Do not invent a date" in seen["system"]
         assert "12 November" not in ajaccio["reply"]
-        assert "29 November 2026" in ajaccio["reply"]
-        answers["text"] = "We arrive on 29 November 2026."
+        assert "2026-11-12" not in ajaccio["reply"]
+        assert ajaccio["reply"].count("Arrival 2026-11-29, departure 2026-12-02.") == 1
+        assert not ajaccio["reply"].startswith("2026-")
+        answers["text"] = "2026-11-12. We arrive on 29 November 2026."
         again = await chat("I'd like to sponsor 10 nautical miles near Ajaccio")
-        assert "29 November 2026" in again["reply"]
+        assert again["reply"].count("Arrival 2026-11-29, departure 2026-12-02.") == 1
         assert "12 November" not in again["reply"]
+        assert not again["reply"].startswith("2026-")
         answers["text"] = "We arrive on 29 November 2026."
         rochelle = await chat("I'd like to sponsor 10 nautical miles near La Rochelle")
-        assert "12 November 2026" in rochelle["reply"]
+        assert rochelle["reply"].count("Arrival 2026-11-12, departure 2026-11-12.") == 1
         assert "29 November" not in rochelle["reply"]
+        assert "2026-11-29" not in rochelle["reply"]
 
     asyncio.run(body())
 
@@ -657,6 +664,9 @@ def test_english_report_templates_say_milestone_not_jalon():
     english = captain._fallback_report("lorient", "capture", evidence, lang="en")
     assert "Jalon" not in english
     assert "Milestone Lorient" in english
+    assert "only the treasurer decides" not in english.lower()
+    assert "as close to departure as possible" in english
+    assert "PayPal Vault" in english
     french = captain._fallback_report("lorient", "wait", evidence, lang="fr")
     assert "Jalon Lorient" in french
     assert "Milestone" not in french
@@ -2096,7 +2106,8 @@ def test_french_vocabulary_and_the_pledge_line(monkeypatch):
         assert "en euros" not in reply.casefold()
         assert "10,00 €" in reply
         assert "au plus près du départ" in reply
-        assert reply.count("Seul le trésorier décide") == 1
+        assert "PayPal Vault" in reply
+        assert reply.count("Seul le trésorier décide") == 0
         assert reply.count("Promesse calculée") == 1
 
     asyncio.run(body())
@@ -2380,7 +2391,8 @@ def test_code_enforces_the_fixed_treasurer_sentence(monkeypatch):
         assert reply.count("au plus près du départ") == 1
         assert "jour du départ" in reply
         assert "annulée" in reply
-        assert reply.count("Seul le trésorier décide") == 1
+        assert "PayPal Vault" in reply
+        assert reply.count("Seul le trésorier décide") == 0
         assert "will decide" not in reply.casefold()
         assert "trancher" not in reply.casefold()
         assert "The treasurer" not in reply
@@ -2406,7 +2418,7 @@ def test_local_time_eta_for_dakar_lorient_and_pointe_a_pitre():
     assert mayotte_cart["eta"] > "2026-11-12"
 
 
-def test_treasurer_sentence_is_added_when_the_model_omits_it(monkeypatch):
+def test_pledge_reply_states_the_charge_rule_without_the_treasurer(monkeypatch):
     import app.core.llm as llm
 
     async def fake_ask_text(*_args, **_kwargs):
@@ -2420,7 +2432,8 @@ def test_treasurer_sentence_is_added_when_the_model_omits_it(monkeypatch):
         reply = result["reply"]
         assert "au plus près du départ" in reply
         assert "jour du départ" in reply
-        assert reply.count("Seul le trésorier décide") == 1
+        assert "PayPal Vault" in reply
+        assert reply.count("Seul le trésorier décide") == 0
         assert "La mer est calme" in reply
         assert len(reply.split()) <= 80
 
@@ -2448,7 +2461,7 @@ def test_charge_claim_falls_back_to_the_rules_text(monkeypatch):
         assert "Votre carte" not in reply
         assert "La mer est calme" not in reply
         assert "au plus près du départ" in reply
-        assert reply.count("Seul le trésorier décide") == 1
+        assert reply.count("Seul le trésorier décide") == 0
         assert "10,00 €" in reply
         assert "10 milles parrainés" in reply
         english = await chat("I'd like to sponsor 10 nautical miles near Lorient")
@@ -2457,7 +2470,8 @@ def test_charge_claim_falls_back_to_the_rules_text(monkeypatch):
         assert "The sea is calm" not in english_reply
         assert "as close to departure as possible" in english_reply
         assert "captured on the departure day" in english_reply
-        assert english_reply.count("Only the treasurer decides") == 1
+        assert "PayPal Vault" in english_reply
+        assert english_reply.count("Only the treasurer decides") == 0
         assert "10.00 EUR" in english_reply
         assert "10 sponsored miles" in english_reply
 
@@ -2718,8 +2732,9 @@ def test_nim_reply_does_not_repeat_the_treasurer_sentence(monkeypatch):
     async def body():
         result = await chat("Je parraine 10 milles près de Dakar")
         reply = result["reply"]
-        assert reply.count("Seul le trésorier décide") == 1
+        assert reply.count("Seul le trésorier décide") == 0
         assert reply.count("au plus près du départ") == 1
+        assert "PayPal Vault" in reply
         assert reply.count("Promesse calculée") == 1
 
     asyncio.run(body())

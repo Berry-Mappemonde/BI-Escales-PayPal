@@ -61,10 +61,12 @@ def isolated(monkeypatch):
     reset_ledger()
     llm.reset_llm_budget()
     llm.reset_nim_pace()
+    llm.reset_nim_model_choice()
     yield
     reset_ledger()
     llm.reset_llm_budget()
     llm.reset_nim_pace()
+    llm.reset_nim_model_choice()
 
 
 class Spy:
@@ -941,6 +943,36 @@ def test_rejected_nim_model_env_sends_the_private_super(monkeypatch, caplog):
         assert "NIM_MODEL" in caplog.text
         assert "Bearer" not in caplog.text
         assert "nvapi" not in caplog.text
+        await client.aclose()
+
+    asyncio.run(body())
+
+
+def test_garbled_nim_model_is_not_sent(monkeypatch):
+    """A doubled id is not a model. The hop sends the private Super id and says why."""
+    garbled = (
+        "private/nvidia/nemotron-3.5-super-120b-a12bivate/"
+        "nvidia/nemotron-3.5-super-120b-a12b"
+    )
+    monkeypatch.setenv("NIM_MODEL", garbled)
+    assert llm.nim_model() == llm.NIM_MODEL_DEFAULT
+    assert llm.nim_model() != garbled
+    reason = llm.nim_model_fallback_reason()
+    assert reason.get("nim") == "malformed model id: duplicated fragment"
+    assert "nvapi" not in llm.nim_model_reason()
+    assert garbled not in reason["nim"]
+
+    _enable("nim")
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [_openai("Rapport.", llm.NIM_MODEL_DEFAULT)],
+    })
+
+    async def body():
+        result = await llm.ask_text("preuve", client=client)
+        assert seen[0]["model"] == llm.NIM_MODEL_DEFAULT
+        assert result.model == llm.NIM_MODEL_DEFAULT
+        assert result.fallback_reason.get("nim") == "malformed model id: duplicated fragment"
+        assert "duplicated fragment" in result.reason
         await client.aclose()
 
     asyncio.run(body())

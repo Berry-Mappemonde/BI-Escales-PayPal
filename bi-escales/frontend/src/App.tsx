@@ -9,6 +9,7 @@ import { EscalePopup } from "./components/EscalePopup.jsx";
 import MarinasPanel from "./components/MarinasPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
 import { TreasurerQueue } from "./components/TreasurerQueue";
+import { TreasurerPayPalPanel } from "./components/TreasurerPayPalPanel";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { setLanguage } from "./i18n";
 import { MapScene } from "./map/MapScene.jsx";
@@ -436,6 +437,7 @@ export default function App() {
           onRefresh={() => void refresh()}
           onUpdated={updatePledge}
         />
+        <TreasurerPayPalPanel adminKey={adminKey} />
         <form
           className="stack-form"
           onSubmit={(event) => {

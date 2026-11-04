@@ -106,7 +106,8 @@
     "vaultRetry": "Vault setup cancelled. You can try again from the pledge button.",
     "vaultCancelled": "Vault setup cancelled. Nothing was saved.",
     "venmoNote": "PayPal wallet or card (EUR). Venmo is not available — USD only.",
-    "error": "Pledge error"
+    "error": "Pledge error",
+    "crewSubscribeHint": "Monthly Crew supporter subscription (EUR, sandbox)."
   },
   "treasurer": {
     "heading": "Treasurer queue",
@@ -131,7 +132,16 @@
     "settleDone": "Departure-day settle finished.",
     "settleAtLabel": "Settle at chosen date and time",
     "settleAtButton": "Settle at this date",
-    "settleAtInvalid": "Enter a valid date and time."
+    "settleAtInvalid": "Enter a valid date and time.",
+    "paypal": {
+      "heading": "PayPal (read-only lists)",
+      "disputes": "Disputes: {{count}}",
+      "invoices": "Invoices: {{count}}",
+      "subscriptions": "Crew subscriptions: {{count}}",
+      "setupCrew": "Ensure Crew supporter plan (sandbox)",
+      "setupDone": "Crew supporter catalog already configured.",
+      "setupCreated": "Crew supporter product and plan created."
+    }
   },
   "grid": {
     "heading": "Treasurer view — gauges",

@@ -265,3 +265,54 @@ export async function captainChat(message: string, lang?: string): Promise<Capta
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
+
+function treasurerHeaders(adminKey: string): Record<string, string> {
+  return { "x-admin-key": adminKey.trim() };
+}
+
+export async function fetchPayPalDisputes(adminKey: string): Promise<{
+  paypal: { items?: unknown[] };
+  snapshots?: unknown[];
+}> {
+  const res = await fetch(url("/api/escales/paypal/disputes"), { headers: treasurerHeaders(adminKey) });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function fetchPayPalInvoices(adminKey: string): Promise<{ paypal: { items?: unknown[] } }> {
+  const res = await fetch(url("/api/escales/paypal/invoices"), { headers: treasurerHeaders(adminKey) });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function fetchPayPalSubscriptions(adminKey: string): Promise<{ items: unknown[] }> {
+  const res = await fetch(url("/api/escales/paypal/subscriptions"), { headers: treasurerHeaders(adminKey) });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function setupCrewSubscription(adminKey: string): Promise<{
+  product_id?: string;
+  plan_id?: string;
+  idempotent?: boolean;
+}> {
+  const res = await fetch(url("/api/escales/paypal/subscriptions/setup"), {
+    method: "POST",
+    headers: treasurerHeaders(adminKey),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function recordSubscription(
+  adminKey: string,
+  body: { subscription_id: string; plan_id: string; status?: string; subscriber_email?: string },
+): Promise<Record<string, unknown>> {
+  const res = await fetch(url("/api/escales/paypal/subscriptions/record"), {
+    method: "POST",
+    headers: { ...treasurerHeaders(adminKey), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}

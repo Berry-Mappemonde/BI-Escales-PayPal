@@ -55,7 +55,27 @@ from app.escales.naviguide_bridge import (
     sync_milestone_shells,
 )
 from app.escales.paypal_client import PayPalClient, PayPalError, approve_link
+from app.escales.paypal_disputes import (
+    accept_dispute_claim,
+    get_dispute,
+    list_dispute_snapshots,
+    list_disputes as list_paypal_disputes,
+    provide_dispute_evidence,
+)
+from app.escales.paypal_invoicing import (
+    cancel_invoice,
+    create_partner_invoice,
+    list_treasurer_invoices,
+    remind_invoice,
+    send_invoice,
+)
+from app.escales.paypal_p2_eligibility import PAY_LATER_UI_MIN_EUR, p2_eligibility_report
 from app.escales.paypal_reconcile import reconcile_paypal_ledger
+from app.escales.paypal_subscriptions import (
+    ensure_crew_supporter_catalog,
+    list_subscriptions_local,
+    record_subscription,
+)
 from app.escales.project_payouts import (
     PayoutNotFound,
     PayoutStateError,
@@ -181,6 +201,30 @@ class VaultRegisterIn(BaseModel):
 
 class ClockSettleIn(BaseModel):
     now: Optional[str] = None
+
+
+class InvoiceCreateIn(BaseModel):
+    recipient_email: str
+    amount_eur: str
+    description: str
+    reference: str = ""
+    invoice_number: Optional[str] = None
+
+
+class DisputeEvidenceIn(BaseModel):
+    milestone_id: str
+    notes: Optional[str] = None
+
+
+class DisputeAcceptIn(BaseModel):
+    note: str = ""
+
+
+class SubscriptionRecordIn(BaseModel):
+    subscription_id: str
+    plan_id: str
+    status: str = "ACTIVE"
+    subscriber_email: Optional[str] = None
 
 
 def _paypal() -> Any:
@@ -377,6 +421,9 @@ async def get_features():
         "webhooks_enabled": webhooks_enabled(),
         "webhook_url": paypal_webhook_url(),
         "clock_pinned": clock_now_pinned(),
+        "pay_later_min_eur": PAY_LATER_UI_MIN_EUR,
+        "p2_eligibility": p2_eligibility_report(),
+        "fastlane": False,
     }
 
 
@@ -531,6 +578,130 @@ async def get_paypal_reconcile(request: Request, start_date: str, end_date: str)
             finance_entries=await list_finance_entries(),
         )
     except PayPalError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.get("/paypal/disputes")
+async def get_paypal_disputes(request: Request, start_time: Optional[str] = None):
+    _require_treasurer(request)
+    try:
+        remote = await list_paypal_disputes(_paypal(), start_time=start_time)
+        return {"paypal": remote, "snapshots": await list_dispute_snapshots()}
+    except PayPalError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.get("/paypal/disputes/{dispute_id}")
+async def get_paypal_dispute(dispute_id: str, request: Request):
+    _require_treasurer(request)
+    try:
+        return await get_dispute(_paypal(), dispute_id)
+    except PayPalError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.post("/paypal/disputes/{dispute_id}/accept-claim")
+async def post_dispute_accept(dispute_id: str, body: DisputeAcceptIn, request: Request):
+    _require_treasurer(request)
+    try:
+        return await accept_dispute_claim(_paypal(), dispute_id, note=body.note)
+    except PayPalError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.post("/paypal/disputes/{dispute_id}/provide-evidence")
+async def post_dispute_evidence(dispute_id: str, body: DisputeEvidenceIn, request: Request):
+    _require_treasurer(request)
+    try:
+        return await provide_dispute_evidence(
+            _paypal(),
+            dispute_id,
+            milestone_id=body.milestone_id,
+            notes=body.notes,
+        )
+    except PayPalError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.get("/paypal/invoices")
+async def get_paypal_invoices(request: Request, page: int = 1):
+    _require_treasurer(request)
+    try:
+        return await list_treasurer_invoices(_paypal(), page=page)
+    except PayPalError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.post("/paypal/invoices")
+async def post_paypal_invoice(body: InvoiceCreateIn, request: Request):
+    _require_treasurer(request)
+    try:
+        return await create_partner_invoice(
+            _paypal(),
+            recipient_email=body.recipient_email,
+            amount_eur=body.amount_eur,
+            description=body.description,
+            reference=body.reference or body.description,
+            invoice_number=body.invoice_number,
+        )
+    except PayPalError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.post("/paypal/invoices/{invoice_id}/send")
+async def post_invoice_send(invoice_id: str, request: Request):
+    _require_treasurer(request)
+    try:
+        return await send_invoice(_paypal(), invoice_id)
+    except PayPalError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.post("/paypal/invoices/{invoice_id}/remind")
+async def post_invoice_remind(invoice_id: str, request: Request):
+    _require_treasurer(request)
+    try:
+        return await remind_invoice(_paypal(), invoice_id)
+    except PayPalError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.post("/paypal/invoices/{invoice_id}/cancel")
+async def post_invoice_cancel(invoice_id: str, request: Request):
+    _require_treasurer(request)
+    try:
+        return await cancel_invoice(_paypal(), invoice_id)
+    except PayPalError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.post("/paypal/subscriptions/setup")
+async def post_subscription_setup(request: Request):
+    """Idempotent Crew supporter product + monthly EUR plan (admin)."""
+    _require_treasurer(request)
+    try:
+        return await ensure_crew_supporter_catalog(_paypal())
+    except PayPalError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.get("/paypal/subscriptions")
+async def get_paypal_subscriptions(request: Request):
+    _require_treasurer(request)
+    return {"items": await list_subscriptions_local()}
+
+
+@router.post("/paypal/subscriptions/record")
+async def post_subscription_record(body: SubscriptionRecordIn, request: Request):
+    _require_treasurer(request)
+    try:
+        return await record_subscription(
+            subscription_id=body.subscription_id,
+            plan_id=body.plan_id,
+            status=body.status,
+            subscriber_email=body.subscriber_email,
+        )
+    except ValueError as exc:
         raise _as_http(exc) from exc
 
 

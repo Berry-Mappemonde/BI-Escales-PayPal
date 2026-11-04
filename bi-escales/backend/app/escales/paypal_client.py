@@ -421,6 +421,143 @@ class PayPalClient:
             path = f"{path}?start_time={start_time}"
         return self._req("GET", path)
 
+    def get_dispute(self, dispute_id: str) -> dict:
+        return self._req("GET", f"/v1/customer/disputes/{dispute_id}")
+
+    def accept_dispute_claim(self, dispute_id: str, *, note: str = "") -> dict:
+        body = {"note": (note or "")[:512]} if note else {}
+        return self._req(
+            "POST",
+            f"/v1/customer/disputes/{dispute_id}/accept-claim",
+            body or None,
+            idempotency_key=paypal_request_id(dispute_id, "accept-claim"),
+        )
+
+    def provide_dispute_evidence(
+        self,
+        dispute_id: str,
+        *,
+        notes: str,
+        evidence_type: str = "PROOF_OF_FULFILLMENT",
+    ) -> dict:
+        body = {
+            "evidence_type": evidence_type,
+            "evidence_info": {"notes": (notes or "")[:2000]},
+        }
+        return self._req(
+            "POST",
+            f"/v1/customer/disputes/{dispute_id}/provide-evidence",
+            body,
+            idempotency_key=paypal_request_id(dispute_id, "provide-evidence"),
+        )
+
+    def create_invoice(
+        self,
+        *,
+        recipient_email: str,
+        amount_eur: str,
+        description: str,
+        reference: str,
+        invoice_number: Optional[str] = None,
+    ) -> dict:
+        number = (invoice_number or reference)[:25]
+        body = {
+            "detail": {
+                "invoice_number": number,
+                "currency_code": self.cfg.currency,
+                "note": description[:2000],
+                "payment_term": {"term_type": "NET_10"},
+            },
+            "primary_recipients": [{
+                "billing_info": {"email_address": recipient_email},
+            }],
+            "items": [{
+                "name": description[:100],
+                "quantity": "1",
+                "unit_amount": {"currency_code": self.cfg.currency, "value": amount_eur},
+            }],
+        }
+        return self._req(
+            "POST",
+            "/v2/invoicing/invoices",
+            body,
+            idempotency_key=paypal_request_id(reference, "invoice-create"),
+        )
+
+    def send_invoice(self, invoice_id: str) -> dict:
+        return self._req(
+            "POST",
+            f"/v2/invoicing/invoices/{invoice_id}/send",
+            {"send_to_recipient": True, "send_to_invoicer": False},
+            idempotency_key=paypal_request_id(invoice_id, "invoice-send"),
+        )
+
+    def remind_invoice(self, invoice_id: str) -> dict:
+        return self._req(
+            "POST",
+            f"/v2/invoicing/invoices/{invoice_id}/remind",
+            {"subject": "Reminder: Escales invoice", "note": "Please complete payment."},
+            idempotency_key=paypal_request_id(invoice_id, "invoice-remind"),
+        )
+
+    def cancel_invoice(self, invoice_id: str) -> dict:
+        return self._req(
+            "POST",
+            f"/v2/invoicing/invoices/{invoice_id}/cancel",
+            {"send_to_recipient": False, "send_to_invoicer": True},
+            idempotency_key=paypal_request_id(invoice_id, "invoice-cancel"),
+        )
+
+    def get_invoice(self, invoice_id: str) -> dict:
+        return self._req("GET", f"/v2/invoicing/invoices/{invoice_id}")
+
+    def create_billing_product(
+        self,
+        *,
+        name: str,
+        description: str,
+        idempotency_key: str,
+    ) -> dict:
+        body = {
+            "name": name[:127],
+            "description": description[:256],
+            "type": "SERVICE",
+            "category": "CHARITY",
+        }
+        return self._req("POST", "/v1/catalogs/products", body, idempotency_key=idempotency_key)
+
+    def create_billing_plan(
+        self,
+        *,
+        product_id: str,
+        name: str,
+        amount_eur: str,
+        interval_unit: str,
+        idempotency_key: str,
+    ) -> dict:
+        body = {
+            "product_id": product_id,
+            "name": name[:127],
+            "billing_cycles": [{
+                "frequency": {"interval_unit": interval_unit, "interval_count": 1},
+                "tenure_type": "REGULAR",
+                "sequence": 1,
+                "total_cycles": 0,
+                "pricing_scheme": {
+                    "fixed_price": {"value": amount_eur, "currency_code": self.cfg.currency},
+                },
+            }],
+            "payment_preferences": {
+                "auto_bill_outstanding": True,
+                "setup_fee_failure_action": "CONTINUE",
+                "payment_failure_threshold": 3,
+            },
+        }
+        return self._req("POST", "/v1/billing/plans", body, idempotency_key=idempotency_key)
+
+    def get_subscription(self, subscription_id: str) -> dict:
+        return self._req("GET", f"/v1/billing/subscriptions/{subscription_id}")
+
     def refund_capture(
         self,
         capture_id: str,

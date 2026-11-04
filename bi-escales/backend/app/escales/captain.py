@@ -2663,7 +2663,7 @@ def _cabin_price_reply(lang: str) -> str:
 
 
 _PAYPAL_READONLY = re.compile(
-    r"\b(?:list|show|search|check)\s+(?:paypal\s+)?(?:transactions?|disputes?)\b",
+    r"\b(?:list|show|search|check)\s+(?:paypal\s+)?(?:transactions?|disputes?|invoices?)\b",
     re.IGNORECASE,
 )
 
@@ -2679,7 +2679,7 @@ def _is_paypal_readonly_question(message: str) -> bool:
     ):
         return True
     if re.search(
-        r"\b(?:tr[ée]sorier|treasurer)\b.*\b(?:transaction|dispute)s?\b",
+        r"\b(?:tr[ée]sorier|treasurer)\b.*\b(?:transaction|dispute|invoice)s?\b",
         text,
         re.I,
     ):
@@ -2716,6 +2716,13 @@ def _paypal_readonly_reply(message: str, lang: str, reader: ReadOnlyTools) -> Op
                 f"Transactions PayPal du {start[:10]} au {end[:10]} (lecture seule) : "
                 f"{count} ligne(s)."
             )
+        if re.search(r"\binvoices?\b", message, re.I):
+            payload = reader.get("invoices.list", "1")
+            items = payload.get("items") if isinstance(payload, dict) else []
+            count = len(items or [])
+            if lang == "en":
+                return f"PayPal invoices (read-only): {count} item(s)."
+            return f"Factures PayPal (lecture seule) : {count} élément(s)."
     except Exception as exc:
         detail = str(exc)[:120]
         if lang == "en":

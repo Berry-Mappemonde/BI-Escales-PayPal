@@ -106,7 +106,8 @@
     "vaultRetry": "Enregistrement Vault annulé. Vous pouvez réessayer via le bouton Promettre.",
     "vaultCancelled": "Enregistrement Vault annulé. Rien n’a été enregistré.",
     "venmoNote": "PayPal ou carte (EUR). Venmo indisponible — USD uniquement.",
-    "error": "Erreur promesse"
+    "error": "Erreur promesse",
+    "crewSubscribeHint": "Abonnement mensuel Équipage (EUR, sandbox)."
   },
   "treasurer": {
     "heading": "File trésorier",
@@ -131,7 +132,16 @@
     "settleDone": "Règlement du jour de départ terminé.",
     "settleAtLabel": "Régler à la date et l’heure choisies",
     "settleAtButton": "Régler à cette date",
-    "settleAtInvalid": "Indiquez une date et une heure valides."
+    "settleAtInvalid": "Indiquez une date et une heure valides.",
+    "paypal": {
+      "heading": "PayPal (listes lecture seule)",
+      "disputes": "Litiges : {{count}}",
+      "invoices": "Factures : {{count}}",
+      "subscriptions": "Abonnements équipage : {{count}}",
+      "setupCrew": "Préparer le plan Équipage (sandbox)",
+      "setupDone": "Catalogue Équipage déjà configuré.",
+      "setupCreated": "Produit et plan Équipage créés."
+    }
   },
   "grid": {
     "heading": "Vue trésorier — jauges",

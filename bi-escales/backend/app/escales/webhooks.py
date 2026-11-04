@@ -37,6 +37,22 @@ _AUDITED_EVENTS = frozenset({
     "PAYMENT.CAPTURE.REFUNDED",
     "PAYMENT.CAPTURE.PENDING",
     "CHECKOUT.ORDER.APPROVED",
+    "CUSTOMER.DISPUTE.CREATED",
+    "CUSTOMER.DISPUTE.UPDATED",
+    "CUSTOMER.DISPUTE.RESOLVED",
+    "INVOICING.INVOICE.PAID",
+    "INVOICING.INVOICE.CANCELLED",
+    "INVOICING.INVOICE.CREATED",
+    "INVOICING.INVOICE.SCHEDULED",
+    "INVOICING.INVOICE.UPDATED",
+    "BILLING.SUBSCRIPTION.ACTIVATED",
+    "BILLING.SUBSCRIPTION.CANCELLED",
+    "BILLING.SUBSCRIPTION.SUSPENDED",
+    "BILLING.SUBSCRIPTION.PAYMENT.FAILED",
+    "PAYMENT.SALE.COMPLETED",
+    "PAYMENT.PAYOUTSBATCH.PROCESSING",
+    "PAYMENT.PAYOUTSBATCH.SUCCESS",
+    "PAYMENT.PAYOUTSBATCH.DENIED",
 })
 
 
@@ -241,6 +257,64 @@ async def _apply_event(event: dict) -> dict:
                 pledge_kind=identity.get("kind") if identity else None,
                 target_id=identity.get("target_id") if identity else None,
             )
+
+    if event_type == "PAYMENT.CAPTURE.REFUNDED" and pledge and pledge.get("status") in {
+        "captured",
+        "partially_refunded",
+    }:
+        pledge["status"] = "refunded"
+        pledge["history"] = list(pledge.get("history") or []) + ["webhook_refunded"]
+        pledge = await get_ledger().save_pledge(pledge)
+        await record_finance(
+            "webhook_capture_refunded",
+            pledge_id=pledge.get("_id"),
+            capture_id=resource.get("id"),
+        )
+
+    if event_type.startswith("CUSTOMER.DISPUTE."):
+        dispute_id = str(resource.get("dispute_id") or resource.get("id") or "")
+        if dispute_id:
+            await record_finance(
+                "paypal_dispute_snapshot",
+                dispute_id=dispute_id,
+                source="webhook",
+                status=resource.get("status"),
+                payload=resource,
+            )
+
+    if event_type.startswith("INVOICING.INVOICE."):
+        invoice_id = str(resource.get("id") or resource.get("invoice_id") or "")
+        status = "PAID" if event_type.endswith(".PAID") else resource.get("status")
+        if invoice_id:
+            await record_finance(
+                "paypal_invoice_webhook",
+                invoice_id=invoice_id,
+                event_type=event_type,
+                status=status,
+            )
+
+    if event_type.startswith("BILLING.SUBSCRIPTION.") or event_type == "PAYMENT.SALE.COMPLETED":
+        from .paypal_subscriptions import record_subscription
+
+        sub_id = str(resource.get("id") or resource.get("billing_agreement_id") or "")
+        plan_id = str(resource.get("plan_id") or "")
+        status = str(resource.get("status") or event_type.split(".")[-1].lower())
+        if sub_id:
+            await record_subscription(
+                subscription_id=sub_id,
+                plan_id=plan_id,
+                status=status,
+            )
+
+    if event_type.startswith("PAYMENT.PAYOUTSBATCH."):
+        header = resource.get("batch_header") if isinstance(resource.get("batch_header"), dict) else {}
+        batch_id = str(header.get("payout_batch_id") or resource.get("batch_header") or resource.get("id") or "")
+        await record_finance(
+            "payout_batch_webhook",
+            event_type=event_type,
+            batch_id=batch_id,
+            status=resource.get("batch_status"),
+        )
 
     return {
         "accepted": True,

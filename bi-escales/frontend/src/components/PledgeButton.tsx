@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createPledge, registerVault, isVaultPledge } from "../api/escales";
 import type { PublicPledge } from "../api/types";
-import { loadPayPalSdk } from "../paypal/paypalSdk";
+import { loadPayPalSdk, payLaterEligible } from "../paypal/paypalSdk";
 
 export interface PledgeFormValues {
   amount_eur: string;
@@ -106,7 +106,18 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
   useEffect(() => {
     if (!sdkReady || !sdkHost.current) return;
     sdkHost.current.dataset.paypalSdkReady = "1";
-  }, [sdkReady]);
+    const host = sdkHost.current;
+    host.innerHTML = "";
+    if (payLaterEligible(values.amount_eur) && window.paypal?.Messages) {
+      const messages = window.paypal.Messages({
+        amount: values.amount_eur.replace(",", "."),
+        placement: "product",
+        style: { layout: "text" },
+      });
+      void messages.render(host);
+      host.dataset.payLaterMessages = "1";
+    }
+  }, [sdkReady, values.amount_eur]);
 
   return (
     <div className="pledge-button" data-testid="paypal-buttons" data-kind={values.kind || ""}>

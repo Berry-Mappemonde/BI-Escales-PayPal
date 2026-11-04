@@ -637,7 +637,7 @@ class PayPalClient:
             "items": [{
                 "recipient_type": "EMAIL",
                 "recipient_wallet": "PAYPAL",
-                "amount": {"value": amount_eur, "currency_code": self.cfg.currency},
+                "amount": {"value": str(amount_eur), "currency": self.cfg.currency or "EUR"},
                 "receiver": receiver_email,
                 "note": (note or "")[:165],
                 "sender_item_id": item_id[:127],

@@ -77,6 +77,31 @@ def test_authorize_order_includes_custom_id_and_descriptor():
     assert unit["soft_descriptor"] == SOFT_DESCRIPTOR
 
 
+def test_create_payout_item_amount_uses_value_and_currency():
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request):
+        if request.url.path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "T", "expires_in": 3600})
+        bodies.append(json.loads(request.content))
+        return httpx.Response(201, json={"batch_header": {"payout_batch_id": "BATCH-1"}})
+
+    client = PayPalClient(
+        EscalesConfig("cid", "secret", currency="EUR"),
+        transport=httpx.MockTransport(handler),
+    )
+    client.create_payout(
+        batch_id="payout-test",
+        receiver_email="payee@example.com",
+        amount_eur="5.00",
+        note="test",
+        item_id="prop-1",
+    )
+    amount = bodies[0]["items"][0]["amount"]
+    assert amount == {"value": "5.00", "currency": "EUR"}
+    assert "currency_code" not in amount
+
+
 def test_paypal_http_error_logs_name_debug_id_and_details(caplog):
     def handler(request: httpx.Request):
         if request.url.path == "/v1/oauth2/token":

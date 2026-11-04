@@ -1,5 +1,10 @@
 # Un seul service Render. FastAPI sert l'API et le build Vite.
 # autoDeployTrigger off : un push ne déploie pas. Ne pas lancer le déploiement depuis la PR.
+#
+# Partenaires optionnels (documentation uniquement ici — aucun secret) :
+# - Postman : collection statique bi-escales/postman/ ; rien à déclarer sur Render.
+# - AG Grid Community : build-time VITE_ENABLE_AG_GRID=0|1 (défaut 0). Grille trésorier sortable ; tableau HTML inchangé si 0.
+# - Bryntum Scheduler (essai npm public) : ESCALES_BRYNTUM_ENABLED=0|1 (défaut 0). Timeline lecture seule des escales ; liste locale si 0.
 services:
   - type: web
     name: bi-escales-api

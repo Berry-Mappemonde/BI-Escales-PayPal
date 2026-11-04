@@ -247,6 +247,22 @@ async def create_crew_subscription(
     return result
 
 
+async def subscription_known_locally(subscription_id: str) -> bool:
+    """True when this subscription id came from our checkout cache or an existing local row."""
+    sub_id = str(subscription_id or "").strip()
+    if not sub_id:
+        return False
+    for entry in await list_finance_entries():
+        kind = entry.get("kind")
+        if kind == SUBSCRIPTION_CREATE_CACHE_KIND:
+            cached = entry.get("create_response")
+            if isinstance(cached, dict) and str(cached.get("subscription_id") or "") == sub_id:
+                return True
+        if kind == "paypal_subscription_local" and str(entry.get("subscription_id") or "") == sub_id:
+            return True
+    return False
+
+
 async def approve_crew_subscription(
     client: Any,
     *,

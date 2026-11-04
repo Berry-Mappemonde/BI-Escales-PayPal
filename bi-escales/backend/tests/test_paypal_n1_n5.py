@@ -107,7 +107,20 @@ def _webhook_headers(transmission_id: str) -> dict:
 
 def test_n1_subscription_webhook_keys_by_subscription_id_and_updates():
     async def run():
+        from app.escales.paypal_subscriptions import (
+            _subscription_create_body_hash,
+            _subscription_create_cache_put,
+        )
+
         spy = NSpy()
+        await _subscription_create_cache_put(
+            "n1-client",
+            _subscription_create_body_hash(
+                return_url="https://example.com/return",
+                cancel_url="https://example.com/cancel",
+            ),
+            {"subscription_id": "I-SUB-1", "plan_id": "P-CREW", "status": "APPROVAL_PENDING"},
+        )
         activated = {
             "id": "evt-sub-act",
             "event_type": "BILLING.SUBSCRIPTION.ACTIVATED",

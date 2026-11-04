@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.escales.audit import AUDIT_COLLECTION, list_entries
 from app.escales.pledges import reset_ledger
 from app.routers.escales import router, set_paypal_client_factory
+from tests.near_horizon import seed_near
 
 PLEDGE = {
     "amount_eur": "20.00",
@@ -79,7 +80,9 @@ def api(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
     monkeypatch.delenv("ESCALES_TOOLKIT_ENABLED", raising=False)
+    monkeypatch.delenv("ESCALES_LLM_ENABLED", raising=False)
     reset_ledger()
+    asyncio.run(seed_near())
     fake = FakePayPal()
     set_paypal_client_factory(lambda: fake)
     app = FastAPI()
@@ -324,3 +327,21 @@ def test_main_registers_escales_only_when_enabled():
         if line.startswith("from app.routers import") and "escales" in line:
             raise AssertionError("escales must be imported only inside the ESCALES_ENABLED branch")
     assert "\n    from app.routers import escales\n" in text
+    assert "webhooks_router" in text
+
+
+def test_schedule_local_fallback(api):
+    client, _fake = api
+    response = client.get("/api/escales/schedule")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source"] == "local"
+    assert any(row["_id"] == "dep-mayotte" for row in body["milestones"])
+
+
+def test_features_flags_off_by_default(api):
+    client, _fake = api
+    flags = client.get("/api/escales/features").json()
+    assert flags["naviguide_bridge"] is False
+    assert flags["bryntum"] is False
+    assert flags["vault"] is False

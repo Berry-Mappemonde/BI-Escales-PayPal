@@ -218,6 +218,9 @@ def _assert_fresh_app_import_skips_toolkit() -> None:
 
 
 def _ready(client, key):
+    from tests.near_horizon import seed_near
+
+    asyncio.run(seed_near("dep-mayotte"))
     created = client.post(
         "/api/escales/pledges",
         json=PLEDGE,

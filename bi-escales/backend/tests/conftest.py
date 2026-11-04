@@ -4,5 +4,5 @@
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",
-        "live: PayPal sandbox call; skipped unless PAYPAL_CLIENT_ID is set",
+        "live: external PayPal or NIM call; skipped unless the matching credential is set",
     )

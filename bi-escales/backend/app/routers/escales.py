@@ -17,8 +17,24 @@ from starlette.responses import Response
 
 from app.escales.captain import chat as captain_chat
 from app.escales.captain import review as captain_review
-from app.escales.config import escales_enabled, load_config
+from app.escales.config import (
+    bryntum_scheduler_enabled,
+    channel3_enabled,
+    elastic_evidence_enabled,
+    escales_enabled,
+    kernel_evidence_enabled,
+    load_config,
+    naviguide_bridge_enabled,
+    vault_enabled,
+    webhooks_enabled,
+)
+from app.escales.ledger import get_ledger, list_finance_entries
 from app.escales.milestones import list_milestones, record_evidence
+from app.escales.naviguide_bridge import (
+    escales_to_milestones,
+    fetch_naviguide_export,
+    sync_milestone_shells,
+)
 from app.escales.paypal_client import PayPalClient, PayPalError
 from app.escales.pledges import (
     IllegalTransition,
@@ -26,11 +42,15 @@ from app.escales.pledges import (
     authorize_pledge,
     capture_pledge,
     create_pledge,
+    register_vault_pledge,
     require_pledge,
+    reset_ledger,
+    resolve_payment_mode,
     to_public,
     void_pledge,
 )
 from app.escales.toolkit_tools import ReadOnlyTools
+from app.escales.webhooks import WebhookDuplicate, WebhookRejected, verify_and_process
 
 _client_factory: Optional[Callable[[], Any]] = None
 
@@ -53,7 +73,20 @@ class _EnabledRoute(APIRoute):
         return guard
 
 
+class _WebhooksRoute(APIRoute):
+    def get_route_handler(self):
+        inner = super().get_route_handler()
+
+        async def guard(request: Request) -> Response:
+            if not escales_enabled() or not webhooks_enabled():
+                raise HTTPException(status_code=404, detail="Not Found")
+            return await inner(request)
+
+        return guard
+
+
 router = APIRouter(prefix="/api/escales", route_class=_EnabledRoute, tags=["escales"])
+webhooks_router = APIRouter(prefix="/api/escales", route_class=_WebhooksRoute, tags=["escales-webhooks"])
 
 
 class PledgeIn(BaseModel):
@@ -70,6 +103,10 @@ class EvidenceIn(BaseModel):
 
 class ChatIn(BaseModel):
     message: str
+
+
+class VaultRegisterIn(BaseModel):
+    setup_token_id: Optional[str] = None
 
 
 def _paypal() -> Any:
@@ -120,14 +157,64 @@ def _public_milestone(doc: dict) -> dict:
         "id": doc.get("_id"),
         "evidence": doc.get("evidence") or [],
         "proposal": doc.get("proposal"),
+        "meta": doc.get("meta"),
         "updated_at": doc.get("updated_at"),
     }
+
+
+def _paypal_mock_enabled() -> bool:
+    return os.environ.get("ESCALES_PAYPAL_MOCK", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+@router.post("/demo/reset")
+async def post_demo_reset(request: Request):
+    """Clear the in-memory ledger. Only when ESCALES_PAYPAL_MOCK is on."""
+    if not _paypal_mock_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+    _require_treasurer(request)
+    reset_ledger()
+    from app.escales.paypal_demo_client import reset_demo_client
+
+    reset_demo_client()
+    from app.demo_seed import ensure_demo_milestones
+
+    await ensure_demo_milestones()
+    return {"reset": True}
+
+
+@router.get("/features")
+async def get_features():
+    return {
+        "naviguide_bridge": naviguide_bridge_enabled(),
+        "elastic": elastic_evidence_enabled(),
+        "kernel": kernel_evidence_enabled(),
+        "channel3": channel3_enabled(),
+        "bryntum": bryntum_scheduler_enabled(),
+        "vault": vault_enabled(),
+    }
+
+
+@router.get("/schedule")
+async def get_schedule():
+    export = await fetch_naviguide_export()
+    return {
+        "export": export,
+        "milestones": escales_to_milestones(export),
+        "source": "naviguide" if naviguide_bridge_enabled() else "local",
+    }
+
+
+@router.post("/schedule/sync")
+async def post_schedule_sync():
+    docs = await sync_milestone_shells()
+    return [_public_milestone(doc) for doc in docs]
 
 
 @router.post("/pledges")
 async def post_pledge(body: PledgeIn, request: Request):
     client_key = request.headers.get("paypal-request-id")
     try:
+        mode = await resolve_payment_mode(body.milestone_id)
         doc = await create_pledge(
             amount_eur=body.amount_eur,
             description=body.description,
@@ -135,17 +222,52 @@ async def post_pledge(body: PledgeIn, request: Request):
             contributor=body.contributor,
             client=_paypal(),
             client_key=client_key,
+            payment_mode=mode,
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
-    return to_public(doc)
+    public = to_public(doc)
+    public["payment_mode"] = doc.get("payment_mode") or doc.get("intent")
+    return public
+
+
+@router.post("/pledges/{pledge_id}/vault")
+async def post_register_vault(pledge_id: str, body: VaultRegisterIn):
+    """Store the PayPal payment method after setup-token approval (no debit)."""
+    if not vault_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+    try:
+        doc = await register_vault_pledge(
+            pledge_id,
+            _paypal(),
+            setup_token_id=body.setup_token_id,
+        )
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
+        raise _as_http(exc) from exc
+    public = to_public(doc)
+    public["payment_mode"] = doc.get("payment_mode") or "VAULT"
+    return public
+
+
+@router.get("/pledges")
+async def get_pledges(request: Request):
+    """Treasurer queue. Not the browser's local id list."""
+    _require_treasurer(request)
+    docs = await get_ledger().list_pledges()
+    return [to_public(doc) for doc in docs]
+
+
+@router.get("/finance")
+async def get_finance(request: Request):
+    _require_treasurer(request)
+    return await list_finance_entries()
 
 
 @router.post("/pledges/{pledge_id}/authorize")
 async def post_authorize(pledge_id: str):
     try:
         doc = await authorize_pledge(pledge_id, _paypal())
-    except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
     return to_public(doc)
 
@@ -155,7 +277,7 @@ async def post_capture(pledge_id: str, request: Request):
     _require_treasurer(request)
     try:
         doc = await capture_pledge(pledge_id, _paypal())
-    except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
     return to_public(doc)
 
@@ -208,3 +330,18 @@ async def post_chat(body: ChatIn):
         return await captain_chat(body.message)
     except ValueError as exc:
         raise _as_http(exc) from exc
+
+
+@webhooks_router.post("/webhooks/paypal")
+async def post_paypal_webhook(request: Request):
+    raw = await request.body()
+    try:
+        client = _paypal()
+    except HTTPException as exc:
+        raise exc
+    try:
+        return await verify_and_process(raw_body=raw, headers=request.headers, client=client)
+    except WebhookDuplicate as exc:
+        return {"accepted": True, "duplicate": True, "transmission_id": exc.transmission_id}
+    except WebhookRejected as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc

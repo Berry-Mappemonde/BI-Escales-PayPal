@@ -1,0 +1,55 @@
+# Render blueprint (optional). Core runs locally without Render.
+# Enable deployment only when you set ESCALES_ENABLED on the service.
+services:
+  - type: web
+    name: bi-escales-api
+    runtime: python
+    region: frankfurt
+    plan: free
+    rootDir: bi-escales/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: ESCALES_ENABLED
+        sync: false
+      - key: ESCALES_ADMIN_KEY
+        sync: false
+      - key: ESCALES_STORE
+        sync: false
+      - key: MONGO_URL
+        sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_ENV
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: ESCALES_WEBHOOKS_ENABLED
+        sync: false
+      - key: ESCALES_TOOLKIT_ENABLED
+        sync: false
+      - key: ESCALES_ZAPIER_ENABLED
+        sync: false
+      - key: ESCALES_CORS_ORIGINS
+        sync: false
+      - key: MONGO_DB
+        sync: false
+      # Vault is the primary model on the deployed demo. Partner modules stay off.
+      # ESCALES_ADMIN_KEY is entered in the dashboard, not copied from the local demo script.
+      - key: ESCALES_VAULT_ENABLED
+        value: "true"
+      - key: ESCALES_NAVIGUIDE_ENABLED
+        value: "false"
+      - key: ESCALES_ELASTIC_ENABLED
+        value: "false"
+      - key: ESCALES_KERNEL_ENABLED
+        value: "false"
+      - key: ESCALES_CHANNEL3_ENABLED
+        value: "false"
+      - key: ESCALES_BRYNTUM_ENABLED
+        value: "false"
+      - key: HELLOASSO_MEMBERSHIP_URL
+        sync: false

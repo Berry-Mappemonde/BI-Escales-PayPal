@@ -32,6 +32,82 @@ def toolkit_enabled() -> bool:
     return os.environ.get("ESCALES_TOOLKIT_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def naviguide_bridge_enabled() -> bool:
+    return os.environ.get("ESCALES_NAVIGUIDE_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def elastic_evidence_enabled() -> bool:
+    return os.environ.get("ESCALES_ELASTIC_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def kernel_evidence_enabled() -> bool:
+    return os.environ.get("ESCALES_KERNEL_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def channel3_enabled() -> bool:
+    return os.environ.get("ESCALES_CHANNEL3_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def bryntum_scheduler_enabled() -> bool:
+    return os.environ.get("ESCALES_BRYNTUM_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def naviguide_json_path() -> str:
+    return (os.environ.get("ESCALES_NAVIGUIDE_JSON") or "").strip()
+
+
+def naviguide_api_base() -> str:
+    """NAVIGUIDE base URL. Empty unless ``NAVIGUIDE_API_URL`` is set.
+
+    No localhost default: a Render process must keep the bridge off, or point
+    ``ESCALES_NAVIGUIDE_JSON`` at a bundled export.
+    """
+    return (os.environ.get("NAVIGUIDE_API_URL") or "").strip().rstrip("/")
+
+
+def vault_enabled() -> bool:
+    """PayPal Vault (setup tokens / vaulted capture). Off unless ESCALES_VAULT_ENABLED is truthy."""
+    return os.environ.get("ESCALES_VAULT_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def vault_return_url() -> str:
+    return (os.environ.get("ESCALES_VAULT_RETURN_URL") or "https://example.com/escales/vault/return").strip()
+
+
+def vault_cancel_url() -> str:
+    return (os.environ.get("ESCALES_VAULT_CANCEL_URL") or "https://example.com/escales/vault/cancel").strip()
+
+
+def webhooks_enabled() -> bool:
+    """PayPal inbound webhooks. Off unless ESCALES_WEBHOOKS_ENABLED is truthy."""
+    return os.environ.get("ESCALES_WEBHOOKS_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def zapiper_enabled() -> bool:
+    """Optional Zapier forwarding hooks. Off unless ESCALES_ZAPIER_ENABLED is truthy."""
+    return os.environ.get("ESCALES_ZAPIER_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def paypal_webhook_id() -> str:
+    return (os.environ.get("PAYPAL_WEBHOOK_ID") or "").strip()
+
+
+def cors_origins() -> list[str]:
+    """Origins allowed to call the API, from ``ESCALES_CORS_ORIGINS`` (comma-separated).
+
+    Empty by default. Same-origin deploys and the Vite ``/api`` proxy need no
+    entry. A front on another origin (``VITE_API_BASE``) lists that origin here.
+    ``*`` is ignored.
+    """
+    raw = os.environ.get("ESCALES_CORS_ORIGINS") or ""
+    origins: list[str] = []
+    for part in raw.split(","):
+        item = part.strip()
+        if item and item != "*":
+            origins.append(item)
+    return origins
+
+
 def load_config() -> EscalesConfig:
     env = (os.environ.get("PAYPAL_ENV") or "sandbox").strip().lower()
     if env != "sandbox":

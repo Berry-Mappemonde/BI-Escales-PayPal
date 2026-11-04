@@ -7,6 +7,7 @@ only writes the sentence; ``filter_numbers`` drops any figure it was not given.
 from __future__ import annotations
 
 import re
+from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
@@ -44,10 +45,33 @@ def allowed_numbers(facts: Any) -> set[str]:
     return found
 
 
+def _as_decimal(token: str) -> Optional[Decimal]:
+    """``120``, ``120.00`` and ``120,00`` are the same amount."""
+    try:
+        return Decimal(token.replace(",", "."))
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def filter_numbers(text: str, facts: Any) -> str:
-    """Replace any figure that is not already present in ``facts``."""
+    """Replace any figure that is not already present in ``facts``.
+
+    An amount already in the facts is kept in any of the spellings ``120``,
+    ``120.00`` and ``120,00``.
+    """
     allowed = allowed_numbers(facts)
-    return _NUMBER.sub(lambda match: match.group(0) if match.group(0) in allowed else "[?]", text or "")
+    values = {item for item in (_as_decimal(token) for token in allowed) if item is not None}
+
+    def replace(match: re.Match) -> str:
+        token = match.group(0)
+        if token in allowed:
+            return token
+        value = _as_decimal(token)
+        if value is not None and value in values:
+            return token
+        return "[?]"
+
+    return _NUMBER.sub(replace, text or "")
 
 
 def decision_for(met: Optional[bool]) -> str:
@@ -74,9 +98,14 @@ def simulation_evidence(met: Optional[bool], facts: Optional[dict]) -> dict:
 
 
 async def record_evidence(milestone_id: str, met: Optional[bool], facts: Optional[dict]) -> dict:
+    from . import evidence_elastic, evidence_kernel
     from .pledges import get_ledger
 
-    evidence = simulation_evidence(met, facts)
+    evidence = await evidence_elastic.build_evidence(milestone_id, met, facts)
+    if evidence is None:
+        evidence = await evidence_kernel.build_evidence(milestone_id, met, facts)
+    if evidence is None:
+        evidence = simulation_evidence(met, facts)
     await get_ledger().append_evidence(milestone_id, evidence)
     return evidence
 
@@ -100,3 +129,18 @@ def latest_evidence(milestone: Optional[dict]) -> dict:
     if not evidence:
         return {}
     return evidence[-1]
+
+
+def latest_trusted_evidence(milestone: Optional[dict]) -> dict:
+    """Newest evidence the Captain may use. Simulated KERNEL rows are skipped."""
+    if not milestone:
+        return {}
+    for item in reversed(milestone.get("evidence") or []):
+        if not isinstance(item, dict):
+            continue
+        if item.get("trusted") is False:
+            continue
+        if str(item.get("provider") or "").endswith("-simulated"):
+            continue
+        return item
+    return {}

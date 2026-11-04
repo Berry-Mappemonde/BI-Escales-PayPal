@@ -1,0 +1,113 @@
+{
+  "app": {
+    "title": "BI Escales — Pay Only If We Sail",
+    "tagline": "Autorisation PayPal sandbox ; encaissement seulement après validation humaine.",
+    "langFr": "Français",
+    "langEn": "English",
+    "healthOk": "Backend disponible",
+    "healthLoading": "Vérification du backend…",
+    "healthFail": "Backend indisponible",
+    "escalesOff": "ESCALES_ENABLED est désactivé : l’API /api/escales renvoie 404."
+  },
+  "escales": {
+    "heading": "Escales & capitaine",
+    "milestoneId": "Identifiant de jalon",
+    "loadMilestones": "Actualiser les jalons",
+    "evidenceMet": "Preuve satisfaite (simulation NAVIGUIDE)",
+    "postEvidence": "Enregistrer une preuve",
+    "captainChat": "Message au capitaine IA",
+    "sendChat": "Demander une formulation",
+    "chatReply": "Réponse du capitaine",
+    "suggestedPledge": "Promesse suggérée",
+    "milestonesEmpty": "Aucun jalon enregistré pour l’instant."
+  },
+  "pledge": {
+    "amount": "Montant (EUR)",
+    "description": "Description",
+    "milestone": "Jalon",
+    "contributor": "Contributeur (optionnel)",
+    "intent": "Intent AUTHORIZE — sandbox PayPal",
+    "demoIntent": "Mode démo — le bouton PayPal reste dans la page. Rien n’est envoyé à PayPal.",
+    "demoApprove": "Approuver avec PayPal (démo)",
+    "missingClientId": "VITE_PAYPAL_CLIENT_ID manquant : bouton PayPal indisponible.",
+    "creating": "Création de la promesse…",
+    "authorizing": "Autorisation côté serveur…",
+    "authorized": "Promesse autorisée",
+    "vaultHint": "Vault : approuvez le moyen de paiement sur PayPal, puis confirmez. Rien n’est encaissé.",
+    "vaultApprove": "Approuver le moyen de paiement",
+    "vaultConfirm": "J’ai approuvé — enregistrer",
+    "vaulting": "Enregistrement du moyen de paiement…",
+    "vaulted": "Moyen de paiement enregistré",
+    "error": "Erreur promesse"
+  },
+  "treasurer": {
+    "heading": "File trésorier",
+    "adminKey": "Clé trésorier (x-admin-key)",
+    "adminKeyHint": "Saisie en mémoire uniquement — jamais enregistrée.",
+    "refresh": "Actualiser la file",
+    "loading": "Chargement des promesses…",
+    "capture": "Encaisser",
+    "void": "Annuler l’autorisation",
+    "queueEmpty": "Aucune promesse autorisée, vaultée ou en attente sur le serveur.",
+    "queueNeedsKey": "Saisissez la clé trésorier pour charger les promesses depuis le serveur.",
+    "loadError": "La file n’a pas pu être actualisée. Les lignes déjà chargées sont conservées.",
+    "status": "Statut",
+    "amount": "Montant",
+    "description": "Description",
+    "milestone": "Jalon",
+    "actions": "Actions"
+  },
+  "demo": {
+    "bannerTitle": "Mode démo sandbox",
+    "bannerBody": "Appels PayPal simulés dans ce navigateur. Clé trésorier locale : demo-admin-key. Aucun argent réel."
+  },
+  "finance": {
+    "heading": "Grand livre finance (append-only)",
+    "hint": "Cycle de vie des promesses PayPal et événements webhook enregistrés par le backend.",
+    "load": "Charger le grand livre",
+    "empty": "Aucune écriture pour l’instant.",
+    "needsKey": "Clé trésorier requise.",
+    "kind": "Événement",
+    "pledge": "Promesse",
+    "detail": "Détail",
+    "at": "Horodatage"
+  },
+  "paypal": {
+    "authShort": "Auth",
+    "vaultShort": "Vault",
+    "captureShort": "Capture",
+    "paypalStatus": "PayPal"
+  },
+  "lifecycle": {
+    "heading": "Chronologie des promesses PayPal",
+    "hint": "Toutes les promesses du serveur, y compris les statuts masqués par la file trésorier.",
+    "empty": "Aucune promesse sur le serveur.",
+    "needsKey": "Saisissez la clé trésorier pour charger la chronologie PayPal.",
+    "refundAbsent": "Le statut remboursé n’existe pas dans cette version. Une capture refusée est enregistrée comme failed."
+  },
+  "scheduler": {
+    "heading": "Calendrier des escales",
+    "mode": "Mode {{mode}}. Bryntum ne se charge que si le drapeau API est actif.",
+    "past": "date déjà passée",
+    "ledgerDate": "grand livre {{date}}"
+  },
+  "grid": {
+    "heading": "Vue trésorier — jauges",
+    "agGridOff": "AG Grid community est désactivé (VITE_ENABLE_AG_GRID=0) : tableau HTML. Ce n’est pas AG Studio.",
+    "blindSpot": "Ces jauges ne comptent que les promesses autorisées, encaissées et annulées. Created, vaulted, pending, failed et settled sont omis.",
+    "modelSource": "Source du texte",
+    "milestone": "Jalon",
+    "authorized": "Autorisées",
+    "captured": "Encaissées",
+    "voided": "Annulées",
+    "captainProposal": "Proposition du Capitaine IA",
+    "requestReview": "Demander l’avis du capitaine",
+    "proposalCapture": "Proposition : encaisser les promesses listées",
+    "proposalVoid": "Proposition : annuler les promesses listées",
+    "proposalWait": "Proposition : attendre",
+    "humanValidation": "Validation humaine requise — le capitaine ne débite jamais seul.",
+    "applyCapture": "Encaisser (selon proposition)",
+    "applyVoid": "Annuler (selon proposition)",
+    "noProposal": "Aucune proposition enregistrée pour ce jalon."
+  }
+}

@@ -18,8 +18,21 @@ The API runs fully on local pytest and manual treasurer routes without any of th
 | PayPal webhooks | `ESCALES_WEBHOOKS_ENABLED` + `PAYPAL_WEBHOOK_ID` | Inbound `POST /api/escales/webhooks/paypal` with PayPal `verify-webhook-signature` and transmission idempotence |
 | PayPal Agent Toolkit | `ESCALES_TOOLKIT_ENABLED` | Read-only order lookups for the Captain |
 | Render deploy | `bi-escales/render.yaml` | Optional blueprint; set env vars in the Render dashboard (names only in the file) |
-| Postman | `bi-escales/postman/escales.postman_collection.json` | Sandbox walkthrough (create → authorize → capture / void); not loaded by the app |
+| AG Grid Community | `VITE_ENABLE_AG_GRID` (frontend build) | Optional sortable/filterable treasurer queue; HTML table when off (default) |
+| Bryntum Scheduler | `ESCALES_BRYNTUM_ENABLED` | Read-only stopover timeline from `GET /api/escales/schedule`; local list when off (trial npm package) |
+| Postman | `bi-escales/postman/escales.postman_collection.json` | Sandbox walkthrough (create → authorize → capture / void / webhook / features); not loaded by the app |
 | Zapier | `ESCALES_ZAPIER_ENABLED` | Optional automation layer (see below) |
+
+### Render (documentation)
+
+The blueprint in `bi-escales/render.yaml` describes one free web service (`bi-escales-api`): `npm ci && npm run build` for the Vite shell, then `uvicorn` on `$PORT`. `autoDeployTrigger: off` — pushes do not deploy; Clément triggers deploys manually.
+
+Partner toggles on Render (names only, no values in git):
+
+- **Build** — `VITE_ENABLE_AG_GRID=1` only if you want the AG Grid treasurer queue in production; leave unset or `0` for the current HTML table.
+- **Runtime** — `ESCALES_BRYNTUM_ENABLED=1` exposes Bryntum on `/api/escales/features` and the voyage tab loads the read-only timeline; default off keeps the local schedule list.
+
+See `bi-escales/docs/deploiement-render.md` for return URLs, CORS, and the same-origin smoke script. Removing partner env vars (or deleting `TreasurerQueueAg.tsx`, `BryntumTimeline.jsx`, and the Postman folder) does not change core pledge behaviour.
 
 ### Optional Zapier Zap
 

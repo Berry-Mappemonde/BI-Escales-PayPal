@@ -21,6 +21,7 @@ def mongo_store(monkeypatch):
     from mongomock_motor import AsyncMongoMockClient
 
     monkeypatch.setenv("ESCALES_STORE", "mongo")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     monkeypatch.setenv("MONGO_URL", "mongodb://mongomock")
     monkeypatch.setenv("DB_NAME", "bi_escales_test")
     import app.db as dbmod

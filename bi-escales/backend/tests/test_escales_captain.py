@@ -30,6 +30,7 @@ from app.escales.toolkit_tools import (
 @pytest.fixture(autouse=True)
 def isolated(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     monkeypatch.delenv("HELLOASSO_MEMBERSHIP_URL", raising=False)
     monkeypatch.delenv("ESCALES_TOOLKIT_ENABLED", raising=False)
     reset_ledger()
@@ -58,7 +59,7 @@ class Spy:
         return {
             "id": order_id,
             "purchase_units": [{
-                "payments": {"authorizations": [{"id": f"AUTH-{order_id}", "expiration_time": "2026-12-01T00:00:00Z"}]},
+                "payments": {"authorizations": [{"id": f"AUTH-{order_id}", "expiration_time": "2099-01-01T00:00:00Z"}]},
             }],
         }
 
@@ -2595,6 +2596,8 @@ async def _captured_common_fund(spy, amount, key):
 
 def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
     import app.core.llm as llm
+
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
 
     def refuse_nim(*_args, **_kwargs):
         raise AssertionError("NIM must stay behind the optional flag")

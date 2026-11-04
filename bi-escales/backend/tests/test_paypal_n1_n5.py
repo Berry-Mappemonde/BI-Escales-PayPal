@@ -227,12 +227,13 @@ def test_reconcile_reports_searched_window():
                 "capture_id": "CAP-1",
                 "pledge_id": "p1",
                 "amount_eur": "5.00",
-                "at": "2026-11-04T10:00:00+00:00",
+                "at": "2020-01-01T00:00:00+00:00",
             }],
         )
         assert report["searched_start_date"] == report["start_date"]
         assert report["searched_end_date"] == report["end_date"]
         assert report["searched_start_date"] != report["requested_start_date"]
+        assert report["ledger_capture_count"] == 0
 
     asyncio.run(run())
 

@@ -99,7 +99,7 @@ def test_b9_authorized_at_uses_simulated_clock_and_skips_failed_reauthorize(monk
         created = await create_pledge(
             amount_eur="20.00",
             description="miles",
-            milestone_id="dep-mayotte",
+            milestone_id="dep-la-rochelle",
             client=spy,
         )
         saved = await authorize_pledge(created["_id"], spy)
@@ -160,8 +160,8 @@ def test_b11_reconcile_matches_on_capture_id():
                 }
 
         report = await reconcile_paypal_ledger(
-            start_date="2099-01-01T00:00:00Z",
-            end_date="2099-01-02T00:00:00Z",
+            start_date="2026-11-04T00:00:00Z",
+            end_date="2026-11-05T00:00:00Z",
             client=TxnClient(),
             finance_entries=[{
                 "_id": "fin1",
@@ -180,31 +180,31 @@ def test_b11_reconcile_matches_on_capture_id():
     asyncio.run(run())
 
 
-def test_b12_stop_mile_pledge_settles_on_departure(monkeypatch):
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-12T08:00:00Z")
+def test_b12_stop_mile_pledge_settles_on_arrival(monkeypatch):
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00+00:00")
+    monkeypatch.setenv("ESCALES_VAULT_ENABLED", "0")
     spy = CaptureSpy()
 
     async def run():
-        ledger = get_ledger()
-        await ledger.ensure_milestone(
-            "dep-brest",
-            meta={
-                "arrival_iso": "2026-11-20T08:00:00+00:00",
-                "departure_iso": "2026-11-20T08:00:00+00:00",
-            },
-        )
+        from app.escales.naviguide_bridge import resolve_milestone, resolve_schedule_milestone
+
+        stop = resolve_milestone("dep-dzaoudzi-mayotte")
+        assert stop
+        doc = await resolve_schedule_milestone(stop)
         created = await create_pledge(
             amount_eur="5.00",
-            description="miles Brest",
-            milestone_id="dep-brest",
+            description="miles Mayotte",
+            milestone_id="dep-dzaoudzi-mayotte",
             client=spy,
             kind="mile",
         )
         await authorize_pledge(created["_id"], spy)
         early = await run_departure_clock(spy)
         assert early["actions"][0]["action"] == "wait"
-        settle_at = __import__("datetime").datetime(2026, 11, 20, 8, 0, tzinfo=__import__("datetime").timezone.utc)
-        done = await run_departure_clock(spy, now=settle_at)
+        arrival_raw = str(doc["meta"]["arrival_iso"])
+        text = arrival_raw.replace("Z", "+00:00") if arrival_raw.endswith("Z") else arrival_raw
+        arrival_day = __import__("datetime").datetime.fromisoformat(text)
+        done = await run_departure_clock(spy, now=arrival_day)
         assert done["actions"][0]["action"] == "capture"
 
     asyncio.run(run())
@@ -216,23 +216,16 @@ def test_b12_cancelled_stop_voids_mile_pledge(monkeypatch):
     spy.void_authorization = lambda auth_id, **k: {"id": auth_id}
 
     async def run():
-        ledger = get_ledger()
-        await ledger.ensure_milestone(
-            "dep-cancel-mile",
-            meta={
-                "arrival_iso": "2026-11-20T08:00:00+00:00",
-                "departure_iso": "2026-11-20T08:00:00+00:00",
-            },
-        )
         created = await create_pledge(
             amount_eur="5.00",
             description="miles cancel",
-            milestone_id="dep-cancel-mile",
+            milestone_id="dep-la-rochelle",
             client=spy,
             kind="mile",
         )
         await authorize_pledge(created["_id"], spy)
-        await ledger.append_evidence("dep-cancel-mile", {
+        ledger = get_ledger()
+        await ledger.append_evidence("dep-la-rochelle", {
             "met": False,
             "facts": {"cancelled": True},
             "recorded_at": "2026-11-20T08:00:00+00:00",

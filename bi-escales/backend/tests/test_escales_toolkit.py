@@ -77,7 +77,7 @@ class FakePayPal:
                 "payments": {
                     "authorizations": [{
                         "id": f"AUTH-{order_id}",
-                        "expiration_time": "2026-12-01T00:00:00Z",
+                        "expiration_time": "2099-01-01T00:00:00Z",
                     }],
                 },
             }],
@@ -273,6 +273,7 @@ def test_flag_off_app_and_captain_work_without_the_toolkit(monkeypatch):
     monkeypatch.delenv("ESCALES_TOOLKIT_ENABLED", raising=False)
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
     import app.core.llm as llm
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: False)
@@ -353,6 +354,7 @@ def test_flag_on_mocked_toolkit_is_used_and_stays_readonly(monkeypatch):
     monkeypatch.setenv("ESCALES_TOOLKIT_ENABLED", "1")
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
     import app.core.llm as llm
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: False)

@@ -117,7 +117,7 @@ def test_mock_response_header_is_sent(monkeypatch):
 
 
 def test_reauthorize_after_honor_period(monkeypatch):
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-10T12:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
 
     async def run():
         spy = AuditSpy()
@@ -140,7 +140,9 @@ def test_reauthorize_after_honor_period(monkeypatch):
     asyncio.run(run())
 
 
-def test_refund_captured_pledge():
+def test_refund_captured_pledge(monkeypatch):
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+
     async def run():
         spy = AuditSpy()
         created = await create_pledge(
@@ -194,6 +196,7 @@ def test_reconcile_ledger_and_paypal():
             "capture_id": "CAP-AUDIT",
             "pledge_id": "p1",
             "amount_eur": "5.00",
+            "at": "2026-11-04T10:00:00+00:00",
         }]
         report = await reconcile_paypal_ledger(
             start_date="2026-11-01T00:00:00Z",
@@ -230,7 +233,8 @@ def test_treasurer_chat_exposes_readonly_paypal_tools():
     assert any(call[0] == "search" for call in spy.calls)
 
 
-def test_admin_refund_route(api):
+def test_admin_refund_route(api, monkeypatch):
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     spy = AuditSpy()
     set_paypal_client_factory(lambda: spy)
     created = api.post(

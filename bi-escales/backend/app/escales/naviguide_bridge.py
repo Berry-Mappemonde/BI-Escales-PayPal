@@ -641,8 +641,54 @@ def legs_to_milestones(legs: Optional[list[dict[str, Any]]] = None) -> list[dict
     return rows
 
 
+def _stop_shell_meta(milestone_id: str) -> Optional[dict[str, Any]]:
+    """Schedule meta for a stopover id without reading the ledger."""
+    resolved = resolve_milestone(milestone_id)
+    if not resolved:
+        return None
+    if str(resolved).startswith("leg-"):
+        return None
+    for item in local_schedule_export().get("escales") or []:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("milestone_id") or "") != resolved:
+            continue
+        arrival = item.get("arrival_iso")
+        return {
+            "title": item.get("name") or display_name(str(item.get("slug") or resolved)),
+            "display_name": item.get("name") or display_name(str(item.get("slug") or resolved)),
+            "arrival_iso": arrival,
+            "departure_iso": arrival,
+            "capture_on": "arrival",
+            "source": "clock",
+        }
+    return None
+
+
+async def resolve_schedule_milestone(milestone_id: str) -> Optional[dict]:
+    """Ensure ledger meta from the frozen schedule (no prior GET /milestones)."""
+    from .pledges import get_ledger
+
+    token = str(milestone_id or "").strip()
+    if not token:
+        return None
+    resolved = resolve_milestone(token) or token
+    leg = leg_by_id(resolved)
+    if leg:
+        meta = leg_milestone_meta(leg)
+        return await get_ledger().ensure_milestone(str(leg["id"]), meta=meta)
+    shell = _stop_shell_meta(resolved)
+    if shell:
+        return await get_ledger().ensure_milestone(resolved, meta=shell)
+    return await get_ledger().get_milestone(resolved)
+
+
 async def sync_milestone_shells(export: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
-    """Ensure milestone documents exist for each exported escale (meta only)."""
+    """Ensure milestone documents exist for each exported escale (meta only).
+
+    Stop pledges (miles, night, meal, care, berth, project) capture on **arrival**
+    at the stopover. Cabins capture on **leg departure** via ``sync_leg_shells``.
+    """
     from .pledges import get_ledger
 
     payload = export if export is not None else await fetch_naviguide_export()
@@ -657,7 +703,7 @@ async def sync_milestone_shells(export: Optional[dict[str, Any]] = None) -> list
                 "display_name": row.get("display_name"),
                 "arrival_iso": row.get("arrival_iso"),
                 "departure_iso": row.get("departure_iso") or row.get("arrival_iso"),
-                "capture_on": "departure",
+                "capture_on": "arrival",
                 "lat": row.get("lat"),
                 "lon": row.get("lon"),
                 "source": row.get("source"),

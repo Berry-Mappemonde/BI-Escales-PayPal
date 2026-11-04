@@ -171,11 +171,7 @@ def decision_for(met: Optional[bool]) -> str:
 
 
 def decision_for_evidence(evidence: Optional[dict], milestone: Optional[dict] = None) -> str:
-    """Same rule as ``decision_for``. A cabin leg reads the departure from A.
-
-    Departure as planned (``departed`` or ``met``) proposes capture.
-    A cancelled departure proposes void. The treasurer still executes it.
-    """
+    """Stop pledges: capture on arrival, void if cancelled. Cabins: capture on leg departure."""
     row = evidence or {}
     facts = row.get("facts") if isinstance(row.get("facts"), dict) else {}
     met = row.get("met")

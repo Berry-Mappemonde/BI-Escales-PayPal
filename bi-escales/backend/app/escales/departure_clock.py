@@ -1,8 +1,14 @@
-"""Capture a departure-day authorization, and void it if the stop is cancelled.
+"""Simulated clock settlement for PayPal pledges.
+
+Capture rules (see mini-mix plan):
+- Miles, night, meal, care, berth and project pledges: capture on **arrival** at the
+  stopover; void if the stop is cancelled.
+- Cabin legs: capture on **departure** from the leg origin; void if cancelled.
+- Common fund: captured at once by the treasurer (not driven by this clock).
 
 The simulated clock is ``simulated_now`` (``ESCALES_CLOCK_NOW``, else UTC).
-A PayPal authorization is not placed more than 29 days before departure.
-Before the departure day the hold stays authorized. On that day it is captured.
+Authorizations are not opened more than 29 days before the relevant arrival or
+departure date.
 """
 from __future__ import annotations
 
@@ -20,14 +26,14 @@ from .pledges import (
     void_pledge,
 )
 
-_STOP_DEPARTURE_KINDS = frozenset({
+_ARRIVAL_KINDS = frozenset({
     "mile",
     "miles",
     "night",
     "meal",
     "care",
     "berth",
-    "cabin_leg",
+    "project_pledge",
 })
 
 
@@ -46,8 +52,8 @@ def _parse_moment(value: Optional[str]) -> Optional[dt.datetime]:
     return moment.astimezone(dt.timezone.utc)
 
 
-def _days_before(departure: dt.datetime, now: dt.datetime) -> int:
-    return (departure.date() - now.date()).days
+def _days_before(anchor: dt.datetime, now: dt.datetime) -> int:
+    return (anchor.date() - now.date()).days
 
 
 def _cancelled(milestone: dict) -> bool:
@@ -62,16 +68,16 @@ def _cancelled(milestone: dict) -> bool:
 
 
 async def departure_milestone(pledge: dict) -> Optional[dict]:
-    """Milestone governed by ``capture_on=departure``, or None."""
+    """Cabin legs and other milestones with ``capture_on=departure``."""
+    from .naviguide_bridge import leg_by_id, leg_milestone_meta, resolve_schedule_milestone
+
     milestone_id = str(pledge.get("milestone_id") or "")
     if not milestone_id:
         return None
-    doc = await get_ledger().get_milestone(milestone_id)
+    doc = await resolve_schedule_milestone(milestone_id)
     meta = (doc or {}).get("meta") if isinstance(doc, dict) else None
     if isinstance(meta, dict) and meta.get("capture_on") == "departure":
         return doc
-    from .naviguide_bridge import leg_by_id, leg_milestone_meta
-
     leg = leg_by_id(milestone_id)
     if leg:
         merged = leg_milestone_meta(leg)
@@ -82,37 +88,60 @@ async def departure_milestone(pledge: dict) -> Optional[dict]:
         base = dict(doc or {"_id": leg["id"], "evidence": []})
         base["meta"] = merged
         return base
-    kind = str(pledge.get("kind") or "mile").lower()
-    if milestone_id.startswith(("dep-", "ret-")) and kind in _STOP_DEPARTURE_KINDS:
-        stop_meta = dict(meta) if isinstance(meta, dict) else {}
-        departure = stop_meta.get("departure_iso") or stop_meta.get("arrival_iso")
-        if not departure:
-            return None
-        stop_meta.setdefault("capture_on", "departure")
-        stop_meta.setdefault("departure_iso", departure)
-        base = dict(doc or {"_id": milestone_id, "evidence": []})
-        base["meta"] = stop_meta
-        return base
     return None
 
 
+async def arrival_milestone(pledge: dict) -> Optional[dict]:
+    """Stopover pledges captured on arrival."""
+    from .naviguide_bridge import resolve_schedule_milestone
+
+    milestone_id = str(pledge.get("milestone_id") or "")
+    kind = str(pledge.get("kind") or "mile").lower()
+    if not milestone_id or kind == "cabin_leg" or kind == "common_fund":
+        return None
+    if kind not in _ARRIVAL_KINDS and not milestone_id.startswith(("dep-", "ret-")):
+        return None
+    doc = await resolve_schedule_milestone(milestone_id)
+    if not doc:
+        return None
+    meta = dict((doc.get("meta") or {}))
+    if meta.get("capture_on") == "departure":
+        return None
+    meta.setdefault("capture_on", "arrival")
+    if not meta.get("arrival_iso"):
+        return None
+    base = dict(doc)
+    base["meta"] = meta
+    return base
+
+
+async def timing_milestone(pledge: dict) -> Optional[dict]:
+    """Milestone that governs the 29-day authorization window."""
+    return await departure_milestone(pledge) or await arrival_milestone(pledge)
+
+
 async def refuse_cancelled_departure(pledge: dict) -> None:
-    """A cancelled departure does not take a new authorization."""
-    doc = await departure_milestone(pledge)
+    """A cancelled stop or leg does not take a new authorization."""
+    doc = await timing_milestone(pledge)
     if doc and _cancelled(doc):
         raise ValueError("departure is cancelled")
 
 
 async def refuse_early_authorization(pledge: dict, *, now: Optional[dt.datetime] = None) -> None:
     """An authorization lasts at most 29 days, so it is not opened earlier."""
-    doc = await departure_milestone(pledge)
+    doc = await timing_milestone(pledge)
     if not doc:
         return
-    departure = _parse_moment((doc.get("meta") or {}).get("departure_iso"))
-    if departure is None:
+    meta = doc.get("meta") if isinstance(doc.get("meta"), dict) else {}
+    if meta.get("capture_on") == "departure":
+        anchor_raw = meta.get("departure_iso")
+    else:
+        anchor_raw = meta.get("arrival_iso")
+    anchor = _parse_moment(str(anchor_raw or ""))
+    if anchor is None:
         return
     moment = now or simulated_now()
-    if _days_before(departure, moment) > AUTH_MAX_DAYS:
+    if _days_before(anchor, moment) > AUTH_MAX_DAYS:
         raise ValueError("authorization is more than 29 days before departure")
 
 
@@ -125,7 +154,7 @@ def _vault_failure_detail(exc: Exception) -> str:
     return str(exc)[:200]
 
 
-async def _void_cancelled_departure(
+async def _void_cancelled(
     pledge_id: str,
     client: Any,
     *,
@@ -145,64 +174,86 @@ async def _void_cancelled_departure(
             actions.append({"pledge_id": pledge_id, "action": "error", "detail": str(exc)})
 
 
+async def _settle_timed_pledge(
+    pledge: dict,
+    doc: dict,
+    client: Any,
+    *,
+    moment: dt.datetime,
+    actions: list[dict],
+) -> None:
+    mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
+    status = str(pledge.get("status") or "")
+    pledge_id = str(pledge.get("_id") or "")
+    meta = doc.get("meta") if isinstance(doc.get("meta"), dict) else {}
+    if meta.get("capture_on") == "departure":
+        anchor = _parse_moment(str(meta.get("departure_iso") or ""))
+    else:
+        anchor = _parse_moment(str(meta.get("arrival_iso") or ""))
+    if (
+        mode == "VAULT"
+        and status == "captured"
+        and pledge.get("vault_token_delete_pending")
+    ):
+        try:
+            await retry_vault_token_delete(pledge_id, client)
+            actions.append({"pledge_id": pledge_id, "action": "vault_token_deleted"})
+        except Exception as exc:
+            actions.append({
+                "pledge_id": pledge_id,
+                "action": "vault_token_delete_pending",
+                "detail": _vault_failure_detail(exc),
+            })
+        return
+    if mode == "VAULT" and status == "token_delete_pending":
+        if _cancelled(doc):
+            await _void_cancelled(
+                pledge_id, client, mode=mode, actions=actions, effective_at=moment,
+            )
+        return
+    if mode == "VAULT":
+        if status != "vaulted":
+            return
+    elif status != "authorized":
+        return
+    try:
+        if _cancelled(doc):
+            await _void_cancelled(
+                pledge_id, client, mode=mode, actions=actions, effective_at=moment,
+            )
+            return
+        if anchor is None or moment.date() < anchor.date():
+            actions.append({"pledge_id": pledge_id, "action": "wait"})
+            return
+        saved = await capture_pledge(pledge_id, client, effective_at=moment)
+        actions.append({"pledge_id": saved["_id"], "action": "capture"})
+    except Exception as exc:
+        if mode == "VAULT":
+            detail = _vault_failure_detail(exc)
+            await mark_vault_charge_failed(pledge_id, detail)
+            actions.append({"pledge_id": pledge_id, "action": "charge_failed", "detail": detail})
+        else:
+            actions.append({"pledge_id": pledge_id, "action": "error", "detail": str(exc)})
+
+
 async def run_departure_clock(client: Any, *, now: Optional[dt.datetime] = None) -> dict:
-    """Settle authorized or vaulted departure pledges against the simulated clock."""
+    """Settle authorized or vaulted pledges against the simulated clock."""
     moment = now or simulated_now()
     actions: list[dict] = []
+    seen: set[str] = set()
     for pledge in await get_ledger().list_pledges():
         if not pledge:
             continue
-        mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
-        status = str(pledge.get("status") or "")
-        doc = await departure_milestone(pledge)
-        if not doc:
-            continue
         pledge_id = str(pledge.get("_id") or "")
-        if (
-            mode == "VAULT"
-            and status == "captured"
-            and pledge.get("vault_token_delete_pending")
-        ):
-            try:
-                await retry_vault_token_delete(pledge_id, client)
-                actions.append({"pledge_id": pledge_id, "action": "vault_token_deleted"})
-            except Exception as exc:
-                actions.append({
-                    "pledge_id": pledge_id,
-                    "action": "vault_token_delete_pending",
-                    "detail": _vault_failure_detail(exc),
-                })
+        if not pledge_id or pledge_id in seen:
             continue
-        if mode == "VAULT" and status == "token_delete_pending":
-            if _cancelled(doc):
-                await _void_cancelled_departure(
-                    pledge_id, client, mode=mode, actions=actions, effective_at=moment,
-                )
+        doc = await departure_milestone(pledge)
+        if doc is None:
+            doc = await arrival_milestone(pledge)
+        if doc is None:
             continue
-        if mode == "VAULT":
-            if status != "vaulted":
-                continue
-        elif status != "authorized":
-            continue
-        try:
-            if _cancelled(doc):
-                await _void_cancelled_departure(
-                    pledge_id, client, mode=mode, actions=actions, effective_at=moment,
-                )
-                continue
-            departure = _parse_moment((doc.get("meta") or {}).get("departure_iso"))
-            if departure is None or moment.date() < departure.date():
-                actions.append({"pledge_id": pledge_id, "action": "wait"})
-                continue
-            saved = await capture_pledge(pledge_id, client, effective_at=moment)
-            actions.append({"pledge_id": saved["_id"], "action": "capture"})
-        except Exception as exc:
-            if mode == "VAULT":
-                detail = _vault_failure_detail(exc)
-                await mark_vault_charge_failed(pledge_id, detail)
-                actions.append({"pledge_id": pledge_id, "action": "charge_failed", "detail": detail})
-            else:
-                actions.append({"pledge_id": pledge_id, "action": "error", "detail": str(exc)})
+        seen.add(pledge_id)
+        await _settle_timed_pledge(pledge, doc, client, moment=moment, actions=actions)
     return {
         "now": moment.replace(microsecond=0).isoformat(),
         "actions": actions,

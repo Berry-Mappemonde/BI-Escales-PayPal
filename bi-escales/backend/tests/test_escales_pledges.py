@@ -31,6 +31,7 @@ from app.escales.pledges import (
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     reset_ledger()
     yield
     reset_ledger()
@@ -63,7 +64,7 @@ class Spy:
                 "payments": {
                     "authorizations": [{
                         "id": f"AUTH-{order_id}",
-                        "expiration_time": "2026-12-01T00:00:00Z",
+                        "expiration_time": "2099-01-01T00:00:00Z",
                     }],
                 },
             }],
@@ -149,7 +150,7 @@ def test_create_authorize_order_is_eur_and_idempotent(monkeypatch):
             return httpx.Response(201, json={
                 "id": "ORDER1",
                 "purchase_units": [{
-                    "payments": {"authorizations": [{"id": "AUTH1", "expiration_time": "2026-12-01T00:00:00Z"}]},
+                    "payments": {"authorizations": [{"id": "AUTH1", "expiration_time": "2099-01-01T00:00:00Z"}]},
                 }],
             })
         if path == "/v2/checkout/orders/ORDER1" and request.method == "GET":
@@ -273,7 +274,7 @@ def test_state_machine_and_forbidden_transitions():
         authorized = await authorize_pledge(created["_id"], spy)
         assert authorized["status"] == "authorized"
         assert authorized["authorization_id"] == "AUTH-ORDER1"
-        assert authorized["authorization_expires_at"] == "2026-12-01T00:00:00Z"
+        assert authorized["authorization_expires_at"] == "2099-01-01T00:00:00Z"
         with pytest.raises(IllegalTransition):
             await authorize_pledge(created["_id"], spy)
 

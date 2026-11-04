@@ -191,6 +191,7 @@ class SpendingIn(BaseModel):
 
 class RefundIn(BaseModel):
     amount_eur: Optional[str] = None
+    now: Optional[str] = None
 
 
 class PayoutProposeIn(BaseModel):
@@ -575,8 +576,21 @@ async def post_void(pledge_id: str, request: Request):
 @router.post("/pledges/{pledge_id}/refund")
 async def post_refund(pledge_id: str, body: RefundIn, request: Request):
     _require_treasurer(request)
+    effective_at = None
+    if (body.now or "").strip():
+        if not clock_now_pinned():
+            raise HTTPException(
+                status_code=422,
+                detail="refund timestamp override requires ESCALES_CLOCK_NOW",
+            )
+        effective_at = parse_clock_moment(str(body.now))
     try:
-        doc = await refund_pledge(pledge_id, _paypal(), amount_eur=body.amount_eur)
+        doc = await refund_pledge(
+            pledge_id,
+            _paypal(),
+            amount_eur=body.amount_eur,
+            effective_at=effective_at,
+        )
     except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
         raise _money_http(exc) from exc
     return await _public_pledge_with_fund(doc)

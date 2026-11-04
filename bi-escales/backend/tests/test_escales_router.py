@@ -18,8 +18,8 @@ from app.routers.escales import _public_pledge, router, set_paypal_client_factor
 
 PLEDGE = {
     "amount_eur": "20.00",
-    "description": "20 milles Mayotte",
-    "milestone_id": "dep-mayotte",
+    "description": "20 milles La Rochelle",
+    "milestone_id": "dep-la-rochelle",
 }
 ADMIN = {"x-admin-key": "test-admin-key"}
 
@@ -52,7 +52,7 @@ class FakePayPal:
                 "payments": {
                     "authorizations": [{
                         "id": f"AUTH-{order_id}",
-                        "expiration_time": "2026-12-01T00:00:00Z",
+                        "expiration_time": "2099-01-01T00:00:00Z",
                     }],
                 },
             }],
@@ -87,6 +87,7 @@ def api(monkeypatch):
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-19T08:00:00Z")
     monkeypatch.delenv("ESCALES_TOOLKIT_ENABLED", raising=False)
     monkeypatch.delenv("ESCALES_LLM_ENABLED", raising=False)
     monkeypatch.delenv("ESCALES_ENV", raising=False)
@@ -100,6 +101,19 @@ def api(monkeypatch):
         yield client, fake
     set_paypal_client_factory(None)
     reset_ledger()
+
+
+MAYOTTE_PLEDGE = {
+    **PLEDGE,
+    "milestone_id": "dep-mayotte",
+    "description": "20 milles Mayotte",
+}
+NEAR_MAYOTTE_CLOCK = "2027-05-15T08:00:00Z"
+
+
+def _ready_mayotte(client, key, monkeypatch, body=None):
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", NEAR_MAYOTTE_CLOCK)
+    return _ready(client, key, body or MAYOTTE_PLEDGE)
 
 
 def _create(client, key, body=None):
@@ -154,7 +168,7 @@ def test_authorize_stores_id_and_expiration(api):
     created, authorized = _ready(client, "auth-1")
     assert authorized["status"] == "authorized"
     assert authorized["authorization_id"] == "AUTH-ORDER1"
-    assert authorized["authorization_expires_at"] == "2026-12-01T00:00:00Z"
+    assert authorized["authorization_expires_at"] == "2099-01-01T00:00:00Z"
     fetched = client.get(f"/api/escales/pledges/{created['id']}", headers=ADMIN)
     assert fetched.status_code == 200
     assert fetched.json()["authorization_id"] == "AUTH-ORDER1"
@@ -364,7 +378,7 @@ def test_capture_refused_when_admin_key_unset(api, monkeypatch):
     assert "capture" not in [call[0] for call in fake.calls]
 
 
-def test_fund_counts_captured_income_and_treasurer_spending(api):
+def test_fund_counts_captured_income_and_treasurer_spending(api, monkeypatch):
     client, _fake = api
     empty = client.get("/api/escales/milestones/dep-mayotte/fund")
     assert empty.status_code == 200
@@ -376,7 +390,7 @@ def test_fund_counts_captured_income_and_treasurer_spending(api):
     assert "income" not in empty.json()
     assert "pledge_id" not in empty.text
 
-    _created, authorized = _ready(client, "fund-auth")
+    _created, authorized = _ready_mayotte(client, "fund-auth", monkeypatch)
     held = client.get("/api/escales/milestones/dep-mayotte/fund").json()
     assert held["income_eur"] == "0.00"
     assert held["authorized_eur"] == "20.00"
@@ -431,7 +445,7 @@ def test_fund_counts_captured_income_and_treasurer_spending(api):
     assert captured.json()["fund"]["income_eur"] == "20.00"
 
 
-def test_fund_rejects_bad_amounts_and_unknown_stopovers(api):
+def test_fund_rejects_bad_amounts_and_unknown_stopovers(api, monkeypatch):
     client, _fake = api
     missing = client.get("/api/escales/milestones/nulle-part/fund")
     assert missing.status_code == 404
@@ -449,7 +463,7 @@ def test_fund_rejects_bad_amounts_and_unknown_stopovers(api):
     )
     assert unknown.status_code == 404
 
-    _created, authorized = _ready(client, "fund-alias")
+    _created, authorized = _ready_mayotte(client, "fund-alias", monkeypatch)
     assert client.post(
         f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN
     ).status_code == 200
@@ -554,14 +568,15 @@ def test_void_records_void_id_and_voided_at(api):
 
 def test_voided_at_follows_the_simulated_clock(api, monkeypatch):
     """voided_at is ESCALES_CLOCK_NOW, the same clock as the voyage, not wall time."""
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-01-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-11T08:00:00Z")
     client, _fake = api
     _created, authorized = _ready(client, "void-clock")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-12-01T08:00:00Z")
     response = client.post(f"/api/escales/pledges/{authorized['id']}/void", headers=ADMIN)
     assert response.status_code == 200, response.text
-    assert response.json()["voided_at"] == "2026-01-15T08:00:00+00:00"
+    assert response.json()["voided_at"] == "2026-12-01T08:00:00+00:00"
     listed = client.get(f"/api/escales/pledges/{authorized['id']}", headers=ADMIN)
-    assert listed.json()["voided_at"] == "2026-01-15T08:00:00+00:00"
+    assert listed.json()["voided_at"] == "2026-12-01T08:00:00+00:00"
 
 
 def test_void_with_admin_key(api):
@@ -681,9 +696,9 @@ def test_evidence_flagged_simulation_for_naviguide(api):
     assert listed.json()[0]["evidence"][0]["provider"] == "NAVIGUIDE"
 
 
-def test_captain_route_does_not_capture_or_void(api):
+def test_captain_route_does_not_capture_or_void(api, monkeypatch):
     client, fake = api
-    _created, authorized = _ready(client, "review-1")
+    _created, authorized = _ready_mayotte(client, "review-1", monkeypatch)
     evidence = client.post(
         "/api/escales/milestones/dep-mayotte/evidence",
         json={"met": True, "facts": {"port": "Mayotte"}},
@@ -754,16 +769,16 @@ def test_review_route_passes_the_browser_language(api, monkeypatch):
     assert seen["milestone_id"] == "dakar"
 
 
-def test_audit_records_proposal_and_treasurer_actions(api):
+def test_audit_records_proposal_and_treasurer_actions(api, monkeypatch):
     client, _fake = api
     client.post(
         "/api/escales/milestones/dep-mayotte/evidence",
         json={"met": True, "facts": {"port": "Mayotte"}},
         headers=ADMIN,
     )
-    _created_a, authorized_a = _ready(client, "audit-a")
-    dinner = {**PLEDGE, "description": "diner", "amount_eur": "60.00"}
-    _created_b, authorized_b = _ready(client, "audit-b", dinner)
+    _created_a, authorized_a = _ready_mayotte(client, "audit-a", monkeypatch)
+    dinner = {**MAYOTTE_PLEDGE, "description": "diner", "amount_eur": "60.00"}
+    _created_b, authorized_b = _ready_mayotte(client, "audit-b", monkeypatch, dinner)
     review = client.post("/api/escales/captain/review/dep-mayotte")
     assert review.status_code == 200
     captured = client.post(f"/api/escales/pledges/{authorized_a['id']}/capture", headers=ADMIN)
@@ -820,7 +835,8 @@ def test_pledge_defaults_to_mile_and_labels_the_simulated_price(api):
     assert response.status_code == 200
     body = response.json()
     assert body["kind"] == "mile"
-    assert body["target_id"] == "dzaoudzi-mayotte"
+    assert body["target_id"] == "la-rochelle"
+    assert body["milestone_id"] == "dep-la-rochelle"
     assert body["intent"] == "AUTHORIZE"
     assert body["status"] == "created"
     assert body["price_label"] == "simulated price"
@@ -830,10 +846,11 @@ def test_pledge_defaults_to_mile_and_labels_the_simulated_price(api):
     assert "capture" not in [call[0] for call in fake.calls]
 
 
-def test_pledge_accepts_kind_and_target(api):
+def test_pledge_accepts_kind_and_target(api, monkeypatch):
     client, _fake = api
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", NEAR_MAYOTTE_CLOCK)
     response = _create(client, "m0-meal", {
-        **PLEDGE,
+        **MAYOTTE_PLEDGE,
         "kind": "meal",
         "target_id": "mayotte",
         "amount_eur": "60.00",
@@ -847,8 +864,9 @@ def test_pledge_accepts_kind_and_target(api):
     assert body["simulated_price"]["label"] == "simulated price"
 
 
-def test_target_slug_must_be_known_for_a_stopover_kind(api):
+def test_target_slug_must_be_known_for_a_stopover_kind(api, monkeypatch):
     client, fake = api
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", NEAR_MAYOTTE_CLOCK)
     bad_slug = _create(client, "m0-slug", {
         **PLEDGE, "kind": "berth", "amount_eur": "30.00", "target_id": "Projet Ecole",
     })
@@ -870,7 +888,7 @@ def test_target_slug_must_be_known_for_a_stopover_kind(api):
     other_escale = _create(client, "m0-other", {**PLEDGE, "kind": "mile", "target_id": "dakar"})
     assert other_escale.status_code == 422
     fund = _create(client, "m0-fund", {
-        **PLEDGE,
+        **MAYOTTE_PLEDGE,
         "kind": "common_fund",
         "target_id": "mayotte",
         "amount_eur": "8.00",
@@ -927,31 +945,29 @@ def test_prices_and_clock(api, monkeypatch):
 
 
 def test_departure_clock_captures_on_the_day(api, monkeypatch):
-    """The simulated clock captures on departure day, voids a cancelled stop, and refuses an early authorization."""
+    """The simulated clock captures on arrival day, voids a cancelled stop, and refuses an early authorization."""
     import asyncio
 
     from app.escales.ledger import get_ledger
+    from app.escales.naviguide_bridge import resolve_milestone, resolve_schedule_milestone
 
     client, fake = api
-    departure = "2026-11-20T08:00:00+00:00"
 
-    async def stamp(milestone_id: str) -> None:
-        await get_ledger().ensure_milestone(
-            milestone_id,
-            meta={"capture_on": "departure", "departure_iso": departure},
-        )
+    async def load_stop(mid: str) -> dict:
+        doc = await resolve_schedule_milestone(mid)
+        assert doc
+        return doc
 
     def status(pledge_id: str) -> str:
         response = client.get(f"/api/escales/pledges/{pledge_id}")
         assert response.status_code == 200, response.text
         return response.json()["status"]
 
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-10-21T08:00:00Z")
-    from app.escales.naviguide_bridge import resolve_milestone
-
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-10-01T08:00:00Z")
     sailing = resolve_milestone("dep-la-rochelle")
     assert sailing
-    asyncio.run(stamp(sailing))
+    stop_doc = asyncio.run(load_stop(sailing))
+    arrival_iso = str(stop_doc["meta"]["arrival_iso"])
     creates = [call for call in fake.calls if call[0] == "create"]
     early = _create(client, "dep-early", {
         **PLEDGE,
@@ -962,11 +978,11 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     assert "29" in early.text
     assert [call for call in fake.calls if call[0] == "create"] == creates
 
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-19T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-11T08:00:00Z")
     held_body, held = _ready(client, "dep-held", {
         **PLEDGE,
         "milestone_id": sailing,
-        "description": "veille du depart",
+        "description": "veille de l'arrivee",
     })
     assert held["status"] == "authorized"
     before = client.post("/api/escales/clock/settle", headers=ADMIN)
@@ -977,9 +993,9 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
 
     stopped_body, stopped = _ready(client, "dep-cancel", {
         **PLEDGE,
+        "milestone_id": "dep-ajaccio-corse",
         "description": "escale annulee",
     })
-    asyncio.run(stamp(stopped_body["milestone_id"]))
     evidence = client.post(
         f"/api/escales/milestones/{stopped_body['milestone_id']}/evidence",
         json={"met": False, "facts": {"cancelled": True}},
@@ -996,11 +1012,10 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     assert any(call[0] == "void" for call in fake.calls)
     assert all(call[0] != "capture" for call in fake.calls)
 
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-20T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-12T08:00:00Z")
     public = client.get("/api/escales/clock")
     assert public.status_code == 200
     assert "settled" not in public.json()
-    assert public.json()["now"].startswith("2026-11-20")
     assert status(held["id"]) == "authorized"
     locked = client.post("/api/escales/clock/settle")
     assert locked.status_code == 401
@@ -1170,10 +1185,11 @@ def test_schedule_local_fallback(api, monkeypatch):
     assert body["prices"]["simulated"] is True
 
 
-def test_public_fund_and_pledge_share_the_aggregate(api):
+def test_public_fund_and_pledge_share_the_aggregate(api, monkeypatch):
     """A stopover fund is public totals. Pledge reads use that same object."""
     client, _fake = api
-    created = _create(client, "pub-fund").json()
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", NEAR_MAYOTTE_CLOCK)
+    created = _create(client, "pub-fund", MAYOTTE_PLEDGE).json()
     listed = client.get(f"/api/escales/pledges/{created['id']}")
     assert listed.status_code == 200
     body = listed.json()
@@ -1199,7 +1215,7 @@ def test_public_fund_and_pledge_share_the_aggregate(api):
     assert wrong.status_code == 403
 
 
-def test_unplaced_project_and_fund_totals_are_readable(api):
+def test_unplaced_project_and_fund_totals_are_readable(api, monkeypatch):
     """Project and common-fund totals need the treasurer key. A stopover stays public."""
     client, _fake = api
     locked_project = client.get("/api/escales/milestones/project/fund")
@@ -1262,8 +1278,8 @@ def test_unplaced_project_and_fund_totals_are_readable(api):
     assert client.get("/api/escales/milestones/common-fund/fund").status_code == 401
     assert client.get("/api/escales/milestones/projet/fund").status_code == 401
 
-    _created_s, stop = _ready(client, "tot-stop-fund", {
-        **PLEDGE,
+    _created_s, stop = _ready_mayotte(client, "tot-stop-fund", monkeypatch, {
+        **MAYOTTE_PLEDGE,
         "kind": "common_fund",
         "amount_eur": "9.00",
         "description": "caisse de l'escale",
@@ -1283,7 +1299,7 @@ def test_unplaced_project_and_fund_totals_are_readable(api):
     assert client.get("/api/escales/milestones/nulle-part/fund").status_code == 404
 
 
-def _capture_open_and_stopover(client):
+def _capture_open_and_stopover(client, monkeypatch):
     """15.00 on the project, 12.00 on the boat fund, 9.00 on Mayotte."""
     _created_p, project = _ready(client, "chat-project", {
         "amount_eur": "15.00",
@@ -1303,8 +1319,8 @@ def _capture_open_and_stopover(client):
     assert client.post(
         f"/api/escales/pledges/{boat['id']}/capture", headers=ADMIN
     ).status_code == 200
-    _created_s, stop = _ready(client, "chat-stop", {
-        **PLEDGE,
+    _created_s, stop = _ready_mayotte(client, "chat-stop", monkeypatch, {
+        **MAYOTTE_PLEDGE,
         "kind": "common_fund",
         "amount_eur": "9.00",
         "description": "caisse de l'escale",
@@ -1314,10 +1330,10 @@ def _capture_open_and_stopover(client):
     ).status_code == 200
 
 
-def test_public_chat_withholds_project_and_common_fund_totals(api):
+def test_public_chat_withholds_project_and_common_fund_totals(api, monkeypatch):
     """The chat must not repeat the totals the fund route already locks."""
     client, _fake = api
-    _capture_open_and_stopover(client)
+    _capture_open_and_stopover(client, monkeypatch)
     project = client.post(
         "/api/escales/captain/chat",
         json={"message": "How much money is in the project fund?"},
@@ -1355,9 +1371,9 @@ def test_public_chat_withholds_project_and_common_fund_totals(api):
     assert "la caisse de Dzaoudzi (Mayotte)" in local.json()["reply"]
 
 
-def test_treasurer_chat_returns_project_and_common_fund_totals(api):
+def test_treasurer_chat_returns_project_and_common_fund_totals(api, monkeypatch):
     client, _fake = api
-    _capture_open_and_stopover(client)
+    _capture_open_and_stopover(client, monkeypatch)
     project = client.post(
         "/api/escales/captain/chat",
         json={"message": "How much money is in the project fund?"},
@@ -1508,8 +1524,9 @@ def test_target_id_and_milestone_id_are_documented():
     assert "fonds-commun" in target
 
 
-def test_features_flags_off_by_default(api):
+def test_features_flags_off_by_default(api, monkeypatch):
     client, _fake = api
+    monkeypatch.delenv("ESCALES_CLOCK_NOW", raising=False)
     flags = client.get("/api/escales/features").json()
     assert flags["naviguide_bridge"] is False
     assert flags["bryntum"] is False

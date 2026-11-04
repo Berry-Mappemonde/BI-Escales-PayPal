@@ -79,18 +79,18 @@ def _search_window_from_ledger(
     start_date: str,
     end_date: str,
 ) -> tuple[str, str]:
-    """Widen the PayPal search window to cover ledger capture timestamps (+ lag)."""
-    moments: list[dt.datetime] = []
-    for row in ledger:
-        moment = _parse_moment(str(row.get("at") or ""))
-        if moment:
-            moments.append(moment)
-    if not moments:
-        return clamp_transaction_search_range(start_date, end_date)
-    lag = dt.timedelta(hours=SANDBOX_REPORTING_LAG_HOURS)
-    start = min(moments) - dt.timedelta(days=1)
-    end = max(moments) + lag
-    return clamp_transaction_search_range(start.isoformat(), end.isoformat())
+    """Clamp the treasurer-requested window (ledger rows are filtered separately)."""
+    _ = ledger
+    return clamp_transaction_search_range(start_date, end_date)
+
+
+def _moment_in_window(at: Optional[str], start: str, end: str) -> bool:
+    moment = _parse_moment(at)
+    start_m = _parse_moment(start)
+    end_m = _parse_moment(end)
+    if moment is None or start_m is None or end_m is None:
+        return False
+    return start_m <= moment <= end_m
 
 
 async def reconcile_paypal_ledger(
@@ -101,8 +101,12 @@ async def reconcile_paypal_ledger(
     finance_entries: list[dict],
 ) -> dict:
     """Compare captured pledges in ``escales_finance`` to PayPal reporting (read-only)."""
-    ledger = _ledger_captures(finance_entries)
-    search_start, search_end = _search_window_from_ledger(ledger, start_date, end_date)
+    ledger_all = _ledger_captures(finance_entries)
+    search_start, search_end = _search_window_from_ledger(ledger_all, start_date, end_date)
+    ledger = [
+        row for row in ledger_all
+        if _moment_in_window(str(row.get("at") or ""), search_start, search_end)
+    ]
     paypal_payload = client.search_transactions(start_date=search_start, end_date=search_end)
     paypal = _paypal_rows(paypal_payload if isinstance(paypal_payload, dict) else {})
 

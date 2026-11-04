@@ -16,6 +16,7 @@ from app.escales.pledges import authorize_pledge, capture_pledge, create_pledge,
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     reset_ledger()
     yield
     reset_ledger()
@@ -37,7 +38,7 @@ class Spy:
         return {
             "id": order_id,
             "purchase_units": [{
-                "payments": {"authorizations": [{"id": f"AUTH-{order_id}", "expiration_time": "2026-12-01T00:00:00Z"}]},
+                "payments": {"authorizations": [{"id": f"AUTH-{order_id}", "expiration_time": "2099-01-01T00:00:00Z"}]},
             }],
         }
 

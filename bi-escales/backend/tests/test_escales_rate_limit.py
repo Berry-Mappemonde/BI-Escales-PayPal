@@ -30,6 +30,7 @@ EN = "I'd like to sponsor 5 nautical miles near Brest"
 def api(monkeypatch):
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     monkeypatch.delenv("ESCALES_ENV", raising=False)
     monkeypatch.delenv("ESCALES_RATE_LIMIT_ENABLED", raising=False)
     monkeypatch.delenv("HELLOASSO_MEMBERSHIP_URL", raising=False)

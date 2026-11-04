@@ -52,6 +52,15 @@ export interface FundView {
   spending?: FundLine[];
 }
 
+/** Public GET /projects/{id}/fund (N33). Donor-facing totals only. */
+export interface PublicProjectDonationTotal {
+  project_id: string;
+  currency: string;
+  amount_eur: string;
+  donation_count: number;
+  refunded_eur: string;
+}
+
 export interface ScheduleEscale {
   milestone_id?: string;
   name?: string;

@@ -6,6 +6,7 @@ import type {
   ScheduleResponse,
   FeatureFlags,
   FundView,
+  PublicProjectDonationTotal,
 } from "./types";
 
 function url(path: string): string {
@@ -250,6 +251,20 @@ export async function fetchFund(milestoneId: string, adminKey?: string): Promise
   const res = await fetch(url(`/api/escales/milestones/${encodeURIComponent(milestoneId)}/fund`), { headers });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
+}
+
+/** Public project crowdfunding totals (pattern: ``fetchFund`` without admin key). */
+export async function fetchPublicProjectFund(projectId: string): Promise<PublicProjectDonationTotal | null> {
+  const id = String(projectId || "").trim();
+  if (!id) return null;
+  try {
+    const res = await fetch(url(`/api/escales/projects/${encodeURIComponent(id)}/fund`));
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
 
 export async function listMilestones(): Promise<Milestone[]> {

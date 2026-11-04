@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../i18n";
+import { emitPledgeReturn } from "../paypal/pledgeReturnEvents";
 import { ProjectMapPopup } from "./ProjectMapPopup.jsx";
 
 vi.mock("./PledgeButton", () => ({
@@ -27,6 +28,93 @@ const sampleProps = {
 };
 
 describe("ProjectMapPopup", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input) => {
+        const href = String(input);
+        if (href.includes("/api/escales/projects/") && href.endsWith("/fund")) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              project_id: sampleProps.id,
+              currency: "EUR",
+              amount_eur: "42.00",
+              donation_count: 3,
+              refunded_eur: "0.00",
+            }),
+          };
+        }
+        return { ok: false, status: 404, json: async () => ({}) };
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows public donation total from GET /projects/{id}/fund", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProjectMapPopup properties={sampleProps} contributorDefault="Pat" onAuthorized={() => {}} />
+      </I18nextProvider>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("project-map-public-total")).toHaveTextContent("42.00 EUR collected · 3 donations");
+    });
+    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining(`/api/escales/projects/${sampleProps.id}/fund`));
+  });
+
+  it("hides totals quietly on 404 fund response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })),
+    );
+    await i18n.changeLanguage("en");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProjectMapPopup properties={sampleProps} onAuthorized={() => {}} />
+      </I18nextProvider>,
+    );
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalled();
+    });
+    expect(screen.queryByTestId("project-map-public-total")).toBeNull();
+  });
+
+  it("refetches public total after a successful pledge return", async () => {
+    const fetchMock = vi.fn(async (input) => {
+      const href = String(input);
+      if (href.includes("/api/escales/projects/") && href.endsWith("/fund")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            project_id: sampleProps.id,
+            currency: "EUR",
+            amount_eur: "42.00",
+            donation_count: 3,
+            refunded_eur: "0.00",
+          }),
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await i18n.changeLanguage("en");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProjectMapPopup properties={sampleProps} onAuthorized={() => {}} />
+      </I18nextProvider>,
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    emitPledgeReturn({ pledgeId: "any", outcome: "authorized" });
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2));
+  });
+
   it("shows title, description, external site link, and PayPal control", async () => {
     await i18n.changeLanguage("en");
     render(
@@ -34,7 +122,9 @@ describe("ProjectMapPopup", () => {
         <ProjectMapPopup properties={sampleProps} contributorDefault="Pat" onAuthorized={() => {}} />
       </I18nextProvider>,
     );
-    expect(screen.getByTestId("project-map-popup")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId("project-map-popup")).toBeInTheDocument();
+    });
     expect(screen.getByText("Plastics Initiative")).toBeInTheDocument();
     expect(screen.getByTestId("project-map-description")).toHaveTextContent("Reduce plastics");
     const link = screen.getByTestId("project-map-site-link");

@@ -1,14 +1,49 @@
-:root {
-  color-scheme: light dark;
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #0b1f33;
   --panel: #122a42;
   --text: #e8f1fa;
   --muted: #9fb6cc;
   --accent: #3d9be9;
+  --accent-fg: #041018;
   --warn: #e8b84a;
   --error: #f07178;
   --ok: #7fd992;
+  --link: #7ec8ff;
+  --map-fallback: #0f172a;
+  --border: #2a4560;
+  --input-bg: #0a1828;
+  --body-gradient: linear-gradient(160deg, #071525, #0f2a44 45%, #071525);
+  --panel-border: color-mix(in srgb, var(--accent) 35%, transparent);
+  --panel-bg: color-mix(in srgb, var(--panel) 92%, black);
+  --secondary-bg: #35536d;
+  --gauge-track: #1a334a;
+  --proposal-bg: #0a1828;
   font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --text: #0f172a;
+  --muted: #334155;
+  --accent: #1d4ed8;
+  --accent-fg: #ffffff;
+  --warn: #9a3412;
+  --error: #b91c1c;
+  --ok: #047857;
+  --link: #075985;
+  --map-fallback: #d6d3cd;
+  --border: #cbd5e1;
+  --input-bg: #ffffff;
+  --body-gradient: linear-gradient(160deg, #f8fafc, #ffffff 45%, #f1f5f9);
+  --panel-border: color-mix(in srgb, var(--accent) 28%, var(--border));
+  --panel-bg: var(--panel);
+  --secondary-bg: #e2e8f0;
+  --gauge-track: #e2e8f0;
+  --proposal-bg: #f1f5f9;
 }
 
 * {
@@ -17,7 +52,7 @@
 
 body {
   margin: 0;
-  background: linear-gradient(160deg, #071525, #0f2a44 45%, #071525);
+  background: var(--body-gradient);
   color: var(--text);
   min-height: 100vh;
 }
@@ -35,12 +70,15 @@ body {
   align-items: flex-start;
 }
 
-.lang-switch button {
+.lang-switch button,
+.theme-switch button {
   margin-left: 0.35rem;
 }
 
-.lang-switch button.active {
+.lang-switch button.active,
+.theme-switch button.active {
   background: var(--accent);
+  color: var(--accent-fg);
 }
 
 .layout {
@@ -56,8 +94,8 @@ body {
 }
 
 .panel {
-  background: color-mix(in srgb, var(--panel) 92%, black);
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
   border-radius: 12px;
   padding: 1rem 1.1rem;
 }
@@ -91,8 +129,8 @@ button {
 input,
 textarea {
   border-radius: 8px;
-  border: 1px solid #2a4560;
-  background: #0a1828;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
   color: var(--text);
   padding: 0.45rem 0.55rem;
 }
@@ -101,14 +139,14 @@ button {
   border-radius: 8px;
   border: none;
   background: var(--accent);
-  color: #041018;
+  color: var(--accent-fg);
   padding: 0.45rem 0.75rem;
   cursor: pointer;
   margin-top: 0.35rem;
 }
 
 button.secondary {
-  background: #35536d;
+  background: var(--secondary-bg);
   color: var(--text);
 }
 
@@ -167,7 +205,7 @@ button:disabled {
 
 .fallback-table th,
 .fallback-table td {
-  border-bottom: 1px solid #2a4560;
+  border-bottom: 1px solid var(--border);
   padding: 0.45rem 0.35rem;
   vertical-align: top;
   text-align: left;
@@ -190,7 +228,7 @@ button:disabled {
 
 .gauge-track {
   height: 8px;
-  background: #1a334a;
+  background: var(--gauge-track);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -200,7 +238,7 @@ button:disabled {
 }
 
 .tone-auth {
-  background: #3d9be9;
+  background: var(--accent);
 }
 
 .tone-cap {
@@ -214,11 +252,11 @@ button:disabled {
 .captain-widget {
   margin-top: 1rem;
   padding-top: 0.75rem;
-  border-top: 1px dashed #2a4560;
+  border-top: 1px dashed var(--border);
 }
 
 .proposal-box {
-  background: #0a1828;
+  background: var(--proposal-bg);
   border-radius: 8px;
   padding: 0.75rem;
 }
@@ -228,7 +266,7 @@ button:disabled {
 }
 
 .chat-result pre {
-  background: #0a1828;
+  background: var(--proposal-bg);
   padding: 0.5rem;
   border-radius: 8px;
   overflow: auto;
@@ -248,6 +286,7 @@ button:disabled {
 
 .tab-bar button.active {
   background: var(--accent);
+  color: var(--accent-fg);
 }
 
 .voyage-map {
@@ -262,6 +301,12 @@ button:disabled {
 .boat-divicon {
   background: transparent;
   border: none;
+}
+
+:root[data-theme="light"] .leaflet-container,
+:root[data-theme="light"] .leaflet-container .leaflet-tile-pane,
+:root[data-theme="light"] .leaflet-container img.leaflet-tile {
+  background-color: var(--map-fallback);
 }
 
 .voyage-clock {
@@ -298,7 +343,7 @@ button:disabled {
   background: transparent;
   color: inherit;
   border: 0;
-  border-bottom: 1px solid #23415e;
+  border-bottom: 1px solid var(--border);
   padding: 0.45rem 0;
 }
 

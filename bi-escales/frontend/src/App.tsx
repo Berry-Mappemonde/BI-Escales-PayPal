@@ -12,6 +12,7 @@ import ProjectList from "./components/ProjectList.jsx";
 import { TreasurerPanel } from "./components/TreasurerPanel";
 import { CrewSubscribeButton } from "./components/CrewSubscribeButton";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
+import { useTheme } from "./hooks/useTheme";
 import { setLanguage } from "./i18n";
 import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadEscaleFiche } from "./marinas/escaleFiche.js";
@@ -43,6 +44,7 @@ const KIND_AMOUNT: Record<string, string | null> = {
 
 export default function App() {
   const { t, i18n } = useTranslation();
+  const { theme, toggleTheme } = useTheme();
   const [tab, setTab] = useState<TabId>("voyage");
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
   const [hash, setHash] = useState(() => window.location.hash);
@@ -448,6 +450,7 @@ export default function App() {
           showProjects={tab === "voyage"}
           showMarinas={tab === "marinas"}
           flyTo={flyTo}
+          theme={theme}
           onSelectStop={chooseStop}
           onFlyTo={onFlyTo}
           onSelectProject={(props: { id?: string }) => {
@@ -474,6 +477,16 @@ export default function App() {
         <div className="ng-shell-header">
           <h1>{t("app.title")}</h1>
           <p>{t("app.tagline")}</p>
+          <div className="theme-switch" data-testid="theme-switch">
+            <button
+              type="button"
+              data-testid="theme-toggle"
+              aria-pressed={theme === "light"}
+              onClick={() => toggleTheme()}
+            >
+              {theme === "light" ? t("app.themeDark") : t("app.themeLight")}
+            </button>
+          </div>
         </div>
         <div className="lang-switch">
           <button type="button" className={i18n.language === "fr" ? "active" : ""} onClick={() => setLanguage("fr")}>

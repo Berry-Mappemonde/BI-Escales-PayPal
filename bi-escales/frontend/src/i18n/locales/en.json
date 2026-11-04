@@ -4,6 +4,8 @@
     "tagline": "Stop pledges capture on boat arrival; cabins on leg departure; common fund at once.",
     "langFr": "Français",
     "langEn": "English",
+    "themeLight": "Light",
+    "themeDark": "Dark",
     "healthFail": "Backend unreachable",
     "escalesOff": "ESCALES_ENABLED is off: /api/escales returns 404."
   },

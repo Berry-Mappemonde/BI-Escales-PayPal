@@ -73,6 +73,14 @@ TOKENFACTORY_DEFAULT_BASE = "https://api.tokenfactory.nebius.com/v1"
 # model_source.reason names the hop and the failure kind, never a secret.
 NIM_MODEL_DEFAULT = "private/nvidia/nemotron-3.5-super-120b-a12b"
 NIM_FALLBACK_MODEL_DEFAULT = "nvidia/nemotron-3.5-lightning-30b-a3b"
+# A primary id is private/nvidia/<model>, <provider>/<org>/<model>, or a
+# two-part catalog id such as nvidia/<model>. A glued copy is refused.
+_NIM_ID_PIECE = r"[A-Za-z0-9][A-Za-z0-9._-]{0,80}"
+_NIM_ID_RE = re.compile(
+    rf"^(?:private/nvidia/{_NIM_ID_PIECE}"
+    rf"|{_NIM_ID_PIECE}/{_NIM_ID_PIECE}/{_NIM_ID_PIECE}"
+    rf"|{_NIM_ID_PIECE}/{_NIM_ID_PIECE})$"
+)
 # Ids that must not be the primary hop. The value is the public reason.
 _NIM_REJECTED_IDS = {
     "nvidia/nemotron-3.5-super-vl-120b-a12b": "returns HTTP 404 at NVIDIA",
@@ -238,6 +246,14 @@ def reset_nim_404_fallbacks() -> None:
 
 
 _nim_model_reason = ""
+_nim_model_fallback: dict[str, str] = {}
+
+
+def reset_nim_model_choice() -> None:
+    """Forget a previous ``NIM_MODEL`` refusal. The next ``nim_model()`` reads the env again."""
+    global _nim_model_reason, _nim_model_fallback
+    _nim_model_reason = ""
+    _nim_model_fallback = {}
 
 
 def nim_model_reason() -> str:
@@ -245,15 +261,49 @@ def nim_model_reason() -> str:
     return _nim_model_reason
 
 
+def nim_model_fallback_reason() -> dict[str, str]:
+    """Public reason when ``NIM_MODEL`` was refused before the call. No secret."""
+    return dict(_nim_model_fallback)
+
+
+def _nim_duplicated_fragment(value: str) -> bool:
+    parts = [part for part in (value or "").split("/") if part]
+    folded = [part.casefold() for part in parts]
+    if len(folded) != len(set(folded)):
+        return True
+    low = (value or "").casefold()
+    return any(len(part) >= 12 and low.count(part) > 1 for part in folded)
+
+
+def _nim_id_problem(value: str) -> str:
+    """Empty when the id is a single well-formed model id."""
+    if _nim_duplicated_fragment(value) or not _NIM_ID_RE.fullmatch(value or ""):
+        if _nim_duplicated_fragment(value):
+            return "malformed model id: duplicated fragment"
+        return "malformed model id"
+    return ""
+
+
 def nim_model() -> str:
     """Primary NIM id. ``NIM_MODEL`` env, else the module attribute, else the benchmarked default.
 
-    A known 404 id, or the lightning id placed in ``NIM_MODEL``, is not sent.
-    The private Super id is sent instead, and ``nim_model_reason`` says so.
+    A known 404 id, the lightning id placed in ``NIM_MODEL``, or a malformed
+    id (wrong shape, or a fragment repeated) is not sent. The private Super
+    id is sent instead. ``nim_model_reason`` and ``nim_model_fallback_reason``
+    say so. A well-formed catalog id is sent as set.
     """
-    global _nim_model_reason
+    global _nim_model_reason, _nim_model_fallback
     configured = _env("NIM_MODEL")
     chosen = configured or (NIM_MODEL or "").strip() or NIM_MODEL_DEFAULT
+    problem = _nim_id_problem(chosen)
+    if problem:
+        _nim_model_reason = (
+            f"NIM_MODEL is malformed ({problem}). "
+            f"The primary hop sends {NIM_MODEL_DEFAULT}. "
+            "Set NIM_MODEL to private/nvidia/<model> or <provider>/<org>/<model>."
+        )
+        _nim_model_fallback = {"nim": problem}
+        return NIM_MODEL_DEFAULT
     why = _NIM_REJECTED_IDS.get(chosen)
     if why:
         _nim_model_reason = (
@@ -261,8 +311,10 @@ def nim_model() -> str:
             f"The primary hop sends {NIM_MODEL_DEFAULT}. "
             "On Render, set NIM_MODEL to that id or unset it."
         )
+        _nim_model_fallback = {}
         return NIM_MODEL_DEFAULT
     _nim_model_reason = ""
+    _nim_model_fallback = {}
     return chosen
 
 
@@ -989,7 +1041,8 @@ async def ask_text(
                     detail = safe_error_message(exc)
                     kind = _failure_kind(exc)
                     public = _public_failure(exc)
-                    failures[name] = public
+                    malformed = nim_model_fallback_reason() if name == "nim" else {}
+                    failures[name] = malformed.get("nim") or public
                     last = f"{name} {kind}"
                     log.warning(
                         "cascade %s failed (%s) model=%s: %s",
@@ -1029,6 +1082,9 @@ async def ask_text(
                 if result.text.strip():
                     failures.pop(name, None)
                     result.fallback_reason = dict(failures)
+                    malformed = nim_model_fallback_reason() if name == "nim" else {}
+                    if malformed:
+                        result.fallback_reason = {**malformed, **result.fallback_reason}
                     if name == "nim" and nim_model_reason():
                         result.reason = nim_model_reason()
                     elif name == "nim_fallback" and (order or HTTP_CASCADE)[0] == "nim":

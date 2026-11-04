@@ -126,7 +126,9 @@
     "milestone": "Jalon",
     "actions": "Actions",
     "back": "Retour à la carte",
-    "screen": "Écran trésorier"
+    "screen": "Écran trésorier",
+    "settle": "Lancer le règlement du jour de départ",
+    "settleDone": "Règlement du jour de départ terminé."
   },
   "grid": {
     "heading": "Vue trésorier — jauges",

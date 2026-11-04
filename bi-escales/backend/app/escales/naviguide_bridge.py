@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import math
 import re
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Optional
 
@@ -251,6 +253,118 @@ def leg_by_id(leg_id: str) -> Optional[dict[str, Any]]:
         if leg["id"] == wanted:
             return leg
     return None
+
+
+_R_NM = 3440.065
+_ROUTE_GEOJSON = Path(__file__).resolve().parents[3] / "frontend" / "public" / "route.geojson"
+_ROUTE_EDGES: Optional[dict[str, list[tuple[str, float]]]] = None
+_LEG_DISTANCE_NM: Optional[dict[str, Decimal]] = None
+
+
+def _haversine_nm(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
+    """Nautical miles on the shortest arc. Coordinates are GeoJSON lon, lat."""
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lon = math.radians(lon2 - lon1)
+    d_lon = (d_lon + math.pi) % (2 * math.pi) - math.pi
+    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lon / 2) ** 2
+    return 2 * _R_NM * math.asin(min(1.0, math.sqrt(a)))
+
+
+def _line_nm(coords: Any) -> float:
+    total = 0.0
+    previous: Optional[tuple[float, float]] = None
+    for point in coords or []:
+        if not isinstance(point, (list, tuple)) or len(point) < 2:
+            continue
+        lon, lat = float(point[0]), float(point[1])
+        if previous is not None:
+            total += _haversine_nm(previous[0], previous[1], lon, lat)
+        previous = (lon, lat)
+    return total
+
+
+def _route_edges() -> dict[str, list[tuple[str, float]]]:
+    """Named hops on the public route. One length per pair: the longer track."""
+    global _ROUTE_EDGES
+    if _ROUTE_EDGES is None:
+        raw = json.loads(_ROUTE_GEOJSON.read_text(encoding="utf-8"))
+        best: dict[tuple[str, str], float] = {}
+        for feature in raw.get("features") or []:
+            if not isinstance(feature, dict):
+                continue
+            props = feature.get("properties") or {}
+            start = str(props.get("from") or "")
+            end = str(props.get("to") or "")
+            if not start or not end or start == "None":
+                continue
+            geometry = feature.get("geometry") if isinstance(feature.get("geometry"), dict) else {}
+            length = _line_nm(geometry.get("coordinates"))
+            key = (start, end)
+            if length > best.get(key, 0.0):
+                best[key] = length
+        index: dict[str, list[tuple[str, float]]] = {}
+        for (start, end), length in best.items():
+            index.setdefault(start, []).append((end, length))
+        _ROUTE_EDGES = index
+    return _ROUTE_EDGES
+
+
+def _cabin_port_names() -> set[str]:
+    names: set[str] = set()
+    for item in cabin_leg_table().get("legs") or []:
+        if not isinstance(item, dict):
+            continue
+        for key in ("from_name", "to_name"):
+            name = str(item.get(key) or "")
+            if name:
+                names.add(name)
+    return names
+
+
+def leg_distance_nm(leg_id: str) -> Optional[Decimal]:
+    """Nautical miles of one cabin leg along route.geojson. None if no path is found."""
+    global _LEG_DISTANCE_NM
+    if _LEG_DISTANCE_NM is None:
+        _LEG_DISTANCE_NM = {}
+    cached = _LEG_DISTANCE_NM.get(leg_id)
+    if cached is not None:
+        return cached
+    leg = leg_by_id(leg_id)
+    if not leg:
+        return None
+    start = str(leg.get("from_name") or "")
+    end = str(leg.get("to_name") or "")
+    if not start or not end or start == end:
+        return None
+    edges = _route_edges()
+    ports = _cabin_port_names()
+
+    def walk(cursor: str, seen: set[str]) -> Optional[float]:
+        if cursor == end:
+            return 0.0
+        if cursor in seen:
+            return None
+        seen.add(cursor)
+        hops = edges.get(cursor) or []
+        stay = max((length for dest, length in hops if dest == cursor), default=0.0)
+        onward = [(dest, length) for dest, length in hops if dest != cursor]
+        onward.sort(key=lambda hop: (hop[0] in ports and hop[0] != end, hop[0] != end))
+        for dest, length in onward:
+            if dest in ports and dest != end:
+                continue
+            rest = walk(dest, seen)
+            if rest is not None:
+                return stay + length + rest
+        seen.remove(cursor)
+        return None
+
+    total = walk(start, set())
+    if total is None or total <= 0:
+        return None
+    distance = Decimal(str(total)).quantize(Decimal("0.01"))
+    _LEG_DISTANCE_NM[leg_id] = distance
+    return distance
 
 
 def leg_departing_from(place: str) -> Optional[dict[str, Any]]:

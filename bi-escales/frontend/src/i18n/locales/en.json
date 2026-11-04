@@ -126,7 +126,9 @@
     "milestone": "Milestone",
     "actions": "Actions",
     "back": "Back to the map",
-    "screen": "Treasurer screen"
+    "screen": "Treasurer screen",
+    "settle": "Run departure-day settle",
+    "settleDone": "Departure-day settle finished."
   },
   "grid": {
     "heading": "Treasurer view — gauges",

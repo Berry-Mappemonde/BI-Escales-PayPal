@@ -348,14 +348,28 @@ async def _apply_event(event: dict) -> dict:
     if event_type == "PAYMENT.CAPTURE.REFUNDED" and pledge and pledge.get("status") in {
         "captured",
         "partially_refunded",
+        "refunded",
     }:
-        pledge["status"] = "refunded"
+        from .pledges import reconcile_refund_on_pledge
+
+        refund_id = str(resource.get("id") or "").strip()
+        amount = resource.get("amount") if isinstance(resource.get("amount"), dict) else {}
+        amount_eur = str(amount.get("value") or pledge.get("amount_eur") or "0")
+        status = str(resource.get("status") or "COMPLETED").upper()
+        if refund_id:
+            pledge = await reconcile_refund_on_pledge(
+                pledge,
+                refund_id=refund_id,
+                amount_eur=amount_eur,
+                status=status,
+            )
         pledge["history"] = list(pledge.get("history") or []) + ["webhook_refunded"]
         pledge = await get_ledger().save_pledge(pledge)
         await record_finance(
             "webhook_capture_refunded",
             pledge_id=pledge.get("_id"),
             capture_id=_capture_id_from_resource(resource) or resource.get("id"),
+            refund_id=refund_id or None,
         )
 
     if event_type.startswith("CUSTOMER.DISPUTE."):

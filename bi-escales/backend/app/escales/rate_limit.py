@@ -54,11 +54,23 @@ class RateLimited(Exception):
         super().__init__(kind)
 
 
-def client_ip(forwarded_for: str, host: str) -> str:
-    first = (forwarded_for or "").split(",")[0].strip()
-    if first:
-        return first
+def client_ip(forwarded_for: str, host: str, trusted_hops: Optional[int] = None) -> str:
+    """Client IP behind proxies. ``trusted_hops`` defaults from ``ESCALES_TRUSTED_PROXY_HOPS`` (1)."""
+    hops = trusted_proxy_hops() if trusted_hops is None else max(0, int(trusted_hops))
+    parts = [part.strip() for part in (forwarded_for or "").split(",") if part.strip()]
+    if hops == 0 or not parts:
+        return (host or "").strip() or "unknown"
+    if len(parts) >= hops:
+        return parts[-hops]
     return (host or "").strip() or "unknown"
+
+
+def trusted_proxy_hops() -> int:
+    raw = (os.environ.get("ESCALES_TRUSTED_PROXY_HOPS") or "1").strip()
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 1
 
 
 def lang_for(accept_language: str, text: str = "") -> str:

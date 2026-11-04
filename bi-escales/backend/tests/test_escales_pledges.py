@@ -228,8 +228,8 @@ def test_charge_vaulted_sends_the_matching_payment_source():
         EscalesConfig("test-client-id", "test-client-secret"),
         transport=httpx.MockTransport(handler),
     )
-    client.charge_vaulted("WALLET1", "1.00", "ref-wallet")
-    client.charge_vaulted("CARD1", "1.00", "ref-card", source="card")
+    client.charge_vaulted("WALLET1", "1.00", "ref-wallet", idempotency_key="vault-wallet")
+    client.charge_vaulted("CARD1", "1.00", "ref-card", source="card", idempotency_key="vault-card")
     assert bodies[0]["payment_source"] == {"paypal": {"vault_id": "WALLET1"}}
     card = bodies[1]["payment_source"]["card"]
     assert card["vault_id"] == "CARD1"

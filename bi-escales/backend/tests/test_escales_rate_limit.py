@@ -208,6 +208,8 @@ def test_render_and_readme_document_the_production_gate():
     assert "ESCALES_ENV" in readme
     assert "development" in readme
     assert "ESCALES_RATE_LIMIT_ENABLED" in readme
+    assert "ESCALES_TRUSTED_PROXY_HOPS" in readme
+    assert "ESCALES_TRUSTED_PROXY_HOPS" in blueprint
 
 
 def test_development_does_not_cap_llm_usage(monkeypatch):

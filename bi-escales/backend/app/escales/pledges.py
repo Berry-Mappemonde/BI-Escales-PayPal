@@ -24,8 +24,10 @@ import hashlib
 import re
 import uuid
 from decimal import Decimal, InvalidOperation
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+import httpx
 
 from .config import (
     AUTH_MAX_DAYS,
@@ -56,6 +58,136 @@ from .paypal_client import (
 )
 
 HONOR_DAYS = 3
+
+
+def _normalize_refunds(pledge: dict) -> list[dict]:
+    rows = pledge.get("refunds")
+    if isinstance(rows, list) and rows:
+        return [dict(row) for row in rows if isinstance(row, dict)]
+    legacy_id = str(pledge.get("refund_id") or "").strip()
+    legacy_amount = str(pledge.get("refunded_amount_eur") or "").strip()
+    if legacy_id and legacy_amount:
+        return [{
+            "id": legacy_id,
+            "amount": legacy_amount,
+            "key": "",
+            "status": "COMPLETED",
+            "at": str(pledge.get("refunded_at") or now_iso()),
+        }]
+    return []
+
+
+def refunded_amount_from_pledge(pledge: dict) -> Decimal:
+    """Sum of unique refund ids with COMPLETED or PENDING status."""
+    seen: set[str] = set()
+    total = Decimal("0.00")
+    for row in _normalize_refunds(pledge):
+        refund_id = str(row.get("id") or "").strip()
+        if not refund_id or refund_id in seen:
+            continue
+        status = str(row.get("status") or "COMPLETED").upper()
+        if status not in {"COMPLETED", "PENDING", "REFUNDED"}:
+            continue
+        seen.add(refund_id)
+        total += Decimal(str(row.get("amount") or "0"))
+    return total
+
+
+def _append_refund_row(refunds: list[dict], row: dict) -> list[dict]:
+    refund_id = str(row.get("id") or "").strip()
+    if not refund_id:
+        return refunds
+    if any(str(existing.get("id") or "") == refund_id for existing in refunds):
+        return refunds
+    return [*refunds, row]
+
+
+def _is_transport_retry(exc: Exception) -> bool:
+    if isinstance(exc, httpx.TimeoutException):
+        return True
+    if isinstance(exc, PayPalError) and exc.status >= 500:
+        body = exc.body
+        if body is None or body == "" or body == {}:
+            return True
+    return False
+
+
+async def _persist_capture_attempt(pledge: dict) -> str:
+    pledge_id = str(pledge.get("_id") or "")
+    attempt = int(pledge.get("capture_attempt") or 1)
+    if attempt < 1:
+        attempt = 1
+    pledge["capture_attempt"] = attempt
+    key = f"capture-{pledge_id}-{attempt}"
+    pledge["capture_idempotency_key"] = key
+    return key
+
+
+async def _record_capture_attempt_outcome(pledge: dict, payload: dict) -> None:
+    status, _, _ = read_capture_result(payload if isinstance(payload, dict) else {})
+    recorded = str(status or "").upper()
+    pledge["last_capture_status"] = recorded
+    if recorded and recorded not in {"COMPLETED", "PENDING"}:
+        attempt = int(pledge.get("capture_attempt") or 1)
+        pledge["capture_attempt"] = attempt + 1
+
+
+async def _call_with_capture_idempotency(
+    pledge: dict,
+    call: Callable[[str], dict],
+) -> tuple[dict, dict]:
+    key = await _persist_capture_attempt(pledge)
+    saved = await get_ledger().save_pledge(pledge)
+    try:
+        payload = call(key)
+    except Exception as exc:
+        if _is_transport_retry(exc):
+            raise
+        raise
+    await _record_capture_attempt_outcome(saved, payload)
+    saved = await get_ledger().save_pledge(saved)
+    return saved, payload
+
+
+async def reconcile_refund_on_pledge(
+    pledge: dict,
+    *,
+    refund_id: str,
+    amount_eur: str,
+    status: str = "COMPLETED",
+    key: str = "",
+    at: Optional[str] = None,
+) -> dict:
+    """Merge one PayPal refund id into ``pledge["refunds"]`` (webhook or API)."""
+    stored_status = str(status or "COMPLETED").upper()
+    if stored_status == "REFUNDED":
+        stored_status = "COMPLETED"
+    refunds = _append_refund_row(
+        _normalize_refunds(pledge),
+        {
+            "id": str(refund_id),
+            "amount": amount_eur,
+            "key": key,
+            "status": stored_status,
+            "at": at or now_iso(),
+        },
+    )
+    pledge["refunds"] = refunds
+    total = refunded_amount_from_pledge(pledge)
+    pledge["refunded_amount_eur"] = f"{total:.2f}"
+    capture_total = Decimal(str(pledge.get("amount_eur") or "0"))
+    if total >= capture_total:
+        pledge["status"] = "refunded"
+    elif total > Decimal("0"):
+        pledge["status"] = "partially_refunded"
+    if refunds:
+        pledge["refund_id"] = str(refunds[-1].get("id") or "")
+    if at and not str(pledge.get("refunded_at") or "").strip():
+        pledge["refunded_at"] = at
+    elif at and total >= capture_total:
+        pledge["refunded_at"] = at
+    pledge.pop("pending_refund", None)
+    return await get_ledger().save_pledge(pledge)
 
 
 def sponsor_customer_id(pledge_id: str, contributor: Optional[str]) -> str:
@@ -1003,7 +1135,10 @@ async def _capture_order_pledge(pledge_id: str, client: Any, pledge: dict) -> di
     capture = getattr(client, "capture_order", None)
     if capture is None:
         raise PayPalError(502, "order capture unavailable")
-    payload = capture(order_id, pledge_id=pledge_id)
+    pledge, payload = await _call_with_capture_idempotency(
+        pledge,
+        lambda key: capture(order_id, idempotency_key=key),
+    )
     return await _finish_capture(
         pledge,
         payload,
@@ -1274,17 +1409,21 @@ async def capture_pledge(
 
     mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
     if mode == "VAULT":
-        _require_status(pledge, "vaulted", "captured")
+        _require_status(pledge, ("vaulted", "charge_failed"), "captured")
         await refuse_early_capture(pledge, now=effective_at)
         vault_id = pledge.get("vault_id")
         if not vault_id:
             raise IllegalTransition("vaulted", "captured")
-        payload = client.charge_vaulted(
-            vault_id,
-            pledge["amount_eur"],
-            pledge_id,
-            source=pledge.get("vault_source") or "paypal",
-            description=str(pledge.get("description") or ""),
+        pledge, payload = await _call_with_capture_idempotency(
+            pledge,
+            lambda key: client.charge_vaulted(
+                vault_id,
+                pledge["amount_eur"],
+                pledge_id,
+                source=pledge.get("vault_source") or "paypal",
+                description=str(pledge.get("description") or ""),
+                idempotency_key=key,
+            ),
         )
         saved = await _finish_capture(
             pledge,
@@ -1305,13 +1444,19 @@ async def capture_pledge(
                     pledge_id, _vault_delete_failure_detail(exc),
                 )
         return saved
-    _require_status(pledge, "authorized", "captured")
+    _require_status(pledge, ("authorized", "capture_failed"), "captured")
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "captured")
     await refuse_early_capture(pledge, now=effective_at)
     if _prepare_authorization_capture(pledge, client):
         pledge = await get_ledger().save_pledge(pledge)
-    payload = client.capture_authorization(pledge["authorization_id"], pledge_id=pledge_id)
+    pledge, payload = await _call_with_capture_idempotency(
+        pledge,
+        lambda key: client.capture_authorization(
+            pledge["authorization_id"],
+            idempotency_key=key,
+        ),
+    )
     return await _finish_capture(
         pledge,
         payload,
@@ -1558,38 +1703,71 @@ async def refund_pledge(
     if not capture_id:
         raise ValueError("capture_id is required to refund")
     capture_total = Decimal(str(pledge.get("amount_eur") or "0"))
-    already_refunded = Decimal(str(pledge.get("refunded_amount_eur") or "0"))
-    if amount_eur:
-        refund_this = Decimal(normalize_amount(amount_eur))
+    already_refunded = refunded_amount_from_pledge(pledge)
+    pending = pledge.get("pending_refund")
+    if isinstance(pending, dict) and str(pending.get("key") or "").strip():
+        idempotency_key = str(pending["key"])
+        refund_this = Decimal(str(pending.get("amount") or "0"))
+        if refund_this <= Decimal("0"):
+            refund_this = capture_total - already_refunded
     else:
-        refund_this = capture_total - already_refunded
-    if refund_this <= Decimal("0"):
-        raise ValueError("refund amount must be positive")
+        if amount_eur:
+            refund_this = Decimal(normalize_amount(amount_eur))
+        else:
+            refund_this = capture_total - already_refunded
+        if refund_this <= Decimal("0"):
+            raise ValueError("refund amount must be positive")
+        if already_refunded + refund_this > capture_total:
+            raise ValueError("refund exceeds captured amount")
+        refund_count = len(_normalize_refunds(pledge))
+        idempotency_key = f"refund-{pledge_id}-{refund_count + 1}"
+        pledge["pending_refund"] = {
+            "key": idempotency_key,
+            "amount": f"{refund_this:.2f}",
+        }
+        pledge = await get_ledger().save_pledge(pledge)
     if already_refunded + refund_this > capture_total:
         raise ValueError("refund exceeds captured amount")
-    payload = client.refund_capture(
-        capture_id,
+    try:
+        payload = client.refund_capture(
+            capture_id,
+            amount_eur=f"{refund_this:.2f}",
+            idempotency_key=idempotency_key,
+        )
+    except Exception as exc:
+        if _is_transport_retry(exc):
+            raise
+        raise
+    if not isinstance(payload, dict):
+        raise ValueError("PayPal refund response is invalid")
+    refund_id = str(payload.get("id") or "").strip()
+    refund_status = str(payload.get("status") or "").upper()
+    if not refund_id:
+        raise ValueError("PayPal refund id is required")
+    if refund_status not in {"COMPLETED", "PENDING"}:
+        raise ValueError(f"PayPal refund status {refund_status or 'MISSING'} is not COMPLETED or PENDING")
+    normalized_status = refund_status
+    if normalized_status == "REFUNDED":
+        normalized_status = "COMPLETED"
+    saved = await reconcile_refund_on_pledge(
+        pledge,
+        refund_id=refund_id,
         amount_eur=f"{refund_this:.2f}",
-        pledge_id=pledge_id,
+        status=normalized_status,
+        key=idempotency_key,
+        at=_money_event_timestamp(
+            effective_at,
+            not_before=str(pledge.get("captured_at") or ""),
+        ),
     )
-    refund_id = payload.get("id") if isinstance(payload, dict) else None
-    total_refunded = already_refunded + refund_this
-    pledge["refunded_amount_eur"] = f"{total_refunded:.2f}"
-    if total_refunded >= capture_total:
-        pledge["status"] = "refunded"
-        event = "refunded"
-    else:
-        pledge["status"] = "partially_refunded"
-        event = "partially_refunded"
-    pledge["paypal_status"] = str(payload.get("status") or "COMPLETED") if isinstance(payload, dict) else "COMPLETED"
-    if refund_id:
-        pledge["refund_id"] = str(refund_id)
-    pledge["refunded_at"] = _money_event_timestamp(
+    saved["refunded_at"] = _money_event_timestamp(
         effective_at,
         not_before=str(pledge.get("captured_at") or ""),
     )
-    pledge["history"] = list(pledge.get("history") or []) + [event]
-    saved = await get_ledger().save_pledge(pledge)
+    saved["paypal_status"] = refund_status
+    event = "refunded" if saved.get("status") == "refunded" else "partially_refunded"
+    saved["history"] = list(saved.get("history") or []) + [event]
+    saved = await get_ledger().save_pledge(saved)
     milestone_id = finance_milestone_id(saved)
     await record(
         "refund",

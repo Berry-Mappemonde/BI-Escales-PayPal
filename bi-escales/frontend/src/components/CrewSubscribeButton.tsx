@@ -12,7 +12,7 @@ export interface CrewSubscribeButtonProps {
 const PLAN_LOAD_TIMEOUT_MS = 20_000;
 
 export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscribeButtonProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const host = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -86,6 +86,8 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
 
   useEffect(() => {
     if (!ready || !host.current || !window.paypal?.Buttons || !planId.trim()) return;
+    const container = host.current;
+    container.replaceChildren();
     const buttons = window.paypal.Buttons({
       style: { label: "subscribe", layout: "vertical" },
       createSubscription: (_data: unknown, actions: { subscription: { create: (body: unknown) => Promise<string> } }) =>
@@ -111,8 +113,12 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
         }
       },
     });
-    void buttons.render(host.current);
-  }, [ready, planId, adminKey, t]);
+    void buttons.render(container);
+    return () => {
+      void buttons.close();
+      container.replaceChildren();
+    };
+  }, [ready, planId, adminKey, i18n.language, t]);
 
   if (!planId && !error && planLoading) {
     return (

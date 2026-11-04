@@ -3,7 +3,10 @@
 declare global {
   interface Window {
     paypal?: {
-      Buttons?: (config: Record<string, unknown>) => { render: (el: HTMLElement) => Promise<void> };
+      Buttons?: (config: Record<string, unknown>) => {
+        render: (el: HTMLElement) => Promise<void>;
+        close: () => Promise<void>;
+      };
       Messages?: (config: Record<string, unknown>) => { render: (el: HTMLElement) => Promise<void> };
     };
   }

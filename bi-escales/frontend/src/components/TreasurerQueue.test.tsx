@@ -42,7 +42,7 @@ describe("TreasurerQueue", () => {
       </I18nextProvider>,
     );
     expect(await screen.findByTestId("verdict-p-1")).toHaveTextContent("capture");
-    expect(captainReview).toHaveBeenCalledWith("dep-la-rochelle", "test-admin-key");
+    expect(captainReview).toHaveBeenCalledWith("dep-la-rochelle", "test-admin-key", "fr");
     expect(screen.queryByRole("button", { name: "Encaisser" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Annuler l’autorisation" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Approuver la revue" }));

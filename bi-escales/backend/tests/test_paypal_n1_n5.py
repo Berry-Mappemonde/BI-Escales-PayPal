@@ -69,6 +69,12 @@ class NSpy:
     def create_billing_product(self, **kwargs):
         return {"id": "PROD-N"}
 
+    def list_billing_products(self, **kwargs):
+        return {"products": []}
+
+    def list_billing_plans(self, **kwargs):
+        return {"plans": []}
+
     def create_billing_plan(self, **kwargs):
         return {"id": "PLAN-N"}
 

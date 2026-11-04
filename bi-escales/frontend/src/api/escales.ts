@@ -270,14 +270,24 @@ export async function postEvidence(
   return res.json();
 }
 
-export async function captainReview(milestoneId: string, adminKey?: string): Promise<CaptainProposal> {
+export async function captainReview(
+  milestoneId: string,
+  adminKey?: string,
+  lang?: string,
+): Promise<CaptainProposal> {
   const headers: Record<string, string> = {};
   const key = (adminKey || "").trim();
   if (key) headers["x-admin-key"] = key;
-  const res = await fetch(url(`/api/escales/captain/review/${encodeURIComponent(milestoneId)}`), {
-    method: "POST",
-    headers,
-  });
+  const params = new URLSearchParams();
+  if (lang === "fr" || lang === "en") params.set("lang", lang);
+  const qs = params.toString();
+  const res = await fetch(
+    url(`/api/escales/captain/review/${encodeURIComponent(milestoneId)}${qs ? `?${qs}` : ""}`),
+    {
+      method: "POST",
+      headers,
+    },
+  );
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }

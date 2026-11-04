@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, fetchFund, fetchFeatures, fetchHealthRetrying, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchHealthRetrying, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { emitCrewSubscribeReturn } from "./paypal/crewSubscribeReturnEvents";
 import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
 import { nextStopover } from "./voyage/nextStopover.js";
@@ -252,8 +252,25 @@ export default function App() {
         emitCrewSubscribeReturn({ outcome: "cancel" });
         return undefined;
       }
-      setCrewSubscribeNote("confirmed");
-      emitCrewSubscribeReturn({ outcome: "confirmed" });
+      setCrewSubscribeNote("verifying");
+      void (async () => {
+        const subscriptionId = crewParsed.subscriptionId?.trim();
+        try {
+          const planBody = await fetchCrewSupporterPlan();
+          const planId = String(planBody.plan_id || "").trim();
+          if (!subscriptionId || !planId) {
+            setCrewSubscribeNote("pending");
+            emitCrewSubscribeReturn({ outcome: "pending" });
+            return;
+          }
+          await approveCrewSubscription({ subscription_id: subscriptionId, plan_id: planId });
+          setCrewSubscribeNote("confirmed");
+          emitCrewSubscribeReturn({ outcome: "confirmed" });
+        } catch {
+          setCrewSubscribeNote("pending");
+          emitCrewSubscribeReturn({ outcome: "pending" });
+        }
+      })();
       return undefined;
     }
 
@@ -404,9 +421,19 @@ export default function App() {
   const paypalNotices = (
     <>
       {healthOk === false ? <p className="notice error">{t("app.healthFail")}</p> : null}
+      {crewSubscribeNote === "verifying" ? (
+        <p className="status" data-testid="crew-subscribe-return-notice">
+          {t("pledge.crewSubscribeVerifying")}
+        </p>
+      ) : null}
       {crewSubscribeNote === "confirmed" ? (
         <p className="status" data-testid="crew-subscribe-return-notice">
           {t("pledge.crewSubscribeConfirmed")}
+        </p>
+      ) : null}
+      {crewSubscribeNote === "pending" ? (
+        <p className="notice warn" data-testid="crew-subscribe-return-notice">
+          {t("pledge.crewSubscribePending")}
         </p>
       ) : null}
       {crewSubscribeNote === "cancelled" ? (

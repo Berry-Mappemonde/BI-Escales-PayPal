@@ -118,6 +118,8 @@
     "crewSubscribePlanTimeout": "Could not load the Crew supporter plan. Try again in a moment.",
     "crewSubscribePlanMissing": "Crew supporter plan is not set up yet. Ask the treasurer to run setup.",
     "crewSubscribeConfirmed": "Crew supporter subscription confirmed. Thank you.",
+    "crewSubscribeVerifying": "Verifying Crew supporter subscription with PayPal…",
+    "crewSubscribePending": "Subscription is not active yet. Finish approval in PayPal or try again shortly.",
     "crewSubscribeCancelled": "Crew supporter subscription cancelled. Nothing was charged."
   },
   "treasurer": {

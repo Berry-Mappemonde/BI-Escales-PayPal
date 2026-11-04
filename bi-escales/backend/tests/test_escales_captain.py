@@ -131,6 +131,7 @@ def test_captain_review_never_captures_or_voids():
         assert result["proposal"] == "capture"
         assert result["pledge_ids"] == [pledge["_id"]]
         assert "simulation" in (result["report"] + result["justification"])
+        assert result["model_source"] == {"provider": "rules", "model": ""}
         names = [call[0] for call in spy.calls]
         assert "capture" not in names
         assert "void" not in names
@@ -174,6 +175,7 @@ def test_review_strips_numbers_not_in_the_evidence(monkeypatch):
         assert "999" not in text
         assert "[?]" in text
         assert result["proposal"] == "capture"
+        assert result["model_source"] == {"provider": "llm", "model": ""}
 
     asyncio.run(body())
 
@@ -195,6 +197,7 @@ def test_chat_offers_membership_url_and_does_not_order(monkeypatch):
         assert pledge["milestone_id"] == "mayotte"
         assert "order_id" not in result
         assert "999" not in result["reply"]
+        assert result["model_source"] == {"provider": "rules", "model": ""}
 
     asyncio.run(body())
 
@@ -215,5 +218,6 @@ def test_chat_strips_an_invented_price(monkeypatch):
         assert "[?]" in result["reply"]
         assert result["membership_url"] in result["reply"]
         assert result["suggested_pledge"]["amount_eur"] == "20.00"
+        assert result["model_source"] == {"provider": "llm", "model": ""}
 
     asyncio.run(body())

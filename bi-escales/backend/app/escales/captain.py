@@ -111,23 +111,48 @@ def _fallback_chat(suggested: dict, url: str) -> str:
     return f"{text} Pour l'adhésion, le lien HelloAsso n'est pas configuré."
 
 
-async def _llm_text(prompt: str, system: str) -> Optional[str]:
-    """BI LLM when one is configured. Any failure returns None so the fallback is used."""
+def _rules_source() -> dict[str, str]:
+    return {"provider": "rules", "model": ""}
+
+
+def _text_of(raw: Any) -> str:
+    if raw is None:
+        return ""
+    if isinstance(raw, str):
+        return raw.strip()
+    return str(getattr(raw, "text", "") or "").strip()
+
+
+def _source_of(raw: Any, text: str) -> dict[str, str]:
+    """Provider and model from the cascade. A bare string has no model id."""
+    provider = getattr(raw, "provider", None)
+    model = getattr(raw, "model", None)
+    if isinstance(provider, str) and provider.strip():
+        return {"provider": provider.strip(), "model": str(model or "").strip()}
+    if text:
+        return {"provider": "llm", "model": ""}
+    return _rules_source()
+
+
+async def _llm_text(prompt: str, system: str) -> tuple[Optional[str], dict[str, str]]:
+    """BI LLM when one is configured. Any failure returns no text so the rules apply."""
     try:
         from app.core import llm
     except Exception:
-        return None
+        return None, _rules_source()
     try:
         if not llm.has_llm():
-            return None
+            return None, _rules_source()
     except Exception:
-        return None
+        return None, _rules_source()
     try:
-        text = await llm.ask_text(prompt, system=system, max_tokens=500)
+        raw = await llm.ask_text(prompt, system=system, max_tokens=500)
     except Exception:
-        return None
-    text = (text or "").strip()
-    return text or None
+        return None, _rules_source()
+    text = _text_of(raw)
+    if not text:
+        return None, _rules_source()
+    return text, _source_of(raw, text)
 
 
 def _read(reader: Optional[ReadOnlyTools], pledge: dict) -> None:
@@ -170,9 +195,10 @@ async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> d
         "decision": decision,
     }
     prompt = json.dumps(allowed, ensure_ascii=False, default=str)
-    narrative = await _llm_text(prompt, _REPORT_SYSTEM)
+    narrative, source = await _llm_text(prompt, _REPORT_SYSTEM)
     if not narrative:
         narrative = _fallback_report(milestone_id, decision, evidence)
+        source = _rules_source()
     narrative = filter_numbers(narrative, allowed)
     justification = filter_numbers(f"{narrative} Décision : {decision}.", allowed)
     proposal = {
@@ -182,6 +208,7 @@ async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> d
         "justification": justification,
         "pledge_ids": [pledge["_id"] for pledge in concerned],
         "evidence_flag": evidence.get("flag"),
+        "model_source": source,
         "at": now_iso(),
     }
     from .provisioning_channel3 import attach_provisioning
@@ -209,9 +236,10 @@ async def chat(message: str) -> dict:
     url = membership_url()
     allowed = {"message": text, "suggested": suggested, "membership_url": url}
     prompt = json.dumps(allowed, ensure_ascii=False, default=str)
-    raw = await _llm_text(prompt, _CHAT_SYSTEM)
+    raw, source = await _llm_text(prompt, _CHAT_SYSTEM)
     if not raw:
         raw = _fallback_chat(suggested, url)
+        source = _rules_source()
     elif url and url not in raw:
         raw = f"{raw} Pour l'adhésion, le lien HelloAsso est {url}."
     reply = filter_numbers(raw, allowed)
@@ -219,4 +247,5 @@ async def chat(message: str) -> dict:
         "reply": reply,
         "membership_url": url,
         "suggested_pledge": suggested,
+        "model_source": source,
     }

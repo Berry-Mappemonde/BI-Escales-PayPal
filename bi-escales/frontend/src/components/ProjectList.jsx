@@ -1,14 +1,15 @@
 /**
  * Liste des projets. Copie adaptée de
  * Blue-Intelligence frontend/src/components/ProjectList.js
- * (filtre + promesse projet ; pas de SwarmPanel).
+ * (filtre via filterProjectFeatures.js ; promesse Escales).
  */
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { projectsNearRoute } from "../voyage/projectsNearRoute.js";
+import { filterProjectFeatures } from "../projects/filterProjectFeatures.js";
 import { PledgeButton } from "./PledgeButton";
 
-const LIST_CAP = 50;
+/** Même plafond que ProjectList.js BI (slice 0, 100). */
+const LIST_CAP = 100;
 const MIN_EUR = "1.00";
 
 function ProjectPledgeForm({ project, contributor, onAuthorized }) {
@@ -57,7 +58,6 @@ function ProjectPledgeForm({ project, contributor, onAuthorized }) {
 
 export default function ProjectList({
   projects,
-  routeStops = [],
   searchQuery: searchQueryProp = undefined,
   onSearchQueryChange = undefined,
   selectedProjectId,
@@ -70,28 +70,24 @@ export default function ProjectList({
   const [localQuery, setLocalQuery] = useState("");
   const query = searchQueryProp ?? localQuery;
   const setQuery = onSearchQueryChange ?? setLocalQuery;
-  const q = (query || "").trim().toLowerCase();
 
-  const baseFeatures = useMemo(
-    () => projectsNearRoute(projects?.features || [], routeStops || [], { maxKm: 200, limit: LIST_CAP }),
-    [projects, routeStops],
+  const filtered = useMemo(
+    () => filterProjectFeatures(projects?.features || [], {
+      funderFilter: "All",
+      categoryFilter: "All",
+      searchQuery: query,
+    }),
+    [projects, query],
   );
 
-  const features = useMemo(() => {
-    const pool = q
-      ? (projects?.features || []).filter((feature) => {
-          const props = feature.properties || {};
-          return `${props.title} ${props.description} ${props.funder} ${props.location || ""}`.toLowerCase().includes(q);
-        })
-      : baseFeatures;
-    return pool.slice(0, LIST_CAP);
-  }, [projects, baseFeatures, q]);
+  const features = filtered.slice(0, LIST_CAP);
+  const truncated = filtered.length > LIST_CAP;
 
   return (
     <section className="panel" data-testid="project-list">
       <div className="escale-sheet-head">
         <h2>{t("projects.heading")}</h2>
-        <span data-testid="project-list-count">{features.length}</span>
+        <span data-testid="project-list-count">{filtered.length}</span>
       </div>
       <input
         data-testid="projects-search-input"
@@ -101,7 +97,11 @@ export default function ProjectList({
         placeholder={t("projects.search")}
         aria-label={t("projects.search")}
       />
-      {!q ? <p className="hint">{t("projects.nearRoute")}</p> : null}
+      {truncated ? (
+        <p className="hint" data-testid="projects-list-truncated">
+          {t("projects.truncated", { shown: LIST_CAP, total: filtered.length })}
+        </p>
+      ) : null}
       {features.length === 0 ? <p className="hint">{t("projects.empty")}</p> : null}
       <div>
         {features.map((feature) => {

@@ -32,7 +32,7 @@
     "open": "Page",
     "pledge": "Promettre",
     "search": "Chercher un projet",
-    "nearRoute": "Projets à ~200 km de la route (max 50).",
+    "truncated": "{{shown}} sur {{total}} projets (affinez avec la recherche)",
     "minAmount": "Minimum 1,00 EUR.",
     "pledgeDescription": "Promesse projet — {{title}}"
   },

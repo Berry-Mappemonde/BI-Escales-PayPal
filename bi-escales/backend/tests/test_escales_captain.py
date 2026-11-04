@@ -240,6 +240,29 @@ def test_chat_offers_membership_url_and_does_not_order(monkeypatch):
     asyncio.run(body())
 
 
+def test_chat_replaces_an_invented_date_and_drops_a_broken_fragment(monkeypatch):
+    """August 2025 is not a leg date. A stub such as 'As the,' does not stay."""
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "We leave in August 2025. As the, the boat is ready. It was 2024."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("I'd like to sponsor 10 nautical miles near La Rochelle")
+        reply = result["reply"]
+        assert "August" not in reply
+        assert "2025" not in reply
+        assert "2024" not in reply
+        assert "As the" not in reply
+        assert "12 November 2026" in reply
+        assert "La Rochelle" in reply
+
+    asyncio.run(body())
+
+
 def test_chat_strips_an_invented_price(monkeypatch):
     import app.core.llm as llm
 
@@ -253,7 +276,7 @@ def test_chat_strips_an_invented_price(monkeypatch):
     async def body():
         result = await chat("Parraine 20 milles près de Mayotte")
         assert "999" not in result["reply"]
-        assert "[?]" in result["reply"]
+        assert "[?]" not in result["reply"]
         assert result["membership_url"] in result["reply"]
         assert result["suggested_pledge"]["amount_eur"] == "20.00"
         assert result["model_source"] == {"provider": "llm", "model": ""}
@@ -1019,7 +1042,7 @@ def test_code_writes_the_reached_sentence_with_a_formatted_date(monkeypatch):
         )
         english = await review("lorient", reader=None, lang="en")
         assert "recorded_at" not in seen["prompt"]
-        assert "arrival_iso" not in seen["prompt"]
+        assert "distance_nm" in seen["prompt"]
         assert '"language": "en"' in seen["prompt"]
         assert "Write in English only." in seen["system"]
         assert "Milestone Lorient was reached on 2 November 2026 at 14:00 UTC" in english["report"]
@@ -2586,3 +2609,44 @@ def test_cabin_saint_maur_toward_la_rochelle_is_the_land_leg():
     assert pledge["kind"] == "cabin_leg"
     assert pledge["milestone_id"] == "leg-saint-maur-berry-indre-to-la-rochelle"
     assert pledge["amount_eur"] == "80.00"
+
+
+def test_review_keeps_only_schedule_facts(monkeypatch):
+    import app.core.llm as llm
+
+    seen = {}
+
+    async def fake_ask_text(prompt, system=None, **_kwargs):
+        seen["prompt"] = prompt
+        seen["system"] = system or ""
+        return "Du [?] au [?] mai 2026. Distance parcourue de nm. Local traditions and a shared meal."
+
+    async def fake_ask_json(prompt, system=None, **_kwargs):
+        seen["json"] = prompt
+        return llm.LlmJson(
+            {"proposal": "wait", "reason": "distance de nm et des traditions locales"},
+            "nim",
+            "m",
+            "{}",
+        )
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence("dep-la-rochelle", met=False, facts={"distance_nm": 12})
+        result = await review("dep-la-rochelle", reader=None, lang="fr")
+        assert "2026-11-12" in seen["prompt"]
+        assert "distance_nm" in seen["prompt"]
+        assert "arrival_iso" in seen["json"]
+        assert "[?]" not in result["report"]
+        assert "mai" not in result["report"].casefold()
+        assert "traditions" not in result["report"].casefold()
+        assert "de nm" not in result["report"].casefold()
+        reason = (result.get("llm_proposal") or {}).get("reason") or ""
+        assert "traditions" not in reason.casefold()
+        assert "de nm" not in reason.casefold()
+        assert result["model_source"]["provider"] == "rules"
+
+    asyncio.run(body())

@@ -387,10 +387,10 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
             "Each sentence is complete and contains a verb. "
             "No title, no heading, no list. "
             f"Keep this port name verbatim: {port}. "
-            "Use only numbers present in the evidence JSON. Do not invent a figure. "
-            "Do not write any date or time. "
+            "Use only numbers and facts present in the JSON. Do not invent a figure or a fact. "
+            "The only date you may write is arrival_iso, copied exactly. "
             "distance_nm is the distance covered and planned_nm the planned distance. "
-            "Write nautical miles or nm immediately after every distance number. "
+            "Write nautical miles or nm immediately after every distance number from the JSON. Never write nm alone. "
             "Do not repeat these instructions and do not write a Decision line."
         )
         if not reached:
@@ -412,10 +412,10 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
         "Chaque phrase est complète et contient un verbe. "
         "Pas de titre, pas d'intertitre, pas de liste. "
         f"Garde ce nom de port tel quel : {port}. "
-        "Utilise seulement les nombres présents dans le JSON de preuve. N'invente aucun chiffre. "
-        "N'écris aucune date ni heure. "
+        "Utilise seulement les nombres et les faits présents dans le JSON. N'invente aucun chiffre ni aucun fait. "
+        "La seule date permise est arrival_iso, recopiée telle quelle. "
         "distance_nm est la distance parcourue et planned_nm la distance prévue. "
-        "Écris milles ou nm juste après chaque nombre de distance. "
+        "Écris milles ou nm juste après chaque nombre de distance du JSON. N'écris jamais nm seul. "
         "Ne répète pas ces consignes et n'écris pas de ligne Décision."
     )
     if not reached:
@@ -435,6 +435,8 @@ def _chat_system(lang: str) -> str:
         f"You are the Blue Intelligence Escales captain. Reply in {language}. "
         "Repeat the computed pledge exactly: amount, currency, description, milestone and intent. "
         "Do not propose to take or release money. Do not create an order. Do not invent a price. "
+        "State only facts present in the JSON: the stopover, its dates, the fund, and the computed pledge. "
+        "If a fact is absent, say you do not know. Do not describe the place. "
         "If the message asks whether money will be taken or released, say that only the treasurer review decides. "
         "Mention membership only by repeating the HelloAsso URL you were given. "
         "If no URL was given, do not mention membership and do not write any URL. "
@@ -843,7 +845,7 @@ def _fix_sentence_starts(text: str) -> str:
 
 def _prepare_model_narrative(text: str, lang: str = "fr") -> str:
     """Drop echoed instructions, a repeated Decision line, and a cut-off tail."""
-    cleaned = _plain_distance_tokens(text or "", lang)
+    cleaned = _drop_broken_fragments(_plain_distance_tokens(text or "", lang))
     cleaned = _strip_signatures(cleaned)
     cleaned = _drop_verbless_signatures(cleaned)
     cleaned = _normalize_dots(cleaned)
@@ -1473,6 +1475,299 @@ def _text_of(raw: Any) -> str:
     return str(getattr(raw, "text", "") or "").strip()
 
 
+_BARE_UNIT = re.compile(r"\b(nm|milles?|km)\b", re.IGNORECASE)
+_MONTH_INDEX = {}
+for _month_number, _pair in enumerate(zip(_MONTHS_EN, _MONTHS_FR), start=0):
+    for _name in _pair:
+        if _name:
+            _MONTH_INDEX[_name.casefold()] = _month_number
+_MONTH_INDEX.update({"fevrier": 2, "aout": 8, "decembre": 12, "mai": 5, "may": 5})
+_MONTH_WORD = (
+    "janvier|février|fevrier|mars|avril|juin|juillet|août|aout|septembre|"
+    "octobre|novembre|décembre|decembre|january|february|march|april|june|"
+    "july|august|september|october|november|december"
+)
+# ``may`` / ``mai`` count only beside a day or a year, so the verb stays.
+_DATE_PHRASE = re.compile(
+    rf"(?:\b(?:in|on|le|au|en|du)\s+)?"
+    rf"(?:"
+    rf"\d{{4}}-\d{{2}}-\d{{2}}(?:[T ][\d:.Z+-]+)?"
+    rf"|\d{{1,2}}(?:er)?\s+(?:{_MONTH_WORD}|mai|may)(?:\s+\d{{4}})?"
+    rf"|(?:{_MONTH_WORD})\s+\d{{4}}"
+    rf"|(?:mai|may)\s+\d{{4}}"
+    rf"|(?:1[89]\d{{2}}|20\d{{2}})"
+    rf")\b",
+    re.IGNORECASE,
+)
+_BROKEN_LEAD = re.compile(
+    r"(?:^|(?<=[.!?…]\s))((?:[A-Za-zÀ-ÿ]+\s+){0,3}[A-Za-zÀ-ÿ]+),\s*",
+)
+
+
+def _schedule_arrival(milestone_id: str) -> str:
+    """Arrival from the frozen clock. Empty when this id is not on the schedule."""
+    from .naviguide_bridge import clock_legs, local_schedule_export, resolve_milestone
+
+    wanted = {str(milestone_id or "").strip()}
+    resolved = resolve_milestone(milestone_id)
+    if resolved:
+        wanted.add(resolved)
+    for row in local_schedule_export().get("escales") or []:
+        if row.get("milestone_id") in wanted and row.get("arrival_iso"):
+            return str(row["arrival_iso"])
+    for leg in clock_legs():
+        if leg.get("id") in wanted and leg.get("arrival_iso"):
+            return str(leg["arrival_iso"])
+    return ""
+
+
+def _milestone_in_payload(data: dict) -> str:
+    milestone = str(data.get("milestone_id") or "").strip()
+    suggested = data.get("suggested")
+    if not milestone and isinstance(suggested, dict):
+        milestone = str(suggested.get("milestone_id") or "").strip()
+    return milestone
+
+
+def _with_known_facts(prompt: str) -> str:
+    """Add the schedule arrival and the evidence distance. Nothing else is invented."""
+    try:
+        data = json.loads(prompt)
+    except (TypeError, ValueError):
+        return prompt
+    if not isinstance(data, dict):
+        return prompt
+    milestone = _milestone_in_payload(data)
+    if milestone and not data.get("arrival_iso"):
+        arrival = _schedule_arrival(milestone)
+        if arrival:
+            data["arrival_iso"] = arrival
+    if milestone and not data.get("departure_iso"):
+        departure = _schedule_departure(milestone)
+        if departure:
+            data["departure_iso"] = departure
+    evidence = data.get("evidence") if isinstance(data.get("evidence"), dict) else {}
+    facts = evidence.get("facts") if isinstance(evidence.get("facts"), dict) else {}
+    for key in ("distance_nm", "planned_nm"):
+        if data.get(key) in (None, "") and facts.get(key) not in (None, ""):
+            data[key] = facts[key]
+    return json.dumps(data, ensure_ascii=False, default=str)
+
+
+def _parse_clock(raw: str) -> Optional[dt.datetime]:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        moment = dt.datetime.fromisoformat(text)
+    except ValueError:
+        try:
+            moment = dt.datetime.fromisoformat(text[:10] + "T00:00:00+00:00")
+        except ValueError:
+            return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment.astimezone(dt.timezone.utc)
+
+
+def _schedule_departure(milestone_id: str) -> str:
+    """Departure from the frozen clock for this stop or this leg."""
+    moment = _primary_moment(milestone_id)
+    if moment is None:
+        return ""
+    return moment.replace(microsecond=0).isoformat()
+
+
+def _primary_moment(milestone_id: str) -> Optional[dt.datetime]:
+    """The departure this id sails on, else its arrival."""
+    labeled = _labeled_moments(milestone_id)
+    for kind, moment in labeled:
+        if kind == "departure":
+            return moment
+    for _kind, moment in labeled:
+        return moment
+    return None
+
+
+def _labeled_moments(milestone_id: str) -> list[tuple[str, dt.datetime]]:
+    """Departure and arrival instants that belong to this stop or leg."""
+    from .naviguide_bridge import clock_legs, local_schedule_export, resolve_milestone
+
+    wanted = {str(milestone_id or "").strip()}
+    resolved = resolve_milestone(milestone_id) if milestone_id else None
+    if resolved:
+        wanted.add(resolved)
+    slug = _escale_slug(resolved or milestone_id)
+    rows: list[tuple[str, dt.datetime]] = []
+    for leg in clock_legs():
+        leg_id = str(leg.get("id") or "")
+        from_slug = _escale_slug(str(leg.get("from_slug") or ""))
+        to_slug = _escale_slug(str(leg.get("to_slug") or ""))
+        if leg_id in wanted or slug in {from_slug, to_slug}:
+            departure = _parse_clock(str(leg.get("departure_iso") or ""))
+            arrival = _parse_clock(str(leg.get("arrival_iso") or ""))
+            if departure and (leg_id in wanted or from_slug == slug):
+                rows.append(("departure", departure))
+            if arrival and (leg_id in wanted or to_slug == slug):
+                rows.append(("arrival", arrival))
+    for row in local_schedule_export().get("escales") or []:
+        if row.get("milestone_id") in wanted:
+            arrival = _parse_clock(str(row.get("arrival_iso") or ""))
+            if arrival:
+                rows.append(("arrival", arrival))
+    unique: list[tuple[str, dt.datetime]] = []
+    seen: set[tuple[str, str]] = set()
+    for kind, moment in rows:
+        key = (kind, moment.date().isoformat())
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append((kind, moment))
+    return unique
+
+
+def _date_allowance(known: str) -> tuple[set[str], set[int], set[str], Optional[dt.datetime]]:
+    """Years, months and civil dates the schedule (or the payload) actually has."""
+    milestone = ""
+    try:
+        data = json.loads(known or "")
+    except (TypeError, ValueError):
+        data = None
+    if isinstance(data, dict):
+        milestone = _milestone_in_payload(data)
+    moments = [moment for _kind, moment in _labeled_moments(milestone)]
+    for match in re.finditer(r"\d{4}-\d{2}-\d{2}", known or ""):
+        parsed = _parse_clock(match.group(0))
+        if parsed:
+            moments.append(parsed)
+    years = {str(moment.year) for moment in moments}
+    months = {moment.month for moment in moments}
+    days = {moment.date().isoformat() for moment in moments}
+    primary = _primary_moment(milestone)
+    return years, months, days, primary
+
+
+def _phrase_allowed(phrase: str, years: set[str], months: set[int], days: set[str]) -> bool:
+    iso = re.search(r"\d{4}-\d{2}-\d{2}", phrase or "")
+    if iso:
+        return iso.group(0) in days
+    year_match = re.search(r"\b(1[89]\d{2}|20\d{2})\b", phrase or "")
+    year = year_match.group(0) if year_match else ""
+    month = None
+    for name, number in _MONTH_INDEX.items():
+        if re.search(rf"\b{re.escape(name)}\b", phrase or "", re.IGNORECASE):
+            month = number
+            break
+    if year and year not in years:
+        return False
+    if month is not None and month not in months:
+        return False
+    return bool(year or month is not None)
+
+
+def _spoken_date(moment: dt.datetime, lang: str) -> str:
+    return arrival_phrase({"facts": {"arrival_iso": moment.date().isoformat()}}, lang)
+
+
+def _ground_schedule_dates(text: str, known: str, lang: str = "") -> str:
+    """Replace a date or a year that is not on this stop or leg."""
+    years, months, days, primary = _date_allowance(known)
+    if not years and primary is None:
+        return text or ""
+    spoken = _spoken_date(primary, "en" if lang == "en" else "fr") if primary else ""
+
+    def replace(match: re.Match) -> str:
+        phrase = match.group(0)
+        if _phrase_allowed(phrase, years, months, days):
+            return phrase
+        return spoken
+
+    return re.sub(r"[ \t]{2,}", " ", _DATE_PHRASE.sub(replace, text or "")).strip()
+
+
+def _drop_broken_fragments(text: str) -> str:
+    """Drop a stub such as ``As the,`` and a sentence made only of function words."""
+
+    def lead(match: re.Match) -> str:
+        words = re.findall(r"[A-Za-zÀ-ÿ]+", match.group(1))
+        if words and all(word.casefold() in _DANGLING_WORD for word in words):
+            return ""
+        return match.group(0)
+
+    cleaned = _BROKEN_LEAD.sub(lead, text or "")
+    kept: list[str] = []
+    for sentence in _split_sentences(cleaned):
+        words = _sentence_words(sentence)
+        if not words or all(word.casefold() in _DANGLING_WORD for word in words):
+            continue
+        kept.append(sentence.strip())
+    return " ".join(kept).strip()
+
+
+def _with_schedule_numbers(facts: Any, known: str) -> Any:
+    """Let the number filter keep the day and the year of a real schedule date."""
+    _years, _months, days, _primary = _date_allowance(known)
+    if isinstance(facts, dict):
+        bag = dict(facts)
+    else:
+        bag = {"facts": facts}
+    bag["schedule_dates"] = sorted(days)
+    return bag
+
+
+_INVENTED_FACT = re.compile(
+    r"traditions?|shared meal|repas partag|infrastructures? modernes|"
+    r"point de départ privilégié|privileged departure",
+    re.IGNORECASE,
+)
+
+
+def _sentence_has_claim(sentence: str) -> bool:
+    """A verb or a noun, not only a month, a year, or a function word."""
+    for word in _sentence_words(sentence):
+        if word.isdigit() or word.casefold() in _DANGLING_WORD:
+            continue
+        if word.casefold() in _MONTH_INDEX:
+            continue
+        return True
+    return False
+
+
+def _without_gaps(text: str, known: str, lang: str = "") -> str:
+    """Drop a gap ([?], a unit with no number, an unknown date, an invented fact)."""
+    years, months, _days, _primary = _date_allowance(known)
+    grounded = _drop_broken_fragments(_ground_schedule_dates(text or "", known, lang))
+    kept: list[str] = []
+    for sentence in _split_sentences(grounded):
+        piece = sentence.strip()
+        if not piece or _INVENTED_FACT.search(piece):
+            continue
+        if "[?]" in piece:
+            piece = re.sub(r"\s+", " ", piece.replace("[?]", " ")).strip(" ,;:")
+            if not piece or not _sentence_has_claim(piece):
+                continue
+        if _BARE_UNIT.search(piece) and not re.search(r"\d", piece):
+            continue
+        if not _sentence_has_claim(piece):
+            continue
+        month_number = None
+        for name, number in _MONTH_INDEX.items():
+            if name in {"may", "mai"}:
+                continue
+            if re.search(rf"\b{re.escape(name)}\b", piece, re.IGNORECASE):
+                month_number = number
+                break
+        if month_number is not None and month_number not in months:
+            continue
+        year_match = re.search(r"\b(1[89]\d{2}|20\d{2})\b", piece)
+        if year_match and year_match.group(0) not in years:
+            continue
+        kept.append(piece)
+    return " ".join(kept).strip()
+
+
 def _source_of(raw: Any, text: str) -> dict[str, str]:
     """Provider and model from the cascade. A bare string has no model id."""
     provider = getattr(raw, "provider", None)
@@ -1504,7 +1799,10 @@ async def _llm_text(
     started = time.monotonic()
     try:
         raw = await llm.ask_text(
-            prompt, system=system, max_tokens=max_tokens, temperature=temperature,
+            _with_known_facts(prompt),
+            system=system,
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
     except Exception as exc:
         from app.core.llm import safe_error_message
@@ -1666,12 +1964,14 @@ def _verdict_system(lang: str) -> str:
         return (
             "Reply with one JSON object only. No markdown fence and no commentary. "
             "Write reason in English. proposal is capture, void, wait or reauthorize. "
-            "Do not invent a figure."
+            "Do not invent a figure or a fact. reason may only use the JSON. "
+            "Do not write [?] or a unit such as nm without its number."
         )
     return (
         "Réponds par un seul objet JSON. Pas de balise markdown et pas de commentaire. "
         "Écris reason en français. proposal vaut capture, void, wait ou reauthorize. "
-        "N'invente aucun chiffre."
+        "N'invente aucun chiffre ni aucun fait. reason n'utilise que le JSON. "
+        "N'écris pas [?] ni une unité comme nm sans son nombre."
     )
 
 
@@ -1688,7 +1988,7 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
         return None
     payload = dict(allowed)
     payload["authorization_age_days"] = age
-    prompt = json.dumps(payload, ensure_ascii=False, default=str)
+    prompt = _with_known_facts(json.dumps(payload, ensure_ascii=False, default=str))
     verdict_lang = "en" if str(allowed.get("language") or "") == "en" else "fr"
     try:
         parsed = await llm.ask_json(
@@ -1700,6 +2000,8 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
     except Exception:
         return None
     data = parsed.data if isinstance(getattr(parsed, "data", None), dict) else {}
+    reason = _without_gaps(str(data.get("reason") or ""), prompt)
+    data = {**data, "reason": reason}
     evidence = allowed.get("evidence") if isinstance(allowed, dict) else None
     met = evidence.get("met") if isinstance(evidence, dict) else None
     checked = validate_advisory_proposal(
@@ -1811,9 +2113,12 @@ async def review(
         "language": report_lang,
     }
     prompt = json.dumps(allowed, ensure_ascii=False, default=str)
+    known = _with_known_facts(prompt)
     usable, source, report_lang = await _narrative_for_language(
         prompt, milestone_id, _forced_lang(lang), reached,
     )
+    if usable:
+        usable = _without_gaps(usable, known, report_lang)
     model_lost = not usable
     if not usable:
         narrative = _fallback_report(milestone_id, decision, evidence, lang=report_lang)
@@ -1839,7 +2144,10 @@ async def review(
             model_lost = True
     narrative = _finish_text(narrative)
     narrative = _without_unknown_marks(
-        _without_jalon(filter_numbers(narrative, allowed, lang=report_lang), report_lang)
+        _without_jalon(
+            filter_numbers(narrative, _with_schedule_numbers(allowed, known), lang=report_lang),
+            report_lang,
+        )
     )
     if report_lang == "fr":
         narrative = _standardise_french(narrative)
@@ -2088,7 +2396,10 @@ async def chat(message: str, *, treasurer: bool = False) -> dict:
         if raw:
             if lang == "fr":
                 raw = _french_labels(raw)
-            raw = filter_numbers(raw, allowed, lang=lang)
+            known = _with_known_facts(prompt)
+            raw = _ground_schedule_dates(raw, known, lang)
+            raw = filter_numbers(raw, _with_schedule_numbers(allowed, known), lang=lang)
+            raw = _without_gaps(raw, known, lang)
         else:
             raw, source = "", _rules_source()
     reply = _compose_chat_reply(

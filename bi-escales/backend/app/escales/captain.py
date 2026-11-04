@@ -473,11 +473,39 @@ def _has_exact_pledge(text: str, suggested: dict) -> bool:
     currency = str(suggested.get("currency") or "").casefold()
     if not (description and milestone and intent):
         return False
-    if description not in folded or milestone not in folded or intent not in folded:
+    if not _description_present(description, folded) or milestone not in folded or intent not in folded:
         return False
     if not _currency_present(text or "", currency):
         return False
     return amount_in_text(text or "", str(suggested.get("amount_eur") or ""))
+
+
+def _description_present(description: str, folded: str) -> bool:
+    """True when the catalogue line is in the reply, including 'a port dinner'."""
+    if not description:
+        return False
+    if description in folded:
+        return True
+    relaxed = re.sub(r"\bport dinner\b", "a port dinner", description)
+    return relaxed != description and relaxed in folded
+
+
+def _french_lightning_labels(text: str) -> str:
+    """Lightning sometimes keeps English labels. French uses a space before the colon."""
+    cleaned = re.sub(r"\bMilestones?\s*:\s*", "Jalon : ", text or "", flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bIntent\s*:\s*", "Intention : ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"\b(Jalon|Décision|Intention|Proposition)\s*:",
+        r"\1 :",
+        cleaned,
+    )
+    return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
+
+
+def _with_lightning_french(text: str, source: dict, lang: str) -> str:
+    if lang != "fr" or (source or {}).get("provider") != "nim_fallback":
+        return text or ""
+    return _french_lightning_labels(text)
 
 
 def _membership_line(url: str, lang: str) -> str:
@@ -499,7 +527,8 @@ def _clean_model_urls(text: str, url: str) -> str:
 
     cleaned = _URL_RE.sub(replace, text or "")
     cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
-    cleaned = re.sub(r"\s+([,.;:!?…])", r"\1", cleaned)
+    # Keep the French space before a colon (Jalon :). Other marks stay tight.
+    cleaned = re.sub(r"\s+([,.;!?…])", r"\1", cleaned)
     kept: list[str] = []
     for sentence in _split_sentences(cleaned):
         body = sentence.strip()
@@ -934,6 +963,7 @@ async def _narrative_for_language(
         temperature=_REPORT_TEMPERATURE,
     )
     usable = _prepare_model_narrative(narrative) if narrative else ""
+    usable = _with_lightning_french(usable, source, lang)
     if not usable:
         return "", source
     if _report_language(usable) == lang:
@@ -950,6 +980,7 @@ async def _narrative_for_language(
         temperature=_REPORT_TEMPERATURE,
     )
     usable = _prepare_model_narrative(narrative) if narrative else ""
+    usable = _with_lightning_french(usable, source, lang)
     if usable and _report_language(usable) == lang:
         return usable, source
     return "", _rules_source()
@@ -1058,6 +1089,7 @@ async def chat(message: str) -> dict:
             prompt, _chat_system(lang), max_tokens=_CHAT_MAX_TOKENS, temperature=_CHAT_TEMPERATURE,
         )
         if raw:
+            raw = _with_lightning_french(raw, source, lang)
             raw = filter_numbers(raw, allowed, lang=lang)
         else:
             raw, source = "", _rules_source()

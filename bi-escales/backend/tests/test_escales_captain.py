@@ -1074,6 +1074,61 @@ def test_displayed_ports_are_capitalized():
     asyncio.run(body())
 
 
+def test_a_port_dinner_counts_as_the_computed_pledge(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "Pledge 310.00 EUR for 250 sponsored miles and a port dinner, Dakar, AUTHORIZE."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("I'd like to sponsor 250 mi + dinner near Dakar")
+        reply = result["reply"]
+        assert result["suggested_pledge"]["description"] == "250 sponsored miles and port dinner"
+        assert "Computed pledge" not in reply
+        assert "310.00 EUR" in reply
+        assert "a port dinner" in reply
+
+    asyncio.run(body())
+
+
+def test_lightning_french_translates_english_labels(monkeypatch):
+    import app.core.llm as llm
+
+    class Answer:
+        def __init__(self, text):
+            self.text = text
+            self.provider = "nim_fallback"
+            self.model = "nvidia/nemotron-3.5-lightning-30b-a3b"
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return Answer("Promesse notée. Milestone: Dakar. Intent: AUTHORIZE. Jalon: suite.")
+
+    async def english_answer(*_args, **_kwargs):
+        return Answer("Noted for the pledge. Milestone: Lorient. Intent: AUTHORIZE.")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        french = await chat("Je parraine 10 milles près de Dakar")
+        reply = french["reply"]
+        assert french["model_source"]["provider"] == "nim_fallback"
+        assert "Jalon : Dakar" in reply
+        assert "Jalon : suite" in reply
+        assert "Intention : AUTHORIZE" in reply
+        assert "Milestone" not in reply
+        assert "Intent:" not in reply
+        monkeypatch.setattr(llm, "ask_text", english_answer)
+        english = await chat("I'd like to sponsor 10 nautical miles near Lorient")
+        assert "Milestone:" in english["reply"]
+        assert "Jalon" not in english["reply"]
+
+    asyncio.run(body())
+
+
 def test_ui_labels_the_llm_proposal_as_advisory():
     root = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "escales"
     badge = (root / "advisoryLabel.js").read_text(encoding="utf-8")

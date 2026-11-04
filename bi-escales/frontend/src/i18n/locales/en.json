@@ -1,10 +1,9 @@
 {
   "app": {
     "title": "BI Escales — Pay Only If We Sail",
-    "tagline": "PayPal sandbox authorization; capture only after human treasurer approval.",
+    "tagline": "Cabins are captured on departure day; project pledges by the treasurer.",
     "langFr": "Français",
     "langEn": "English",
-    "healthOk": "Backend reachable",
     "healthFail": "Backend unreachable",
     "escalesOff": "ESCALES_ENABLED is off: /api/escales returns 404."
   },

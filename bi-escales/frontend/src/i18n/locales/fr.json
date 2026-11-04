@@ -1,10 +1,9 @@
 {
   "app": {
     "title": "BI Escales — Pay Only If We Sail",
-    "tagline": "Autorisation PayPal sandbox ; encaissement seulement après validation humaine.",
+    "tagline": "Les cabines sont capturées le jour du départ ; les promesses projet par le trésorier.",
     "langFr": "Français",
     "langEn": "English",
-    "healthOk": "Backend disponible",
     "healthFail": "Backend indisponible",
     "escalesOff": "ESCALES_ENABLED est désactivé : l’API /api/escales renvoie 404."
   },

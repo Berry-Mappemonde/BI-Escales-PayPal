@@ -103,6 +103,8 @@ def _kind(raw: Optional[str]) -> str:
 
 _TARGET_SLUG = re.compile(r"^[a-z0-9-]+$")
 _TARGET_MUST_BE_KNOWN = {"mile", "berth", "night", "meal", "care", "cabin_leg"}
+# Escale kinds and the common fund name this stopover. A project pledge does not.
+_TARGET_MUST_MATCH_MILESTONE = _TARGET_MUST_BE_KNOWN | {"common_fund"}
 
 
 def _target_slug(value: str) -> str:
@@ -139,6 +141,8 @@ async def _resolve_target(target_id: Optional[str], milestone_id: str, kind: str
         raise ValueError("target_id must match [a-z0-9-]+")
     chosen = explicit or milestone_id
     slug = _target_slug(chosen)
+    if kind in _TARGET_MUST_MATCH_MILESTONE and slug != _target_slug(milestone_id):
+        raise ValueError("target_id must match the milestone")
     if kind in _TARGET_MUST_BE_KNOWN and not await _known_stopover(slug):
         raise ValueError("target_id must name a known stopover")
     return chosen if explicit else milestone_id

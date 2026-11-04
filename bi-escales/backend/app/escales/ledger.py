@@ -492,7 +492,7 @@ async def record_spending(milestone_id: str, amount_eur: str, description: str) 
     """Treasurer spending for one stopover. It does not call PayPal.
 
     The amount uses the same two-decimal check as a pledge, and stays at or
-    under 10 000.00 EUR.
+    under 10 000.00 EUR. It cannot push the stopover balance below zero.
     """
     from .pledges import normalize_amount
 
@@ -504,6 +504,17 @@ async def record_spending(milestone_id: str, amount_eur: str, description: str) 
     if not text:
         raise ValueError("description is required")
     slug = await _require_stopover(milestone_id)
+    income_total = Decimal("0.00")
+    spending_total = Decimal("0.00")
+    for entry in await list_finance_entries():
+        if _stopover_slug(str(entry.get("milestone_id") or "")) != slug:
+            continue
+        if entry.get("kind") == "pledge_captured":
+            income_total += _euros(entry.get("amount_eur"))
+        elif entry.get("kind") == "spending":
+            spending_total += _euros(entry.get("amount_eur"))
+    if spending_total + amount > income_total:
+        raise ValueError("spending must not make the balance negative")
     return await record_finance(
         "spending",
         milestone_id=slug,

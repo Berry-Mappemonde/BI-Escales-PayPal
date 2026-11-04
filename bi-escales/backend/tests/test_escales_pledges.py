@@ -316,6 +316,33 @@ def test_kind_and_target_are_stored_and_unknown_kind_is_rejected():
             target_id="projet-ecole",
         )
         assert project["target_id"] == "projet-ecole"
+        fund = await create_pledge(
+            amount_eur="8.00",
+            description="caisse",
+            milestone_id="dep-mayotte",
+            client=spy,
+            kind="common_fund",
+            target_id="mayotte",
+        )
+        assert fund["target_id"] == "mayotte"
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="8.00",
+                description="caisse",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="common_fund",
+                target_id="projet-ecole",
+            )
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="1.00",
+                description="autre escale",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="mile",
+                target_id="dakar",
+            )
         with pytest.raises(ValueError):
             await create_pledge(
                 amount_eur="30.00",

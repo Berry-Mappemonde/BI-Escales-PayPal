@@ -274,28 +274,32 @@ def test_fund_rejects_bad_amounts_and_unknown_stopovers(api):
         json={"amount_eur": "10000", "description": "cale sèche"},
         headers=ADMIN,
     )
-    assert capped.status_code == 200, capped.text
-    assert capped.json()["milestone_id"] == "lorient"
-    assert capped.json()["spending_eur"] == "10000.00"
-    assert capped.json()["overdrawn"] is True
+    assert capped.status_code == 422
     alias = client.get("/api/escales/milestones/lorient/fund")
     assert alias.status_code == 200
-    assert alias.json()["spending_eur"] == "10000.00"
+    assert alias.json()["spending_eur"] == "0.00"
     assert alias.json()["milestone_id"] == "lorient"
-    over = client.post(
+    exact = client.post(
         "/api/escales/milestones/dep-mayotte/fund/spending",
-        json={"amount_eur": "30.00", "description": "cale sèche"},
+        json={"amount_eur": "20.00", "description": "cale sèche"},
         headers=ADMIN,
     )
-    assert over.status_code == 200, over.text
-    body = over.json()
+    assert exact.status_code == 200, exact.text
+    body = exact.json()
     assert body["milestone_id"] == "mayotte"
-    assert body["overdrawn"] is True
-    assert body["balance_eur"] == "-10.00"
+    assert body["overdrawn"] is False
+    assert body["balance_eur"] == "0.00"
     assert body["income_eur"] == "20.00"
+    over = client.post(
+        "/api/escales/milestones/mayotte/fund/spending",
+        json={"amount_eur": "0.01", "description": "un centime de trop"},
+        headers=ADMIN,
+    )
+    assert over.status_code == 422
     plain = client.get("/api/escales/milestones/mayotte/fund").json()
-    assert plain["spending_eur"] == "30.00"
+    assert plain["spending_eur"] == "20.00"
     assert plain["income_eur"] == "20.00"
+    assert plain["overdrawn"] is False
 
 
 def test_capture_ok_with_admin_key(api):
@@ -520,6 +524,23 @@ def test_target_slug_must_be_known_for_a_stopover_kind(api):
     assert project.json()["target_id"] == "projet-ecole"
     assert project.json()["amount_eur"] == "12.50"
     assert fake.calls[-1][0] == "create"
+    other_escale = _create(client, "m0-other", {**PLEDGE, "kind": "mile", "target_id": "dakar"})
+    assert other_escale.status_code == 422
+    fund = _create(client, "m0-fund", {
+        **PLEDGE,
+        "kind": "common_fund",
+        "target_id": "mayotte",
+        "amount_eur": "8.00",
+    })
+    assert fund.status_code == 200, fund.text
+    assert fund.json()["target_id"] == "mayotte"
+    fund_other = _create(client, "m0-fund-other", {
+        **PLEDGE,
+        "kind": "common_fund",
+        "target_id": "projet-ecole",
+        "amount_eur": "8.00",
+    })
+    assert fund_other.status_code == 422
 
 
 def test_unknown_pledge_kind_is_rejected(api):

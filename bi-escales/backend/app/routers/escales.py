@@ -39,6 +39,7 @@ from app.escales.ledger import (
     _unplaced_bucket,
     fund_for_milestone,
     get_ledger,
+    list_finance_entries,
     list_webhook_outcomes,
     record_spending,
     to_public_fund,
@@ -54,6 +55,13 @@ from app.escales.naviguide_bridge import (
     sync_milestone_shells,
 )
 from app.escales.paypal_client import PayPalClient, PayPalError, approve_link
+from app.escales.paypal_reconcile import reconcile_paypal_ledger
+from app.escales.project_payouts import (
+    PayoutNotFound,
+    PayoutStateError,
+    approve_project_payout,
+    propose_project_payout,
+)
 from app.escales.rate_limit import (
     RateLimited,
     client_ip,
@@ -69,6 +77,7 @@ from app.escales.pledges import (
     create_pledge,
     register_vault_pledge,
     require_pledge,
+    refund_pledge,
     to_public,
     void_pledge,
 )
@@ -155,6 +164,16 @@ class SpendingIn(BaseModel):
     description: str
 
 
+class RefundIn(BaseModel):
+    amount_eur: Optional[str] = None
+
+
+class PayoutProposeIn(BaseModel):
+    amount_eur: str
+    receiver_email: str
+    note: str = ""
+
+
 class VaultRegisterIn(BaseModel):
     setup_token_id: Optional[str] = None
 
@@ -201,6 +220,12 @@ def _valid_admin_key(request: Request) -> bool:
         return False
     _require_treasurer(request)
     return True
+
+
+def _treasurer_reader(request: Request) -> Optional[ReadOnlyTools]:
+    if not _valid_admin_key(request):
+        return None
+    return _reader()
 
 
 def _capture_conflict(exc: Exception) -> bool:
@@ -435,6 +460,58 @@ async def post_void(pledge_id: str, request: Request):
     return await _public_pledge_with_fund(doc)
 
 
+@router.post("/pledges/{pledge_id}/refund")
+async def post_refund(pledge_id: str, body: RefundIn, request: Request):
+    _require_treasurer(request)
+    try:
+        doc = await refund_pledge(pledge_id, _paypal(), amount_eur=body.amount_eur)
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
+        raise _money_http(exc) from exc
+    return await _public_pledge_with_fund(doc)
+
+
+@router.get("/paypal/reconcile")
+async def get_paypal_reconcile(request: Request, start_date: str, end_date: str):
+    """Read-only ledger vs PayPal Transaction Search. Treasurer key required."""
+    _require_treasurer(request)
+    try:
+        return await reconcile_paypal_ledger(
+            start_date=start_date,
+            end_date=end_date,
+            client=_paypal(),
+            finance_entries=await list_finance_entries(),
+        )
+    except PayPalError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.post("/projects/{project_id}/payouts")
+async def post_project_payout(project_id: str, body: PayoutProposeIn, request: Request):
+    """Propose a project payout. PayPal is not called until approve."""
+    _require_treasurer(request)
+    try:
+        return await propose_project_payout(
+            project_id,
+            amount_eur=body.amount_eur,
+            receiver_email=body.receiver_email,
+            note=body.note,
+        )
+    except ValueError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.post("/payouts/{payout_id}/approve")
+async def post_payout_approve(payout_id: str, request: Request):
+    """Second human step: send a proposed payout to PayPal sandbox."""
+    _require_treasurer(request)
+    try:
+        return await approve_project_payout(payout_id, _paypal())
+    except PayoutNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (PayoutStateError, PayPalError, ValueError) as exc:
+        raise _as_http(exc) from exc
+
+
 @router.get("/pledges")
 async def get_pledges(request: Request):
     """Every pledge on the server. The treasurer key is required."""
@@ -543,6 +620,7 @@ async def post_chat(body: ChatIn, request: Request):
             treasurer=_valid_admin_key(request),
             lang=body.lang,
             accept_language=request.headers.get("accept-language", ""),
+            reader=_treasurer_reader(request),
         )
     except ValueError as exc:
         raise _as_http(exc) from exc

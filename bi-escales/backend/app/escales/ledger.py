@@ -700,10 +700,11 @@ async def fund_for_milestone(milestone_id: str) -> dict:
 
 
 async def record_spending(milestone_id: str, amount_eur: str, description: str) -> dict:
-    """Treasurer spending for one stopover. It does not call PayPal.
+    """Treasurer spending for one stopover or one cabin leg. It does not call PayPal.
 
     The amount uses the same two-decimal check as a pledge, and stays at or
-    under 10 000.00 EUR. It cannot push the stopover balance below zero.
+    under 10 000.00 EUR. It cannot push that fund's balance below zero.
+    A cabin leg is its own fund, not the ports at either end.
     """
     from .pledges import normalize_amount
 
@@ -714,11 +715,22 @@ async def record_spending(milestone_id: str, amount_eur: str, description: str) 
     text = (description or "").strip()
     if not text:
         raise ValueError("description is required")
-    slug = await _require_stopover(milestone_id)
+    leg_id = _leg_id(milestone_id)
+    if leg_id:
+        bucket = leg_id
+
+        def on_bucket(entry: dict) -> bool:
+            return str(entry.get("milestone_id") or "") == leg_id
+    else:
+        bucket = await _require_stopover(milestone_id)
+
+        def on_bucket(entry: dict) -> bool:
+            return _stopover_slug(str(entry.get("milestone_id") or "")) == bucket
+
     income_total = Decimal("0.00")
     spending_total = Decimal("0.00")
     for entry in await list_finance_entries():
-        if _stopover_slug(str(entry.get("milestone_id") or "")) != slug:
+        if not on_bucket(entry):
             continue
         if entry.get("kind") == "pledge_captured":
             income_total += _euros(entry.get("amount_eur"))
@@ -728,7 +740,7 @@ async def record_spending(milestone_id: str, amount_eur: str, description: str) 
         raise ValueError("spending must not make the balance negative")
     return await record_finance(
         "spending",
-        milestone_id=slug,
+        milestone_id=bucket,
         amount_eur=amount_text,
         currency="EUR",
         description=text,

@@ -229,6 +229,47 @@ def test_cabin_leg_capture_lands_in_the_leg_fund(api):
     assert rows[0]["pledge_kind"] == "cabin_leg"
 
 
+def test_leg_spending_is_charged_to_the_cabin_fund(api):
+    """POST /milestones/{leg}/fund/spending writes on the leg, not 404."""
+    client, _fake = api
+    leg = "leg-la-rochelle-to-ajaccio-corse"
+    _created, authorized = _ready(client, "cabin-spend", {
+        "amount_eur": "80.00",
+        "description": "cabine à dépenser",
+        "milestone_id": leg,
+        "kind": "cabin_leg",
+    })
+    assert client.post(
+        f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN
+    ).status_code == 200
+    locked = client.post(
+        f"/api/escales/milestones/{leg}/fund/spending",
+        json={"amount_eur": "20.00", "description": "avitaillement"},
+    )
+    assert locked.status_code == 401
+    spent = client.post(
+        f"/api/escales/milestones/{leg}/fund/spending",
+        json={"amount_eur": "20.00", "description": "avitaillement"},
+        headers=ADMIN,
+    )
+    assert spent.status_code == 200, spent.text
+    body = spent.json()
+    assert body["milestone_id"] == leg
+    assert body["income_eur"] == "80.00"
+    assert body["spending_eur"] == "20.00"
+    assert body["balance_eur"] == "60.00"
+    for stop in ("dep-la-rochelle", "dep-ajaccio-corse"):
+        other = client.get(f"/api/escales/milestones/{stop}/fund").json()
+        assert other["spending_eur"] == "0.00"
+        assert other["income_eur"] == "0.00"
+    over = client.post(
+        f"/api/escales/milestones/{leg}/fund/spending",
+        json={"amount_eur": "60.01", "description": "trop"},
+        headers=ADMIN,
+    )
+    assert over.status_code == 422
+
+
 def test_cabin_leg_and_the_approval_gate_stay_together(api):
     """#16 legs and the 1ed5321 approval gate, on the same service."""
     client, fake = api

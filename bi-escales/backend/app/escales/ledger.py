@@ -70,6 +70,7 @@ class MemoryLedger:
         self._audit: list[dict] = []
         self._finance: list[dict] = []
         self._webhooks: set[str] = set()
+        self._webhook_log: list[dict] = []
 
     async def insert_pledge_once(self, doc: dict) -> dict:
         with self._lock:
@@ -199,6 +200,23 @@ class MemoryLedger:
                 return False
             self._webhooks.add(transmission_id)
             return True
+
+    async def record_webhook_outcome(self, entry: dict) -> dict:
+        stored = {
+            "transmission_id": entry.get("transmission_id"),
+            "event_type": entry.get("event_type"),
+            "resource_id": entry.get("resource_id"),
+            "pledge_id": entry.get("pledge_id"),
+            "time": entry.get("time") or now_iso(),
+            "outcome": entry.get("outcome"),
+        }
+        with self._lock:
+            self._webhook_log.append(stored)
+            return copy.deepcopy(stored)
+
+    async def list_webhook_outcomes(self) -> list[dict]:
+        with self._lock:
+            return [copy.deepcopy(item) for item in reversed(self._webhook_log)]
 
 
 class MongoLedger:
@@ -362,6 +380,35 @@ class MongoLedger:
                 return False
             raise
 
+    async def record_webhook_outcome(self, entry: dict) -> dict:
+        await self._ensure()
+        stored = {
+            "_id": uuid.uuid4().hex,
+            "log": True,
+            "transmission_id": entry.get("transmission_id"),
+            "event_type": entry.get("event_type"),
+            "resource_id": entry.get("resource_id"),
+            "pledge_id": entry.get("pledge_id"),
+            "time": entry.get("time") or now_iso(),
+            "outcome": entry.get("outcome"),
+        }
+        await self._webhooks.insert_one(copy.deepcopy(stored))
+        public = dict(stored)
+        public.pop("_id", None)
+        public.pop("log", None)
+        return public
+
+    async def list_webhook_outcomes(self) -> list[dict]:
+        await self._ensure()
+        cursor = self._webhooks.find({"log": True}).sort("time", -1)
+        rows = []
+        async for doc in cursor:
+            public = dict(doc)
+            public.pop("_id", None)
+            public.pop("log", None)
+            rows.append(public)
+        return rows
+
 
 _ledger: Any = None
 
@@ -395,6 +442,14 @@ async def record_finance(kind: str, **fields) -> dict:
 
 async def list_finance_entries() -> list[dict]:
     return await get_ledger().list_finance()
+
+
+async def record_webhook_outcome(entry: dict) -> dict:
+    return await get_ledger().record_webhook_outcome(entry)
+
+
+async def list_webhook_outcomes() -> list[dict]:
+    return await get_ledger().list_webhook_outcomes()
 
 
 _SPENDING_CAP = Decimal("10000.00")

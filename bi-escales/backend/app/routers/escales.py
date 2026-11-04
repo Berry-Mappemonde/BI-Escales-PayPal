@@ -32,7 +32,7 @@ from app.escales.config import (
     vault_enabled,
     webhooks_enabled,
 )
-from app.escales.ledger import fund_for_milestone, record_spending
+from app.escales.ledger import fund_for_milestone, list_webhook_outcomes, record_spending
 from app.escales_names import display_name as escale_display_name
 from app.escales.milestones import list_milestones, record_evidence
 from app.escales.naviguide_bridge import (
@@ -393,6 +393,13 @@ async def post_chat(body: ChatIn, request: Request):
         return await captain_chat(body.message)
     except ValueError as exc:
         raise _as_http(exc) from exc
+
+
+@webhooks_router.get("/webhooks/recent")
+async def get_recent_webhooks(request: Request):
+    """Read-only list of webhook attempts. Treasurer key, same check as capture."""
+    _require_treasurer(request)
+    return {"events": await list_webhook_outcomes()}
 
 
 @webhooks_router.post("/webhooks/paypal")

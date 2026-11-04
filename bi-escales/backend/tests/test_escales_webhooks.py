@@ -71,6 +71,8 @@ def test_webhook_disabled_returns_404(api, monkeypatch):
     client, _fake = api
     response = client.post("/api/escales/webhooks/paypal", headers=HEADERS, content=json.dumps(PAYLOAD))
     assert response.status_code == 404
+    listed = client.get("/api/escales/webhooks/recent")
+    assert listed.status_code == 404
 
 
 def test_webhook_verifies_and_is_idempotent(api):
@@ -134,3 +136,156 @@ def test_signature_is_checked_before_the_duplicate(api):
     assert accepted.status_code == 200
     assert accepted.json()["accepted"] is True
     assert accepted.json().get("duplicate") is not True
+
+
+def test_recent_webhooks_list_outcomes_for_the_treasurer(api, monkeypatch):
+    import asyncio
+
+    from app.escales.ledger import get_ledger
+
+    monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
+    client, _fake = api
+
+    async def seed():
+        await get_ledger().insert_pledge_once({
+            "_id": "pledge-order",
+            "status": "authorized",
+            "intent": "AUTHORIZE",
+            "payment_mode": "AUTHORIZE",
+            "currency": "EUR",
+            "amount_eur": "10.00",
+            "description": "10 milles",
+            "milestone_id": "dep-mayotte",
+            "kind": "mile",
+            "target_id": "mayotte",
+            "order_id": "ORDER1",
+            "history": ["created"],
+        })
+
+    asyncio.run(seed())
+    first = client.post("/api/escales/webhooks/paypal", headers=HEADERS, content=json.dumps(PAYLOAD))
+    assert first.status_code == 200
+    assert first.json()["pledge_id"] == "pledge-order"
+    second = client.post("/api/escales/webhooks/paypal", headers=HEADERS, content=json.dumps(PAYLOAD))
+    assert second.status_code == 200
+    assert second.json()["duplicate"] is True
+
+    class BadPayPal(FakePayPal):
+        def verify_webhook_signature(self, **kwargs):
+            return {"verification_status": "FAILURE"}
+
+    set_paypal_client_factory(lambda: BadPayPal())
+    bad_headers = dict(HEADERS)
+    bad_headers["PAYPAL-TRANSMISSION-ID"] = "T-BAD"
+    rejected = client.post(
+        "/api/escales/webhooks/paypal", headers=bad_headers, content=json.dumps(PAYLOAD),
+    )
+    assert rejected.status_code == 401
+
+    assert client.get("/api/escales/webhooks/recent").status_code == 401
+    assert client.get(
+        "/api/escales/webhooks/recent", headers={"x-admin-key": "wrong-admin-key"},
+    ).status_code == 403
+    listed = client.get("/api/escales/webhooks/recent", headers={"x-admin-key": "test-admin-key"})
+    assert listed.status_code == 200
+    events = listed.json()["events"]
+    assert [row["outcome"] for row in events] == ["rejected", "duplicate", "accepted"]
+    assert events[0]["transmission_id"] == "T-BAD"
+    assert events[0]["pledge_id"] is None
+    accepted = events[2]
+    assert accepted["transmission_id"] == "T-123"
+    assert accepted["event_type"] == "CHECKOUT.ORDER.APPROVED"
+    assert accepted["resource_id"] == "ORDER1"
+    assert accepted["pledge_id"] == "pledge-order"
+    assert accepted["time"]
+    assert events[1]["outcome"] == "duplicate"
+    assert events[1]["pledge_id"] == "pledge-order"
+    assert events[1]["transmission_id"] == "T-123"
+
+    async def saved():
+        return await get_ledger().get_pledge("pledge-order")
+
+    doc = asyncio.run(saved())
+    assert [row["outcome"] for row in doc["webhook_events"]] == ["accepted", "duplicate"]
+    assert doc["webhook_events"][0]["resource_id"] == "ORDER1"
+    assert doc["webhook_events"][0]["event_type"] == "CHECKOUT.ORDER.APPROVED"
+    assert doc["webhook_events"][0]["time"]
+
+
+def test_authorization_and_capture_read_related_order_id(api):
+    import asyncio
+
+    from app.escales.ledger import get_ledger
+    from app.escales.webhooks import _order_id_from_resource
+
+    auth_resource = {
+        "id": "AUTH-1",
+        "status": "CREATED",
+        "supplementary_data": {"related_ids": {"order_id": "ORDER-AUTH"}},
+        "links": [{
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/AUTH-1",
+            "rel": "self",
+        }],
+    }
+    capture_resource = {
+        "id": "CAP-1",
+        "status": "COMPLETED",
+        "supplementary_data": {
+            "related_ids": {"order_id": "ORDER-CAP", "authorization_id": "AUTH-9"},
+        },
+        "links": [{
+            "href": "https://api.sandbox.paypal.com/v2/payments/captures/CAP-1",
+            "rel": "self",
+        }],
+    }
+    assert _order_id_from_resource(auth_resource) == "ORDER-AUTH"
+    assert _order_id_from_resource(capture_resource) == "ORDER-CAP"
+
+    async def seed():
+        ledger = get_ledger()
+        for pledge_id, order_id in (("p-auth", "ORDER-AUTH"), ("p-cap", "ORDER-CAP")):
+            await ledger.insert_pledge_once({
+                "_id": pledge_id,
+                "status": "authorized",
+                "intent": "AUTHORIZE",
+                "payment_mode": "AUTHORIZE",
+                "currency": "EUR",
+                "amount_eur": "10.00",
+                "description": "miles",
+                "milestone_id": "dep-mayotte",
+                "kind": "mile",
+                "target_id": "mayotte",
+                "order_id": order_id,
+                "history": ["created"],
+            })
+
+    asyncio.run(seed())
+    client, _fake = api
+
+    def post(event_type, resource, transmission, order_expected, pledge_expected):
+        headers = dict(HEADERS)
+        headers["PAYPAL-TRANSMISSION-ID"] = transmission
+        payload = {"id": transmission, "event_type": event_type, "resource": resource}
+        response = client.post(
+            "/api/escales/webhooks/paypal", headers=headers, content=json.dumps(payload),
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["order_id"] == order_expected
+        assert body["pledge_id"] == pledge_expected
+
+    post("PAYMENT.AUTHORIZATION.CREATED", auth_resource, "T-AUTH", "ORDER-AUTH", "p-auth")
+    post("PAYMENT.CAPTURE.COMPLETED", capture_resource, "T-CAP", "ORDER-CAP", "p-cap")
+
+    async def events():
+        auth = await get_ledger().get_pledge("p-auth")
+        capture = await get_ledger().get_pledge("p-cap")
+        return auth["webhook_events"], capture["webhook_events"]
+
+    auth_events, capture_events = asyncio.run(events())
+    assert auth_events[0]["outcome"] == "accepted"
+    assert auth_events[0]["event_type"] == "PAYMENT.AUTHORIZATION.CREATED"
+    assert auth_events[0]["resource_id"] == "AUTH-1"
+    assert capture_events[0]["event_type"] == "PAYMENT.CAPTURE.COMPLETED"
+    assert capture_events[0]["resource_id"] == "CAP-1"
+    assert capture_events[0]["outcome"] == "accepted"

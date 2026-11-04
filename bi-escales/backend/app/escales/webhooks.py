@@ -5,7 +5,7 @@ import json
 from typing import Any, Optional
 
 from .config import paypal_webhook_id, zapiper_enabled
-from .ledger import get_ledger, pledge_defaults, record_finance
+from .ledger import get_ledger, now_iso, pledge_defaults, record_finance, record_webhook_outcome
 from .paypal_client import PayPalClient, PayPalError
 
 
@@ -66,21 +66,27 @@ async def verify_and_process(
             webhook_event=event,
         )
     except PayPalError as exc:
+        await _record_outcome(transmission_id, event, "rejected", None)
         raise WebhookRejected(502, "PayPal signature verification failed") from exc
 
     status = (verification.get("verification_status") or "").upper()
     if status != "SUCCESS":
+        await _record_outcome(transmission_id, event, "rejected", None)
         raise WebhookRejected(401, "PayPal webhook signature rejected")
 
     ledger = get_ledger()
     claimed = await ledger.claim_webhook(
         transmission_id,
-        {"event_id": event.get("id"), "event_type": event.get("event_type")},
+        {"event_id": event.get("id") if isinstance(event, dict) else None,
+         "event_type": event.get("event_type") if isinstance(event, dict) else None},
     )
     if not claimed:
+        pledge_id = await _pledge_id_for(event)
+        await _record_outcome(transmission_id, event, "duplicate", pledge_id)
         raise WebhookDuplicate(transmission_id)
 
     result = await _apply_event(event)
+    await _record_outcome(transmission_id, event, "accepted", result.get("pledge_id"))
     result["transmission_id"] = transmission_id
     result["event_id"] = event.get("id")
     result["event_type"] = event.get("event_type")
@@ -113,15 +119,78 @@ async def _apply_event(event: dict) -> dict:
     }
 
 
-def _order_id_from_resource(resource: dict) -> Optional[str]:
-    if not resource:
+def _event_dict(event: Any) -> dict:
+    return event if isinstance(event, dict) else {}
+
+
+def _resource_id(event: Any) -> Optional[str]:
+    resource = _event_dict(event).get("resource")
+    if isinstance(resource, dict) and resource.get("id"):
+        return str(resource["id"])
+    return None
+
+
+async def _pledge_id_for(event: Any) -> Optional[str]:
+    resource = _event_dict(event).get("resource")
+    order_id = _order_id_from_resource(resource if isinstance(resource, dict) else {})
+    if not order_id:
         return None
-    for key in ("supplementary_data",):
-        block = resource.get(key) or {}
-        related = block.get("related_ids") or {}
-        order_id = related.get("order_id")
-        if order_id:
-            return str(order_id)
+    pledge = await get_ledger().find_pledge_by_order_id(order_id)
+    return pledge.get("_id") if pledge else None
+
+
+async def _record_outcome(
+    transmission_id: str,
+    event: Any,
+    outcome: str,
+    pledge_id: Optional[str],
+) -> None:
+    body = _event_dict(event)
+    row = {
+        "transmission_id": transmission_id,
+        "event_type": body.get("event_type"),
+        "resource_id": _resource_id(body),
+        "pledge_id": pledge_id,
+        "time": now_iso(),
+        "outcome": outcome,
+    }
+    await record_webhook_outcome(row)
+    if pledge_id and outcome in {"accepted", "duplicate"}:
+        await _append_pledge_webhook(pledge_id, row)
+
+
+async def _append_pledge_webhook(pledge_id: str, row: dict) -> None:
+    ledger = get_ledger()
+    doc = await ledger.get_pledge(pledge_id)
+    if not doc:
+        return
+    events = list(doc.get("webhook_events") or [])
+    events.append(
+        {
+            "transmission_id": row.get("transmission_id"),
+            "event_type": row.get("event_type"),
+            "resource_id": row.get("resource_id"),
+            "time": row.get("time"),
+            "outcome": row.get("outcome"),
+        }
+    )
+    doc["webhook_events"] = events
+    await ledger.save_pledge(doc)
+
+
+def _order_id_from_resource(resource: dict) -> Optional[str]:
+    """Order id on an ORDER, AUTHORIZATION, or CAPTURE resource.
+
+    Authorization and capture payloads keep it at
+    ``supplementary_data.related_ids.order_id``.
+    """
+    if not isinstance(resource, dict) or not resource:
+        return None
+    supplementary = resource.get("supplementary_data") or {}
+    if isinstance(supplementary, dict):
+        related = supplementary.get("related_ids") or {}
+        if isinstance(related, dict) and related.get("order_id"):
+            return str(related["order_id"])
     for key in ("order_id", "custom_id"):
         value = resource.get(key)
         if value:

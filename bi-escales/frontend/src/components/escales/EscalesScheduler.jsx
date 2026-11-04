@@ -4,22 +4,6 @@
  */
 import { useMemo } from "react";
 import { PledgeButton } from "../PledgeButton";
-import { advisoryView } from "./advisoryLabel.js";
-
-export function AdvisoryBadge({ llmProposal }) {
-  const view = advisoryView(llmProposal);
-  if (!view) return null;
-  return (
-    <p className="escales-advisory" data-advisory="true" data-dropped={view.dropped ? "true" : "false"}>
-      <strong>Advisory</strong>
-      {view.dropped ? (
-        <span> La suggestion du modèle est écartée. {view.reason}</span>
-      ) : (
-        <span> Suggestion du modèle, non exécutée : {view.proposal}. {view.reason}</span>
-      )}
-    </p>
-  );
-}
 
 function toDate(value) {
   if (!value) return null;
@@ -51,26 +35,6 @@ function buildEvents(escales) {
       lon: row.lon,
     };
   });
-}
-
-function SimulatedPrices({ prices }) {
-  const rows = prices?.prices || [];
-  if (!prices?.simulated || !rows.length) return null;
-  const label = prices.label || "simulated price";
-  return (
-    <section className="escales-simulated-prices" data-simulated="true" aria-label={label}>
-      <h3>{label}</h3>
-      <ul>
-        {rows.map((row) => (
-          <li key={row.kind} data-kind={row.kind}>
-            <span>{row.kind}</span>
-            {row.amount_eur ? <span>{row.amount_eur} {row.currency || "EUR"}</span> : null}
-            <em>{row.label || label}</em>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
 }
 
 function cabinAmount(prices) {
@@ -127,7 +91,6 @@ export default function EscalesScheduler({
   schedule,
   onSelectEscale,
   onAuthorized,
-  captainReview = null,
 }) {
   const escales = schedule?.export?.escales || schedule?.escales || localFallbackEscales();
   const events = useMemo(() => buildEvents(escales), [escales]);
@@ -137,15 +100,7 @@ export default function EscalesScheduler({
     <section className="escales-scheduler" data-source={schedule?.source || "local"}>
       <header>
         <h2>Calendrier des escales</h2>
-        <p>Pay Only If We Sail</p>
-        {schedule?.clock?.start ? (
-          <p className="escales-clock" data-clock-start={schedule.clock.start}>
-            Horloge du voyage : {schedule.clock.start}
-          </p>
-        ) : null}
       </header>
-      <SimulatedPrices prices={schedule?.prices} />
-      <AdvisoryBadge llmProposal={captainReview?.llm_proposal} />
       <LegList legs={legs} amount={cabinAmount(schedule?.prices)} onAuthorized={onAuthorized} />
       <LocalScheduleList events={events} onSelect={onSelectEscale} />
     </section>

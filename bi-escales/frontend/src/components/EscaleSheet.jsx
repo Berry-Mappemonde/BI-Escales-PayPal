@@ -193,7 +193,6 @@ export const EscaleSheet = memo(function EscaleSheet({
       ) : null}
       {pledge ? (
         <div className="pledge-form">
-          <p className="hint">{t("pledge.intent")}</p>
           <label>
             {t("pledge.kind")}
             <select

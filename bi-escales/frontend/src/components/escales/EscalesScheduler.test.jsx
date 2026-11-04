@@ -41,5 +41,10 @@ describe("EscalesScheduler", () => {
     expect(cabin.getAttribute("data-milestone")).toBe("leg-la-rochelle-to-ajaccio-corse");
     expect(cabin.getAttribute("data-amount")).toBe("80.00");
     expect(screen.getByTestId("cabin-price")).toHaveTextContent("80.00 EUR");
+    expect(screen.queryByText("Pay Only If We Sail")).toBeNull();
+    expect(screen.queryByText(/Horloge du voyage/)).toBeNull();
+    expect(screen.queryByText("simulated price")).toBeNull();
+    expect(screen.queryByText("Advisory")).toBeNull();
+    expect(screen.queryByText(/Bryntum/)).toBeNull();
   });
 });

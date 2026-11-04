@@ -251,3 +251,166 @@ Screenshot: `screenshots/02-paypal-journey/14-finance-ledger.png`
 ### Accessibility basics
 
 No unlabeled controls, images missing alt, missing html lang, or skipped heading levels on the scanned screen.
+
+## 03-full-e2e
+
+### 01-fr-home
+
+Screenshot: `screenshots/03-full-e2e/01-fr-home.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| console | error | AG Grid: error #272 No AG Grid modules are registered! It is recommended to start with all Community features via the AllCommunityModule:                          import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';          ModuleRegistry.registerModules([ AllCommunityModule ]);       Visit https://www.ag-grid.com/react-data-grid/errors/272?_version_=34.3.1 | http://127.0.0.1:5173/node_modules/.vite/deps/ag-grid-react.js:1299:25 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+
+### 02-en-calendar-mismatch
+
+Screenshot: `screenshots/03-full-e2e/02-en-calendar-mismatch.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | ********************************************** AG Studio Pro with AI License *********************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | ************************************************** License Key Not Found *************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | * All AG Studio Pro with AI features are unlocked for trial.                                                               * | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | * If you want to hide the watermark please email info@ag-grid.com for a trial license key.                                 * | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | ********************************************** AG Studio Pro with AI License *********************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | ************************************************** License Key Not Found *************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | * All AG Studio Pro with AI features are unlocked for trial.                                                               * | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | * If you want to hide the watermark please email info@ag-grid.com for a trial license key.                                 * | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | ********************************************** AG Studio Pro with AI License *********************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | ************************************************** License Key Not Found *************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | * All AG Studio Pro with AI features are unlocked for trial.                                                               * | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | * If you want to hide the watermark please email info@ag-grid.com for a trial license key.                                 * | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | ********************************************** AG Studio Pro with AI License *********************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | ************************************************** License Key Not Found *************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | * All AG Studio Pro with AI features are unlocked for trial.                                                               * | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | * If you want to hide the watermark please email info@ag-grid.com for a trial license key.                                 * | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+
+### 03-en-empty-queue
+
+Screenshot: `screenshots/03-full-e2e/03-en-empty-queue.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| — | — | No console error, warning, failed request, or uncaught exception on this step. | — | — |
+
+### 04-en-mayotte-422
+
+Screenshot: `screenshots/03-full-e2e/04-en-mayotte-422.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| http | warning | 422 POST http://127.0.0.1:5173/api/escales/pledges | http://127.0.0.1:5173/api/escales/pledges | Seed a valid milestone arrival. Horizons of 29 days or more need ESCALES_VAULT_ENABLED; a missing date must stay a visible 422, not a silent AUTHORIZE. |
+| console | error | Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) | http://127.0.0.1:5173/api/escales/pledges:1:1 | Seed a valid milestone arrival. Horizons of 29 days or more need ESCALES_VAULT_ENABLED; a missing date must stay a visible 422, not a silent AUTHORIZE. |
+
+### 05-en-authorized
+
+Screenshot: `screenshots/03-full-e2e/05-en-authorized.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| — | — | No console error, warning, failed request, or uncaught exception on this step. | — | — |
+
+### 06-en-captured
+
+Screenshot: `screenshots/03-full-e2e/06-en-captured.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| — | — | No console error, warning, failed request, or uncaught exception on this step. | — | — |
+
+### 07-en-voided
+
+Screenshot: `screenshots/03-full-e2e/07-en-voided.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| — | — | No console error, warning, failed request, or uncaught exception on this step. | — | — |
+
+### 08-en-vault-setup
+
+Screenshot: `screenshots/03-full-e2e/08-en-vault-setup.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| — | — | No console error, warning, failed request, or uncaught exception on this step. | — | — |
+
+### 09-en-vaulted
+
+Screenshot: `screenshots/03-full-e2e/09-en-vaulted.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| — | — | No console error, warning, failed request, or uncaught exception on this step. | — | — |
+
+### 10-en-captain-review
+
+Screenshot: `screenshots/03-full-e2e/10-en-captain-review.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| — | — | No console error, warning, failed request, or uncaught exception on this step. | — | — |
+
+### 11-en-ag-grid
+
+Screenshot: `screenshots/03-full-e2e/11-en-ag-grid.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| — | — | No console error, warning, failed request, or uncaught exception on this step. | — | — |
+
+### 12-en-ag-studio
+
+Screenshot: `screenshots/03-full-e2e/12-en-ag-studio.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| — | — | No console error, warning, failed request, or uncaught exception on this step. | — | — |
+
+### 13-fr-ag-studio
+
+Screenshot: `screenshots/03-full-e2e/13-fr-ag-studio.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | ********************************************** AG Studio Pro with AI License *********************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | ************************************************** License Key Not Found *************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | * All AG Studio Pro with AI features are unlocked for trial.                                                               * | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | * If you want to hide the watermark please email info@ag-grid.com for a trial license key.                                 * | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | ********************************************** AG Studio Pro with AI License *********************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | ************************************************** License Key Not Found *************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | * All AG Studio Pro with AI features are unlocked for trial.                                                               * | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | * If you want to hide the watermark please email info@ag-grid.com for a trial license key.                                 * | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+| console | error | **************************************************************************************************************************** | http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11 | Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo. |
+
+### 14-fr-ledger
+
+Screenshot: `screenshots/03-full-e2e/14-fr-ledger.png`
+
+| Kind | Level | Message | Source file | Suggested fix |
+| --- | --- | --- | --- | --- |
+| — | — | No console error, warning, failed request, or uncaught exception on this step. | — | — |
+
+### Accessibility basics
+
+| Message | Source | Suggested fix |
+| --- | --- | --- |
+| Field without a label | <input class="ag-input-field-input ag-text-field-input ag-input-field-input-with-clear-button" data-ref="eInput" type="text" id="ag-1296-input" autocomplete="off" tabindex="0" plac | Wrap the field in a label or set aria-label. |
+| Field without a label | <input class="ag-input-field-input ag-text-field-input ag-input-field-input-with-clear-button" data-ref="eInput" type="text" id="ag-1346-input" autocomplete="off" tabindex="0" plac | Wrap the field in a label or set aria-label. |
+| Field without a label | <input class="ag-input-field-input ag-text-field-input ag-input-field-input-with-clear-button" data-ref="eInput" type="text" id="ag-1455-input" autocomplete="off" tabindex="0" plac | Wrap the field in a label or set aria-label. |

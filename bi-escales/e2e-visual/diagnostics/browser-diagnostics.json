@@ -208,6 +208,462 @@
         }
       ],
       "a11y": []
+    },
+    {
+      "journey": "03-full-e2e",
+      "steps": [
+        {
+          "step": "01-fr-home",
+          "screenshot": "screenshots/03-full-e2e/01-fr-home.png",
+          "events": [
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "AG Grid: error #272 No AG Grid modules are registered! It is recommended to start with all Community features via the AllCommunityModule:\n                    \n    import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';\n    \n    ModuleRegistry.registerModules([ AllCommunityModule ]);\n     \nVisit https://www.ag-grid.com/react-data-grid/errors/272?_version_=34.3.1",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/ag-grid-react.js:1299:25",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/ag-grid-react.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            }
+          ]
+        },
+        {
+          "step": "02-en-calendar-mismatch",
+          "screenshot": "screenshots/03-full-e2e/02-en-calendar-mismatch.png",
+          "events": [
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "********************************************** AG Studio Pro with AI License ***********************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "************************************************** License Key Not Found ***************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "* All AG Studio Pro with AI features are unlocked for trial.                                                               *",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "* If you want to hide the watermark please email info@ag-grid.com for a trial license key.                                 *",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "********************************************** AG Studio Pro with AI License ***********************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "************************************************** License Key Not Found ***************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "* All AG Studio Pro with AI features are unlocked for trial.                                                               *",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "* If you want to hide the watermark please email info@ag-grid.com for a trial license key.                                 *",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "********************************************** AG Studio Pro with AI License ***********************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "************************************************** License Key Not Found ***************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "* All AG Studio Pro with AI features are unlocked for trial.                                                               *",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "* If you want to hide the watermark please email info@ag-grid.com for a trial license key.                                 *",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "********************************************** AG Studio Pro with AI License ***********************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "************************************************** License Key Not Found ***************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "* All AG Studio Pro with AI features are unlocked for trial.                                                               *",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "* If you want to hide the watermark please email info@ag-grid.com for a trial license key.                                 *",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            }
+          ]
+        },
+        {
+          "step": "03-en-empty-queue",
+          "screenshot": "screenshots/03-full-e2e/03-en-empty-queue.png",
+          "events": []
+        },
+        {
+          "step": "04-en-mayotte-422",
+          "screenshot": "screenshots/03-full-e2e/04-en-mayotte-422.png",
+          "events": [
+            {
+              "kind": "http",
+              "level": "warning",
+              "message": "422 POST http://127.0.0.1:5173/api/escales/pledges",
+              "sourceFile": "http://127.0.0.1:5173/api/escales/pledges",
+              "url": "http://127.0.0.1:5173/api/escales/pledges",
+              "suggestedFix": "Seed a valid milestone arrival. Horizons of 29 days or more need ESCALES_VAULT_ENABLED; a missing date must stay a visible 422, not a silent AUTHORIZE."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+              "sourceFile": "http://127.0.0.1:5173/api/escales/pledges:1:1",
+              "url": "http://127.0.0.1:5173/api/escales/pledges",
+              "suggestedFix": "Seed a valid milestone arrival. Horizons of 29 days or more need ESCALES_VAULT_ENABLED; a missing date must stay a visible 422, not a silent AUTHORIZE."
+            }
+          ]
+        },
+        {
+          "step": "05-en-authorized",
+          "screenshot": "screenshots/03-full-e2e/05-en-authorized.png",
+          "events": []
+        },
+        {
+          "step": "06-en-captured",
+          "screenshot": "screenshots/03-full-e2e/06-en-captured.png",
+          "events": []
+        },
+        {
+          "step": "07-en-voided",
+          "screenshot": "screenshots/03-full-e2e/07-en-voided.png",
+          "events": []
+        },
+        {
+          "step": "08-en-vault-setup",
+          "screenshot": "screenshots/03-full-e2e/08-en-vault-setup.png",
+          "events": []
+        },
+        {
+          "step": "09-en-vaulted",
+          "screenshot": "screenshots/03-full-e2e/09-en-vaulted.png",
+          "events": []
+        },
+        {
+          "step": "10-en-captain-review",
+          "screenshot": "screenshots/03-full-e2e/10-en-captain-review.png",
+          "events": []
+        },
+        {
+          "step": "11-en-ag-grid",
+          "screenshot": "screenshots/03-full-e2e/11-en-ag-grid.png",
+          "events": []
+        },
+        {
+          "step": "12-en-ag-studio",
+          "screenshot": "screenshots/03-full-e2e/12-en-ag-studio.png",
+          "events": []
+        },
+        {
+          "step": "13-fr-ag-studio",
+          "screenshot": "screenshots/03-full-e2e/13-fr-ag-studio.png",
+          "events": [
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "********************************************** AG Studio Pro with AI License ***********************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "************************************************** License Key Not Found ***************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "* All AG Studio Pro with AI features are unlocked for trial.                                                               *",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "* If you want to hide the watermark please email info@ag-grid.com for a trial license key.                                 *",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "********************************************** AG Studio Pro with AI License ***********************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "************************************************** License Key Not Found ***************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "* All AG Studio Pro with AI features are unlocked for trial.                                                               *",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "* If you want to hide the watermark please email info@ag-grid.com for a trial license key.                                 *",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268060:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            },
+            {
+              "kind": "console",
+              "level": "error",
+              "message": "****************************************************************************************************************************",
+              "sourceFile": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js:268057:11",
+              "url": "http://127.0.0.1:5173/node_modules/.vite/deps/chunk-HL36OKWO.js?v=dd76a803",
+              "suggestedFix": "Open the cited source, reproduce this step, and fix the throw or the failing request before the jury demo."
+            }
+          ]
+        },
+        {
+          "step": "14-fr-ledger",
+          "screenshot": "screenshots/03-full-e2e/14-fr-ledger.png",
+          "events": []
+        }
+      ],
+      "a11y": [
+        {
+          "message": "Field without a label",
+          "sourceFile": "<input class=\"ag-input-field-input ag-text-field-input ag-input-field-input-with-clear-button\" data-ref=\"eInput\" type=\"text\" id=\"ag-1296-input\" autocomplete=\"off\" tabindex=\"0\" plac",
+          "suggestedFix": "Wrap the field in a label or set aria-label."
+        },
+        {
+          "message": "Field without a label",
+          "sourceFile": "<input class=\"ag-input-field-input ag-text-field-input ag-input-field-input-with-clear-button\" data-ref=\"eInput\" type=\"text\" id=\"ag-1346-input\" autocomplete=\"off\" tabindex=\"0\" plac",
+          "suggestedFix": "Wrap the field in a label or set aria-label."
+        },
+        {
+          "message": "Field without a label",
+          "sourceFile": "<input class=\"ag-input-field-input ag-text-field-input ag-input-field-input-with-clear-button\" data-ref=\"eInput\" type=\"text\" id=\"ag-1455-input\" autocomplete=\"off\" tabindex=\"0\" plac",
+          "suggestedFix": "Wrap the field in a label or set aria-label."
+        }
+      ]
     }
   ]
 }

@@ -212,6 +212,56 @@ def _identity(doc: dict) -> dict:
     return {"pledge_kind": row.get("kind"), "target_id": row.get("target_id")}
 
 
+def finance_milestone_id(pledge: dict) -> str:
+    """Journal id for a pledge. A cabin is the leg, not either port."""
+    stored = str(pledge.get("milestone_id") or "")
+    if str(pledge.get("kind") or "") != "cabin_leg":
+        return stored
+    from .naviguide_bridge import leg_by_id
+
+    for candidate in (stored, str(pledge.get("target_id") or "")):
+        leg = leg_by_id(candidate)
+        if leg:
+            return str(leg["id"])
+    return stored
+
+
+async def ensure_finance_milestone(pledge: dict, milestone_id: str) -> None:
+    """Keep the cabin leg in the ledger so its fund can be read."""
+    if str(pledge.get("kind") or "") != "cabin_leg" or not milestone_id:
+        return
+    from .naviguide_bridge import leg_by_id, leg_milestone_meta
+
+    leg = leg_by_id(milestone_id)
+    if leg:
+        await get_ledger().ensure_milestone(milestone_id, meta=leg_milestone_meta(leg))
+
+
+async def record_pledge_captured_once(pledge: dict, *, actor: str) -> bool:
+    """One ``pledge_captured`` line per pledge. A webhook and a direct capture share it."""
+    from .ledger import list_finance_entries, record_finance
+
+    pledge_id = str(pledge.get("_id") or "")
+    if not pledge_id:
+        return False
+    for entry in await list_finance_entries():
+        if entry.get("kind") == "pledge_captured" and entry.get("pledge_id") == pledge_id:
+            return False
+    milestone_id = finance_milestone_id(pledge)
+    await ensure_finance_milestone(pledge, milestone_id)
+    await record_finance(
+        "pledge_captured",
+        pledge_id=pledge_id,
+        milestone_id=milestone_id,
+        amount_eur=pledge.get("amount_eur"),
+        currency=pledge.get("currency") or "EUR",
+        status="captured",
+        actor=actor,
+        **_identity(pledge),
+    )
+    return True
+
+
 def _require_text(value: str, field: str) -> str:
     text = (value or "").strip()
     if not text:
@@ -684,9 +734,11 @@ async def _finish_capture(pledge: dict, payload: Any, *, finance: dict) -> dict:
     recorded = status or "MISSING"
     pledge["paypal_status"] = recorded
     mode = finance.get("payment_mode")
+    milestone_id = finance_milestone_id(pledge)
+    await ensure_finance_milestone(pledge, milestone_id)
     base = {
         "pledge_id": pledge["_id"],
-        "milestone_id": pledge.get("milestone_id"),
+        "milestone_id": milestone_id,
         "amount_eur": pledge.get("amount_eur"),
         "currency": "EUR",
         "paypal_status": recorded,
@@ -698,7 +750,7 @@ async def _finish_capture(pledge: dict, payload: Any, *, finance: dict) -> dict:
     audit_fields = {
         "actor": "treasurer",
         "pledge_id": pledge["_id"],
-        "milestone_id": pledge.get("milestone_id"),
+        "milestone_id": milestone_id,
         "amount_eur": pledge.get("amount_eur"),
         "currency": "EUR",
         "paypal_status": recorded,
@@ -713,7 +765,7 @@ async def _finish_capture(pledge: dict, payload: Any, *, finance: dict) -> dict:
         pledge["history"] = list(pledge.get("history") or []) + ["captured"]
         saved = await get_ledger().save_pledge(pledge)
         await record("capture", status="captured", **audit_fields)
-        await record_finance("pledge_captured", status="captured", **base)
+        await record_pledge_captured_once(saved, actor="treasurer")
         return saved
     if status == "PENDING":
         pledge["status"] = "pending"

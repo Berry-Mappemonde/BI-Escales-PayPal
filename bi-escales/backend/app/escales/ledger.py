@@ -497,6 +497,22 @@ def _stopover_slug(value: str) -> str:
     return _slug(str(value or ""))
 
 
+def _leg_id(milestone_id: str) -> Optional[str]:
+    """Canonical cabin-leg id, or None when this is a stopover."""
+    from .naviguide_bridge import leg_by_id, resolve_milestone
+
+    token = str(milestone_id or "").strip()
+    if not token:
+        return None
+    leg = leg_by_id(token)
+    if leg:
+        return str(leg["id"])
+    resolved = resolve_milestone(token)
+    if resolved and str(resolved).startswith("leg-"):
+        return str(resolved)
+    return None
+
+
 async def _require_stopover(milestone_id: str) -> str:
     from .pledges import _known_stopover
 
@@ -593,13 +609,47 @@ async def _assemble_fund(milestone_id: str, entries: list[dict]) -> dict:
         "overdrawn": spending_total > income_total,
         "income": [await _income_line(entry) for entry in income],
         "spending": [_public_finance(entry) for entry in spending],
+        "captured_eur": _euros_text(income_total),
+        "authorized_eur": "0.00",
     }
+
+
+def _pledge_on_stop(row: dict, slug: str) -> bool:
+    return _stopover_slug(str(row.get("milestone_id") or "")) == slug
+
+
+def _pledge_on_leg(row: dict, leg_id: str) -> bool:
+    return str(row.get("milestone_id") or "") == leg_id or str(row.get("target_id") or "") == leg_id
+
+
+def _pledge_in_bucket(row: dict, bucket: str) -> bool:
+    return _entry_in_unplaced(
+        {
+            "milestone_id": row.get("milestone_id"),
+            "pledge_kind": row.get("kind"),
+            "target_id": row.get("target_id"),
+            "kind": "pledge_captured",
+        },
+        bucket,
+    )
+
+
+async def _authorized_eur(match) -> str:
+    """Sum of pledges still authorized. Captured money stays in the journal."""
+    total = Decimal("0.00")
+    for row in await get_ledger().list_pledges():
+        if not row or row.get("status") != "authorized":
+            continue
+        if match(row):
+            total += _euros(row.get("amount_eur"))
+    return _euros_text(total)
 
 
 async def fund_for_milestone(milestone_id: str) -> dict:
     """Income is captured pledges. Spending is what the treasurer entered.
 
-    ``dep-lorient`` and ``lorient`` are the same stopover. Unknown slugs raise
+    ``dep-lorient`` and ``lorient`` are the same stopover. A cabin leg is its
+    own fund (``leg-…``), not the ports at either end. Unknown slugs raise
     ``LookupError``. ``overdrawn`` is true when spending is above income.
 
     ``project`` and ``fund`` are the treasurer totals for pledges that left
@@ -610,14 +660,28 @@ async def fund_for_milestone(milestone_id: str) -> dict:
         rows = [
             entry for entry in await list_finance_entries() if _entry_in_unplaced(entry, bucket)
         ]
-        return await _assemble_fund(bucket, rows)
+        fund = await _assemble_fund(bucket, rows)
+        fund["authorized_eur"] = await _authorized_eur(lambda row: _pledge_in_bucket(row, bucket))
+        return fund
+    leg_id = _leg_id(milestone_id)
+    if leg_id:
+        rows = [
+            entry
+            for entry in await list_finance_entries()
+            if str(entry.get("milestone_id") or "") == leg_id
+        ]
+        fund = await _assemble_fund(leg_id, rows)
+        fund["authorized_eur"] = await _authorized_eur(lambda row: _pledge_on_leg(row, leg_id))
+        return fund
     slug = await _require_stopover(milestone_id)
     rows = [
         entry
         for entry in await list_finance_entries()
         if _stopover_slug(str(entry.get("milestone_id") or "")) == slug
     ]
-    return await _assemble_fund(slug, rows)
+    fund = await _assemble_fund(slug, rows)
+    fund["authorized_eur"] = await _authorized_eur(lambda row: _pledge_on_stop(row, slug))
+    return fund
 
 
 async def record_spending(milestone_id: str, amount_eur: str, description: str) -> dict:

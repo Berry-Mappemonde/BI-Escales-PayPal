@@ -191,6 +191,44 @@ def test_paypal_order_not_approved_is_409_not_502(api):
     assert client.get(f"/api/escales/pledges/{created.json()['id']}").json()["status"] == "created"
 
 
+def test_cabin_leg_capture_lands_in_the_leg_fund(api):
+    """80 EUR captured on a cabin is the leg fund, not La Rochelle or Ajaccio."""
+    import asyncio
+
+    from app.escales.ledger import get_ledger, list_finance_entries
+
+    client, _fake = api
+    leg = "leg-la-rochelle-to-ajaccio-corse"
+    _created, authorized = _ready(client, "cabin-fund", {
+        "amount_eur": "80.00",
+        "description": "cabine La Rochelle Ajaccio",
+        "milestone_id": leg,
+        "kind": "cabin_leg",
+    })
+    captured = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
+    assert captured.status_code == 200, captured.text
+
+    leg_fund = client.get(f"/api/escales/milestones/{leg}/fund")
+    assert leg_fund.status_code == 200, leg_fund.text
+    assert leg_fund.json()["income_eur"] == "80.00"
+    assert leg_fund.json()["milestone_id"] == leg
+    for stop in ("dep-la-rochelle", "dep-ajaccio-corse"):
+        other = client.get(f"/api/escales/milestones/{stop}/fund")
+        assert other.status_code == 200, other.text
+        assert other.json()["income_eur"] == "0.00"
+
+    async def stored():
+        return await get_ledger().get_milestone(leg), await list_finance_entries()
+
+    doc, entries = asyncio.run(stored())
+    assert doc is not None and doc["_id"] == leg
+    rows = [row for row in entries if row["kind"] == "pledge_captured"]
+    assert len(rows) == 1
+    assert rows[0]["milestone_id"] == leg
+    assert rows[0]["amount_eur"] == "80.00"
+    assert rows[0]["pledge_kind"] == "cabin_leg"
+
+
 def test_cabin_leg_and_the_approval_gate_stay_together(api):
     """#16 legs and the 1ed5321 approval gate, on the same service."""
     client, fake = api

@@ -16,6 +16,7 @@ import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadEscaleFiche } from "./marinas/escaleFiche.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
+import { matchVoyageStop } from "./voyage/milestoneId.js";
 import { formatCivilDate } from "./voyage/voyageClock.js";
 import "./styles/app.css";
 
@@ -114,6 +115,9 @@ export default function App() {
     setStop(next);
     setMilestoneId(next.milestoneId);
     setDescription((prev) => prev || next.name);
+    if (Number.isFinite(next.lat) && Number.isFinite(next.lon)) {
+      setFlyTo({ lat: next.lat, lon: next.lon, ts: Date.now() });
+    }
   };
 
   const onAuthorized = useCallback((pledge: PublicPledge) => {
@@ -205,11 +209,9 @@ export default function App() {
               schedule={schedule}
               features={features}
               onSelectEscale={(event: { milestoneId?: string; name?: string }) => {
-                if (event.milestoneId) setMilestoneId(event.milestoneId);
-                const match = (voyage?.stops || []).find(
-                  (item: VoyageStop) => item.milestoneId === event.milestoneId || item.name === event.name,
-                );
+                const match = matchVoyageStop(voyage?.stops || [], event);
                 if (match) chooseStop(match);
+                else if (event.milestoneId) setMilestoneId(event.milestoneId);
               }}
             />
             <EscalesPanel

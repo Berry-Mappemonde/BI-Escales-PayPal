@@ -399,8 +399,8 @@ def test_number_guard_rewrites_amounts_into_the_reply_language(monkeypatch):
 
     async def fake_ask_text(prompt, system=None, **_kwargs):
         if system and "English" in system:
-            return "The price is 120,00 €. 120 sponsored miles, lorient, AUTHORIZE."
-        return "Le montant est 120.00 EUR. 120 milles parrainés, Lorient, AUTHORIZE."
+            return "120 sponsored miles, lorient, 120,00 €, AUTHORIZE."
+        return "120 milles parrainés, Lorient, 120.00 EUR, AUTHORIZE."
 
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
     monkeypatch.setattr(llm, "ask_text", fake_ask_text)
@@ -1258,7 +1258,7 @@ def test_leg_name_is_a_prefix_not_a_filler_sentence(monkeypatch):
     import app.core.llm as llm
 
     replies = [
-        "La preuve NAVIGUIDE est une simulation. Dakar is 80 nautical miles away.",
+        "La preuve NAVIGUIDE est une simulation pour cette escale. Dakar is 80 nautical miles away.",
         "The NAVIGUIDE simulation evidence covers 80 nautical miles. Dakar is 80 nautical miles away.",
     ]
 
@@ -1493,7 +1493,8 @@ def test_dakar_not_reached_filters_distance_left(monkeypatch):
     english = captain._report_system("dakar", reached=False, lang="en")
     assert "en route vers Dakar" in french
     assert "jamais « à Dakar »" in french
-    assert "toward Dakar" in english
+    assert "heading toward Dakar" in english
+    assert not re.search(r"\bis toward\b", english)
 
     replies = [
         "Nous avons parcouru 80 milles nautiques à Dakar. La preuve NAVIGUIDE est une simulation.",
@@ -1542,6 +1543,135 @@ def test_french_reply_standardises_intention_and_the_treasurer(monkeypatch):
         assert "Le Trésorier" not in reply
         assert "le trésorier" in reply
         assert reply.lower().count("promesse calculée") == 0
+
+    asyncio.run(body())
+
+
+def test_english_report_keeps_a_tie_and_accepts_naviguide_miles(monkeypatch):
+    import app.core.llm as llm
+
+    sample = "NAVIGUIDE simulation reports 120 nautical miles covered at Lorient."
+    assert captain._report_language(sample) == "en"
+    assert captain._report_language(sample, "en") == "en"
+    assert captain._report_language("Lorient.", "en") == "en"
+    assert captain._report_language("Lorient.", "fr") == "fr"
+    assert captain._report_language("Le trésorier seul décide pour cette preuve.", "en") == "fr"
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return sample
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "capture", "reason": "met"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence("lorient", met=True, facts={"distance_nm": 120})
+        result = await review("lorient", reader=None, lang="en")
+        assert result["model_source"]["provider"] == "llm"
+        assert "simulation reports 120 nautical miles covered at Lorient" in result["report"]
+        assert "Milestone Lorient was reached" in result["report"]
+
+    asyncio.run(body())
+
+
+def test_reached_leg_keeps_miles_covered_from_the_port(monkeypatch):
+    import app.core.llm as llm
+
+    sentence = "The vessel covered 120 nautical miles from Lorient."
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return sentence
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "capture", "reason": "met"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence("lorient", met=True, facts={"distance_nm": 120})
+        result = await review("lorient", reader=None, lang="en")
+        assert "120 nautical miles from Lorient" in result["report"]
+        assert "Milestone Lorient was reached" in result["report"]
+        assert result["model_source"]["provider"] == "llm"
+
+    asyncio.run(body())
+
+
+def test_not_reached_prompt_says_heading_toward_and_rewrites_is_toward(monkeypatch):
+    import app.core.llm as llm
+
+    prompt = captain._report_system("lorient", reached=False, lang="en")
+    assert "heading toward Lorient" in prompt
+    assert not re.search(r"\bis toward\b", prompt)
+    assert captain._heading_toward("The boat is toward Lorient.") == "The boat is heading toward Lorient."
+    assert captain._heading_toward("The boat is heading toward Lorient.") == (
+        "The boat is heading toward Lorient."
+    )
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "The boat is toward Lorient. NAVIGUIDE simulation covers the leg."
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "void", "reason": "open"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence("lorient", met=False, facts={"distance_nm": 120})
+        result = await review("lorient", reader=None, lang="en")
+        assert "is heading toward Lorient" in result["report"]
+        assert not re.search(r"\bis toward\b", result["report"])
+        assert "NAVIGUIDE simulation covers the leg" in result["report"]
+
+    asyncio.run(body())
+
+
+def test_distorted_port_names_map_when_close():
+    assert captain._canonical_slug("lorien") == "lorient"
+    assert captain._canonical_slug("lorain") == "lorient"
+    assert captain._canonical_slug("dakra") == "dakar"
+    assert captain._canonical_slug("best") is None
+    assert captain._canonical_slug("orain") is None
+    pledge = captain.suggest_pledge("Je parraine 10 milles près de Lorain")
+    assert pledge["milestone_id"] == "lorient"
+    shown = captain._fix_port_typos("Left lorain, then Lorien, for Dakar.")
+    assert shown == "Left Lorient, then Lorient, for Dakar."
+    assert "best" in captain._fix_port_typos("The best evidence stands.")
+
+
+def test_pledge_amount_without_the_port_is_replaced(monkeypatch):
+    import app.core.llm as llm
+
+    class Answer:
+        def __init__(self, text):
+            self.text = text
+            self.provider = "nim_fallback"
+            self.model = "nvidia/nemotron-3.5-lightning-30b-a3b"
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return Answer(
+            "Promesse notée : 20 milles parrainés (20,00 €), autorisation. Le ciel est clair."
+        )
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 20 milles près de Dakar")
+        reply = result["reply"]
+        assert result["model_source"]["provider"] == "nim_fallback"
+        assert reply.count("20,00 €") == 1
+        assert "Dakar" in reply
+        assert "Promesse calculée, sans débit" in reply
+        assert "Promesse notée" not in reply
+        assert "Le ciel est clair" in reply
 
     asyncio.run(body())
 

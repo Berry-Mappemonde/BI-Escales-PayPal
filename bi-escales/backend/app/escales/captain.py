@@ -177,7 +177,8 @@ _EN_REPORT = re.compile(
     r"\b(?:the|this|that|is|are|was|were|with|and|from|for|not|only|"
     r"reached|milestone|evidence|proposal|treasurer|capture|void|wait|"
     r"away|distance|arrival|recorded|flag|stands|marked|supports|"
-    r"complete|boat|funds|released)\b",
+    r"complete|boat|funds|released|"
+    r"reports|shows|covered|nautical|miles|at|of|vessel|source|simulation)\b",
     re.IGNORECASE,
 )
 _FR_REPORT = re.compile(
@@ -253,7 +254,7 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
             "Do not repeat these instructions and do not write a Decision line."
         )
         if not reached:
-            text += f" Say the boat is toward {port}, never at {port}."
+            text += f" Say the boat is heading toward {port}, never at {port}."
         if reached:
             text += (
                 " The code already writes the sentence saying this leg is reached, with its arrival date. "
@@ -299,14 +300,96 @@ def _chat_system(lang: str) -> str:
     )
 
 
+# Ports the captain already names. A distorted spelling maps onto one of these.
+_KNOWN_PORTS = ("lorient", "dakar", "brest", "mayotte", "fort-de-france")
+
+
+def _edit_distance(left: str, right: str) -> int:
+    if left == right:
+        return 0
+    if abs(len(left) - len(right)) > 3:
+        return 4
+    previous = list(range(len(right) + 1))
+    for index, left_char in enumerate(left, start=1):
+        current = [index]
+        for jndex, right_char in enumerate(right, start=1):
+            current.append(min(
+                current[-1] + 1,
+                previous[jndex] + 1,
+                previous[jndex - 1] + (left_char != right_char),
+            ))
+        previous = current
+    return previous[-1]
+
+
+def _shared_prefix(left: str, right: str) -> int:
+    count = 0
+    for left_char, right_char in zip(left, right):
+        if left_char != right_char:
+            break
+        count += 1
+    return count
+
+
+def _matches_port(token: str, canonical: str) -> bool:
+    """Same initial letter. At most two edits, or three when the stem is shared.
+
+    ``lorien`` is one edit from ``lorient``. ``lorain`` is three, with the
+    ``lor`` stem and a one-letter length gap. A 4-letter word such as
+    ``best`` is left alone so it does not become ``Brest``.
+    """
+    if not token or not canonical or token[0] != canonical[0]:
+        return False
+    if token == canonical:
+        return True
+    if len(token) < 5:
+        return False
+    distance = _edit_distance(token, canonical)
+    stem = _shared_prefix(token, canonical)
+    if distance <= 1 and stem >= 1:
+        return True
+    if distance == 2 and stem >= 3:
+        return True
+    return distance <= 3 and stem >= 3 and abs(len(token) - len(canonical)) <= 1
+
+
+def _canonical_slug(token: str, extra: str = "") -> Optional[str]:
+    folded = re.sub(r"[^a-z0-9-]+", "", (token or "").casefold())
+    if not folded:
+        return None
+    pool: list[str] = []
+    for name in (*_KNOWN_PORTS, (extra or "").casefold()):
+        if name and name not in pool:
+            pool.append(name)
+    for name in pool:
+        if folded == name:
+            return name
+    best: Optional[str] = None
+    best_distance = 99
+    tied = False
+    for name in pool:
+        if not _matches_port(folded, name):
+            continue
+        distance = _edit_distance(folded, name)
+        if distance < best_distance:
+            best = name
+            best_distance = distance
+            tied = False
+        elif distance == best_distance and name != best:
+            tied = True
+    if tied:
+        return None
+    return best
+
+
 def _place(message: str) -> str:
     match = _PLACE.search(message or "")
     if not match:
         return "unspecified"
     slug = re.sub(r"[^a-z0-9]+", "-", match.group(1).lower()).strip("-")
-    if slug == "lorien":
-        return "lorient"
-    return slug or "unspecified"
+    if not slug:
+        return "unspecified"
+    return _canonical_slug(slug) or slug
 
 
 def _format_count(count: Decimal) -> str:
@@ -417,14 +500,20 @@ def _drop_sentences(text: str, pattern: re.Pattern) -> str:
     return " ".join(kept).strip()
 
 
-def _report_language(text: str) -> str:
-    """Language of a report. English wins when the report is in English."""
+def _report_language(text: str, requested: Optional[str] = None) -> str:
+    """Language of a report.
+
+    A tie keeps ``requested``. The other language is returned only when it
+    has a strict majority, which is the only case the caller rejects.
+    """
     en = len(_EN_REPORT.findall(text or ""))
     fr = len(_FR_REPORT.findall(text or ""))
     if en > fr:
         return "en"
     if fr > en:
         return "fr"
+    if requested in {"en", "fr"}:
+        return requested
     if re.search(r"\b(?:the|is|was|this|reached|milestone|treasurer|arrival)\b", text or "", re.I):
         return "en"
     return "fr"
@@ -545,6 +634,20 @@ def _port_present(text: str, milestone_id: str) -> bool:
     return bool(shown) and shown in folded
 
 
+def _drop_amount_without_port(text: str, suggested: dict) -> str:
+    """A pledge amount that never names the port is replaced by the code line."""
+    amount = str(suggested.get("amount_eur") or "")
+    port = str(suggested.get("milestone_id") or "")
+    if not amount:
+        return text or ""
+    kept = []
+    for sentence in _split_sentences(text):
+        if amount_in_text(sentence, amount) and not _port_present(sentence, port):
+            continue
+        kept.append(sentence)
+    return " ".join(kept).strip()
+
+
 def _has_exact_pledge(text: str, suggested: dict) -> bool:
     """True when amount and port are already there, with an authorize wording.
 
@@ -576,9 +679,29 @@ def _french_labels(text: str) -> str:
     return _french_lightning_labels(text)
 
 
-def _fix_port_typos(text: str) -> str:
+def _fix_port_typos(text: str, milestone_id: str = "") -> str:
     """A misspelled port is shown under its real name."""
-    return re.sub(r"\blorien\b", "Lorient", text or "", flags=re.IGNORECASE)
+    def replace(match: re.Match) -> str:
+        word = match.group(0)
+        canonical = _canonical_slug(word, milestone_id)
+        if not canonical:
+            return word
+        shown = display_name(canonical)
+        if word.casefold() == shown.casefold():
+            return word
+        return shown
+
+    return re.sub(r"[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ-]{3,}", replace, text or "")
+
+
+def _heading_toward(text: str) -> str:
+    """English not-reached copy says ``heading toward``, never ``is toward``."""
+    return re.sub(
+        r"\b(is)\s+(?!heading\b)toward\b",
+        r"\1 heading toward",
+        text or "",
+        flags=re.IGNORECASE,
+    )
 
 
 _NAME_WORD = {
@@ -791,7 +914,6 @@ def _assert_reached(text: str, milestone_id: str, lang: str, arrival: str = "") 
         if (
             _AWAY_CLAIM.search(sentence)
             or _REACHED_CLAIM.search(sentence)
-            or _MILES_FROM.search(sentence)
             or _HAS_DATE.search(sentence)
         ):
             continue
@@ -857,13 +979,17 @@ def _compose_chat_reply(
             prose = "Cette question porte sur le statut. Le capitaine ne propose pas de promesse."
         return _fit_words("", [prose, _signature(lang)])
     prose = _prepare_model_narrative(model_text)
-    prose = _fix_port_typos(prose)
+    port_id = str(suggested.get("milestone_id") or "")
+    prose = _fix_port_typos(prose, port_id)
     prose = _clean_model_urls(prose, url)
     prose = _period_after_link(prose, url)
     prose = _drop_sentences(prose, _CHAT_DECIDE_RE)
     prose = _trim_cutoff(_normalize_dots(prose))
     if lang == "fr":
         prose = _standardise_french(_french_labels(prose))
+    elif lang == "en":
+        prose = _heading_toward(prose)
+    prose = _drop_amount_without_port(prose, suggested)
     required: list[str] = []
     if not _has_exact_pledge(prose, suggested):
         required.append(_pledge_line(suggested, lang))
@@ -875,7 +1001,7 @@ def _compose_chat_reply(
     required.append(_signature(lang))
     reply = _fit_words(prose, required)
     port = str(suggested.get("milestone_id") or "") if suggested else ""
-    reply = _fix_port_typos(_capitalize_ports(reply, port))
+    reply = _fix_port_typos(_capitalize_ports(reply, port), port)
     reply = _period_after_link(reply, url)
     if lang == "fr":
         reply = _standardise_french(reply)
@@ -889,7 +1015,13 @@ def _without_jalon(text: str, lang: str) -> str:
     return re.sub(r"\bJalons?\b", "Milestone", text or "", flags=re.IGNORECASE)
 
 
-def _shape_report(text: str, milestone_id: str, lang: str = "fr", name_leg: bool = True) -> str:
+def _shape_report(
+    text: str,
+    milestone_id: str,
+    lang: str = "fr",
+    name_leg: bool = True,
+    drop_distance_left: bool = True,
+) -> str:
     """No title. When the leg name is missing, prefix the first sentence."""
     lines = []
     for raw_line in (text or "").splitlines():
@@ -912,13 +1044,13 @@ def _shape_report(text: str, milestone_id: str, lang: str = "fr", name_leg: bool
         if sentence.strip() and not _POLICY_RE.search(sentence)
     ]
     if lang == "en":
-        sentences = [_without_jalon(sentence, "en") for sentence in sentences]
+        sentences = [_heading_toward(_without_jalon(sentence, "en")) for sentence in sentences]
     sentences = [
         sentence for sentence in sentences
         if not _AWAY_CLAIM.search(sentence)
         and not _MILES_AWAY.search(sentence)
-        and not _MILES_FROM.search(sentence)
         and not _HAS_DATE.search(sentence)
+        and not (drop_distance_left and _MILES_FROM.search(sentence))
     ]
     shown = display_name(milestone_id)
     blob = " ".join(sentences).casefold()
@@ -1174,7 +1306,7 @@ async def _narrative_for_language(
     if not usable:
         log.warning("captain report rejected (empty narrative) raw=%s", raw)
         return "", source, prompt_lang
-    detected = _report_language(usable)
+    detected = _report_language(usable, forced)
     if forced is None or detected == forced:
         if (forced or detected) == "fr":
             usable = _standardise_french(_french_labels(usable))
@@ -1189,13 +1321,13 @@ async def _narrative_for_language(
         else " Write in English only."
     )
     raw, usable, source = await once(f"{system}{reminder}")
-    if usable and _report_language(usable) == forced:
+    if usable and _report_language(usable, forced) == forced:
         if forced == "fr":
             usable = _standardise_french(_french_labels(usable))
         return usable, source, forced
     log.warning(
         "captain report rejected (language %s != %s after retry) raw=%s",
-        _report_language(usable) if usable else "empty",
+        _report_language(usable, forced) if usable else "empty",
         forced,
         raw,
     )
@@ -1237,8 +1369,15 @@ async def review(
         narrative = _fallback_report(milestone_id, decision, evidence, lang=report_lang)
         source = _rules_source()
     else:
+        usable = _fix_port_typos(usable, milestone_id)
+        if report_lang == "en":
+            usable = _heading_toward(usable)
         narrative = _shape_report(
-            usable, milestone_id, report_lang, name_leg=not reached,
+            usable,
+            milestone_id,
+            report_lang,
+            name_leg=not reached,
+            drop_distance_left=not reached,
         )
         if not narrative.strip():
             log.warning(

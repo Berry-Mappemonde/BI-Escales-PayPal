@@ -2209,3 +2209,73 @@ def test_local_time_eta_for_dakar_lorient_and_pointe_a_pitre():
     mayotte = captain.suggest_pledge("2 nuits près de Mayotte")
     mayotte_cart = captain.pledge_cart("2 nuits près de Mayotte", "fr", mayotte)
     assert mayotte_cart["eta"] == "2026-09-01T08:00:00+00:00"
+
+
+def test_treasurer_sentence_is_added_when_the_model_omits_it(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "La mer est calme."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Dakar")
+        reply = result["reply"]
+        sentence = "Seul le trésorier décide si l'argent est prélevé ou libéré."
+        assert reply.count(sentence) == 1
+        assert "La mer est calme" in reply
+        assert len(reply.split()) <= 80
+
+    asyncio.run(body())
+
+
+def test_charge_claim_falls_back_to_the_rules_text(monkeypatch):
+    import app.core.llm as llm
+
+    replies = [
+        "Votre carte sera débitée demain. La mer est calme.",
+        "The amount will be charged tonight. The sea is calm.",
+    ]
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return replies.pop(0)
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        french = await chat("Je parraine 10 milles près de Dakar")
+        reply = french["reply"]
+        assert "sera débit" not in reply.casefold()
+        assert "Votre carte" not in reply
+        assert "La mer est calme" not in reply
+        assert "Seul le trésorier décide si l'argent est prélevé ou libéré." in reply
+        assert "10,00 €" in reply
+        assert "10 milles parrainés" in reply
+        english = await chat("I'd like to sponsor 10 nautical miles near Lorient")
+        english_reply = english["reply"]
+        assert "charged" not in english_reply.casefold()
+        assert "The sea is calm" not in english_reply
+        assert "The captain does not capture or void; only the treasurer can." in english_reply
+        assert "10.00 EUR" in english_reply
+        assert "10 sponsored miles" in english_reply
+
+    asyncio.run(body())
+
+
+def test_to_the_project_and_au_projet_are_project_pledges():
+    phrases = (
+        ("25 € au projet près de Dakar", "fr", "25.00"),
+        ("20 EUR to the project near Dakar", "en", "20.00"),
+        ("15 EUR towards the project near Dakar", "en", "15.00"),
+    )
+    for text, lang, amount in phrases:
+        pledge = captain.suggest_pledge(text, lang=lang)
+        assert pledge["kind"] == "project_pledge"
+        assert pledge["amount_eur"] == amount
+        cart = captain.pledge_cart(text, lang, pledge)
+        assert [line["kind"] for line in cart["lines"]] == ["project_pledge"]
+        assert cart["lines"][0]["amount_eur"] == amount
+        assert cart["lines"][0]["pledge"]["kind"] == "project_pledge"

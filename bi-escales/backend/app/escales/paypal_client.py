@@ -308,6 +308,37 @@ class PayPalClient:
             idempotency_key=idempotency_key or paypal_request_id(reference_id, "vault-order"),
         )
 
+    def create_card_authorize_order(
+        self,
+        amount_eur: str,
+        description: str,
+        reference_id: str,
+        *,
+        return_url: str,
+        cancel_url: str,
+        idempotency_key: Optional[str] = None,
+        checkout_locale: Optional[str] = None,
+    ) -> dict:
+        """Advanced card checkout: AUTHORIZE with SCA_WHEN_REQUIRED (see REVIEW_E2E.md card confirm path)."""
+        body = {
+            "intent": "AUTHORIZE",
+            "payment_source": {
+                "card": {
+                    "attributes": {"verification": {"method": "SCA_WHEN_REQUIRED"}},
+                    "experience_context": self._experience_context(
+                        return_url, cancel_url, locale=checkout_locale,
+                    ),
+                },
+            },
+            "purchase_units": [self._purchase_unit(reference_id, description, amount_eur)],
+        }
+        return self._req(
+            "POST",
+            "/v2/checkout/orders",
+            body,
+            idempotency_key=idempotency_key or paypal_request_id(reference_id, "card-order"),
+        )
+
     def authorize_order(self, order_id: str, *, pledge_id: Optional[str] = None) -> dict:
         ref = pledge_id or order_id
         return self._req(
@@ -380,6 +411,37 @@ class PayPalClient:
             "/v3/vault/setup-tokens",
             body,
             idempotency_key=idempotency_key or paypal_request_id(customer_id, "setup-token"),
+        )
+
+    def create_card_setup_token(
+        self,
+        return_url: str,
+        cancel_url: str,
+        *,
+        customer_id: str,
+        idempotency_key: Optional[str] = None,
+        checkout_locale: Optional[str] = None,
+    ) -> dict:
+        """Vault setup token for a card (SCA_WHEN_REQUIRED), same pattern as wallet setup tokens."""
+        body = {
+            "customer": {"id": str(customer_id)[:127]},
+            "payment_source": {
+                "card": {
+                    "usage_type": "MERCHANT",
+                    "usage_pattern": "UNSCHEDULED_POSTPAID",
+                    "permit_multiple_payment_tokens": False,
+                    "attributes": {"verification": {"method": "SCA_WHEN_REQUIRED"}},
+                    "experience_context": self._experience_context(
+                        return_url, cancel_url, locale=checkout_locale,
+                    ),
+                },
+            },
+        }
+        return self._req(
+            "POST",
+            "/v3/vault/setup-tokens",
+            body,
+            idempotency_key=idempotency_key or paypal_request_id(customer_id, "card-setup-token"),
         )
 
     def create_payment_token(self, setup_token_id: str, *, pledge_id: Optional[str] = None) -> dict:

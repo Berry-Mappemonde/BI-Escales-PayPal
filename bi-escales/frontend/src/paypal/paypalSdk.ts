@@ -24,6 +24,31 @@ export function paypalSdkUrl(clientId: string): string {
   return `https://www.paypal.com/sdk/js?${params.toString()}`;
 }
 
+/** Card Fields + wallet buttons when the matching ESCALES_* flags are on (paypalSdk.ts pattern). */
+export function paypalCardFieldsSdkUrl(clientId: string): string {
+  const params = new URLSearchParams({
+    "client-id": clientId,
+    components: "card-fields,buttons,messages",
+    intent: "authorize",
+    currency: "EUR",
+    vault: "true",
+    "disable-funding": "venmo",
+  });
+  return `https://www.paypal.com/sdk/js?${params.toString()}`;
+}
+
+export function paypalWalletPaySdkUrl(clientId: string): string {
+  const params = new URLSearchParams({
+    "client-id": clientId,
+    components: "applepay,googlepay,buttons,messages",
+    intent: "authorize",
+    currency: "EUR",
+    vault: "true",
+    "disable-funding": "venmo",
+  });
+  return `https://www.paypal.com/sdk/js?${params.toString()}`;
+}
+
 export function paypalSubscriptionSdkUrl(clientId: string): string {
   const params = new URLSearchParams({
     "client-id": clientId,

@@ -171,6 +171,21 @@ def vault_enabled() -> bool:
     return os.environ.get("ESCALES_VAULT_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def card_fields_enabled() -> bool:
+    """JS SDK Card Fields and card payment_source on orders/setup tokens. Off by default."""
+    return os.environ.get("ESCALES_CARD_FIELDS_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def vault_on_purchase_enabled() -> bool:
+    """Save the payer method during an AUTHORIZE checkout (store_in_vault ON_SUCCESS). Off by default."""
+    return os.environ.get("ESCALES_VAULT_ON_PURCHASE_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def wallet_pay_enabled() -> bool:
+    """Apple Pay and Google Pay SDK components. Off by default; needs sandbox domain registration."""
+    return os.environ.get("ESCALES_WALLET_PAY_ENABLED", "").strip().lower() in _TRUTHY
+
+
 def vault_return_url() -> str:
     default = f"{public_base_url()}/?vault=return"
     return (os.environ.get("ESCALES_VAULT_RETURN_URL") or default).strip()

@@ -383,6 +383,55 @@ def _create_authorize_order(client: Any, **kwargs: Any) -> dict:
         return client.create_authorize_order(**slim)
 
 
+def _create_authorize_vault_order(client: Any, **kwargs: Any) -> dict:
+    create = getattr(client, "create_authorize_vault_order", None)
+    if create is None:
+        raise PayPalError(502, "vault-on-purchase unavailable")
+    try:
+        return create(**kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if "checkout_locale" not in message:
+            raise
+        slim = {key: value for key, value in kwargs.items() if key != "checkout_locale"}
+        return create(**slim)
+
+
+def _normalize_checkout_method(raw: Optional[str]) -> str:
+    token = (raw or "wallet").strip().lower()
+    if token not in {"wallet", "card"}:
+        raise ValueError("checkout_method must be wallet or card")
+    return token
+
+
+def _create_card_authorize_order(client: Any, **kwargs: Any) -> dict:
+    create = getattr(client, "create_card_authorize_order", None)
+    if create is None:
+        raise PayPalError(502, "card checkout unavailable")
+    try:
+        return create(**kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if "checkout_locale" not in message:
+            raise
+        slim = {key: value for key, value in kwargs.items() if key != "checkout_locale"}
+        return create(**slim)
+
+
+def _create_card_setup_token(client: Any, **kwargs: Any) -> dict:
+    create = getattr(client, "create_card_setup_token", None)
+    if create is None:
+        raise PayPalError(502, "card vault setup unavailable")
+    try:
+        return create(**kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if "checkout_locale" not in message:
+            raise
+        slim = {key: value for key, value in kwargs.items() if key != "checkout_locale"}
+        return create(**slim)
+
+
 def _buyer_approved(client: Any, order_id: str) -> bool:
     """True when PayPal shows APPROVED or COMPLETED.
 
@@ -449,6 +498,7 @@ async def create_pledge(
     cancel_url: Optional[str] = None,
     caller_origin: Optional[str] = None,
     checkout_locale: Optional[str] = None,
+    checkout_method: Optional[str] = None,
 ) -> dict:
     amount = normalize_amount(amount_eur)
     description = _require_text(description, "description")
@@ -526,6 +576,7 @@ async def create_pledge(
             kind=pledge_kind,
             target_id=resolved_target,
             checkout_locale=checkout_locale,
+            checkout_method=checkout_method,
         )
     return await _create_authorize_pledge(
         amount=amount,
@@ -540,6 +591,7 @@ async def create_pledge(
         cancel_url=cancel_url,
         caller_origin=caller_origin,
         checkout_locale=checkout_locale,
+        checkout_method=checkout_method,
     )
 
 
@@ -557,6 +609,7 @@ async def _create_authorize_pledge(
     cancel_url: Optional[str] = None,
     caller_origin: Optional[str] = None,
     checkout_locale: Optional[str] = None,
+    checkout_method: Optional[str] = None,
 ) -> dict:
     key = _client_key(client_key)
     ledger = get_ledger()
@@ -566,6 +619,11 @@ async def _create_authorize_pledge(
             return existing
     pledge_id = uuid.uuid4().hex
     idempotency_key = key or uuid.uuid4().hex
+    method = _normalize_checkout_method(checkout_method)
+    from .config import card_fields_enabled, vault_on_purchase_enabled
+
+    if method == "card" and not card_fields_enabled():
+        raise ValueError("card checkout is disabled")
     back = _callback_url(
         _http_url(return_url, order_return_url(), "return_url", caller_origin=caller_origin),
         pledge_id,
@@ -576,8 +634,7 @@ async def _create_authorize_pledge(
         pledge_id,
         "cancel",
     )
-    order = _create_authorize_order(
-        client,
+    order_kwargs = dict(
         amount_eur=amount,
         description=description,
         reference_id=pledge_id,
@@ -586,6 +643,12 @@ async def _create_authorize_pledge(
         cancel_url=cancel,
         checkout_locale=checkout_locale,
     )
+    if method == "card":
+        order = _create_card_authorize_order(client, **order_kwargs)
+    elif vault_on_purchase_enabled():
+        order = _create_authorize_vault_order(client, **order_kwargs)
+    else:
+        order = _create_authorize_order(client, **order_kwargs)
     order_id = order.get("id")
     if not order_id:
         raise PayPalError(502, "order id missing")
@@ -613,6 +676,8 @@ async def _create_authorize_pledge(
         "vault_id": None,
         "vault_source": None,
         "setup_token_id": None,
+        "checkout_method": method,
+        "vault_on_purchase": vault_on_purchase_enabled() and method != "card",
         "checkout_locale": (checkout_locale or "").strip() or None,
         "created_at": now_iso(),
         "history": ["created"],
@@ -645,6 +710,7 @@ async def _create_vault_pledge(
     kind: str,
     target_id: str,
     checkout_locale: Optional[str] = None,
+    checkout_method: Optional[str] = None,
 ) -> dict:
     key = _client_key(client_key)
     ledger = get_ledger()
@@ -654,13 +720,30 @@ async def _create_vault_pledge(
             return existing
     pledge_id = uuid.uuid4().hex
     idempotency_key = key or uuid.uuid4().hex
-    setup = client.create_setup_token(
-        _vault_callback_url(vault_return_url(), pledge_id, "return"),
-        _vault_callback_url(vault_cancel_url(), pledge_id, "cancel"),
-        customer_id=sponsor_customer_id(pledge_id, contributor),
-        idempotency_key=idempotency_key,
-        checkout_locale=checkout_locale,
-    )
+    method = _normalize_checkout_method(checkout_method)
+    from .config import card_fields_enabled
+
+    if method == "card" and not card_fields_enabled():
+        raise ValueError("card checkout is disabled")
+    back = _vault_callback_url(vault_return_url(), pledge_id, "return")
+    cancel = _vault_callback_url(vault_cancel_url(), pledge_id, "cancel")
+    if method == "card":
+        setup = _create_card_setup_token(
+            client,
+            return_url=back,
+            cancel_url=cancel,
+            customer_id=sponsor_customer_id(pledge_id, contributor),
+            idempotency_key=idempotency_key,
+            checkout_locale=checkout_locale,
+        )
+    else:
+        setup = client.create_setup_token(
+            back,
+            cancel,
+            customer_id=sponsor_customer_id(pledge_id, contributor),
+            idempotency_key=idempotency_key,
+            checkout_locale=checkout_locale,
+        )
     setup_id = setup.get("id")
     if not setup_id:
         raise PayPalError(502, "setup token id missing")
@@ -688,6 +771,7 @@ async def _create_vault_pledge(
         "vault_id": None,
         "vault_source": None,
         "setup_token_id": str(setup_id),
+        "checkout_method": method,
         "checkout_locale": (checkout_locale or "").strip() or None,
         "created_at": now_iso(),
         "history": ["created"],
@@ -707,6 +791,28 @@ async def _create_vault_pledge(
             target_id=target_id,
         )
     return saved
+
+
+async def admin_reauthorize_pledge(
+    pledge_id: str,
+    client: Any,
+    *,
+    mock_response: Optional[str] = None,
+) -> dict:
+    """TEST-only treasurer helper: force honor-period reauthorize on an AUTHORIZE pledge."""
+    if mock_response:
+        client.mock_response = mock_response
+    pledge = await require_pledge(pledge_id)
+    if pledge.get("payment_mode") not in {None, "AUTHORIZE"} and pledge.get("intent") != "AUTHORIZE":
+        raise ValueError("reauthorize applies to AUTHORIZE pledges only")
+    if pledge.get("status") != "authorized":
+        raise ValueError("pledge must be authorized")
+    if not pledge.get("authorization_id"):
+        raise ValueError("authorization_id missing")
+    changed = _prepare_authorization_capture(pledge, client)
+    if not changed:
+        raise ValueError("authorization is still inside the honor period")
+    return await get_ledger().save_pledge(pledge)
 
 
 async def register_vault_pledge(

@@ -22,13 +22,16 @@ from app.escales.captain import review as captain_review
 from app.escales.captain import simulated_prices, simulated_unit
 from app.escales.config import (
     bryntum_scheduler_enabled,
+    card_fields_enabled,
     channel3_enabled,
     clock_start,
     clock_now_pinned,
     parse_clock_moment,
     simulated_now,
+    escales_env,
     elastic_evidence_enabled,
     escales_enabled,
+    escales_env,
     subscription_cancel_url,
     subscription_return_url,
     kernel_evidence_enabled,
@@ -36,6 +39,8 @@ from app.escales.config import (
     naviguide_bridge_enabled,
     paypal_webhook_url,
     vault_enabled,
+    vault_on_purchase_enabled,
+    wallet_pay_enabled,
     webhooks_enabled,
 )
 from app.escales.ledger import (
@@ -100,6 +105,7 @@ from app.escales.rate_limit import (
 from app.escales.pledges import (
     IllegalTransition,
     PledgeNotFound,
+    admin_reauthorize_pledge,
     authorize_pledge,
     capture_pledge,
     create_pledge,
@@ -177,6 +183,10 @@ class PledgeIn(BaseModel):
     return_url: Optional[str] = None
     cancel_url: Optional[str] = None
     lang: Optional[str] = None
+    checkout_method: Optional[str] = Field(
+        None,
+        description="wallet (default) or card when ESCALES_CARD_FIELDS_ENABLED is on.",
+    )
 
 
 class EvidenceIn(BaseModel):
@@ -201,6 +211,13 @@ class RefundIn(BaseModel):
 
 class CaptureIn(BaseModel):
     now: Optional[str] = None
+
+
+class ReauthorizeIn(BaseModel):
+    mock_response: Optional[str] = Field(
+        None,
+        description="Optional PayPal-Mock-Response JSON for sandbox negative testing.",
+    )
 
 
 class PayoutProposeIn(BaseModel):
@@ -446,6 +463,9 @@ async def get_features():
         "channel3": channel3_enabled(),
         "bryntum": bryntum_scheduler_enabled(),
         "vault": vault_enabled(),
+        "card_fields": card_fields_enabled(),
+        "vault_on_purchase": vault_on_purchase_enabled(),
+        "wallet_pay": wallet_pay_enabled(),
         "webhooks_enabled": webhooks_enabled(),
         "webhook_url": paypal_webhook_url(),
         "clock_pinned": clock_now_pinned(),
@@ -534,6 +554,7 @@ async def post_pledge(body: PledgeIn, request: Request):
             cancel_url=body.cancel_url,
             caller_origin=f"{request.url.scheme}://{request.url.netloc}",
             checkout_locale=body.lang or lang_for(request.headers.get("accept-language", "")),
+            checkout_method=body.checkout_method,
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
@@ -612,6 +633,27 @@ async def post_refund(pledge_id: str, body: RefundIn, request: Request):
             effective_at=effective_at,
         )
     except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
+        raise _money_http(exc) from exc
+    return await _public_pledge_with_fund(doc)
+
+
+@router.post("/admin/pledges/{pledge_id}/reauthorize")
+async def post_admin_reauthorize(
+    pledge_id: str,
+    request: Request,
+    body: ReauthorizeIn = ReauthorizeIn(),
+):
+    """TEST-only: treasurer route to exercise honor-period reauthorize (not in production)."""
+    if escales_env() == "production":
+        raise HTTPException(status_code=404, detail="Not Found")
+    _require_treasurer(request)
+    try:
+        doc = await admin_reauthorize_pledge(
+            pledge_id,
+            _paypal(),
+            mock_response=(body.mock_response or "").strip() or None,
+        )
+    except (PledgeNotFound, PayPalError, ValueError) as exc:
         raise _money_http(exc) from exc
     return await _public_pledge_with_fund(doc)
 

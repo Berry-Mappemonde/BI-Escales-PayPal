@@ -118,6 +118,10 @@ class MemoryLedger:
                     return pledge_defaults(doc)
             return None
 
+    async def list_pledges(self) -> list[dict]:
+        with self._lock:
+            return [pledge_defaults(doc) for doc in self._pledges.values()]
+
     async def list_pledges_for_milestone(self, milestone_id: str) -> list[dict]:
         wanted = _milestone_ids(milestone_id)
         with self._lock:
@@ -288,6 +292,11 @@ class MongoLedger:
     async def find_pledge_by_order_id(self, order_id: str) -> Optional[dict]:
         await self._ensure()
         return pledge_defaults(await self._pledges.find_one({"order_id": order_id}))
+
+    async def list_pledges(self) -> list[dict]:
+        await self._ensure()
+        cursor = self._pledges.find({})
+        return [pledge_defaults(doc) async for doc in cursor]
 
     async def list_pledges_for_milestone(self, milestone_id: str) -> list[dict]:
         await self._ensure()

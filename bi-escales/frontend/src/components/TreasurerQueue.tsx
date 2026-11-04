@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { capturePledge, voidPledge } from "../api/escales";
+import { captainReview, capturePledge, voidPledge } from "../api/escales";
 import type { PublicPledge } from "../api/types";
 import { isQueuedPledge } from "../hooks/queueFilter";
 
@@ -28,6 +28,33 @@ export function TreasurerQueue({
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const queue = pledges.filter((p) => isQueuedPledge(p.status));
+  const [verdicts, setVerdicts] = useState<Record<string, string>>({});
+  const milestoneKey = queue.map((pledge) => pledge.milestone_id).join("|");
+
+  useEffect(() => {
+    const key = adminKey.trim();
+    const ids = [...new Set(milestoneKey.split("|").filter(Boolean))];
+    if (!key || !ids.length) {
+      setVerdicts({});
+      return;
+    }
+    let cancel = false;
+    void (async () => {
+      const next: Record<string, string> = {};
+      for (const id of ids) {
+        try {
+          const row = await captainReview(id, key);
+          next[id] = String(row.proposal || "");
+        } catch {
+          next[id] = "";
+        }
+      }
+      if (!cancel) setVerdicts(next);
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [adminKey, milestoneKey]);
 
   const runAction = async (pledgeId: string, action: "capture" | "void") => {
     if (!adminKey.trim()) {
@@ -71,6 +98,7 @@ export function TreasurerQueue({
               <th>{t("treasurer.amount")}</th>
               <th>{t("treasurer.description")}</th>
               <th>{t("treasurer.milestone")}</th>
+              <th>{t("treasurer.verdict")}</th>
               <th>{t("treasurer.actions")}</th>
             </tr>
           </thead>
@@ -83,21 +111,18 @@ export function TreasurerQueue({
                 </td>
                 <td>{p.description}</td>
                 <td>{p.milestone_id}</td>
+                <td data-testid={`verdict-${p.id}`}>{verdicts[p.milestone_id] || ""}</td>
                 <td className="actions">
                   <button
                     type="button"
-                    disabled={busyId === p.id}
-                    onClick={() => void runAction(p.id, "capture")}
+                    data-testid={`approve-${p.id}`}
+                    disabled={
+                      busyId === p.id
+                      || !["capture", "void"].includes(verdicts[p.milestone_id] || "")
+                    }
+                    onClick={() => void runAction(p.id, verdicts[p.milestone_id] as "capture" | "void")}
                   >
-                    {t("treasurer.capture")}
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={busyId === p.id}
-                    onClick={() => void runAction(p.id, "void")}
-                  >
-                    {t("treasurer.void")}
+                    {t("treasurer.approveReview")}
                   </button>
                 </td>
               </tr>

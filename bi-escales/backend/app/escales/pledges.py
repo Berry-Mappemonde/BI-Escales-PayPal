@@ -16,6 +16,7 @@ to ``projet`` or ``fonds-commun``.
 """
 from __future__ import annotations
 
+import datetime as dt
 import re
 import uuid
 from decimal import Decimal, InvalidOperation
@@ -36,11 +37,13 @@ from .paypal_client import (
     PayPalError,
     approve_link,
     authorization_from,
+    read_capture_result,
     setup_token_approve_link,
     vault_id_from_token,
     vault_source_from_token,
 )
 
+HONOR_DAYS = 3
 PLEDGES_COLLECTION = "escales_pledges"
 MILESTONES_COLLECTION = "escales_milestones"
 AUDIT_COLLECTION = "escales_audit"
@@ -617,6 +620,7 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     order = client.authorize_order(order_id)
     auth_id, expiration = authorization_from(order)
     pledge["status"] = "authorized"
+    pledge["authorized_at"] = now_iso()
     pledge["authorization_id"] = auth_id
     pledge["authorization_expires_at"] = expiration or default_expiration()
     pledge["history"] = list(pledge.get("history") or []) + ["authorized"]
@@ -634,6 +638,98 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     return saved
 
 
+def _parse_moment(value: Optional[str]) -> Optional[dt.datetime]:
+    text = (value or "").strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        moment = dt.datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment
+
+
+def _prepare_authorization_capture(pledge: dict, client: Any) -> None:
+    """Reauthorize once the 3-day honor period has passed, and refuse an expired hold."""
+    now = dt.datetime.now(dt.timezone.utc)
+    expires = _parse_moment(pledge.get("authorization_expires_at"))
+    if expires is not None and now >= expires:
+        raise ValueError("PayPal authorization has expired")
+    authorized_at = _parse_moment(pledge.get("authorized_at"))
+    if authorized_at is None or now <= authorized_at + dt.timedelta(days=HONOR_DAYS):
+        return
+    refreshed = client.reauthorize(pledge["authorization_id"]) or {}
+    new_id = refreshed.get("id") or pledge.get("authorization_id")
+    pledge["authorization_id"] = str(new_id)
+    expiration = refreshed.get("expiration_time")
+    if expiration:
+        pledge["authorization_expires_at"] = str(expiration)
+    pledge["authorized_at"] = now_iso()
+    pledge["history"] = list(pledge.get("history") or []) + ["reauthorized"]
+
+
+async def _finish_capture(pledge: dict, payload: Any, *, finance: dict) -> dict:
+    """Record PayPal's capture status. COMPLETED and PENDING are kept; anything else can be retried."""
+    from .audit import record
+
+    status, capture_id, order_id = read_capture_result(payload if isinstance(payload, dict) else {})
+    if order_id:
+        pledge["order_id"] = order_id
+    if capture_id:
+        pledge["capture_id"] = capture_id
+    recorded = status or "MISSING"
+    pledge["paypal_status"] = recorded
+    mode = finance.get("payment_mode")
+    base = {
+        "pledge_id": pledge["_id"],
+        "milestone_id": pledge.get("milestone_id"),
+        "amount_eur": pledge.get("amount_eur"),
+        "currency": "EUR",
+        "paypal_status": recorded,
+        "capture_id": capture_id,
+        "actor": "treasurer",
+        **finance,
+        **_identity(pledge),
+    }
+    audit_fields = {
+        "actor": "treasurer",
+        "pledge_id": pledge["_id"],
+        "milestone_id": pledge.get("milestone_id"),
+        "amount_eur": pledge.get("amount_eur"),
+        "currency": "EUR",
+        "paypal_status": recorded,
+        "capture_id": capture_id,
+        **_identity(pledge),
+    }
+    if mode:
+        audit_fields["payment_mode"] = mode
+
+    if status == "COMPLETED":
+        pledge["status"] = "captured"
+        pledge["history"] = list(pledge.get("history") or []) + ["captured"]
+        saved = await get_ledger().save_pledge(pledge)
+        await record("capture", status="captured", **audit_fields)
+        await record_finance("pledge_captured", status="captured", **base)
+        return saved
+    if status == "PENDING":
+        pledge["status"] = "pending"
+        pledge["history"] = list(pledge.get("history") or []) + ["pending"]
+        saved = await get_ledger().save_pledge(pledge)
+        await record("capture", status="pending", **audit_fields)
+        await record_finance("pledge_capture_pending", status="pending", **base)
+        return saved
+
+    pledge["history"] = list(pledge.get("history") or []) + ["capture_failed"]
+    saved = await get_ledger().save_pledge(pledge)
+    await record("capture_failed", status=saved.get("status"), **audit_fields)
+    await record_finance("pledge_capture_failed", status=saved.get("status"), **base)
+    raise ValueError(f"PayPal capture status {recorded} is not COMPLETED or PENDING")
+
+
 async def capture_pledge(pledge_id: str, client: Any) -> dict:
     pledge = await require_pledge(pledge_id)
     mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
@@ -642,70 +738,27 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
         vault_id = pledge.get("vault_id")
         if not vault_id:
             raise IllegalTransition("vaulted", "captured")
-        client.charge_vaulted(
+        payload = client.charge_vaulted(
             vault_id,
             pledge["amount_eur"],
             pledge_id,
             source=pledge.get("vault_source") or "paypal",
         )
-        pledge["status"] = "captured"
-        pledge["history"] = list(pledge.get("history") or []) + ["captured"]
-        saved = await get_ledger().save_pledge(pledge)
-        from .audit import record
-        await record(
-            "capture",
-            actor="treasurer",
-            pledge_id=saved["_id"],
-            milestone_id=saved.get("milestone_id"),
-            status="captured",
-            amount_eur=saved.get("amount_eur"),
-            currency="EUR",
-            payment_mode="VAULT",
-            **_identity(saved),
+        return await _finish_capture(
+            pledge,
+            payload,
+            finance={"vault_id": vault_id, "payment_mode": "VAULT"},
         )
-        await record_finance(
-            "pledge_captured",
-            pledge_id=saved["_id"],
-            milestone_id=saved.get("milestone_id"),
-            amount_eur=saved.get("amount_eur"),
-            currency="EUR",
-            vault_id=vault_id,
-            status="captured",
-            actor="treasurer",
-            payment_mode="VAULT",
-            **_identity(saved),
-        )
-        return saved
     _require_status(pledge, "authorized", "captured")
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "captured")
-    client.capture_authorization(pledge["authorization_id"])
-    pledge["status"] = "captured"
-    pledge["history"] = list(pledge.get("history") or []) + ["captured"]
-    saved = await get_ledger().save_pledge(pledge)
-    from .audit import record
-    await record(
-        "capture",
-        actor="treasurer",
-        pledge_id=saved["_id"],
-        milestone_id=saved.get("milestone_id"),
-        status="captured",
-        amount_eur=saved.get("amount_eur"),
-        currency="EUR",
-        **_identity(saved),
+    _prepare_authorization_capture(pledge, client)
+    payload = client.capture_authorization(pledge["authorization_id"])
+    return await _finish_capture(
+        pledge,
+        payload,
+        finance={"authorization_id": pledge.get("authorization_id")},
     )
-    await record_finance(
-        "pledge_captured",
-        pledge_id=saved["_id"],
-        milestone_id=saved.get("milestone_id"),
-        amount_eur=saved.get("amount_eur"),
-        currency="EUR",
-        authorization_id=saved.get("authorization_id"),
-        status="captured",
-        actor="treasurer",
-        **_identity(saved),
-    )
-    return saved
 
 
 async def void_pledge(pledge_id: str, client: Any) -> dict:

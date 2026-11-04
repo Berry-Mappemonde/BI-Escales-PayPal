@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { getPledge } from "../api/escales";
+import { listPledges } from "../api/escales";
 import type { PublicPledge } from "../api/types";
-import { loadTrackedPledgeIds, trackPledgeId } from "./pledgeQueueStorage";
 
 /**
- * La route liste GET /api/escales/pledges n'existe pas.
- * On suit les identifiants en session (pledgeQueueStorage) et on relit
- * GET /api/escales/pledges/{id}. La clé trésorier reste exigée pour afficher la file.
+ * La file vient de GET /api/escales/pledges. La clé trésorier est exigée.
  */
 export function usePledgeQueue(adminKey: string) {
   const [pledges, setPledges] = useState<PublicPledge[]>([]);
@@ -26,11 +23,7 @@ export function usePledgeQueue(adminKey: string) {
     setLoading(true);
     setError(null);
     try {
-      const rows: PublicPledge[] = [];
-      for (const id of loadTrackedPledgeIds()) {
-        rows.push(await getPledge(id));
-      }
-      setPledges(rows);
+      setPledges(await listPledges(key));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -39,7 +32,6 @@ export function usePledgeQueue(adminKey: string) {
   }, [adminKey]);
 
   const updatePledge = useCallback((updated: PublicPledge) => {
-    trackPledgeId(updated.id);
     setPledges((prev) => {
       const exists = prev.some((pledge) => pledge.id === updated.id);
       if (!exists) return [...prev, updated];

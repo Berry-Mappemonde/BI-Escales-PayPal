@@ -100,6 +100,7 @@ async def verify_and_process(
             transmission_time=transmission_time,
             webhook_id=webhook_id,
             webhook_event=event,
+            raw_event=raw_body,
         )
     except PayPalError as exc:
         await _record_outcome(transmission_id, event, "rejected", None)

@@ -431,6 +431,7 @@ def test_evidence_flagged_simulation_for_naviguide(api):
     response = client.post(
         "/api/escales/milestones/dep-mayotte/evidence",
         json={"met": True, "facts": {"port": "Mayotte", "boats": 12}},
+        headers=ADMIN,
     )
     assert response.status_code == 200
     body = response.json()
@@ -451,6 +452,7 @@ def test_captain_route_does_not_capture_or_void(api):
     evidence = client.post(
         "/api/escales/milestones/dep-mayotte/evidence",
         json={"met": True, "facts": {"port": "Mayotte"}},
+        headers=ADMIN,
     )
     assert evidence.status_code == 200
     review = client.post("/api/escales/captain/review/dep-mayotte")
@@ -521,6 +523,7 @@ def test_audit_records_proposal_and_treasurer_actions(api):
     client.post(
         "/api/escales/milestones/dep-mayotte/evidence",
         json={"met": True, "facts": {"port": "Mayotte"}},
+        headers=ADMIN,
     )
     _created_a, authorized_a = _ready(client, "audit-a")
     dinner = {**PLEDGE, "description": "diner", "amount_eur": "60.00"}
@@ -1038,3 +1041,43 @@ def test_cors_allows_the_minimix_vite_origin(monkeypatch):
         assert allowed.headers.get("access-control-allow-origin") == "http://localhost:5173"
         blocked = client.get("/api/health", headers={"Origin": "https://evil.example"})
         assert blocked.headers.get("access-control-allow-origin") is None
+
+
+def test_evidence_requires_the_admin_key(api):
+    client, _fake = api
+    denied = client.post(
+        "/api/escales/milestones/dep-mayotte/evidence",
+        json={"met": True, "facts": {"port": "Mayotte"}},
+    )
+    assert denied.status_code == 401
+    opened = client.post(
+        "/api/escales/milestones/dep-mayotte/evidence",
+        json={"met": True, "facts": {"port": "Mayotte"}},
+        headers=ADMIN,
+    )
+    assert opened.status_code == 200
+
+
+def test_treasurer_reads_the_pledge_queue_from_the_server(api):
+    client, _fake = api
+    created = _create(client, "queue-server")
+    assert created.status_code == 200
+    denied = client.get("/api/escales/pledges")
+    assert denied.status_code == 401
+    listed = client.get("/api/escales/pledges", headers=ADMIN)
+    assert listed.status_code == 200
+    assert listed.json()[0]["id"] == created.json()["id"]
+
+
+def test_vault_stays_off_unless_escales_vault_enabled(monkeypatch):
+    from app.escales.config import vault_enabled
+
+    monkeypatch.delenv("ESCALES_VAULT_ENABLED", raising=False)
+    assert vault_enabled() is False
+    monkeypatch.setenv("ESCALES_VAULT_ENABLED", "true")
+    assert vault_enabled() is True
+    text = (Path(__file__).resolve().parents[2] / "render.yaml").read_text(encoding="utf-8")
+    start = text.index("key: ESCALES_VAULT_ENABLED")
+    window = text[start:start + 80]
+    assert 'value: "false"' in window
+    assert 'value: "true"' not in window

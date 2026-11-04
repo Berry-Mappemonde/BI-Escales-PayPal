@@ -301,6 +301,7 @@ def test_flag_off_app_and_captain_work_without_the_toolkit(monkeypatch):
             evidence = client.post(
                 "/api/escales/milestones/dep-mayotte/evidence",
                 json={"met": True, "facts": {"port": "Mayotte"}},
+                headers={"x-admin-key": "test-admin-key"},
             )
             assert evidence.status_code == 200
             review = client.post("/api/escales/captain/review/dep-mayotte")
@@ -371,6 +372,7 @@ def test_flag_on_mocked_toolkit_is_used_and_stays_readonly(monkeypatch):
             evidence = client.post(
                 "/api/escales/milestones/dep-mayotte/evidence",
                 json={"met": True, "facts": {"port": "Mayotte"}},
+                headers={"x-admin-key": "test-admin-key"},
             )
             assert evidence.status_code == 200
             review = client.post("/api/escales/captain/review/dep-mayotte")

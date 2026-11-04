@@ -21,6 +21,36 @@ class PayPalError(RuntimeError):
         self.body = body
 
 
+def read_capture_result(payload: dict) -> tuple[str, Optional[str], Optional[str]]:
+    """Return ``(status, capture_id, order_id)`` from a capture or an order.
+
+    A vault charge nests the capture under ``purchase_units``. Its status wins
+    over the order status. A bare capture resource uses its own id.
+    """
+    if not isinstance(payload, dict):
+        return "", None, None
+    units = payload.get("purchase_units") or []
+    for unit in units:
+        payments = (unit or {}).get("payments") or {}
+        for cap in payments.get("captures") or []:
+            if not isinstance(cap, dict):
+                continue
+            status = str(cap.get("status") or "").upper()
+            capture_id = cap.get("id")
+            order_id = payload.get("id")
+            return (
+                status,
+                str(capture_id) if capture_id else None,
+                str(order_id) if order_id else None,
+            )
+    status = str(payload.get("status") or "").upper()
+    if units or payload.get("intent"):
+        order_id = payload.get("id")
+        return status, None, (str(order_id) if order_id else None)
+    capture_id = payload.get("id")
+    return status, (str(capture_id) if capture_id else None), None
+
+
 def approve_link(order: dict) -> str:
     """Buyer approval URL from the order, or the sandbox checkout URL for its id."""
     for link in order.get("links") or []:
@@ -98,7 +128,14 @@ class PayPalClient:
         self._token_exp = time.time() + int(payload.get("expires_in", 300))
         return self._token
 
-    def _req(self, method: str, path: str, json: Any = None, idempotency_key: Optional[str] = None) -> Any:
+    def _req(
+        self,
+        method: str,
+        path: str,
+        json: Any = None,
+        idempotency_key: Optional[str] = None,
+        content: Optional[bytes] = None,
+    ) -> Any:
         headers = {
             "Authorization": f"Bearer {self._access_token()}",
             "Content-Type": "application/json",
@@ -107,7 +144,10 @@ class PayPalClient:
             headers["PayPal-Request-Id"] = idempotency_key or str(uuid.uuid4())
             # Sandbox create/authorize omit intent and purchase_units unless asked.
             headers["Prefer"] = "return=representation"
-        response = self._http.request(method, path, json=json, headers=headers)
+        if content is None:
+            response = self._http.request(method, path, json=json, headers=headers)
+        else:
+            response = self._http.request(method, path, content=content, headers=headers)
         if response.status_code >= 400:
             raise PayPalError(response.status_code, response.text)
         return response.json() if response.content else {}
@@ -262,14 +302,32 @@ class PayPalClient:
         transmission_time: str,
         webhook_id: str,
         webhook_event: dict,
+        raw_event: Optional[bytes] = None,
     ) -> dict:
-        body = {
+        """Verify a webhook. ``raw_event`` is spliced in unchanged.
+
+        Re-serializing the event can change spacing, and PayPal then rejects
+        a signature that was computed on the original body.
+        """
+        import json as _json
+
+        meta = {
             "auth_algo": auth_algo,
             "cert_url": cert_url,
             "transmission_id": transmission_id,
             "transmission_sig": transmission_sig,
             "transmission_time": transmission_time,
             "webhook_id": webhook_id,
-            "webhook_event": webhook_event,
         }
-        return self._req("POST", "/v1/notifications/verify-webhook-signature", body)
+        if raw_event is None:
+            meta["webhook_event"] = webhook_event
+            return self._req("POST", "/v1/notifications/verify-webhook-signature", meta)
+        encoded = raw_event.decode("utf-8")
+        _json.loads(encoded)
+        prefix = _json.dumps(meta, separators=(",", ":"))
+        body = prefix[:-1] + ',"webhook_event":' + encoded + "}"
+        return self._req(
+            "POST",
+            "/v1/notifications/verify-webhook-signature",
+            content=body.encode("utf-8"),
+        )

@@ -61,3 +61,5 @@ services:
         sync: false
       - key: NIM_MODEL
         sync: false
+      - key: ESCALES_VAULT_ENABLED
+        value: "false"

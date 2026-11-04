@@ -32,7 +32,7 @@ from app.escales.config import (
     vault_enabled,
     webhooks_enabled,
 )
-from app.escales.ledger import _unplaced_bucket, fund_for_milestone, list_webhook_outcomes, record_spending
+from app.escales.ledger import _unplaced_bucket, fund_for_milestone, get_ledger, list_webhook_outcomes, record_spending
 from app.escales_names import display_name as escale_display_name
 from app.escales.milestones import list_milestones, record_evidence
 from app.escales.naviguide_bridge import (
@@ -361,6 +361,14 @@ async def post_void(pledge_id: str, request: Request):
     return await _public_pledge_with_fund(doc)
 
 
+@router.get("/pledges")
+async def get_pledges(request: Request):
+    """Every pledge on the server. The treasurer key is required."""
+    _require_treasurer(request)
+    docs = await get_ledger().list_pledges()
+    return [_public_pledge(doc) for doc in docs]
+
+
 @router.get("/pledges/{pledge_id}")
 async def get_pledge(pledge_id: str):
     try:
@@ -404,7 +412,8 @@ async def get_milestones():
 
 
 @router.post("/milestones/{milestone_id}/evidence")
-async def post_evidence(milestone_id: str, body: EvidenceIn):
+async def post_evidence(milestone_id: str, body: EvidenceIn, request: Request):
+    _require_treasurer(request)
     try:
         evidence = await record_evidence(milestone_id, body.met, body.facts)
     except ValueError as exc:

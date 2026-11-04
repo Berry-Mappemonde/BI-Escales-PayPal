@@ -492,3 +492,33 @@ def test_live_sandbox_create_authorize_order():
     assert shown.get("intent") == "AUTHORIZE"
     assert shown.get("status") in {"CREATED", "PAYER_ACTION_REQUIRED", "APPROVED"}
     assert approve_link(order)
+
+
+def test_pending_capture_is_recorded_and_can_be_retried():
+    """PR #7 recorded PayPal's capture status. A PENDING hold stays pending."""
+
+    class PendingSpy(Spy):
+        def __init__(self):
+            super().__init__()
+            self.capture_body = {"id": "CAP-P", "status": "PENDING"}
+
+        def capture_authorization(self, authorization_id, final=True):
+            self.calls.append(("capture", authorization_id))
+            return self.capture_body
+
+    async def body():
+        spy = PendingSpy()
+        created = await create_pledge(
+            amount_eur="20.00",
+            description="20 milles",
+            milestone_id="dep-mayotte",
+            client=spy,
+            client_key="pending-cap",
+        )
+        await authorize_pledge(created["_id"], spy)
+        pending = await capture_pledge(created["_id"], spy)
+        assert pending["status"] == "pending"
+        assert pending["paypal_status"] == "PENDING"
+        assert pending["capture_id"] == "CAP-P"
+
+    asyncio.run(body())

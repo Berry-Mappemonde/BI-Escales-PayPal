@@ -1,7 +1,7 @@
 {
   "app": {
     "title": "BI Escales — Pay Only If We Sail",
-    "tagline": "Cabins are captured on departure day; project pledges by the treasurer.",
+    "tagline": "Stop pledges capture on boat arrival; cabins on leg departure; common fund at once.",
     "langFr": "Français",
     "langEn": "English",
     "healthFail": "Backend unreachable",

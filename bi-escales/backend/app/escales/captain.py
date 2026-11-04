@@ -16,6 +16,7 @@ from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
 from .config import AUTH_MAX_DAYS, membership_url, simulated_now
+from .departure_clock import CAPTURE_RULES_EN, CAPTURE_RULES_FR
 from .paypal_txn_search import default_transaction_search_window
 from .milestones import (
     amount_in_text,
@@ -61,7 +62,7 @@ _PLACE = re.compile(
 # Per-call temperatures. NIM_TEMPERATURE, when set, still wins inside the NIM call.
 _REPORT_TEMPERATURE = 0.2
 _CHAT_TEMPERATURE = 0.3
-_CHAT_WORD_LIMIT = 80
+_CHAT_WORD_LIMIT = 120
 # Room for two finished sentences. A short budget cuts the model off mid-phrase.
 _REPORT_MAX_TOKENS = 400
 _CHAT_MAX_TOKENS = 400
@@ -273,18 +274,16 @@ def _is_capture_rule_question(message: str) -> bool:
 
 
 def _public_rule(lang: str) -> str:
-    """Authorize near departure, capture that day, void if cancelled, Vault past 29 days."""
+    """Public capture and authorization rule appended to ordinary replies."""
     if lang == "en":
         return (
+            f"{CAPTURE_RULES_EN} "
             "A pledge is authorized as close to departure as possible. "
-            "The money is captured on the departure day. "
-            "If the stopover is cancelled, the authorization is voided. "
             "When the departure is more than 29 days away, the pledge uses PayPal Vault."
         )
     return (
+        f"{CAPTURE_RULES_FR} "
         "Une promesse est autorisée au plus près du départ. "
-        "L'argent est capturé le jour du départ. "
-        "Si l'escale est annulée, l'autorisation est annulée. "
         "Quand le départ est à plus de 29 jours, la promesse utilise PayPal Vault."
     )
 
@@ -486,14 +485,13 @@ def _chat_system_en() -> str:
         "State only facts present in the JSON: the stopover, the fund, and the computed pledge. "
         "Do not invent a date. Do not write a date. The code appends the schedule dates. "
         "If a fact is absent, say you do not know. Do not describe the place. "
+        f"{CAPTURE_RULES_EN} "
         "A pledge is authorized as close to departure as possible. "
-        "The money is captured on the departure day. "
-        "If the stopover is cancelled, the authorization is voided. "
         "Do not send the reader to the treasurer for that rule. "
         "Mention membership only by repeating the HelloAsso URL you were given. "
         "If no URL was given, do not mention membership and do not write any URL. "
         "Write complete sentences and never stop mid-sentence. "
-        "Sign once, and do not repeat your name. At most 80 words."
+        "Sign once, and do not repeat your name. At most 120 words."
     )
 
 
@@ -505,14 +503,13 @@ def _chat_system_fr() -> str:
         "Énonce seulement les faits présents dans le JSON : l'escale, la caisse et la promesse calculée. "
         "N'invente pas de date. N'écris aucune date. Le code ajoute les dates de l'escale. "
         "Si un fait manque, dis que tu ne sais pas. Ne décris pas le lieu. "
+        f"{CAPTURE_RULES_FR} "
         "Une promesse est autorisée au plus près du départ. "
-        "L'argent est capturé le jour du départ. "
-        "Si l'escale est annulée, l'autorisation est annulée. "
         "N'envoie pas le lecteur vers le trésorier pour cette règle. "
         "Mentionne l'adhésion seulement en répétant l'URL HelloAsso qu'on t'a donnée. "
         "Sans URL, ne parle pas d'adhésion et n'écris aucune URL. "
         "Écris des phrases complètes et ne t'arrête jamais au milieu d'une phrase. "
-        "Signe une seule fois, sans répéter ton nom. Au plus 80 mots."
+        "Signe une seule fois, sans répéter ton nom. Au plus 120 mots."
     )
 
 
@@ -1462,7 +1459,7 @@ def _compose_chat_reply(
     treasurer: bool,
     ask_escale: bool = False,
 ) -> str:
-    """Pledge repeated exactly, one signature, at most 80 words.
+    """Pledge repeated exactly, one signature, at most 120 words.
 
     Ordinary replies end with the public capture rule.
     A question about one authorization still belongs to the treasurer review.
@@ -2519,7 +2516,7 @@ def _fund_system(lang: str) -> str:
         "Answer the common-fund question from the fund JSON only. "
         "Repeat income_eur, spending_eur and balance_eur. Do not invent a figure. "
         "Do not propose to take or release money. Do not create an order. "
-        "One or two complete sentences. At most 80 words."
+        "One or two complete sentences. At most 120 words."
     )
 
 

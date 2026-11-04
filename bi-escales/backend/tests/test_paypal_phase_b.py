@@ -1,4 +1,4 @@
-"""Phase B (7488f15): payouts, reconcile matching, subscription sale guard, capture timestamps."""
+"""Phase B: payouts, reconcile matching, subscription sale guard, capture timestamps."""
 from __future__ import annotations
 
 import asyncio

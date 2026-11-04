@@ -376,7 +376,7 @@ def test_chat_repeats_the_pledge_in_the_message_language(monkeypatch):
         assert result["membership_url"] in reply
         assert reply.count("— The captain") == 1
         assert "— Le capitaine" not in reply
-        assert len(reply.split()) <= 80
+        assert len(reply.split()) <= 120
         assert "[?]" not in reply
 
     asyncio.run(body())
@@ -395,9 +395,8 @@ def test_capture_rule_is_explained_without_only_naming_the_treasurer(monkeypatch
         english = await chat("When is the money captured?")
         reply = english["reply"]
         assert "as close to departure as possible" in reply
-        assert "captured on the departure day" in reply
-        assert "cancelled" in reply
-        assert "voided" in reply
+        assert "arrival at the stop" in reply
+        assert "voided if the stop is cancelled" in reply
         assert "treasurer review" not in reply
         assert "August" not in reply
         assert "2025" not in reply
@@ -405,7 +404,7 @@ def test_capture_rule_is_explained_without_only_naming_the_treasurer(monkeypatch
         assert english["model_source"] == {"provider": "rules", "model": ""}
         french = await chat("Quand l'argent est-il capturé ?")
         assert "au plus près du départ" in french["reply"]
-        assert "jour du départ" in french["reply"]
+        assert "à l'arrivée du bateau à l'escale" in french["reply"]
         assert "annulée" in french["reply"]
         assert "revue du trésorier" not in french["reply"]
         assert french["model_source"] == {"provider": "rules", "model": ""}
@@ -433,7 +432,7 @@ def test_treasurer_questions_skip_the_model(monkeypatch):
         assert "void" not in reply
         assert result["reply"].count("— Le capitaine") == 1
         assert result["model_source"] == {"provider": "rules", "model": ""}
-        assert len(result["reply"].split()) <= 80
+        assert len(result["reply"].split()) <= 120
         assert result["suggested_pledge"] is None
         assert "mille" not in result["reply"].lower()
         assert "unspecified" not in result["reply"]
@@ -551,7 +550,7 @@ def test_chat_keeps_one_signature_and_at_most_80_words(monkeypatch):
         result = await chat("Je parraine 10 milles près de Brest")
         reply = result["reply"]
         assert reply.count("— Le capitaine") == 1
-        assert len(reply.split()) <= 80
+        assert len(reply.split()) <= 120
         assert "10,00 €" in reply
         assert "10.00" not in reply
         assert "Brest" in reply
@@ -606,15 +605,16 @@ def test_status_questions_have_no_pledge_suggestion(monkeypatch):
     async def body():
         french = await chat("Quel est le statut ?")
         assert french["suggested_pledge"] is None
-        assert "mille" not in french["reply"].lower()
+        assert "Cette question porte sur le statut" in french["reply"]
+        assert "Promesse calculée" not in french["reply"]
         assert "unspecified" not in french["reply"]
         assert "1,00" not in french["reply"]
         assert french["reply"].count("— Le capitaine") == 1
         assert french["model_source"] == {"provider": "rules", "model": ""}
         english = await chat("What is the status?")
         assert english["suggested_pledge"] is None
-        assert "sponsored" not in english["reply"].lower()
-        assert "milles" not in english["reply"]
+        assert "does not suggest a pledge" in english["reply"].lower()
+        assert "sponsored miles" not in english["reply"].lower()
         assert "1.00" not in english["reply"]
         assert "unspecified" not in english["reply"]
         assert english["reply"].count("— The captain") == 1
@@ -2390,7 +2390,7 @@ def test_code_enforces_the_fixed_treasurer_sentence(monkeypatch):
         result = await chat("Je parraine 10 milles près de Dakar")
         reply = result["reply"]
         assert reply.count("au plus près du départ") == 1
-        assert "jour du départ" in reply
+        assert "à l'arrivée du bateau à l'escale" in reply
         assert "annulée" in reply
         assert "PayPal Vault" in reply
         assert reply.count("Seul le trésorier décide") == 0
@@ -2432,11 +2432,11 @@ def test_pledge_reply_states_the_charge_rule_without_the_treasurer(monkeypatch):
         result = await chat("Je parraine 10 milles près de Dakar")
         reply = result["reply"]
         assert "au plus près du départ" in reply
-        assert "jour du départ" in reply
+        assert "à l'arrivée du bateau à l'escale" in reply
         assert "PayPal Vault" in reply
         assert reply.count("Seul le trésorier décide") == 0
         assert "La mer est calme" in reply
-        assert len(reply.split()) <= 80
+        assert len(reply.split()) <= 120
 
     asyncio.run(body())
 
@@ -2470,7 +2470,7 @@ def test_charge_claim_falls_back_to_the_rules_text(monkeypatch):
         assert "charged" not in english_reply.casefold()
         assert "The sea is calm" not in english_reply
         assert "as close to departure as possible" in english_reply
-        assert "captured on the departure day" in english_reply
+        assert "arrival at the stop" in english_reply
         assert "PayPal Vault" in english_reply
         assert english_reply.count("Only the treasurer decides") == 0
         assert "10.00 EUR" in english_reply
@@ -2638,7 +2638,7 @@ def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
         assert local["fund"] == mayotte_fund
         assert "20,00" in local["reply"]
         assert "la caisse de Dzaoudzi (Mayotte)" in local["reply"]
-        assert "fonds commun" not in local["reply"].casefold()
+        assert local["reply"].casefold().startswith("pour la caisse de dzaoudzi")
         assert local["model_source"]["provider"] == "rules"
         project = await chat("How much money is in the project fund?")
         assert project["suggested_pledge"] is None

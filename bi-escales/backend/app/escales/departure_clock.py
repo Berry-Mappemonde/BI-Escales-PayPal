@@ -1,10 +1,9 @@
 """Simulated clock settlement for PayPal pledges.
 
-Capture rules (see mini-mix plan):
-- Miles, night, meal, care, berth and project pledges: capture on **arrival** at the
-  stopover; void if the stop is cancelled.
-- Cabin legs: capture on **departure** from the leg origin; void if cancelled.
-- Common fund: captured at once by the treasurer (not driven by this clock).
+Capture rules (7488f15 / Clément confirmation):
+Stop-level pledges (miles, nights, meals, care, berths, project gifts) are captured
+on the boat's ARRIVAL at the stop and voided if the stop is cancelled. Cabins are
+captured on the departure of their leg. Common fund pledges are captured at once.
 
 The simulated clock is ``simulated_now`` (``ESCALES_CLOCK_NOW``, else UTC).
 Authorizations are not opened more than 29 days before the relevant arrival or
@@ -14,6 +13,19 @@ from __future__ import annotations
 
 import datetime as dt
 from typing import Any, Optional
+
+CAPTURE_RULES_EN = (
+    "Stop-level pledges (miles, nights, meals, care, berths, project gifts) are captured "
+    "on the boat's arrival at the stop and voided if the stop is cancelled. "
+    "Cabins are captured on the departure of their leg. "
+    "Common fund pledges are captured at once."
+)
+CAPTURE_RULES_FR = (
+    "Les promesses au niveau de l'escale (milles, nuits, repas, soins, couchettes, "
+    "cadeaux projet) sont capturées à l'arrivée du bateau à l'escale et annulées si "
+    "l'escale est annulée. Les cabines sont capturées au départ de leur étape. "
+    "Les promesses au fonds commun sont capturées immédiatement."
+)
 
 from .config import AUTH_MAX_DAYS, simulated_now
 from .ledger import get_ledger

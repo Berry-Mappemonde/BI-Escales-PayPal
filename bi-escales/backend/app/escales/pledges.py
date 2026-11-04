@@ -13,6 +13,9 @@ For a stopover kind the target is the bare slug of that same stop. For a cabin
 the target is the leg id, the same string as ``milestone_id``. A project pledge
 or the common fund may leave ``milestone_id`` empty; the target then defaults
 to ``projet`` or ``fonds-commun``.
+
+Capture timing (7488f15): stop-level pledges on boat arrival at the stop (void if
+cancelled); cabin legs on leg departure; common fund at once (treasurer, not the clock).
 """
 from __future__ import annotations
 

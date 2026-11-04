@@ -1,4 +1,4 @@
-"""Fix lot B9–B12: authorize clock, settle timestamps, reconcile ids, stop miles."""
+"""Fix lot B9–B12: authorize clock, settle timestamps, reconcile ids, stop capture on arrival."""
 from __future__ import annotations
 
 import asyncio
@@ -181,6 +181,7 @@ def test_b11_reconcile_matches_on_capture_id():
 
 
 def test_b12_stop_mile_pledge_settles_on_arrival(monkeypatch):
+    """Stop-level miles: captured on boat arrival at the stop (7488f15); void if cancelled."""
     monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00+00:00")
     monkeypatch.setenv("ESCALES_VAULT_ENABLED", "0")
     spy = CaptureSpy()
@@ -292,3 +293,13 @@ def test_reconcile_route_includes_lag_note():
     assert response.status_code == 200
     assert response.json()["match_key"] == "capture_id"
     assert "lag" in response.json()["note"].lower()
+
+
+def test_b12_canonical_capture_rule_wording():
+    from app.escales.captain import _public_rule
+    from app.escales.departure_clock import CAPTURE_RULES_EN, CAPTURE_RULES_FR
+
+    assert "project gifts" in CAPTURE_RULES_EN
+    assert "stop departure" not in CAPTURE_RULES_EN.lower()
+    assert CAPTURE_RULES_EN in _public_rule("en")
+    assert CAPTURE_RULES_FR in _public_rule("fr")

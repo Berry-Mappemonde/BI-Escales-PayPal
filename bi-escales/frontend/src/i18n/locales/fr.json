@@ -1,7 +1,7 @@
 {
   "app": {
     "title": "BI Escales — Pay Only If We Sail",
-    "tagline": "Les cabines sont capturées le jour du départ ; les promesses projet par le trésorier.",
+    "tagline": "Promesses escale à l'arrivée du bateau ; cabines au départ de l'étape ; fonds commun immédiatement.",
     "langFr": "Français",
     "langEn": "English",
     "healthFail": "Backend indisponible",

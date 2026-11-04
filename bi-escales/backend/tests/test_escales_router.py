@@ -945,7 +945,7 @@ def test_prices_and_clock(api, monkeypatch):
 
 
 def test_departure_clock_captures_on_the_day(api, monkeypatch):
-    """The simulated clock captures on arrival day, voids a cancelled stop, and refuses an early authorization."""
+    """7488f15: stop-level pledges capture on boat arrival; void cancelled stops; 29-day auth guard."""
     import asyncio
 
     from app.escales.ledger import get_ledger

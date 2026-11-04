@@ -686,8 +686,8 @@ async def resolve_schedule_milestone(milestone_id: str) -> Optional[dict]:
 async def sync_milestone_shells(export: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
     """Ensure milestone documents exist for each exported escale (meta only).
 
-    Stop pledges (miles, night, meal, care, berth, project) capture on **arrival**
-    at the stopover. Cabins capture on **leg departure** via ``sync_leg_shells``.
+    Stop shells use ``capture_on: arrival`` (see ``departure_clock.CAPTURE_RULES_EN``).
+    Cabins use ``capture_on: departure`` via ``sync_leg_shells``.
     """
     from .pledges import get_ledger
 

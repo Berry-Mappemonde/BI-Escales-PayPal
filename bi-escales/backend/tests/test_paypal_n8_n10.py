@@ -1,4 +1,4 @@
-"""Follow-up N8, N9, N10: refund timestamps, reconcile window, schedule resolve, capture rules."""
+"""Follow-up N8, N9, N10: refund timestamps, reconcile window, schedule resolve, arrival capture."""
 from __future__ import annotations
 
 import asyncio
@@ -172,6 +172,7 @@ def test_n9_settle_and_payment_mode_resolve_stops_without_milestone_sync(monkeyp
 
 
 def test_capture_rule_stop_miles_use_arrival_capture_on(monkeypatch):
+    """Stop-level pledges use capture_on=arrival (7488f15 wording in departure_clock)."""
     monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-12T08:00:00+00:00")
     spy = MoneySpy()
 

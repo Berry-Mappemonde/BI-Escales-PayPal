@@ -88,7 +88,7 @@ def test_1_english_sponsorship_names_the_computed_line(monkeypatch):
         assert "120 sponsored miles (120.00 EUR)" in reply
         assert "Ajaccio" in reply
         assert reply.casefold().count("treasurer decides") == 0
-        assert "captured on the departure day" in reply
+        assert "arrival at the stop" in reply
         assert "PayPal Vault" in reply
         source = result["model_source"]
         super_answered = source.get("provider") == "nim" and "super" in source.get("model", "")
@@ -177,9 +177,10 @@ def test_8_french_cabin_without_a_stop_asks_which_escale():
 
 def test_9_english_capture_rule_does_not_move_money():
     async def body():
-        result = await chat("Will my money be taken on departure day?", lang="en")
+        result = await chat("When is my mile pledge money captured?", lang="en")
         reply = result["reply"]
-        assert "captured on the departure day" in reply
+        assert "arrival at the stop" in reply
+        assert "Common fund pledges are captured at once" in reply
         assert result["suggested_pledge"] is None
         assert "AUTHORIZE" not in reply
 
@@ -188,9 +189,9 @@ def test_9_english_capture_rule_does_not_move_money():
 
 def test_10_french_capture_rule_does_not_move_money():
     async def body():
-        result = await chat("Est-ce que mon argent sera pris le jour du départ ?", lang="fr")
+        result = await chat("Quand l'argent des milles est-il capturé ?", lang="fr")
         reply = result["reply"]
-        assert "le jour du départ" in reply
+        assert "à l'arrivée du bateau à l'escale" in reply
         assert result["suggested_pledge"] is None
         assert "stopover" not in reply.casefold()
 

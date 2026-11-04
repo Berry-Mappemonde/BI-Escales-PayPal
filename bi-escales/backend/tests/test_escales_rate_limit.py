@@ -265,9 +265,9 @@ def test_production_llm_cap_falls_back_to_the_rules(monkeypatch):
     monkeypatch.setattr(llm, "_client", lambda: client)
 
     async def body():
-        first = await chat("Je parraine 20 milles près de Mayotte")
+        first = await chat("Je parraine 20 milles près de Mayotte", lang="fr")
         assert first["model_source"]["provider"] == "nim"
-        second = await chat("Je parraine 10 milles près de Brest")
+        second = await chat("Je parraine 10 milles près de Brest", lang="fr")
         assert second["model_source"] == {"provider": "rules", "model": ""}
         assert "10,00 €" in second["reply"]
         assert "10 milles parrainés" in second["reply"]

@@ -744,11 +744,11 @@ def test_captain_route_does_not_capture_or_void(api, monkeypatch):
     assert client.get(f"/api/escales/pledges/{authorized['id']}").json()["status"] == "authorized"
 
 
-def test_review_route_passes_the_browser_language(api, monkeypatch):
+def test_review_route_passes_the_app_language_query(api, monkeypatch):
     client, _fake = api
     seen = {}
 
-    async def fake_review(milestone_id, reader=None, lang="fr"):
+    async def fake_review(milestone_id, reader=None, lang="en"):
         seen["milestone_id"] = milestone_id
         seen["lang"] = lang
         return {"milestone_id": milestone_id, "proposal": "wait", "lang": lang}
@@ -756,13 +756,19 @@ def test_review_route_passes_the_browser_language(api, monkeypatch):
     monkeypatch.setattr("app.routers.escales.captain_review", fake_review)
     english = client.post(
         "/api/escales/captain/review/lorient",
-        headers={"accept-language": "en-GB,en;q=0.8"},
+        params={"lang": "en"},
     )
     assert english.status_code == 200
     assert seen == {"milestone_id": "lorient", "lang": "en"}
-    french = client.post(
+    default_en = client.post(
         "/api/escales/captain/review/dakar",
         headers={"accept-language": "fr-FR,fr;q=0.9"},
+    )
+    assert default_en.status_code == 200
+    assert seen["lang"] == "en"
+    french = client.post(
+        "/api/escales/captain/review/dakar",
+        params={"lang": "fr"},
     )
     assert french.status_code == 200
     assert seen["lang"] == "fr"
@@ -1336,7 +1342,7 @@ def test_public_chat_withholds_project_and_common_fund_totals(api, monkeypatch):
     _capture_open_and_stopover(client, monkeypatch)
     project = client.post(
         "/api/escales/captain/chat",
-        json={"message": "How much money is in the project fund?"},
+        json={"message": "How much money is in the project fund?", "lang": "en"},
     )
     assert project.status_code == 200, project.text
     assert project.json()["fund"] is None
@@ -1346,7 +1352,7 @@ def test_public_chat_withholds_project_and_common_fund_totals(api, monkeypatch):
     assert "income_eur" not in project.text
     boat = client.post(
         "/api/escales/captain/chat",
-        json={"message": "Quel est le solde du fonds commun ?"},
+        json={"message": "Quel est le solde du fonds commun ?", "lang": "fr"},
     )
     assert boat.status_code == 200, boat.text
     assert boat.json()["fund"] is None
@@ -1363,7 +1369,7 @@ def test_public_chat_withholds_project_and_common_fund_totals(api, monkeypatch):
     assert "income_eur" not in wrong.text
     local = client.post(
         "/api/escales/captain/chat",
-        json={"message": "Quel est le solde du fonds commun à Mayotte ?"},
+        json={"message": "Quel est le solde du fonds commun à Mayotte ?", "lang": "fr"},
     )
     assert local.status_code == 200, local.text
     assert local.json()["fund"]["income_eur"] == "9.00"
@@ -1376,7 +1382,7 @@ def test_treasurer_chat_returns_project_and_common_fund_totals(api, monkeypatch)
     _capture_open_and_stopover(client, monkeypatch)
     project = client.post(
         "/api/escales/captain/chat",
-        json={"message": "How much money is in the project fund?"},
+        json={"message": "How much money is in the project fund?", "lang": "en"},
         headers=ADMIN,
     )
     assert project.status_code == 200, project.text
@@ -1385,7 +1391,7 @@ def test_treasurer_chat_returns_project_and_common_fund_totals(api, monkeypatch)
     assert "15.00 EUR" in project.json()["reply"]
     boat = client.post(
         "/api/escales/captain/chat",
-        json={"message": "Quel est le solde du fonds commun ?"},
+        json={"message": "Quel est le solde du fonds commun ?", "lang": "fr"},
         headers=ADMIN,
     )
     assert boat.status_code == 200, boat.text

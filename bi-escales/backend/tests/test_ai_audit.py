@@ -367,7 +367,7 @@ def test_openrouter_defaults_to_the_free_model_and_skips_402(monkeypatch):
     monkeypatch.delenv("OPENROUTER_MODEL", raising=False)
     for name in (
         "NVIDIA_API_KEY", "ANTHROPIC_API_KEY", "NEBIUS_API_KEY",
-        "OMNIROUTE_BASE_URL", "OMNIROUTE_API_KEY", "ESCALES_LLM_NEBIUS_ENABLED",
+        "ESCALES_LLM_NEBIUS_ENABLED",
     ):
         monkeypatch.delenv(name, raising=False)
     assert llm.openrouter_model() == "openrouter/free"
@@ -392,38 +392,7 @@ def test_openrouter_defaults_to_the_free_model_and_skips_402(monkeypatch):
     asyncio.run(body())
 
 
-def test_omniroute_is_off_until_its_url_is_set(monkeypatch):
-    for name in (
-        "NVIDIA_API_KEY", "ANTHROPIC_API_KEY", "NEBIUS_API_KEY",
-        "OPENROUTER_API_KEY", "OMNIROUTE_BASE_URL", "OMNIROUTE_API_KEY",
-        "ESCALES_LLM_NEBIUS_ENABLED",
-    ):
-        monkeypatch.delenv(name, raising=False)
-    assert "omniroute" not in llm.active_providers()
-    monkeypatch.setenv("ESCALES_LLM_ENABLED", "1")
-    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
-    monkeypatch.setenv("OMNIROUTE_BASE_URL", "http://omniroute.local")
-    monkeypatch.setenv("OMNIROUTE_API_KEY", "test-omni-key")
-    assert llm.active_providers() == ["openrouter", "omniroute"]
-    assert llm.omniroute_url() == "http://omniroute.local/v1/chat/completions"
-    seen, client = _transport({
-        "openrouter.ai": [httpx.Response(503, json={"error": {"message": "down"}})],
-        "omniroute.local": [_openai("via the gateway", "auto")],
-    })
-
-    async def body():
-        result = await llm.ask_text("preuve", client=client)
-        assert result.provider == "omniroute"
-        assert result.text == "via the gateway"
-        assert seen[1]["model"] == "auto"
-        assert seen[1]["body"]["messages"][1]["content"] == "preuve"
-        assert "test-omni-key" not in json.dumps(seen[1]["body"])
-        await client.aclose()
-
-    asyncio.run(body())
-
-
-def test_router_uses_lang_then_accept_language(monkeypatch):
+def test_router_uses_app_language_only(monkeypatch):
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
@@ -439,23 +408,22 @@ def test_router_uses_lang_then_accept_language(monkeypatch):
         )
         assert english.status_code == 200, english.text
         assert "120 sponsored miles (120.00 EUR)" in english.json()["reply"]
-        header = client.post(
+        default_en = client.post(
             "/api/escales/captain/chat",
             json={"message": FRENCH},
-            headers={"accept-language": "en-GB,en;q=0.8"},
-        )
-        assert "milles parrain" in header.json()["reply"]
-        detected = client.post(
-            "/api/escales/captain/chat",
-            json={"message": "I'd like to sponsor 120 miles near Ajaccio"},
             headers={"accept-language": "fr-FR,fr;q=0.9"},
         )
-        assert "sponsored miles" in detected.json()["reply"]
+        assert "120 sponsored miles (120.00 EUR)" in default_en.json()["reply"]
+        french = client.post(
+            "/api/escales/captain/chat",
+            json={"message": "I'd like to sponsor 120 miles near Ajaccio", "lang": "fr"},
+        )
+        assert "milles parrain" in french.json()["reply"]
         unknown = client.post(
             "/api/escales/captain/chat",
             json={"message": FRENCH, "lang": "de"},
         )
-        assert "sponsored miles" in unknown.json()["reply"]
+        assert "120 sponsored miles (120.00 EUR)" in unknown.json()["reply"]
     set_paypal_client_factory(None)
 
 
@@ -475,33 +443,6 @@ def test_inverted_date_sentence_is_dropped():
     assert "2026-12-02" not in dropped
     assert "2026-11-29" not in dropped
     assert "The sea is calm" in dropped
-
-
-def test_omniroute_ask_json_sends_response_format(monkeypatch):
-    monkeypatch.setenv("ESCALES_LLM_ENABLED", "1")
-    for name in (
-        "NVIDIA_API_KEY", "ANTHROPIC_API_KEY", "NEBIUS_API_KEY",
-        "OPENROUTER_API_KEY", "ESCALES_LLM_NEBIUS_ENABLED",
-    ):
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("OMNIROUTE_BASE_URL", "http://omniroute.local")
-    monkeypatch.setenv("OMNIROUTE_API_KEY", "test-omni-key")
-    llm.reset_hop_blocks()
-    seen, client = _transport({
-        "omniroute.local": [
-            _openai('{"proposal":"wait","reason":"Evidence pending."}', "auto"),
-        ],
-    })
-
-    async def body():
-        parsed = await llm.ask_json("advisory probe", client=client)
-        assert parsed.provider == "omniroute"
-        assert seen[0]["body"]["response_format"]["type"] == "json_schema"
-        assert "nvext" not in seen[0]["body"]
-        assert "test-omni-key" not in json.dumps(seen[0]["body"])
-        await client.aclose()
-
-    asyncio.run(body())
 
 
 def test_admin_llm_cascade_probe_returns_metadata_only(monkeypatch):

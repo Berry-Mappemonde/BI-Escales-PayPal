@@ -174,7 +174,7 @@ def _transport(script: dict[str, list[httpx.Response]]):
 
 def test_cascade_order_puts_nebius_last_and_rules_after_it():
     assert llm.CASCADE == (
-        "nim", "nim_fallback", "openrouter", "omniroute", "anthropic", "tokenfactory", "rules",
+        "nim", "nim_fallback", "openrouter", "anthropic", "tokenfactory", "rules",
     )
     assert llm.NIM_MODEL == llm.NIM_MODEL_DEFAULT == "private/nvidia/nemotron-3.5-super-120b-a12b"
     assert llm.NIM_FALLBACK_MODEL_DEFAULT == "nvidia/nemotron-3.5-lightning-30b-a3b"
@@ -574,7 +574,7 @@ def test_captain_uses_rules_when_every_provider_fails(monkeypatch):
 
     async def body():
         await record_evidence("dep-mayotte", met=True, facts={"port": "Mayotte"})
-        result = await review("dep-mayotte", reader=None)
+        result = await review("dep-mayotte", reader=None, lang="fr")
         assert result["model_source"] == {"provider": "rules", "model": ""}
         assert result["proposal"] == "capture"
         assert result["report"].startswith("L'escale Mayotte est atteinte")

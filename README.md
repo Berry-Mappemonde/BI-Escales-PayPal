@@ -29,8 +29,6 @@ NVIDIA API Catalog is a free trial, rate-limited per account (about 40 requests 
 
 OpenRouter free models allow 20 requests per minute and 50 per day (1,000 per day after at least 10 USD of lifetime credits). The default model is `openrouter/free`, not a paid model. `OPENROUTER_MODEL` can name another id. The OpenRouter terms forbid more than one account, so this project does not add a second one. HTTP 402 skips OpenRouter. HTTP 429 waits for `Retry-After` (capped at 3 s) and then skips it. Requests send `HTTP-Referer` and `X-Title`.
 
-OmniRoute is an optional MIT self-hosted gateway (`OMNIROUTE_BASE_URL`, `OMNIROUTE_API_KEY`, `OMNIROUTE_MODEL`, default `auto`). It speaks OpenAI `/v1/chat/completions` and sits after OpenRouter and before Anthropic. An empty URL leaves it off. Its quotas are the upstream providers' quotas.
-
 ## Optional partners (feature flags)
 
 The API runs fully on local pytest and manual treasurer routes without any of the integrations below. Each partner is gated by an environment variable (see `bi-escales/.env.example`).

@@ -53,10 +53,10 @@ def safe_error_message(exc: BaseException) -> str:
 
 # HTTP hops, then the local rules applied by the captain when nothing answered.
 # NIM primary, then the smaller NIM fallback, then the other providers.
-CASCADE = ("nim", "nim_fallback", "openrouter", "omniroute", "anthropic", "tokenfactory", "rules")
-HTTP_CASCADE = ("nim", "nim_fallback", "openrouter", "omniroute", "anthropic", "tokenfactory")
+CASCADE = ("nim", "nim_fallback", "openrouter", "anthropic", "tokenfactory", "rules")
+HTTP_CASCADE = ("nim", "nim_fallback", "openrouter", "anthropic", "tokenfactory")
 # JSON advisory only. Chat and reports stay on Super first.
-JSON_HTTP_CASCADE = ("nim_fallback", "nim", "openrouter", "omniroute", "anthropic", "tokenfactory")
+JSON_HTTP_CASCADE = ("nim_fallback", "nim", "openrouter", "anthropic", "tokenfactory")
 
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -196,30 +196,6 @@ def nebius_key() -> str:
 
 def openrouter_model() -> str:
     return _env("OPENROUTER_MODEL") or OPENROUTER_DEFAULT_MODEL
-
-
-def omniroute_base() -> str:
-    return _env("OMNIROUTE_BASE_URL").rstrip("/")
-
-
-def omniroute_key() -> str:
-    return _env("OMNIROUTE_API_KEY")
-
-
-def omniroute_model() -> str:
-    return _env("OMNIROUTE_MODEL") or "auto"
-
-
-def omniroute_url() -> str:
-    """OpenAI-compatible chat URL. Empty when OMNIROUTE_BASE_URL is empty."""
-    base = omniroute_base()
-    if not base:
-        return ""
-    if base.endswith("/chat/completions"):
-        return base
-    if base.endswith("/v1"):
-        return f"{base}/chat/completions"
-    return f"{base}/v1/chat/completions"
 
 
 def _env_float(raw: str, default: float) -> float:
@@ -409,15 +385,11 @@ def tokenfactory_url() -> str:
 
 
 def active_providers(order: Optional[tuple[str, ...]] = None) -> list[str]:
-    """Configured HTTP hops, in cascade order. Nebius only when its flag is on.
-
-    OmniRoute is absent unless ``OMNIROUTE_BASE_URL`` is set.
-    """
+    """Configured HTTP hops, in cascade order. Nebius only when its flag is on."""
     ready = {
         "nim": bool(nvidia_key()),
         "nim_fallback": bool(nvidia_key()) and bool(nim_fallback_model()),
         "openrouter": bool(openrouter_key()),
-        "omniroute": bool(omniroute_url()) and bool(omniroute_key()),
         "anthropic": bool(anthropic_key()),
         "tokenfactory": nebius_enabled() and bool(nebius_key()),
     }
@@ -900,48 +872,9 @@ async def _call_tokenfactory(
     return LlmResult(text, "tokenfactory", _reported_model(data, TOKENFACTORY_MODEL))
 
 
-async def _call_omniroute(
-    system: str,
-    user: str,
-    client: httpx.AsyncClient,
-    max_tokens: int,
-    temperature: Optional[float] = None,
-    response_schema: Optional[dict[str, Any]] = None,
-) -> LlmResult:
-    url = omniroute_url()
-    key = omniroute_key()
-    if not url or not key:
-        raise RuntimeError("omniroute disabled")
-    model = omniroute_model()
-    payload: dict[str, Any] = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "max_tokens": max_tokens,
-        "temperature": _temperature(temperature, 0.4),
-    }
-    formatted = _json_schema_format(response_schema)
-    if formatted is not None:
-        payload["response_format"] = formatted
-    data = await _post_json(
-        client,
-        "omniroute",
-        url,
-        {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-        payload,
-    )
-    text = _openai_text(data)
-    if not text:
-        raise RuntimeError("omniroute empty")
-    return LlmResult(text, "omniroute", _reported_model(data, model))
-
-
 _CALLS: dict[str, _Caller] = {
     "nim": _call_nim,
     "openrouter": _call_openrouter,
-    "omniroute": _call_omniroute,
     "anthropic": _call_anthropic,
     "tokenfactory": _call_tokenfactory,
 }
@@ -969,8 +902,6 @@ def _hop_model_for_log(name: str) -> str:
         return nim_fallback_model()
     if name == "openrouter":
         return openrouter_model()
-    if name == "omniroute":
-        return omniroute_model()
     return name
 
 
@@ -1031,16 +962,6 @@ async def ask_text(
                     elif name == "openrouter":
                         log.info("openrouter hop sending model %s", openrouter_model())
                         result = await _call_openrouter(
-                            system_text,
-                            user,
-                            http,
-                            budget,
-                            temperature,
-                            response_schema=guided_json,
-                        )
-                    elif name == "omniroute":
-                        log.info("omniroute hop sending model %s", omniroute_model())
-                        result = await _call_omniroute(
                             system_text,
                             user,
                             http,
@@ -1171,16 +1092,18 @@ async def ask_json(
     max_tokens: int = 500,
     client: Optional[httpx.AsyncClient] = None,
     temperature: Optional[float] = 0,
+    schema: Optional[dict[str, Any]] = None,
 ) -> LlmJson:
     """Ask for one JSON object. The schema is advisory and does not choose the payment."""
     system_text = (system or "").strip() or _JSON_SYSTEM
+    use_schema = schema or ADVISORY_PROPOSAL_SCHEMA
     result = await ask_text(
         prompt,
         system=system_text,
         max_tokens=max_tokens,
         client=client,
         temperature=0 if temperature is None else temperature,
-        guided_json=ADVISORY_PROPOSAL_SCHEMA,
+        guided_json=use_schema,
         order=JSON_HTTP_CASCADE,
     )
     data = parse_json_object(result.text)

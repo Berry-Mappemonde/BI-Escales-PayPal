@@ -89,6 +89,7 @@ from app.escales.project_payouts import (
     approve_project_payout,
     propose_project_payout,
 )
+from app.escales.app_i18n import resolve_app_language
 from app.escales.rate_limit import (
     RateLimited,
     client_ip,
@@ -906,11 +907,11 @@ def _enforce_captain_rate(request: Request, text: str = "") -> None:
 
 
 @router.post("/captain/review/{milestone_id}")
-async def post_review(milestone_id: str, request: Request):
+async def post_review(milestone_id: str, request: Request, lang: Optional[str] = None):
     _enforce_captain_rate(request)
-    lang = lang_for(request.headers.get("accept-language", ""))
+    app_lang = resolve_app_language(lang)
     try:
-        proposal = await captain_review(milestone_id, reader=_reader(), lang=lang)
+        proposal = await captain_review(milestone_id, reader=_reader(), lang=app_lang)
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
     if not _valid_admin_key(request):

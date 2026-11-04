@@ -16,7 +16,7 @@ from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
 from .config import AUTH_MAX_DAYS, membership_url, simulated_now
-from .app_i18n import DEFAULT_APP_LANGUAGE, forced_app_lang, normalize_app_lang
+from .app_i18n import default_app_language, normalize_app_lang, resolve_app_language
 from .departure_clock import CAPTURE_RULES_EN, CAPTURE_RULES_FR
 from .paypal_txn_search import default_transaction_search_window
 from .milestones import (
@@ -515,7 +515,7 @@ def _chat_system_fr() -> str:
 
 
 def _chat_system(lang: str) -> str:
-    if lang == "fr":
+    if normalize_app_lang(lang) == "fr":
         return _chat_system_fr()
     return _chat_system_en()
 
@@ -525,22 +525,9 @@ def resolve_chat_lang(
     requested: Optional[str] = None,
     accept_language: str = "",
 ) -> str:
-    """App language wins. Then the message when clear. Then Accept-Language. Unknown is English."""
-    if (requested or "").strip():
-        return normalize_app_lang(requested)
-    en = len(_EN_HINT.findall(message or ""))
-    fr = len(_FR_HINT.findall(message or ""))
-    if en > fr:
-        return "en"
-    if fr > en:
-        return "fr"
-    if en == fr == 0:
-        token = (accept_language or "").split(",")[0].split(";")[0].strip()
-        header = forced_app_lang(token)
-        if header:
-            return header
-    detected = message_lang(message)
-    return forced_app_lang(detected) or DEFAULT_APP_LANGUAGE
+    """App language from the client overrides message text and Accept-Language."""
+    del message, accept_language  # kept for API compatibility
+    return resolve_app_language(requested)
 
 
 # A distorted spelling maps onto a slug from the display table.
@@ -2235,20 +2222,43 @@ def validate_advisory_proposal(
 
 
 def _verdict_system(lang: str) -> str:
-    """JSON verdict instructions in the report language."""
-    if lang == "en":
+    """JSON verdict instructions in the app language."""
+    if normalize_app_lang(lang) == "fr":
         return (
-            "Reply with one JSON object only. No markdown fence and no commentary. "
-            "Write reason in English. proposal is capture, void, wait or reauthorize. "
-            "Do not invent a figure or a fact. reason may only use the JSON. "
-            "Do not write [?] or a unit such as nm without its number."
+            "Réponds par un seul objet JSON. Pas de balise markdown et pas de commentaire. "
+            "Écris reason en français. proposal vaut capture, void, wait ou reauthorize. "
+            "N'invente aucun chiffre ni aucun fait. reason n'utilise que le JSON. "
+            "N'écris pas [?] ni une unité comme nm sans son nombre."
         )
     return (
-        "Réponds par un seul objet JSON. Pas de balise markdown et pas de commentaire. "
-        "Écris reason en français. proposal vaut capture, void, wait ou reauthorize. "
-        "N'invente aucun chiffre ni aucun fait. reason n'utilise que le JSON. "
-        "N'écris pas [?] ni une unité comme nm sans son nombre."
+        "Reply with one JSON object only. No markdown fence and no commentary. "
+        "Write reason in English. proposal is capture, void, wait or reauthorize. "
+        "Do not invent a figure or a fact. reason may only use the JSON. "
+        "Do not write [?] or a unit such as nm without its number."
     )
+
+
+def advisory_proposal_schema(lang: str) -> dict:
+    """JSON schema for ask_json, with field descriptions in the app language."""
+    app_lang = normalize_app_lang(lang)
+    schema: dict = {
+        "type": "object",
+        "properties": {
+            "proposal": {
+                "type": "string",
+                "enum": ["capture", "void", "wait", "reauthorize"],
+            },
+            "reason": {"type": "string"},
+        },
+        "required": ["proposal", "reason"],
+    }
+    if app_lang == "fr":
+        schema["properties"]["proposal"]["description"] = "capture, void, wait ou reauthorize."
+        schema["properties"]["reason"]["description"] = "Justification en français, sans inventer de chiffre."
+    else:
+        schema["properties"]["proposal"]["description"] = "One of capture, void, wait, or reauthorize."
+        schema["properties"]["reason"]["description"] = "Reason in English; do not invent figures."
+    return schema
 
 
 async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict]:
@@ -2266,12 +2276,14 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
     payload["authorization_age_days"] = age
     prompt = _with_known_facts(json.dumps(payload, ensure_ascii=False, default=str))
     verdict_lang = normalize_app_lang(str(allowed.get("language") or ""))
+    schema = advisory_proposal_schema(verdict_lang)
     try:
         parsed = await llm.ask_json(
             prompt,
             system=_verdict_system(verdict_lang),
             max_tokens=180,
             temperature=0,
+            schema=schema,
         )
     except Exception:
         return None
@@ -2297,52 +2309,25 @@ async def _narrative_for_language(
     lang: Optional[str],
     reached: bool,
 ) -> tuple[str, dict[str, str], str]:
-    """Up to two attempts. A forced language retries once, then the rules apply."""
-    forced = forced_app_lang(lang)
-    prompt_lang = forced or "fr"
-    system = _report_system(milestone_id, reached, prompt_lang)
-
-    async def once(instruction: str) -> tuple[str, str, dict[str, str]]:
-        narrative, source = await _llm_text(
-            prompt,
-            instruction,
-            max_tokens=_REPORT_MAX_TOKENS,
-            temperature=_REPORT_TEMPERATURE,
-        )
-        raw = narrative or ""
-        usable = _prepare_model_narrative(raw, prompt_lang) if raw else ""
-        return raw, usable, source
-
-    raw, usable, source = await once(system)
+    """Narrative in the app language only (no message or Accept-Language override)."""
+    app_lang = resolve_app_language(lang)
+    system = _report_system(milestone_id, reached, app_lang)
+    narrative, source = await _llm_text(
+        prompt,
+        system,
+        max_tokens=_REPORT_MAX_TOKENS,
+        temperature=_REPORT_TEMPERATURE,
+    )
+    raw = narrative or ""
+    usable = _prepare_model_narrative(raw, app_lang) if raw else ""
     if not usable:
         log.warning("captain report rejected (empty narrative) raw=%s", raw)
-        return "", source, prompt_lang
-    detected = _report_language(usable, forced)
-    if forced is None or detected == forced:
-        if (forced or detected) == "fr":
-            usable = _standardise_french(_french_labels(usable))
-        return usable, source, forced or detected
-    log.warning(
-        "captain report rejected (language %s != %s) raw=%s",
-        detected, forced, raw,
-    )
-    reminder = (
-        " RAPPEL : écris en français uniquement."
-        if forced == "fr"
-        else " Write in English only."
-    )
-    raw, usable, source = await once(f"{system}{reminder}")
-    if usable and _report_language(usable, forced) == forced:
-        if forced == "fr":
-            usable = _standardise_french(_french_labels(usable))
-        return usable, source, forced
-    log.warning(
-        "captain report rejected (language %s != %s after retry) raw=%s",
-        _report_language(usable, forced) if usable else "empty",
-        forced,
-        raw,
-    )
-    return "", _rules_source(), forced
+        return "", source, app_lang
+    if app_lang == "fr":
+        usable = _standardise_french(_french_labels(usable))
+    elif app_lang == "en":
+        usable = _english_labels(usable)
+    return usable, source, app_lang
 
 
 async def review(
@@ -2353,7 +2338,7 @@ async def review(
     """Propose capture or void from evidence. Does not execute either."""
     from .naviguide_bridge import resolve_milestone
 
-    report_lang = normalize_app_lang(lang) if (lang or "").strip() else "fr"
+    report_lang = resolve_app_language(lang)
     canonical = resolve_milestone(milestone_id) or milestone_id
     milestone = await get_milestone(milestone_id)
     if not latest_evidence(milestone):
@@ -2382,7 +2367,7 @@ async def review(
     prompt = json.dumps(allowed, ensure_ascii=False, default=str)
     known = _with_known_facts(prompt)
     usable, source, report_lang = await _narrative_for_language(
-        prompt, milestone_id, forced_app_lang(lang), reached,
+        prompt, milestone_id, report_lang, reached,
     )
     if usable:
         usable = _without_gaps(usable, known, report_lang)

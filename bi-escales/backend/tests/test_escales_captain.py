@@ -323,6 +323,37 @@ def test_chat_repeats_the_pledge_in_the_message_language(monkeypatch):
     asyncio.run(body())
 
 
+def test_capture_rule_is_explained_without_only_naming_the_treasurer(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        raise AssertionError("the model must not answer when the capture rule is public")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        english = await chat("When is the money captured?")
+        reply = english["reply"]
+        assert "as close to departure as possible" in reply
+        assert "captured on the departure day" in reply
+        assert "cancelled" in reply
+        assert "voided" in reply
+        assert "treasurer review" not in reply
+        assert "August" not in reply
+        assert "2025" not in reply
+        assert english["suggested_pledge"] is None
+        assert english["model_source"] == {"provider": "rules", "model": ""}
+        french = await chat("Quand l'argent est-il capturé ?")
+        assert "au plus près du départ" in french["reply"]
+        assert "jour du départ" in french["reply"]
+        assert "annulée" in french["reply"]
+        assert "revue du trésorier" not in french["reply"]
+        assert french["model_source"] == {"provider": "rules", "model": ""}
+
+    asyncio.run(body())
+
+
 def test_treasurer_questions_skip_the_model(monkeypatch):
     import app.core.llm as llm
 

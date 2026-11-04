@@ -78,6 +78,14 @@ _TREASURER_Q = re.compile(
     r"encaiss|annul|captur|void|tr[ée]sorier|treasurer|authori[sz]ation|autorisation",
     re.IGNORECASE,
 )
+# Timing of a capture. A request to capture or void one authorization stays with the treasurer.
+_CAPTURE_RULE_Q = re.compile(
+    r"\bwhen\b.{0,80}\bcaptur"
+    r"|\bquand\b.{0,80}\bcaptur"
+    r"|\bwhen\b.{0,40}\bmoney\b.{0,40}\b(?:taken|charged)"
+    r"|\bquand\b.{0,40}\bargent\b.{0,40}\b(?:pr[ée]lev|encaiss)",
+    re.IGNORECASE | re.DOTALL,
+)
 _STATUS_Q = re.compile(
     r"\b(?:statuts?|status|états?|etats?)\b"
     r"|où en est|ou en est|où en sommes|ou en sommes",
@@ -247,7 +255,34 @@ _DANGLING_WORD = {
 }
 
 
+def _is_capture_rule_question(message: str) -> bool:
+    """When money is captured. Not a request to capture or void one pledge."""
+    text = message or ""
+    if re.search(r"\bvoid\b|\bannuler\b|ou l['’]annul", text, re.IGNORECASE):
+        return False
+    return bool(_CAPTURE_RULE_Q.search(text))
+
+
+def _capture_rule_reply(lang: str) -> str:
+    """The public rule. It does not send the reader only to the treasurer."""
+    if lang == "en":
+        prose = (
+            "A pledge is authorized as close to departure as possible. "
+            "The money is captured on the departure day. "
+            "If the stopover is cancelled, the authorization is voided."
+        )
+    else:
+        prose = (
+            "Une promesse est autorisée au plus près du départ. "
+            "L'argent est capturé le jour du départ. "
+            "Si l'escale est annulée, l'autorisation est annulée."
+        )
+    return _fit_words("", [prose, _signature(lang)])
+
+
 def _is_treasurer_question(message: str) -> bool:
+    if _is_capture_rule_question(message):
+        return False
     return bool(_TREASURER_Q.search(message or ""))
 
 
@@ -2370,6 +2405,15 @@ async def chat(message: str, *, treasurer: bool = False) -> dict:
         raise ValueError("message is required")
     url = membership_url()
     lang = message_lang(text)
+    if _is_capture_rule_question(text):
+        return {
+            "reply": _capture_rule_reply(lang),
+            "membership_url": url,
+            "suggested_pledge": None,
+            "cart": None,
+            "model_source": _rules_source(),
+            "fund": None,
+        }
     if _is_fund_question(text):
         reply, source, fund = await _answer_fund(text, lang, treasurer=treasurer)
         return {

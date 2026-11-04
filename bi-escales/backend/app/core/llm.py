@@ -65,9 +65,18 @@ TOKENFACTORY_DEFAULT_BASE = "https://api.tokenfactory.nebius.com/v1"
 # NIM_TEMPERATURE stays unset so chat 0.3, reports 0.2 and JSON 0 apply.
 # The old id nvidia/nemotron-3.5-super-vl-120b-a12b returns 404.
 # So does nvidia/nemotron-3.5-super-120b-a12b without the private/ prefix.
-# model_source reports the model that answered, including lightning after that 404.
+# NIM_MODEL on Render (sync: false) overrides this default. Those two ids,
+# and the lightning id used as the primary, are refused so the hop still
+# sends the private Super id. model_source.model is the model that answered.
+# model_source.reason names the hop and the failure kind, never a secret.
 NIM_MODEL_DEFAULT = "private/nvidia/nemotron-3.5-super-120b-a12b"
 NIM_FALLBACK_MODEL_DEFAULT = "nvidia/nemotron-3.5-lightning-30b-a3b"
+# Ids that must not be the primary hop. The value is the public reason.
+_NIM_REJECTED_IDS = {
+    "nvidia/nemotron-3.5-super-vl-120b-a12b": "returns HTTP 404 at NVIDIA",
+    "nvidia/nemotron-3.5-super-120b-a12b": "returns HTTP 404 at NVIDIA without the private/ prefix",
+    "nvidia/nemotron-3.5-lightning-30b-a3b": "is the lightning fallback, not the Super model",
+}
 NIM_MAX_TOKENS_DEFAULT = 400
 NIM_TOP_P_DEFAULT = 0.95
 NIM_REASONING_DEFAULT = "none"
@@ -103,12 +112,17 @@ _Caller = Callable[..., Awaitable["LlmResult"]]
 
 
 class LlmResult:
-    """Model text plus the provider and model id that produced it."""
+    """Model text plus the provider and model id that produced it.
 
-    def __init__(self, text: str, provider: str, model: str) -> None:
+    ``reason`` is a short cause when the hop is not the configured primary
+    success. It names model ids and failure kinds only, never a secret.
+    """
+
+    def __init__(self, text: str, provider: str, model: str, reason: str = "") -> None:
         self.text = text
         self.provider = provider
         self.model = model
+        self.reason = reason
 
     def __bool__(self) -> bool:
         return bool(self.text)
@@ -178,13 +192,33 @@ def reset_nim_404_fallbacks() -> None:
     _nim_404_fallbacks = 0
 
 
+_nim_model_reason = ""
+
+
+def nim_model_reason() -> str:
+    """Why the primary id is not the raw ``NIM_MODEL`` value. Empty when it is used as set."""
+    return _nim_model_reason
+
+
 def nim_model() -> str:
-    """Primary NIM id. ``NIM_MODEL`` env, else the module attribute, else the benchmarked default."""
+    """Primary NIM id. ``NIM_MODEL`` env, else the module attribute, else the benchmarked default.
+
+    A known 404 id, or the lightning id placed in ``NIM_MODEL``, is not sent.
+    The private Super id is sent instead, and ``nim_model_reason`` says so.
+    """
+    global _nim_model_reason
     configured = _env("NIM_MODEL")
-    if configured:
-        return configured
-    current = (NIM_MODEL or "").strip()
-    return current or NIM_MODEL_DEFAULT
+    chosen = configured or (NIM_MODEL or "").strip() or NIM_MODEL_DEFAULT
+    why = _NIM_REJECTED_IDS.get(chosen)
+    if why:
+        _nim_model_reason = (
+            f"NIM_MODEL is {chosen}, which {why}. "
+            f"The primary hop sends {NIM_MODEL_DEFAULT}. "
+            "On Render, set NIM_MODEL to that id or unset it."
+        )
+        return NIM_MODEL_DEFAULT
+    _nim_model_reason = ""
+    return chosen
 
 
 def nim_fallback_model() -> str:
@@ -416,6 +450,16 @@ def _is_rate_limit(exc: BaseException) -> bool:
     return bool(re.search(r"\bHTTP\s+429\b", str(exc)))
 
 
+def _failure_kind(exc: BaseException) -> str:
+    """A short cause for logs and model_source.reason. No exception text, so no secret."""
+    if isinstance(exc, (httpx.TimeoutException, asyncio.TimeoutError, TimeoutError)):
+        return "timeout"
+    match = re.search(r"\bHTTP\s+(\d+)\b", str(exc))
+    if match:
+        return f"http_{match.group(1)}"
+    return type(exc).__name__
+
+
 def _openai_text(data: dict[str, Any]) -> str:
     choices = data.get("choices") or []
     choice = choices[0] if choices and isinstance(choices[0], dict) else {}
@@ -545,7 +589,8 @@ async def _call_nim(
     text = _openai_text(data)
     if not text:
         raise RuntimeError(f"{hop} empty")
-    return LlmResult(text, "nim", _reported_model(data, chosen))
+    provider = "nim_fallback" if hop == "nim_fallback" else "nim"
+    return LlmResult(text, provider, _reported_model(data, chosen))
 
 
 async def _call_openrouter(
@@ -685,12 +730,18 @@ async def ask_text(
     http = client or _client()
     try:
         last = "no_llm_backend"
+        primary_failure = ""
         for name in active_providers():
             nim_hop = name in {"nim", "nim_fallback"}
             for attempt in range(2 if nim_hop else 1):
                 try:
                     if nim_hop:
                         await _pace_nim()
+                        sent = nim_fallback_model() if name == "nim_fallback" else nim_model()
+                        if name == "nim" and nim_model_reason():
+                            log.warning("NIM primary hop: %s", nim_model_reason())
+                        else:
+                            log.info("NIM hop %s sending model %s", name, sent)
                         result = await _call_nim(
                             system_text,
                             user,
@@ -698,23 +749,32 @@ async def ask_text(
                             budget,
                             temperature,
                             hop=name,
-                            model=nim_fallback_model() if name == "nim_fallback" else nim_model(),
+                            model=sent,
                             guided_json=guided_json,
                         )
                     else:
                         result = await _CALLS[name](system_text, user, http, budget, temperature)
                 except Exception as exc:
                     detail = safe_error_message(exc)
-                    last = f"{name} {type(exc).__name__}: {detail}"
-                    log.warning("cascade %s failed (%s): %s", name, type(exc).__name__, detail)
-                    if name == "nim" and "HTTP 404" in str(exc):
-                        global _nim_404_fallbacks
-                        _nim_404_fallbacks += 1
-                        log.warning(
-                            "NIM model %s returned 404; falling back (count=%s)",
-                            nim_model(),
-                            _nim_404_fallbacks,
-                        )
+                    kind = _failure_kind(exc)
+                    last = f"{name} {kind}"
+                    log.warning(
+                        "cascade %s failed (%s) model=%s: %s",
+                        name,
+                        kind,
+                        nim_model() if name == "nim" else (nim_fallback_model() if name == "nim_fallback" else name),
+                        detail,
+                    )
+                    if name == "nim":
+                        primary_failure = kind
+                        if kind == "http_404":
+                            global _nim_404_fallbacks
+                            _nim_404_fallbacks += 1
+                            log.warning(
+                                "NIM model %s returned 404; falling back (count=%s)",
+                                nim_model(),
+                                _nim_404_fallbacks,
+                            )
                     if attempt == 0 and nim_hop and _is_rate_limit(exc):
                         pause = nim_rate_limit_pause()
                         log.warning("cascade %s HTTP 429, retrying once in %.2fs", name, pause)
@@ -722,8 +782,18 @@ async def ask_text(
                         continue
                     break
                 if result.text.strip():
+                    if name == "nim" and nim_model_reason():
+                        result.reason = nim_model_reason()
+                    elif name == "nim_fallback":
+                        result.reason = (
+                            f"primary hop sent {nim_model()} and failed ({primary_failure or 'error'}); "
+                            f"nim_fallback sent {result.model}"
+                        )
+                        log.warning("%s", result.reason)
                     return result
                 last = f"{name} empty"
+                if name == "nim":
+                    primary_failure = "empty"
                 break
         raise RuntimeError(f"LLM cascade exhausted ({last})")
     finally:

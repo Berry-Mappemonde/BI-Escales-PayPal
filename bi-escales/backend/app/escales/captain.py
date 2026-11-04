@@ -1804,11 +1804,18 @@ def _without_gaps(text: str, known: str, lang: str = "") -> str:
 
 
 def _source_of(raw: Any, text: str) -> dict[str, str]:
-    """Provider and model from the cascade. A bare string has no model id."""
+    """Provider and model from the cascade. A bare string has no model id.
+
+    ``reason`` is copied when the hop explains a fallback or a refused model id.
+    """
     provider = getattr(raw, "provider", None)
     model = getattr(raw, "model", None)
     if isinstance(provider, str) and provider.strip():
-        return {"provider": provider.strip(), "model": str(model or "").strip()}
+        source = {"provider": provider.strip(), "model": str(model or "").strip()}
+        reason = getattr(raw, "reason", "") or ""
+        if isinstance(reason, str) and reason.strip():
+            source["reason"] = reason.strip()
+        return source
     if text:
         return {"provider": "llm", "model": ""}
     return _rules_source()

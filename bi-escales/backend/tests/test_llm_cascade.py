@@ -621,7 +621,8 @@ def test_nim_http_429_retries_the_same_model_once(monkeypatch):
     async def fallback():
         result = await llm.ask_text("preuve", client=client)
         assert result.text == "Secours."
-        assert result.provider == "nim"
+        assert result.provider == "nim_fallback"
+        assert "http_429" in result.reason
         assert [item["model"] for item in seen] == [
             llm.NIM_MODEL_DEFAULT,
             llm.NIM_MODEL_DEFAULT,
@@ -756,8 +757,13 @@ def test_nim_fallback_answers_before_openrouter():
     async def body():
         result = await llm.ask_text("preuve", client=FakeClient())
         assert result.text == "fallback ok"
-        assert result.provider == "nim"
+        assert result.provider == "nim_fallback"
         assert result.model == llm.NIM_FALLBACK_MODEL_DEFAULT
+        assert llm.NIM_MODEL_DEFAULT in result.reason
+        assert "http_503" in result.reason
+        assert llm.NIM_FALLBACK_MODEL_DEFAULT in result.reason
+        assert "Bearer" not in result.reason
+        assert "nvapi" not in result.reason
         assert len(calls) == 2
         assert calls[0]["model"] == llm.NIM_MODEL_DEFAULT
         assert calls[0]["read"] == 10
@@ -880,10 +886,89 @@ def test_private_nim_id_is_the_default_and_a_404_is_counted(monkeypatch, caplog)
         with caplog.at_level("WARNING"):
             result = await llm.ask_text("preuve", client=client)
         assert result.text == "secours"
+        assert result.provider == "nim_fallback"
         assert result.model == llm.NIM_FALLBACK_MODEL_DEFAULT
         assert seen[0]["model"] == llm.NIM_MODEL_DEFAULT
+        assert "http_404" in result.reason
+        assert llm.NIM_MODEL_DEFAULT in result.reason
+        assert "Bearer" not in result.reason
         assert llm.nim_404_fallback_count() == 1
         assert "returned 404" in caplog.text
+        assert "sending model" in caplog.text or llm.NIM_MODEL_DEFAULT in caplog.text
         await client.aclose()
+
+    asyncio.run(body())
+
+
+def test_rejected_nim_model_env_sends_the_private_super(monkeypatch, caplog):
+    """Render NIM_MODEL overrides the default. Known 404 ids and lightning are not sent."""
+    assert llm.nim_model_reason() == ""
+    monkeypatch.setenv("NIM_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b")
+    assert llm.nim_model() == llm.NIM_MODEL_DEFAULT
+    assert "NIM_MODEL" in llm.nim_model_reason()
+    assert "404" in llm.nim_model_reason()
+    assert "nvapi" not in llm.nim_model_reason()
+    monkeypatch.setenv("NIM_MODEL", "nvidia/nemotron-3.5-super-120b-a12b")
+    assert llm.nim_model() == llm.NIM_MODEL_DEFAULT
+    assert "private/" in llm.nim_model_reason()
+    monkeypatch.setenv("NIM_MODEL", "nvidia/nemotron-3.5-lightning-30b-a3b")
+    assert llm.nim_model() == llm.NIM_MODEL_DEFAULT
+    assert "lightning" in llm.nim_model_reason()
+    monkeypatch.setenv("NIM_MODEL", "nvidia/benchmark-model")
+    assert llm.nim_model() == "nvidia/benchmark-model"
+    assert llm.nim_model_reason() == ""
+
+    _enable("nim")
+    monkeypatch.setenv("NIM_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b")
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [_openai("Rapport Super.", llm.NIM_MODEL_DEFAULT)],
+    })
+
+    async def body():
+        with caplog.at_level("WARNING"):
+            result = await llm.ask_text("preuve", client=client)
+        assert seen[0]["model"] == llm.NIM_MODEL_DEFAULT
+        assert result.provider == "nim"
+        assert result.model == llm.NIM_MODEL_DEFAULT
+        assert "NIM_MODEL" in result.reason
+        assert "404" in result.reason
+        assert "NIM_MODEL" in caplog.text
+        assert "Bearer" not in caplog.text
+        assert "nvapi" not in caplog.text
+        await client.aclose()
+
+    asyncio.run(body())
+
+
+def test_nim_timeout_names_the_fallback_and_the_sent_id(caplog):
+    _enable("nim")
+    calls = []
+
+    class Slow:
+        async def post(self, url, headers=None, json=None, timeout=None):
+            calls.append(json["model"])
+            if len(calls) == 1:
+                raise httpx.ReadTimeout("timed out")
+            return httpx.Response(200, json={
+                "model": json["model"],
+                "choices": [{"message": {"content": "secours"}}],
+            })
+
+        async def aclose(self):
+            return None
+
+    async def body():
+        with caplog.at_level("WARNING"):
+            result = await llm.ask_text("preuve", client=Slow())
+        assert calls[0] == llm.NIM_MODEL_DEFAULT
+        assert calls[1] == llm.NIM_FALLBACK_MODEL_DEFAULT
+        assert result.provider == "nim_fallback"
+        assert result.model == llm.NIM_FALLBACK_MODEL_DEFAULT
+        assert "timeout" in result.reason
+        assert llm.NIM_MODEL_DEFAULT in result.reason
+        assert "http_404" not in result.reason
+        assert "Bearer" not in result.reason
+        assert "timeout" in caplog.text
+        assert llm.NIM_MODEL_DEFAULT in caplog.text
 
     asyncio.run(body())

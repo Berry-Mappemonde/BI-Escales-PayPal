@@ -1941,7 +1941,16 @@ def _cart_line(
         }
     )
     if amount is not None:
-        row["amount_eur"] = f"{amount.quantize(Decimal('0.01')):.2f}"
+        shown = f"{amount.quantize(Decimal('0.01')):.2f}"
+        row["amount_eur"] = shown
+        # Same body as POST /api/escales/pledges, which creates the AUTHORIZE order.
+        row["pledge"] = {
+            "amount_eur": shown,
+            "description": description,
+            "milestone_id": place,
+            "kind": kind,
+            "target_id": place,
+        }
     return row
 
 

@@ -2087,3 +2087,24 @@ def test_chat_cart_keeps_authorize_and_reads_clock_and_schedule(monkeypatch):
         assert "250,00" not in mixed["reply"]
 
     asyncio.run(body())
+
+
+def test_cart_lines_use_the_existing_authorize_pledge():
+    async def body():
+        result = await chat("250 mi + dinner 60 € près de Dakar")
+        assert "order_id" not in result
+        spy = Spy()
+        saved = []
+        for line in result["cart"]["lines"]:
+            saved.append(await create_pledge(client=spy, **line["pledge"]))
+        assert [doc["intent"] for doc in saved] == ["AUTHORIZE", "AUTHORIZE"]
+        assert [doc["payment_mode"] for doc in saved] == ["AUTHORIZE", "AUTHORIZE"]
+        assert [doc["status"] for doc in saved] == ["created", "created"]
+        assert [doc["amount_eur"] for doc in saved] == ["250.00", "60.00"]
+        assert [doc["kind"] for doc in saved] == ["mile", "meal"]
+        assert [doc["target_id"] for doc in saved] == ["dakar", "dakar"]
+        authorized = await authorize_pledge(saved[0]["_id"], spy)
+        assert authorized["status"] == "authorized"
+        assert [call[0] for call in spy.calls] == ["create", "create", "authorize"]
+
+    asyncio.run(body())

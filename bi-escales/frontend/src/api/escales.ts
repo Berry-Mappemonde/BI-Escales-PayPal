@@ -5,6 +5,7 @@ import type {
   CaptainChatResponse,
   ScheduleResponse,
   FeatureFlags,
+  FundView,
 } from "./types";
 
 function url(path: string): string {
@@ -116,6 +117,12 @@ export async function voidPledge(pledgeId: string, adminKey: string): Promise<Pu
     method: "POST",
     headers: { "x-admin-key": adminKey },
   });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function fetchFund(milestoneId: string): Promise<FundView> {
+  const res = await fetch(url(`/api/escales/milestones/${encodeURIComponent(milestoneId)}/fund`));
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }

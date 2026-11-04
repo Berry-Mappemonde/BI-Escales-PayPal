@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { fetchFeatures, fetchHealth, fetchSchedule, listMilestones } from "./api/escales";
-import type { CaptainChatResponse, FeatureFlags, Milestone, PublicPledge, ScheduleResponse } from "./api/types";
+import { fetchFeatures, fetchFund, fetchHealth, fetchSchedule, listMilestones } from "./api/escales";
+import type { CaptainChatResponse, FeatureFlags, FundView, Milestone, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
 import { EscalePopup } from "./components/EscalePopup.jsx";
@@ -56,6 +56,7 @@ export default function App() {
   const [description, setDescription] = useState("");
   const [contributor, setContributor] = useState("");
   const [milestoneId, setMilestoneId] = useState("dep-mayotte");
+  const [fund, setFund] = useState<FundView | null>(null);
 
   const prod = Boolean(import.meta.env.PROD);
   const t0 = resolveDepartureT0(prod, devT0 || undefined);
@@ -110,6 +111,24 @@ export default function App() {
       cancelled = true;
     };
   }, [stop, lang]);
+
+  useEffect(() => {
+    if (!milestoneId) {
+      setFund(null);
+      return undefined;
+    }
+    let cancelled = false;
+    void fetchFund(milestoneId)
+      .then((row) => {
+        if (!cancelled) setFund(row);
+      })
+      .catch(() => {
+        if (!cancelled) setFund(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [milestoneId, pledges]);
 
   const chooseStop = (next: VoyageStop) => {
     setStop(next);
@@ -243,7 +262,18 @@ export default function App() {
                 onPledgeAuthorized={onAuthorized}
               />
             ) : <p className="hint">{t("sheet.pick")}</p>}
-            <p className="fund-line">
+            <p className="fund-line" data-testid="common-fund">
+              {fund ? (
+                <span>
+                  {t("fund.figures", {
+                    balance: fund.balance_eur,
+                    currency: fund.currency,
+                    income: fund.income_eur,
+                    spending: fund.spending_eur,
+                  })}
+                  {" · "}
+                </span>
+              ) : null}
               {t("fund.line")}{" "}
               <a href={HELLOASSO_MEMBERSHIP_URL} target="_blank" rel="noreferrer">{t("fund.helloasso")}</a>
             </p>

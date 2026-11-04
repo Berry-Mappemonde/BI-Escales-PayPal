@@ -41,7 +41,8 @@
   },
   "fund": {
     "line": "Caisse commune — adhésion de l’association :",
-    "helloasso": "HelloAsso"
+    "helloasso": "HelloAsso",
+    "figures": "solde {{balance}} {{currency}} (recettes {{income}}, dépenses {{spending}})"
   },
   "escales": {
     "heading": "Escales & capitaine",

@@ -30,6 +30,14 @@ export interface PublicPledge {
   history?: string[];
 }
 
+export interface FundView {
+  milestone_id: string;
+  currency: string;
+  income_eur: string;
+  spending_eur: string;
+  balance_eur: string;
+}
+
 export interface ScheduleEscale {
   milestone_id?: string;
   name?: string;

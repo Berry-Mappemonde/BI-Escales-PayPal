@@ -41,7 +41,8 @@
   },
   "fund": {
     "line": "Common fund — association membership:",
-    "helloasso": "HelloAsso"
+    "helloasso": "HelloAsso",
+    "figures": "balance {{balance}} {{currency}} (income {{income}}, spending {{spending}})"
   },
   "escales": {
     "heading": "Stops & AI Captain",

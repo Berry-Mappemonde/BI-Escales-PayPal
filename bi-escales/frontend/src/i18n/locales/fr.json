@@ -4,6 +4,8 @@
     "tagline": "Promesses escale à l'arrivée du bateau ; cabines au départ de l'étape ; fonds commun immédiatement.",
     "langFr": "Français",
     "langEn": "English",
+    "themeLight": "Clair",
+    "themeDark": "Sombre",
     "healthFail": "Backend indisponible",
     "escalesOff": "ESCALES_ENABLED est désactivé : l’API /api/escales renvoie 404."
   },

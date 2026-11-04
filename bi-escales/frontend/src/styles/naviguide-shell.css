@@ -11,7 +11,7 @@ body,
 
 body.ng-naviguide-shell {
   overflow: hidden;
-  background: #0f172a;
+  background: var(--shell-bg, var(--bg));
 }
 
 .ng-shell {
@@ -19,8 +19,8 @@ body.ng-naviguide-shell {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--shell-bg, var(--bg));
+  color: var(--text);
 }
 
 .ng-map-layer {
@@ -33,7 +33,7 @@ body.ng-naviguide-shell {
 .ng-map-layer .leaflet-container {
   width: 100%;
   height: 100%;
-  background: #0f172a;
+  background: var(--map-fallback, var(--shell-bg, var(--bg)));
 }
 
 .ng-sidebar {
@@ -48,10 +48,39 @@ body.ng-naviguide-shell {
   gap: 0.5rem;
   padding: 0.75rem;
   box-sizing: border-box;
-  background: linear-gradient(90deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88));
-  border-right: 1px solid rgba(59, 130, 246, 0.35);
+  background: var(--shell-sidebar-gradient);
+  border-right: 1px solid var(--shell-border);
   overflow: auto;
   transition: transform 200ms ease;
+}
+
+:root,
+:root[data-theme="dark"] {
+  --shell-bg: #0f172a;
+  --shell-sidebar-gradient: linear-gradient(90deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88));
+  --shell-tools-gradient: linear-gradient(270deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88));
+  --shell-border: rgba(59, 130, 246, 0.35);
+  --shell-control-bg: rgba(30, 41, 59, 0.9);
+  --shell-control-border: rgba(148, 163, 184, 0.35);
+  --shell-tab-bg: rgba(30, 41, 59, 0.85);
+  --shell-tab-text: #cbd5e1;
+  --shell-tab-active-bg: rgba(37, 99, 235, 0.35);
+  --shell-tab-active-text: #f8fafc;
+  --shell-treasurer-toggle-bg: rgba(15, 23, 42, 0.6);
+}
+
+:root[data-theme="light"] {
+  --shell-bg: #f8fafc;
+  --shell-sidebar-gradient: linear-gradient(90deg, rgba(248, 250, 252, 0.98), rgba(255, 255, 255, 0.95));
+  --shell-tools-gradient: linear-gradient(270deg, rgba(248, 250, 252, 0.98), rgba(255, 255, 255, 0.95));
+  --shell-border: rgba(29, 78, 216, 0.25);
+  --shell-control-bg: rgba(241, 245, 249, 0.95);
+  --shell-control-border: rgba(148, 163, 184, 0.45);
+  --shell-tab-bg: rgba(241, 245, 249, 0.95);
+  --shell-tab-text: var(--muted);
+  --shell-tab-active-bg: rgba(29, 78, 216, 0.12);
+  --shell-tab-active-text: var(--text);
+  --shell-treasurer-toggle-bg: rgba(255, 255, 255, 0.9);
 }
 
 .ng-sidebar.ng-collapsed {
@@ -60,9 +89,9 @@ body.ng-naviguide-shell {
 
 .ng-sidebar-toggle {
   align-self: flex-start;
-  background: rgba(30, 41, 59, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  color: #e2e8f0;
+  background: var(--shell-control-bg);
+  border: 1px solid var(--shell-control-border);
+  color: var(--text);
   border-radius: 6px;
   padding: 0.35rem 0.6rem;
   cursor: pointer;
@@ -77,8 +106,8 @@ body.ng-naviguide-shell {
   width: min(420px, 94vw);
   padding: 0.75rem;
   box-sizing: border-box;
-  background: linear-gradient(270deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88));
-  border-left: 1px solid rgba(59, 130, 246, 0.35);
+  background: var(--shell-tools-gradient);
+  border-left: 1px solid var(--shell-border);
   overflow: auto;
 }
 
@@ -90,7 +119,7 @@ body.ng-naviguide-shell {
 .ng-shell-header p {
   margin: 0;
   font-size: 0.85rem;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 .ng-tab-bar {
@@ -103,23 +132,23 @@ body.ng-naviguide-shell {
   flex: 1;
   min-width: 7rem;
   border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(30, 41, 59, 0.85);
-  color: #cbd5e1;
+  border: 1px solid var(--shell-control-border);
+  background: var(--shell-tab-bg);
+  color: var(--shell-tab-text);
   padding: 0.45rem 0.6rem;
   cursor: pointer;
 }
 
 .ng-tab-bar button.active,
 .ng-tab-bar button[aria-selected="true"] {
-  border-color: rgba(59, 130, 246, 0.7);
-  background: rgba(37, 99, 235, 0.35);
-  color: #f8fafc;
+  border-color: var(--shell-border);
+  background: var(--shell-tab-active-bg);
+  color: var(--shell-tab-active-text);
 }
 
 .ng-clock-line {
   font-size: 0.82rem;
-  color: #94a3b8;
+  color: var(--muted);
   margin: 0;
 }
 
@@ -157,7 +186,7 @@ body.ng-naviguide-shell {
     right: 0;
     bottom: 0;
     border-left: none;
-    border-top: 1px solid rgba(59, 130, 246, 0.35);
+    border-top: 1px solid var(--shell-border);
   }
 
   .ng-sidebar.ng-collapsed {
@@ -167,7 +196,7 @@ body.ng-naviguide-shell {
 
 .treasurer-panel {
   margin-top: 0.75rem;
-  border-top: 1px solid rgba(59, 130, 246, 0.25);
+  border-top: 1px solid var(--shell-border);
   padding-top: 0.5rem;
 }
 
@@ -175,9 +204,9 @@ body.ng-naviguide-shell {
   width: 100%;
   text-align: left;
   font-weight: 600;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(59, 130, 246, 0.35);
-  color: #e2e8f0;
+  background: var(--shell-treasurer-toggle-bg);
+  border: 1px solid var(--shell-border);
+  color: var(--text);
   padding: 0.45rem 0.6rem;
   border-radius: 6px;
   cursor: pointer;
@@ -188,4 +217,16 @@ body.ng-naviguide-shell {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.ng-shell-header .theme-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.ng-shell-header .theme-switch button {
+  margin-left: 0;
+  font-size: 0.85rem;
 }

@@ -17,7 +17,6 @@ import {
   ROUTE_CASING_COLOR,
   ROUTE_CASING_WEIGHT,
   ROUTE_MAIN_WEIGHT,
-  TILE_URLS,
   tileAttribution,
 } from "../../../../naviguide-escales/src/layers/styles.js";
 import { worldCopyLineCoords } from "../../../../naviguide-escales/src/utils/geo.js";
@@ -25,6 +24,7 @@ import { officialAirRouteStyles } from "../../../../naviguide-escales/src/utils/
 import { catamaranSvg } from "../../../../naviguide-escales/src/engine/catamaranIcon.js";
 import { drawingPinHtml } from "../../../../naviguide-escales/src/utils/waypointFlags.js";
 import { applyMarkerRotation } from "../../../../naviguide-escales/src/utils/markerRotation.js";
+import { mapTileUrlForTheme } from "./mapTileUrl.js";
 
 const WORLD_CENTER = [22, 5];
 
@@ -67,10 +67,12 @@ export function MapScene({
   onSelectStop,
   onSelectProject,
   onFlyTo,
+  theme = "dark",
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const containerRef = useRef(null);
   const mapRef = useRef(null);
+  const baseLayerRef = useRef(null);
   const layersRef = useRef(null);
   const onSelectRef = useRef(onSelectStop);
   onSelectRef.current = onSelectStop;
@@ -91,7 +93,10 @@ export function MapScene({
       maxZoom: 12,
       worldCopyJump: false,
     });
-    L.tileLayer(TILE_URLS.dark, { attribution: tileAttribution("fr") }).addTo(map);
+    const tileLayer = L.tileLayer(mapTileUrlForTheme(theme), {
+      attribution: tileAttribution(i18n.language),
+    }).addTo(map);
+    baseLayerRef.current = tileLayer;
     createPanes(map);
     mapRef.current = map;
     layersRef.current = new SceneLayerRegistry();
@@ -100,8 +105,15 @@ export function MapScene({
       map.remove();
       mapRef.current = null;
       layersRef.current = null;
+      baseLayerRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const layer = baseLayerRef.current;
+    if (!layer || typeof layer.setUrl !== "function") return;
+    layer.setUrl(mapTileUrlForTheme(theme));
+  }, [theme]);
 
   useEffect(() => {
     const map = mapRef.current;

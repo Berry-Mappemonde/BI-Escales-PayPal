@@ -536,7 +536,7 @@ def _chat_system_en() -> str:
         "You are the Blue Intelligence Escales captain. Reply in English only. "
         "Repeat the computed pledge exactly: amount, currency, description, stopover and intent. "
         "Do not propose to take or release money. Do not create an order. Do not invent a price. "
-        "State only facts present in the JSON: the stopover, the fund_label, the fund, and the computed pledge. "
+        "State only facts present in the JSON: the stopover, fund_label, and the computed pledge. "
         "Name the fund exactly as given in the JSON (field fund_label); never call a stopover pledge the common fund. "
         "Do not invent a date. Do not write a date. The code appends the schedule dates. "
         "If a fact is absent, say you do not know. Do not describe the place. "
@@ -1250,7 +1250,17 @@ def _standardise_french(text: str) -> str:
     cleaned = re.sub(r"\b(?:le\s+)+trésorier\b", "le trésorier", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bde\s+le\s+trésorier\b", "du trésorier", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(du|au|ce|un|son|mon)\s+le\s+trésorier\b", r"\1 trésorier", cleaned, flags=re.IGNORECASE)
+    cleaned = _french_de_elision(cleaned)
     return _fix_french_vocabulary(cleaned)
+
+
+def _french_de_elision(text: str) -> str:
+    """``de Ajaccio`` -> ``d'Ajaccio`` before a vowel or mute h."""
+    return re.sub(
+        r"\bde ([AEIOUYHÀÂÉÈÊËÎÏÔÙÛÜaeiouyh])",
+        lambda match: f"d'{match.group(1)}",
+        text or "",
+    )
 
 
 def _fix_french_vocabulary(text: str) -> str:
@@ -1489,7 +1499,9 @@ def _fit_words(prose: str, required: list[str], limit: int = _CHAT_WORD_LIMIT) -
     prose = _trim_cutoff(prose)
     parts = [prose] if prose else []
     parts.extend(tail)
-    return _finish_text(" ".join(parts))
+    joined = " ".join(parts)
+    joined = _GLUE_AFTER_STOP.sub(r"\1 \2", joined)
+    return _finish_text(joined)
 
 
 def _compose_chat_reply(
@@ -1539,6 +1551,7 @@ def _compose_chat_reply(
     kind = str((suggested or {}).get("kind") or "")
     if kind not in {"common_fund", "project_pledge"}:
         prose = _drop_sentences(prose, _OFF_TOPIC_FUND_PROSE)
+    prose = _drop_sentences(prose, _FUND_LABEL_FILLER)
     prose = _trim_cutoff(_normalize_dots(prose))
     if lang == "fr":
         prose = _standardise_french(_french_labels(prose))
@@ -2594,7 +2607,9 @@ def _fund_place_label(milestone_id: str, lang: str) -> str:
     shown = display_name(milestone_id)
     if lang == "en":
         return f"the fund at {shown}" if shown else "the fund"
-    return f"la caisse de {shown}" if shown else "la caisse"
+    if not shown:
+        return "la caisse"
+    return f"la caisse {_french_de_elision(f'de {shown}')}"
 
 
 def _fund_rules_text(fund: dict, lang: str) -> str:
@@ -2740,6 +2755,15 @@ _OFF_TOPIC_FUND_PROSE = re.compile(
     r"|la caisse du projet est"
     r"|the (?:project )?fund is (?:the )?project financing"
     r"|project fund financing",
+    re.IGNORECASE,
+)
+_FUND_LABEL_FILLER = re.compile(
+    r"\bthe fund label is the fund at\b"
+    r"|\bthe fund is not specified\b",
+    re.IGNORECASE,
+)
+_GLUE_AFTER_STOP = re.compile(
+    r"([.!?…])((?:La promesse|Les promesses|Promesse calculée|A pledge|Computed pledge)\b)",
     re.IGNORECASE,
 )
 

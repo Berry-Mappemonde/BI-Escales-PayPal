@@ -16,7 +16,7 @@ from app.escales.pledges import authorize_pledge, capture_pledge, create_pledge,
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
     reset_ledger()
     yield
     reset_ledger()
@@ -73,6 +73,9 @@ def test_finance_tracks_pledge_lifecycle():
             client_key="fin-2",
         )
         await authorize_pledge(other["_id"], spy)
+        import os
+
+        os.environ["ESCALES_CLOCK_NOW"] = "2027-06-12T08:00:00Z"
         await capture_pledge(created["_id"], spy)
         await void_pledge(other["_id"], spy)
         entries = await list_finance_entries()

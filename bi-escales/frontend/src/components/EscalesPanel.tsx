@@ -64,7 +64,10 @@ export function EscalesPanel({
                     {line.price_label ? ` (${line.price_label})` : ""}
                   </p>
                   {line.pledge ? (
-                    <PledgeButton values={line.pledge} onAuthorized={onAuthorized} />
+                    <PledgeButton
+                      values={{ ...line.pledge, lang: line.pledge.lang || lang }}
+                      onAuthorized={onAuthorized}
+                    />
                   ) : null}
                 </div>
               ))}

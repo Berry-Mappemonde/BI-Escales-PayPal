@@ -278,6 +278,9 @@ def test_state_machine_and_forbidden_transitions():
         with pytest.raises(IllegalTransition):
             await authorize_pledge(created["_id"], spy)
 
+        import os
+
+        os.environ["ESCALES_CLOCK_NOW"] = "2027-06-12T08:00:00Z"
         captured = await capture_pledge(created["_id"], spy)
         assert captured["status"] == "captured"
         with pytest.raises(IllegalTransition):
@@ -612,6 +615,9 @@ def test_pending_capture_is_recorded_and_can_be_retried():
             client_key="pending-cap",
         )
         await authorize_pledge(created["_id"], spy)
+        import os
+
+        os.environ["ESCALES_CLOCK_NOW"] = "2027-06-12T08:00:00Z"
         pending = await capture_pledge(created["_id"], spy)
         assert pending["status"] == "pending"
         assert pending["paypal_status"] == "PENDING"

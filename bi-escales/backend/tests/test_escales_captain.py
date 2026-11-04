@@ -71,6 +71,13 @@ class Spy:
         self.calls.append(("void", authorization_id))
         return {}
 
+    def reauthorize(self, authorization_id, **kwargs):
+        self.calls.append(("reauthorize", authorization_id))
+        return {
+            "id": authorization_id,
+            "expiration_time": "2099-01-01T00:00:00Z",
+        }
+
     def get_order(self, order_id):
         self.calls.append(("orders.get", order_id))
         return {"id": order_id, "status": "APPROVED"}
@@ -2133,7 +2140,7 @@ def test_miles_and_dinner_stay_one_pledge_and_list_two_cart_lines():
     assert cart["intent"] == "AUTHORIZE"
     assert [line["kind"] for line in cart["lines"]] == ["mile", "meal"]
     assert [line["amount_eur"] for line in cart["lines"]] == ["250.00", "60.00"]
-    assert cart["lines"][0]["price_label"] == "simulated price"
+    assert cart["lines"][0]["price_label"] == "prix simulé"
     assert cart["lines"][0]["target_id"] == "dep-dakar"
     assert cart["available"] is False
     assert cart["eta"] is None
@@ -2613,6 +2620,9 @@ def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
             client_key="qa-stop",
         )
         await authorize_pledge(stop["_id"], spy)
+        import os
+
+        os.environ["ESCALES_CLOCK_NOW"] = "2027-06-12T08:00:00Z"
         await capture_pledge(stop["_id"], spy)
         from app.escales.ledger import fund_for_milestone
 

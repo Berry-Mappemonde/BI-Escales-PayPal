@@ -53,7 +53,9 @@ class VaultSpy:
             raise PayPalError(502, "delete failed")
 
 
-def test_vault_capture_keeps_captured_when_token_delete_fails():
+def test_vault_capture_keeps_captured_when_token_delete_fails(monkeypatch):
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+
     async def run():
         spy = VaultSpy(delete_ok=False)
         ledger = get_ledger()

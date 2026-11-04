@@ -66,6 +66,10 @@ class FakePayPal:
         self.calls.append(("void", authorization_id))
         return {}
 
+    def refund_capture(self, capture_id, amount_eur=None, **kwargs):
+        self.calls.append(("refund", capture_id, amount_eur))
+        return {"id": "REF-TEST", "status": "COMPLETED"}
+
     def reauthorize(self, authorization_id, **kwargs):
         self.calls.append(("reauthorize", authorization_id))
         return {
@@ -87,7 +91,6 @@ def api(monkeypatch):
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-19T08:00:00Z")
     monkeypatch.delenv("ESCALES_TOOLKIT_ENABLED", raising=False)
     monkeypatch.delenv("ESCALES_LLM_ENABLED", raising=False)
     monkeypatch.delenv("ESCALES_ENV", raising=False)
@@ -113,7 +116,9 @@ NEAR_MAYOTTE_CLOCK = "2027-05-15T08:00:00Z"
 
 def _ready_mayotte(client, key, monkeypatch, body=None):
     monkeypatch.setenv("ESCALES_CLOCK_NOW", NEAR_MAYOTTE_CLOCK)
-    return _ready(client, key, body or MAYOTTE_PLEDGE)
+    created, authorized = _ready(client, key, body or MAYOTTE_PLEDGE)
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    return created, authorized
 
 
 def _create(client, key, body=None):

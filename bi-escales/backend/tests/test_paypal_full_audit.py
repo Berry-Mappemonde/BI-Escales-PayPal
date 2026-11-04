@@ -58,7 +58,7 @@ class AuditSpy:
         return {
             "id": order_id,
             "purchase_units": [{
-                "payments": {"authorizations": [{"id": f"A-{order_id}", "expiration_time": "2027-06-01T00:00:00Z"}]},
+                "payments": {"authorizations": [{"id": f"A-{order_id}", "expiration_time": "2099-01-01T00:00:00Z"}]},
             }],
         }
 
@@ -132,6 +132,7 @@ def test_reauthorize_after_honor_period(monkeypatch):
         pledge = await get_ledger().get_pledge(created["_id"])
         pledge["authorized_at"] = "2026-11-06T12:00:00+00:00"
         await get_ledger().save_pledge(pledge)
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
         captured = await capture_pledge(created["_id"], spy)
         assert ("reauthorize", f"A-{created['order_id']}") in spy.calls
         assert captured["status"] == "captured"
@@ -153,6 +154,7 @@ def test_refund_captured_pledge(monkeypatch):
             client_key="rf",
         )
         await authorize_pledge(created["_id"], spy)
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
         await capture_pledge(created["_id"], spy)
         refunded = await refund_pledge(created["_id"], spy)
         assert refunded["status"] == "refunded"
@@ -242,6 +244,7 @@ def test_admin_refund_route(api, monkeypatch):
         json={"amount_eur": "5.00", "description": "miles", "milestone_id": "dep-mayotte"},
     ).json()
     api.post(f"/api/escales/pledges/{created['id']}/authorize")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
     api.post(
         f"/api/escales/pledges/{created['id']}/capture",
         headers={"x-admin-key": "audit-admin"},

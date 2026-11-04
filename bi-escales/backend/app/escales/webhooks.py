@@ -4,12 +4,15 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import logging
 from typing import Any, Optional
 from urllib.parse import urlsplit
 
 from .config import paypal_webhook_id, simulated_now, zapiper_enabled
 from .ledger import get_ledger, now_iso, pledge_defaults, record_finance, record_webhook_outcome
 from .paypal_client import PayPalClient, PayPalError
+
+log = logging.getLogger("escales.webhooks")
 
 
 class WebhookRejected(Exception):
@@ -68,8 +71,59 @@ class WebhookDuplicate(Exception):
 
 
 def _header(headers: Any, name: str) -> str:
-    value = headers.get(name) or headers.get(name.lower()) or ""
-    return str(value).strip()
+    """Read a PayPal transmission header (ASGI lowercases names)."""
+    if hasattr(headers, "get"):
+        direct = headers.get(name)
+        if direct:
+            return str(direct).strip()
+        lowered = headers.get(name.lower())
+        if lowered:
+            return str(lowered).strip()
+    return ""
+
+
+def _transmission_headers(headers: Any) -> dict[str, str]:
+    """All five PayPal webhook transmission headers required for verify."""
+    keys = (
+        "PAYPAL-TRANSMISSION-ID",
+        "PAYPAL-TRANSMISSION-TIME",
+        "PAYPAL-TRANSMISSION-SIG",
+        "PAYPAL-CERT-URL",
+        "PAYPAL-AUTH-ALGO",
+    )
+    return {key: _header(headers, key) for key in keys}
+
+
+def _verification_log_fields(
+    verification: Optional[dict] = None,
+    exc: Optional[PayPalError] = None,
+) -> dict[str, str]:
+    """Safe fields for logs and treasurer webhook audit (no secrets)."""
+    fields: dict[str, str] = {}
+    for source in (verification,):
+        if not isinstance(source, dict):
+            continue
+        status = str(source.get("verification_status") or "").strip()
+        if status:
+            fields["verification_status"] = status[:64]
+        for key in ("name", "message"):
+            value = source.get(key)
+            if value:
+                fields[key] = str(value)[:200]
+    if exc is not None and exc.body:
+        try:
+            body = json.loads(exc.body) if isinstance(exc.body, str) else exc.body
+        except (TypeError, json.JSONDecodeError):
+            body = None
+        if isinstance(body, dict):
+            status = str(body.get("verification_status") or "").strip()
+            if status and "verification_status" not in fields:
+                fields["verification_status"] = status[:64]
+            for key in ("name", "message"):
+                value = body.get(key)
+                if value and key not in fields:
+                    fields[key] = str(value)[:200]
+    return fields
 
 
 def _signature_is_malformed(signature: str) -> bool:
@@ -111,13 +165,16 @@ async def verify_and_process(
     if not webhook_id:
         raise WebhookRejected(503, "PAYPAL_WEBHOOK_ID is not configured")
 
-    transmission_id = _header(headers, "PAYPAL-TRANSMISSION-ID")
-    transmission_time = _header(headers, "PAYPAL-TRANSMISSION-TIME")
-    transmission_sig = _header(headers, "PAYPAL-TRANSMISSION-SIG")
-    cert_url = _header(headers, "PAYPAL-CERT-URL")
-    auth_algo = _header(headers, "PAYPAL-AUTH-ALGO")
+    tx = _transmission_headers(headers)
+    transmission_id = tx["PAYPAL-TRANSMISSION-ID"]
+    transmission_time = tx["PAYPAL-TRANSMISSION-TIME"]
+    transmission_sig = tx["PAYPAL-TRANSMISSION-SIG"]
+    cert_url = tx["PAYPAL-CERT-URL"]
+    auth_algo = tx["PAYPAL-AUTH-ALGO"]
 
-    if not all([transmission_id, transmission_time, transmission_sig, cert_url, auth_algo]):
+    if not all(tx.values()):
+        missing = [key for key, value in tx.items() if not value]
+        log.warning("PayPal webhook missing headers: %s", ",".join(missing))
         raise WebhookRejected(400, "PayPal webhook headers are incomplete")
     if _signature_is_malformed(transmission_sig):
         raise WebhookRejected(400, "PayPal webhook signature is malformed")
@@ -128,6 +185,8 @@ async def verify_and_process(
         event = json.loads(raw_body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise WebhookRejected(400, "Webhook body must be JSON") from exc
+
+    body_for_verify = raw_body.lstrip(b"\xef\xbb\xbf")
 
     # Signature first. A replay of a known transmission_id with a bad
     # signature is a rejection, not a duplicate.
@@ -140,19 +199,32 @@ async def verify_and_process(
             transmission_time=transmission_time,
             webhook_id=webhook_id,
             webhook_event=event,
-            raw_event=raw_body,
+            raw_event=body_for_verify,
         )
     except PayPalError as exc:
-        await _record_outcome(transmission_id, event, "rejected", None)
+        detail_fields = _verification_log_fields(None, exc)
+        log.warning(
+            "PayPal webhook verify-webhook-signature HTTP error status=%s fields=%s",
+            exc.status,
+            detail_fields,
+        )
+        await _record_outcome(transmission_id, event, "rejected", None, extra=detail_fields)
         rejected = _rejected_signature_status(exc)
+        reason = detail_fields.get("verification_status") or detail_fields.get("message") or "rejected"
         if rejected:
-            raise WebhookRejected(rejected, "PayPal webhook signature or certificate was rejected") from exc
-        raise WebhookRejected(502, "PayPal signature verification failed") from exc
+            raise WebhookRejected(
+                rejected,
+                f"PayPal webhook signature or certificate was rejected ({reason})",
+            ) from exc
+        raise WebhookRejected(502, f"PayPal signature verification failed ({reason})") from exc
 
     status = (verification.get("verification_status") or "").upper()
     if status != "SUCCESS":
-        await _record_outcome(transmission_id, event, "rejected", None)
-        raise WebhookRejected(401, "PayPal webhook signature rejected")
+        detail_fields = _verification_log_fields(verification, None)
+        log.warning("PayPal webhook verification_status=%s fields=%s", status, detail_fields)
+        await _record_outcome(transmission_id, event, "rejected", None, extra=detail_fields)
+        reason = detail_fields.get("verification_status") or status or "FAILURE"
+        raise WebhookRejected(401, f"PayPal webhook signature rejected ({reason})")
 
     dedup_key = _dedup_key(event, transmission_id)
     ledger = get_ledger()
@@ -377,6 +449,8 @@ async def _record_outcome(
     event: Any,
     outcome: str,
     pledge_id: Optional[str],
+    *,
+    extra: Optional[dict] = None,
 ) -> None:
     body = _event_dict(event)
     row = {
@@ -387,6 +461,10 @@ async def _record_outcome(
         "time": now_iso(),
         "outcome": outcome,
     }
+    if extra:
+        for key, value in extra.items():
+            if value is not None and str(value).strip():
+                row[key] = str(value)[:200]
     await record_webhook_outcome(row)
     if pledge_id and outcome in {"accepted", "duplicate"}:
         await _append_pledge_webhook(pledge_id, row)

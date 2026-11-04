@@ -50,7 +50,7 @@ describe("PledgeButton", () => {
     const link = await screen.findByTestId("paypal-approve-link");
     expect(link).toHaveAttribute("href", "https://www.sandbox.paypal.com/checkoutnow?token=ORDER1");
     expect(link).not.toHaveAttribute("target");
-    expect(createPledge).toHaveBeenCalledWith(values, expect.any(String));
+    expect(createPledge).toHaveBeenCalledWith({ ...values, lang: "fr" }, expect.any(String));
     fireEvent.click(link);
     expect(screen.queryByTestId("pledge-authorize")).toBeNull();
     expect(screen.getByText(/Au retour, l’autorisation/)).toBeInTheDocument();

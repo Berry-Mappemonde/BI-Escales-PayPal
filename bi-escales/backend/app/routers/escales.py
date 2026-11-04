@@ -554,7 +554,7 @@ async def post_pledge(body: PledgeIn, request: Request):
             return_url=body.return_url,
             cancel_url=body.cancel_url,
             caller_origin=f"{request.url.scheme}://{request.url.netloc}",
-            checkout_locale=body.lang or lang_for(request.headers.get("accept-language", "")),
+            checkout_locale=resolve_app_language(body.lang),
             checkout_method=body.checkout_method,
         )
     except (PayPalError, ValueError) as exc:

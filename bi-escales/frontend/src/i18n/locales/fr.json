@@ -94,7 +94,7 @@
     "returnPending": "Approuvez sur PayPal. Au retour, l’autorisation part seule.",
     "cancelled": "Approbation annulée. Rien n’est autorisé.",
     "authorizing": "Autorisation côté serveur…",
-    "intent": "Intent AUTHORIZE — sandbox PayPal",
+    "intent": "Intent AUTHORIZE — PayPal sandbox",
     "create": "Créer l’ordre PayPal",
     "approve": "Approuver sur la page PayPal",
     "authorize": "J’ai approuvé — autoriser",

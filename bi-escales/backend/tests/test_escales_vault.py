@@ -28,6 +28,18 @@ ADMIN = {"x-admin-key": "vault-admin"}
 FAR_ARRIVAL = "2027-05-15T08:00:00+00:00"
 
 
+def _clock_on_departure_day() -> None:
+    import os
+
+    os.environ["ESCALES_CLOCK_NOW"] = "2027-05-16T08:00:00Z"
+
+
+def _clock_far_future_for_vault_create() -> None:
+    import os
+
+    os.environ["ESCALES_CLOCK_NOW"] = "2026-11-04T08:00:00Z"
+
+
 def test_sponsor_customer_id_respects_paypal_max_length():
     long_label = "patron@" + ("x" * 120)
     named = sponsor_customer_id("abc" * 10, long_label)
@@ -136,12 +148,14 @@ def test_vault_pledge_lifecycle():
         assert vaulted["status"] == "vaulted"
         assert vaulted["vault_id"] == "VAULT-SETUP1"
 
+        _clock_on_departure_day()
         captured = await capture_pledge(created["_id"], client)
         assert captured["status"] == "captured"
         assert ("charge_vaulted", "VAULT-SETUP1", "25.00", created["_id"], "paypal") in client.calls
         assert ("delete_token", "VAULT-SETUP1") in client.calls
         assert captured.get("vault_token_deleted") is True
 
+        _clock_far_future_for_vault_create()
         other_client = VaultPayPal()
         await _seed_far_milestone("dep-other")
         other = await create_pledge(
@@ -179,6 +193,7 @@ def test_card_token_is_charged_with_card_source():
         vaulted = await register_vault_pledge(created["_id"], client)
         assert vaulted["vault_source"] == "card"
         assert vaulted["vault_id"] == "CARDTOK"
+        _clock_on_departure_day()
         captured = await capture_pledge(created["_id"], client)
         assert captured["status"] == "captured"
         assert ("charge_vaulted", "CARDTOK", "1.00", created["_id"], "card") in client.calls
@@ -225,6 +240,7 @@ def test_vault_capture_forbidden_before_vaulted():
             client_key="vault-c",
         )
         with pytest.raises(IllegalTransition):
+            _clock_on_departure_day()
             await capture_pledge(created["_id"], client)
 
     asyncio.run(body())
@@ -263,6 +279,9 @@ def test_http_vault_requires_admin_to_capture(api):
     assert vaulted.json()["status"] == "vaulted"
     denied = client.post(f"/api/escales/pledges/{pledge_id}/capture")
     assert denied.status_code == 401
+    import os
+
+    os.environ["ESCALES_CLOCK_NOW"] = "2027-05-16T08:00:00Z"
     ok = client.post(f"/api/escales/pledges/{pledge_id}/capture", headers=ADMIN)
     assert ok.status_code == 200
     assert ok.json()["status"] == "captured"
@@ -308,10 +327,12 @@ def test_void_keeps_shared_vault_token_until_last_open_pledge(monkeypatch):
 
         still = await get_ledger().get_pledge(second["_id"])
         assert still["status"] == "vaulted"
+        _clock_on_departure_day()
         captured = await capture_pledge(second["_id"], client)
         assert captured["status"] == "captured"
 
         client.calls.clear()
+        _clock_far_future_for_vault_create()
         solo_a = await create_pledge(
             amount_eur="5.00",
             description="e",
@@ -434,9 +455,10 @@ def test_departure_clock_retries_vault_token_delete(monkeypatch):
 
 
 def test_vault_capture_captured_at_uses_simulated_clock(monkeypatch):
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-03-10T12:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-16T08:00:00Z")
 
     async def body():
+        _clock_far_future_for_vault_create()
         await _seed_far_milestone()
         client = VaultPayPal()
         created = await create_pledge(
@@ -447,8 +469,9 @@ def test_vault_capture_captured_at_uses_simulated_clock(monkeypatch):
             client_key="cap-clock",
         )
         await register_vault_pledge(created["_id"], client)
+        _clock_on_departure_day()
         captured = await capture_pledge(created["_id"], client)
-        assert captured["captured_at"] == "2026-03-10T12:00:00+00:00"
+        assert captured["captured_at"] == "2027-05-16T08:00:00+00:00"
 
     asyncio.run(body())
 
@@ -481,9 +504,11 @@ def test_shared_vault_token_deleted_only_after_last_open_pledge_resolved():
         twin["vault_id"] = shared
         await get_ledger().save_pledge(twin)
 
+        _clock_on_departure_day()
         await capture_pledge(first["_id"], client)
         assert sum(1 for call in client.calls if call[0] == "delete_token") == 0
 
+        _clock_on_departure_day()
         await capture_pledge(second["_id"], client)
         assert ("delete_token", shared) in client.calls
         rows = [await get_ledger().get_pledge(first["_id"]), await get_ledger().get_pledge(second["_id"])]

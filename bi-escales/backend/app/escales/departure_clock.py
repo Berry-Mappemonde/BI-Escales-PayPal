@@ -157,6 +157,26 @@ async def refuse_early_authorization(pledge: dict, *, now: Optional[dt.datetime]
         raise ValueError("authorization is more than 29 days before departure")
 
 
+async def refuse_early_capture(pledge: dict, *, now: Optional[dt.datetime] = None) -> None:
+    """Treasurer capture follows the same calendar anchors as the departure clock."""
+    doc = await timing_milestone(pledge)
+    if not doc:
+        return
+    meta = doc.get("meta") if isinstance(doc.get("meta"), dict) else {}
+    if meta.get("capture_on") == "departure":
+        anchor_raw = meta.get("departure_iso")
+        rule = "leg departure"
+    else:
+        anchor_raw = meta.get("arrival_iso")
+        rule = "stop arrival"
+    anchor = _parse_moment(str(anchor_raw or ""))
+    if anchor is None:
+        return
+    moment = now or simulated_now()
+    if moment.date() < anchor.date():
+        raise ValueError(f"capture is before {rule}")
+
+
 def _vault_failure_detail(exc: Exception) -> str:
     if isinstance(exc, PayPalError):
         blob = f"{exc.body}".upper()

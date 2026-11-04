@@ -130,6 +130,7 @@ export async function createPledge(
     kind?: string;
     target_id?: string;
     checkout_method?: "wallet" | "card";
+    lang?: string;
   },
   paypalRequestId: string,
 ): Promise<PublicPledge> {

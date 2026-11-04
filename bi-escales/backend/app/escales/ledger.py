@@ -232,6 +232,10 @@ class MemoryLedger:
             "time": entry.get("time") or now_iso(),
             "outcome": entry.get("outcome"),
         }
+        for key in ("verification_status", "name", "message"):
+            value = entry.get(key)
+            if value is not None and str(value).strip():
+                stored[key] = str(value)[:200]
         with self._lock:
             self._webhook_log.append(stored)
             return copy.deepcopy(stored)
@@ -430,6 +434,10 @@ class MongoLedger:
             "time": entry.get("time") or now_iso(),
             "outcome": entry.get("outcome"),
         }
+        for key in ("verification_status", "name", "message"):
+            value = entry.get(key)
+            if value is not None and str(value).strip():
+                stored[key] = str(value)[:200]
         await self._webhooks.insert_one(copy.deepcopy(stored))
         public = dict(stored)
         public.pop("_id", None)
@@ -637,15 +645,19 @@ async def _assemble_fund(milestone_id: str, entries: list[dict]) -> dict:
     """Same totals the stopover fund route already returns."""
     income = [entry for entry in entries if entry.get("kind") == "pledge_captured"]
     spending = [entry for entry in entries if entry.get("kind") == "spending"]
+    refunds = [entry for entry in entries if entry.get("kind") == "pledge_refunded"]
     income_total = sum((_euros(entry.get("amount_eur")) for entry in income), Decimal("0.00"))
     spending_total = sum((_euros(entry.get("amount_eur")) for entry in spending), Decimal("0.00"))
+    refund_total = sum((_euros(entry.get("amount_eur")) for entry in refunds), Decimal("0.00"))
+    balance = income_total - spending_total - refund_total
     return {
         "milestone_id": milestone_id,
         "currency": "EUR",
         "income_eur": _euros_text(income_total),
         "spending_eur": _euros_text(spending_total),
-        "balance_eur": _euros_text(income_total - spending_total),
-        "overdrawn": spending_total > income_total,
+        "refunded_eur": _euros_text(refund_total),
+        "balance_eur": _euros_text(balance),
+        "overdrawn": spending_total + refund_total > income_total,
         "income": [await _income_line(entry) for entry in income],
         "spending": [_public_finance(entry) for entry in spending],
         "captured_eur": _euros_text(income_total),
@@ -753,6 +765,7 @@ async def record_spending(milestone_id: str, amount_eur: str, description: str) 
 
     income_total = Decimal("0.00")
     spending_total = Decimal("0.00")
+    refund_total = Decimal("0.00")
     for entry in await list_finance_entries():
         if not on_bucket(entry):
             continue
@@ -760,7 +773,9 @@ async def record_spending(milestone_id: str, amount_eur: str, description: str) 
             income_total += _euros(entry.get("amount_eur"))
         elif entry.get("kind") == "spending":
             spending_total += _euros(entry.get("amount_eur"))
-    if spending_total + amount > income_total:
+        elif entry.get("kind") == "pledge_refunded":
+            refund_total += _euros(entry.get("amount_eur"))
+    if spending_total + refund_total + amount > income_total:
         raise ValueError("spending must not make the balance negative")
     return await record_finance(
         "spending",

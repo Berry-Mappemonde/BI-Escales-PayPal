@@ -40,6 +40,11 @@ log = logging.getLogger("escales.captain")
 MILE_EUR = Decimal("1.00")
 DINNER_EUR = Decimal("60.00")
 SIMULATED_PRICE_LABEL = "simulated price"
+SIMULATED_PRICE_LABEL_FR = "prix simulé"
+
+
+def simulated_price_label(lang: str) -> str:
+    return SIMULATED_PRICE_LABEL_FR if normalize_app_lang(lang) == "fr" else SIMULATED_PRICE_LABEL
 _SIMULATED_EUR = {
     "mile": MILE_EUR,
     "berth": Decimal("30.00"),
@@ -388,17 +393,18 @@ def display_name(milestone_id: str) -> str:
     return slug or raw
 
 
-def simulated_unit(kind: str) -> dict:
+def simulated_unit(kind: str, lang: str = "en") -> dict:
     """One catalogue line. The figure is indicative, never the charged amount.
 
     ``project_pledge`` and ``common_fund`` have no unit price: the visitor's
     amount stays as written. The other kinds show a simulated unit. A pledge
     of that kind must be at least that unit.
     """
+    label = simulated_price_label(lang)
     row = {
         "kind": kind,
         "currency": "EUR",
-        "label": SIMULATED_PRICE_LABEL,
+        "label": label,
         "simulated": True,
         "indicative": True,
     }
@@ -419,7 +425,7 @@ def simulated_prices() -> dict:
         "label": SIMULATED_PRICE_LABEL,
         "note": "Prices are indicative. The visitor's amount is what PayPal authorizes.",
         "currency": "EUR",
-        "prices": [simulated_unit(kind) for kind in PLEDGE_KINDS],
+        "prices": [simulated_unit(kind, "en") for kind in PLEDGE_KINDS],
     }
 
 
@@ -2981,7 +2987,8 @@ def _cart_line(
     description: str,
 ) -> dict:
     """One cart row. Copies ``simulated_unit`` and keeps AUTHORIZE."""
-    row = simulated_unit(kind)
+    price_label = simulated_price_label(lang)
+    row = simulated_unit(kind, lang)
     row.update(
         {
             "quantity": _format_count(quantity),
@@ -2989,7 +2996,7 @@ def _cart_line(
             "milestone_id": place,
             "target_id": place,
             "intent": "AUTHORIZE",
-            "price_label": SIMULATED_PRICE_LABEL,
+            "price_label": price_label,
         }
     )
     if amount is not None:
@@ -3142,7 +3149,7 @@ def pledge_cart(message: str, lang: str, suggested: Optional[dict]) -> Optional[
         "available": bool(stop and stop.get("flag")),
         "simulated": True,
         "indicative": True,
-        "price_label": SIMULATED_PRICE_LABEL,
+        "price_label": simulated_price_label(lang),
     }
 
 

@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, fetchFund, fetchFeatures, fetchHealthRetrying, fetchSchedule, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { authorizePledge, fetchFund, fetchFeatures, fetchHealthRetrying, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { nextStopover } from "./voyage/nextStopover.js";
-import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
+import type { CaptainChatResponse, FundView, PublicPledge } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
-import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
 import { EscalePopup } from "./components/EscalePopup.jsx";
 import MarinasPanel from "./components/MarinasPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
@@ -17,9 +16,9 @@ import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadEscaleFiche } from "./marinas/escaleFiche.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
-import { matchVoyageStop } from "./voyage/milestoneId.js";
 import { formatCivilDate } from "./voyage/voyageClock.js";
 import "./styles/app.css";
+import "./styles/naviguide-shell.css";
 
 type TabId = "voyage" | "marinas";
 
@@ -73,7 +72,6 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<TabId>("voyage");
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
-  const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
   const [hash, setHash] = useState(() => window.location.hash);
   const [adminKey, setAdminKey] = useState("");
   const { pledges, loading, error, needsKey, refresh, updatePledge } = usePledgeQueue(adminKey);
@@ -104,6 +102,7 @@ export default function App() {
   const [settleAt, setSettleAt] = useState("");
   const [projectFund, setProjectFund] = useState<FundView | null | undefined>(undefined);
   const [boatFund, setBoatFund] = useState<FundView | null | undefined>(undefined);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const prod = Boolean(import.meta.env.PROD);
   const t0 = resolveDepartureT0(prod, devT0 || undefined);
@@ -119,6 +118,11 @@ export default function App() {
   const cumNm = Number(sample?.sailNm ?? sample?.cumNm ?? 0);
 
   useEffect(() => {
+    document.body.classList.add("ng-naviguide-shell");
+    return () => document.body.classList.remove("ng-naviguide-shell");
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     void fetchHealthRetrying()
       .then(() => {
@@ -127,7 +131,6 @@ export default function App() {
       .catch(() => {
         if (!cancelled) setHealthOk((current) => (current === true ? true : false));
       });
-    void fetchSchedule().then(setSchedule).catch(() => setSchedule(null));
     void fetchJson("/route.geojson").then(setRouteFc).catch(() => setRouteFc(null));
     void fetchJson("/bi-projects.geojson").then(setProjects).catch(() => setProjects({ features: [] }));
     return () => {
@@ -372,7 +375,8 @@ export default function App() {
 
   if (hash === "#tresorier") {
     return (
-      <div className="app-shell">
+      <div className="ng-shell" data-testid="ng-shell">
+        <div className="ng-treasurer-panel app-shell">
         <header className="app-header">
           <div>
             <h1>{t("treasurer.screen")}</h1>
@@ -470,6 +474,7 @@ export default function App() {
             </p>
           ) : null}
         </form>
+        </div>
       </div>
     );
   }
@@ -479,32 +484,8 @@ export default function App() {
     setFlyTo({ lat, lon, ts: Date.now() });
   };
 
-  return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div>
-          <h1>{t("app.title")}</h1>
-          <p>{t("app.tagline")}</p>
-        </div>
-        <div className="lang-switch">
-          <button type="button" className={i18n.language === "fr" ? "active" : ""} onClick={() => setLanguage("fr")}>
-            {t("app.langFr")}
-          </button>
-          <button type="button" className={i18n.language === "en" ? "active" : ""} onClick={() => setLanguage("en")}>
-            {t("app.langEn")}
-          </button>
-        </div>
-      </header>
-
-      <div className="tab-bar" role="tablist">
-        <button type="button" role="tab" aria-selected={tab === "voyage"} className={tab === "voyage" ? "active" : ""} onClick={() => setTab("voyage")}>
-          {t("tabs.voyage")}
-        </button>
-        <button type="button" role="tab" aria-selected={tab === "marinas"} className={tab === "marinas" ? "active" : ""} onClick={() => setTab("marinas")}>
-          {t("tabs.marinas")}
-        </button>
-      </div>
-
+  const paypalNotices = (
+    <>
       {healthOk === false ? <p className="notice error">{t("app.healthFail")}</p> : null}
       {paypalNote === "cancel" ? <p className="notice warn">{t("pledge.cancelled")}</p> : null}
       {paypalNote === "vaultCancel" ? <p className="notice warn">{t("pledge.vaultCancelled")}</p> : null}
@@ -527,51 +508,90 @@ export default function App() {
       paypalNote !== "vaultFailed" ? (
         <p className="notice error">{paypalNote}</p>
       ) : null}
+    </>
+  );
 
-      <MapScene
-        segments={voyage?.segments || []}
-        stops={voyage?.stops || []}
-        boat={sample && Number.isFinite(sample.lat) ? { lat: sample.lat, lon: sample.lon, bearing: sample.bearing } : null}
-        projects={projects}
-        marinas={marinaFeatures}
-        showProjects={tab === "voyage"}
-        showMarinas={tab === "marinas"}
-        flyTo={flyTo}
-        onSelectStop={chooseStop}
-        onFlyTo={onFlyTo}
-        onSelectProject={(props: { id?: string }) => {
-          if (props?.id) setSelectedProjectId(props.id);
-        }}
-      />
+  return (
+    <div className="ng-shell" data-testid="ng-shell">
+      <div className="ng-map-layer">
+        <MapScene
+          segments={voyage?.segments || []}
+          stops={voyage?.stops || []}
+          boat={sample && Number.isFinite(sample.lat) ? { lat: sample.lat, lon: sample.lon, bearing: sample.bearing } : null}
+          projects={projects}
+          marinas={marinaFeatures}
+          showProjects={tab === "voyage"}
+          showMarinas={tab === "marinas"}
+          flyTo={flyTo}
+          onSelectStop={chooseStop}
+          onFlyTo={onFlyTo}
+          onSelectProject={(props: { id?: string }) => {
+            if (props?.id) setSelectedProjectId(props.id);
+          }}
+        />
+      </div>
 
-      <p className="voyage-clock" data-testid="voyage-clock">
-        {formatCivilDate(sample?.iso, lang)}
-        {" · "}
-        {t("clock.sailed", { nm: Number.isFinite(cumNm) ? cumNm.toFixed(1) : "—" })}
-        {" "}
-        {t("clock.simulated")}
-        {sample?.status === "waiting" && sample.countdownHours != null
-          ? ` · ${t("clock.waiting", { hours: Math.round(Number(sample.countdownHours)) })}`
-          : ""}
-      </p>
-      {!prod ? (
-        <label className="dev-t0">
-          {t("clock.devT0")}
-          <input
-            type="text"
-            value={devT0 || t0}
-            onChange={(event) => setDevT0(event.target.value)}
-            aria-label={t("clock.devT0")}
-          />
-        </label>
-      ) : null}
+      <div className="ng-notices">{paypalNotices}</div>
 
-      {tab === "voyage" ? (
-        <div className="layout">
-          <div>
-            <section className="panel crew-supporter-public" data-testid="crew-supporter-public">
-                <CrewSubscribeButton adminKey={adminKey.trim() || undefined} />
-              </section>
+      <aside
+        className={`ng-sidebar panel${sidebarOpen ? "" : " ng-collapsed"}`}
+        data-testid="ng-sidebar"
+      >
+        <button
+          type="button"
+          className="ng-sidebar-toggle"
+          data-testid="ng-sidebar-toggle"
+          aria-expanded={sidebarOpen}
+          onClick={() => setSidebarOpen((open) => !open)}
+        >
+          {sidebarOpen ? "◀" : "▶"}
+        </button>
+        <div className="ng-shell-header">
+          <h1>{t("app.title")}</h1>
+          <p>{t("app.tagline")}</p>
+        </div>
+        <div className="lang-switch">
+          <button type="button" className={i18n.language === "fr" ? "active" : ""} onClick={() => setLanguage("fr")}>
+            {t("app.langFr")}
+          </button>
+          <button type="button" className={i18n.language === "en" ? "active" : ""} onClick={() => setLanguage("en")}>
+            {t("app.langEn")}
+          </button>
+        </div>
+        <div className="ng-tab-bar tab-bar" role="tablist">
+          <button type="button" role="tab" aria-selected={tab === "voyage"} className={tab === "voyage" ? "active" : ""} onClick={() => setTab("voyage")}>
+            {t("tabs.voyage")}
+          </button>
+          <button type="button" role="tab" aria-selected={tab === "marinas"} className={tab === "marinas" ? "active" : ""} onClick={() => setTab("marinas")}>
+            {t("tabs.marinas")}
+          </button>
+        </div>
+        <p className="ng-clock-line voyage-clock" data-testid="voyage-clock">
+          {formatCivilDate(sample?.iso, lang)}
+          {" · "}
+          {t("clock.sailed", { nm: Number.isFinite(cumNm) ? cumNm.toFixed(1) : "—" })}
+          {" "}
+          {t("clock.simulated")}
+          {sample?.status === "waiting" && sample.countdownHours != null
+            ? ` · ${t("clock.waiting", { hours: Math.round(Number(sample.countdownHours)) })}`
+            : ""}
+        </p>
+        {!prod ? (
+          <label className="dev-t0">
+            {t("clock.devT0")}
+            <input
+              type="text"
+              value={devT0 || t0}
+              onChange={(event) => setDevT0(event.target.value)}
+              aria-label={t("clock.devT0")}
+            />
+          </label>
+        ) : null}
+        <section className="crew-supporter-public" data-testid="crew-supporter-public">
+          <CrewSubscribeButton adminKey={adminKey.trim() || undefined} />
+        </section>
+        {tab === "voyage" ? (
+          <>
             <ProjectList
               projects={projects}
               selectedProjectId={selectedProjectId}
@@ -580,47 +600,14 @@ export default function App() {
               onFlyTo={onFlyTo}
               onAuthorized={onAuthorized}
             />
-            <EscalesScheduler
-              schedule={schedule}
-              onAuthorized={onAuthorized}
-              onSelectEscale={(event: { milestoneId?: string; name?: string }) => {
-                const match = matchVoyageStop(voyage?.stops || [], event);
-                if (match) chooseStop(match);
-                else if (event.milestoneId) setMilestoneId(event.milestoneId);
-              }}
-            />
             <EscalesPanel
               milestoneId={milestoneId}
               onMilestoneId={setMilestoneId}
               onSuggested={onSuggested}
               onAuthorized={onAuthorized}
             />
-          </div>
-          <div>
-            {stop ? (
-              <EscalePopup
-                stop={stop}
-                fiche={fiche}
-                loading={ficheLoading}
-                error={ficheError}
-                onClose={() => setStop(null)}
-                pledge={{
-                  amount,
-                  milestoneId,
-                  contributor,
-                  kind,
-                  onAmount: setAmount,
-                  onMilestoneId: setMilestoneId,
-                  onContributor: setContributor,
-                  onKind,
-                }}
-                onPledgeAuthorized={onAuthorized}
-              />
-            ) : <p className="hint">{t("sheet.pick")}</p>}
-          </div>
-        </div>
-      ) : (
-        <div className="layout">
+          </>
+        ) : (
           <div className="panel">
             <h2>{t("marinas.pick")}</h2>
             <ul className="stop-picks">
@@ -631,6 +618,34 @@ export default function App() {
               ))}
             </ul>
           </div>
+        )}
+      </aside>
+
+      <aside className="ng-tools-panel panel" data-testid="ng-tools-panel">
+        {tab === "voyage" ? (
+          stop ? (
+            <EscalePopup
+              stop={stop}
+              fiche={fiche}
+              loading={ficheLoading}
+              error={ficheError}
+              onClose={() => setStop(null)}
+              pledge={{
+                amount,
+                milestoneId,
+                contributor,
+                kind,
+                onAmount: setAmount,
+                onMilestoneId: setMilestoneId,
+                onContributor: setContributor,
+                onKind,
+              }}
+              onPledgeAuthorized={onAuthorized}
+            />
+          ) : (
+            <p className="hint">{t("sheet.pick")}</p>
+          )
+        ) : (
           <MarinasPanel
             marinas={marinaFeatures}
             onFlyTo={onFlyTo}
@@ -638,8 +653,8 @@ export default function App() {
             contributor={contributor}
             onAuthorized={onAuthorized}
           />
-        </div>
-      )}
+        )}
+      </aside>
     </div>
   );
 }

@@ -87,7 +87,7 @@ def test_webhook_verifies_and_is_idempotent(api):
     second = client.post("/api/escales/webhooks/paypal", headers=HEADERS, content=json.dumps(PAYLOAD))
     assert second.status_code == 200
     assert second.json()["duplicate"] is True
-    assert fake.verify_calls == 1
+    assert fake.verify_calls == 2
 
     entries = asyncio.run(list_finance_entries())
     assert sum(1 for entry in entries if entry["kind"] == "webhook_received") == 1
@@ -104,3 +104,33 @@ def test_webhook_rejects_bad_signature(api):
     response = client.post("/api/escales/webhooks/paypal", headers=HEADERS, content=json.dumps(PAYLOAD))
     assert response.status_code == 401
     assert fake.verify_calls == 0
+
+
+def test_signature_is_checked_before_the_duplicate(api):
+    """A known transmission_id with a bad signature is rejected, not replayed."""
+    client, fake = api
+    first = client.post("/api/escales/webhooks/paypal", headers=HEADERS, content=json.dumps(PAYLOAD))
+    assert first.status_code == 200
+    assert fake.verify_calls == 1
+
+    class BadPayPal(FakePayPal):
+        def verify_webhook_signature(self, **kwargs):
+            fake.verify_calls += 1
+            return {"verification_status": "FAILURE"}
+
+    set_paypal_client_factory(lambda: BadPayPal())
+    replay = client.post("/api/escales/webhooks/paypal", headers=HEADERS, content=json.dumps(PAYLOAD))
+    assert replay.status_code == 401
+    assert replay.json().get("duplicate") is not True
+    assert fake.verify_calls == 2
+
+    fresh = dict(HEADERS)
+    fresh["PAYPAL-TRANSMISSION-ID"] = "T-FRESH"
+    denied = client.post("/api/escales/webhooks/paypal", headers=fresh, content=json.dumps(PAYLOAD))
+    assert denied.status_code == 401
+
+    set_paypal_client_factory(lambda: fake)
+    accepted = client.post("/api/escales/webhooks/paypal", headers=fresh, content=json.dumps(PAYLOAD))
+    assert accepted.status_code == 200
+    assert accepted.json()["accepted"] is True
+    assert accepted.json().get("duplicate") is not True

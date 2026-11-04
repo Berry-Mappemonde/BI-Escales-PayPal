@@ -48,15 +48,13 @@ async def verify_and_process(
     if not all([transmission_id, transmission_time, transmission_sig, cert_url, auth_algo]):
         raise WebhookRejected(400, "PayPal webhook headers are incomplete")
 
-    ledger = get_ledger()
-    if await ledger.has_webhook(transmission_id):
-        raise WebhookDuplicate(transmission_id)
-
     try:
         event = json.loads(raw_body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise WebhookRejected(400, "Webhook body must be JSON") from exc
 
+    # Signature first. A replay of a known transmission_id with a bad
+    # signature is a rejection, not a duplicate.
     try:
         verification = client.verify_webhook_signature(
             auth_algo=auth_algo,
@@ -74,6 +72,7 @@ async def verify_and_process(
     if status != "SUCCESS":
         raise WebhookRejected(401, "PayPal webhook signature rejected")
 
+    ledger = get_ledger()
     claimed = await ledger.claim_webhook(
         transmission_id,
         {"event_id": event.get("id"), "event_type": event.get("event_type")},

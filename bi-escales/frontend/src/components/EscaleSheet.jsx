@@ -12,18 +12,18 @@ import { PledgeButton } from "./PledgeButton";
 const STOP_KINDS = ["mile", "night", "meal", "care", "common_fund"];
 const FIXED_AMOUNT = { night: "60.00", meal: "60.00", care: "40.00" };
 
-const LABELS = {
-  fr: {
-    mooring: "Amarrage", marinas: "Marinas", capitaineries: "Capitainerie", wpi: "Ports WPI", anchorages: "Mouillages",
-    services: "Services", fuel: "Carburant", water: "Eau",
-    around: "Autour", projects: "Projets",
-  },
-  en: {
-    mooring: "Mooring", marinas: "Marinas", capitaineries: "Harbour master", wpi: "WPI ports", anchorages: "Anchorages",
-    services: "Services", fuel: "Fuel", water: "Water",
-    around: "Around", projects: "Projects",
-  },
-};
+const SECTION_KEYS = [
+  "mooring",
+  "marinas",
+  "capitaineries",
+  "wpi",
+  "anchorages",
+  "services",
+  "fuel",
+  "water",
+  "around",
+  "projects",
+];
 
 function googleMapsUrl(lat, lon) {
   const la = Number(lat);
@@ -41,8 +41,10 @@ export function visibleSections(sections) {
   return out;
 }
 
-function label(key, lang) {
-  return LABELS[lang]?.[key] || key;
+function sectionLabel(key, t) {
+  const path = `sheet.sections.${key}`;
+  const text = t(path);
+  return text === path ? key : text;
 }
 
 export const EscaleSheet = memo(function EscaleSheet({
@@ -54,9 +56,8 @@ export const EscaleSheet = memo(function EscaleSheet({
   pledge,
   onPledgeAuthorized,
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   if (!stop) return null;
-  const lang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const sections = visibleSections(fiche?.sections);
   const keys = Object.keys(sections);
   const pledgeDescription = pledge
@@ -81,11 +82,11 @@ export const EscaleSheet = memo(function EscaleSheet({
       {!loading && fiche && !keys.length ? <p className="hint">{t("sheet.empty")}</p> : null}
       {keys.map((section) => (
         <div key={section}>
-          <div className="escale-kicker">{label(section, lang)}</div>
+          <div className="escale-kicker">{sectionLabel(section, t)}</div>
           {Object.entries(sections[section] || {}).map(([sub, items]) => (
             Array.isArray(items) ? (
               <div key={sub}>
-                <div className="hint">{label(sub, lang)}</div>
+                <div className="hint">{SECTION_KEYS.includes(sub) ? sectionLabel(sub, t) : sub}</div>
                 <ul className="escale-items">
                   {items.map((item, index) => {
                     const site = item.url || item.visit_url || null;

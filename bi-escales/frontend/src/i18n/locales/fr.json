@@ -7,7 +7,9 @@
     "themeLight": "Clair",
     "themeDark": "Sombre",
     "healthFail": "Backend indisponible",
-    "escalesOff": "ESCALES_ENABLED est désactivé : l’API /api/escales renvoie 404."
+    "escalesOff": "ESCALES_ENABLED est désactivé : l’API /api/escales renvoie 404.",
+    "sidebarCollapse": "Replier le panneau latéral",
+    "sidebarExpand": "Déplier le panneau latéral"
   },
   "tabs": {
     "voyage": "Carte du voyage",
@@ -25,7 +27,18 @@
     "loading": "Chargement de la fiche…",
     "empty": "Pas de liste pour cette escale.",
     "pick": "Choisissez une escale sur la carte pour la fiche et le bouton PayPal.",
-    "captainReview": "Revue du capitaine"
+    "sections": {
+      "mooring": "Amarrage",
+      "marinas": "Marinas",
+      "capitaineries": "Capitainerie",
+      "wpi": "Ports WPI",
+      "anchorages": "Mouillages",
+      "services": "Services",
+      "fuel": "Carburant",
+      "water": "Eau",
+      "around": "Autour",
+      "projects": "Projets"
+    }
   },
   "projects": {
     "heading": "Projets Blue Intelligence",
@@ -67,7 +80,11 @@
     "boatTotals": "Fonds commun"
   },
   "scheduler": {
-    "empty": "Aucune escale planifiée."
+    "heading": "Calendrier des escales",
+    "empty": "Aucune escale planifiée.",
+    "cabinLeg": "{{from}} → {{to}}",
+    "cabinPrice": "{{amount}} EUR",
+    "cabinDescription": "Cabine {{from}} → {{to}}"
   },
   "escales": {
     "heading": "Escales & capitaine",
@@ -91,6 +108,7 @@
     },
     "milestone": "Jalon",
     "contributor": "Contributeur (optionnel)",
+    "simulatedPrice": "prix simulé",
     "returnPending": "Approuvez sur PayPal. Au retour, l’autorisation part seule.",
     "cancelled": "Approbation annulée. Rien n’est autorisé.",
     "authorizing": "Autorisation côté serveur…",
@@ -138,6 +156,7 @@
     "status": "Statut",
     "amount": "Montant",
     "description": "Description",
+    "milestoneFromStop": "La caisse et les dépenses utilisent le jalon de l’escale sélectionnée : {{id}}",
     "milestone": "Jalon",
     "actions": "Actions",
     "back": "Retour à la carte",

@@ -57,6 +57,7 @@ describe("EscalesPanel cart", () => {
     expect(captainChat).toHaveBeenCalledWith("20 milles près de Mayotte", "fr");
     const line = await screen.findByTestId("cart-line");
     expect(line).toHaveTextContent("20 milles parrainés — 20.00 EUR");
+    expect(line).toHaveTextContent("prix simulé");
     expect(screen.getByTestId("paypal-buttons")).toHaveAttribute("data-kind", "mile");
     expect(screen.queryByTestId("pledge-authorize")).toBeNull();
     expect(screen.queryByRole("button", { name: /preuve/i })).toBeNull();

@@ -61,7 +61,7 @@ export function EscalesPanel({
                 <div key={`${line.kind || "line"}-${index}`} data-testid="cart-line">
                   <p>
                     {line.description} — {line.amount_eur} {chatResult.cart?.currency || "EUR"}
-                    {line.price_label ? ` (${line.price_label})` : ""}
+                    {line.price_label ? ` (${t("pledge.simulatedPrice")})` : ""}
                   </p>
                   {line.pledge ? (
                     <PledgeButton

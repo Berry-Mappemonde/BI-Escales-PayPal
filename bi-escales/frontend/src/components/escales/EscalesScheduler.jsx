@@ -2,6 +2,7 @@
  * Calendrier des escales, liste locale.
  * Composant isolé : le frontend parent fournit `schedule`.
  * Nettoyage calendrier : PR #27 chore/ui-audit (libellés morts retirés).
+ * Lot 2 (plan canvas P2) : boutons de planification seulement si `planningEnabled` (Bryntum).
  */
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -45,20 +46,21 @@ function cabinAmount(prices) {
 }
 
 function LegList({ legs, amount, onAuthorized }) {
+  const { t } = useTranslation();
   if (!legs?.length) return null;
   return (
     <ul className="escales-legs" data-testid="schedule-legs">
       {legs.map((leg) => (
         <li key={leg.id} data-testid="schedule-leg" data-leg={leg.id}>
           <span>
-            {leg.from_name} → {leg.to_name}
+            {t("scheduler.cabinLeg", { from: leg.from_name, to: leg.to_name })}
             {" "}
-            <span data-testid="cabin-price">{amount} EUR</span>
+            <span data-testid="cabin-price">{t("scheduler.cabinPrice", { amount })}</span>
           </span>
           <PledgeButton
             values={{
               amount_eur: amount,
-              description: `Cabine ${leg.from_name} → ${leg.to_name}`,
+              description: t("scheduler.cabinDescription", { from: leg.from_name, to: leg.to_name }),
               milestone_id: leg.id,
               kind: "cabin_leg",
             }}
@@ -82,7 +84,9 @@ function LocalScheduleList({ events, onSelect }) {
           <button type="button" onClick={() => onSelect?.(event)}>
             <strong>{event.name}</strong>
             <span>{event.startDate.toISOString().slice(0, 10)}</span>
-            {event.milestoneId ? <code>{withoutStoragePrefix(event.milestoneId)}</code> : null}
+            {event.milestoneId ? (
+              <code>{withoutStoragePrefix(event.milestoneId)}</code>
+            ) : null}
           </button>
         </li>
       ))}
@@ -94,15 +98,21 @@ export default function EscalesScheduler({
   schedule,
   onSelectEscale,
   onAuthorized,
+  planningEnabled = false,
 }) {
+  const { t } = useTranslation();
   const escales = schedule?.export?.escales || schedule?.escales || localFallbackEscales();
   const events = useMemo(() => buildEvents(escales), [escales]);
   const legs = schedule?.legs || [];
 
+  if (!planningEnabled) {
+    return null;
+  }
+
   return (
-    <section className="escales-scheduler" data-source={schedule?.source || "local"}>
+    <section className="escales-scheduler panel" data-source={schedule?.source || "local"}>
       <header>
-        <h2>Calendrier des escales</h2>
+        <h2>{t("scheduler.heading")}</h2>
       </header>
       <LegList legs={legs} amount={cabinAmount(schedule?.prices)} onAuthorized={onAuthorized} />
       <LocalScheduleList events={events} onSelect={onSelectEscale} />

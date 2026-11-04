@@ -55,7 +55,11 @@ describe("EscalesScheduler", () => {
   });
 
   it("affiche les jambes et une promesse cabine", () => {
-    render(<EscalesScheduler schedule={schedule} />);
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EscalesScheduler schedule={schedule} planningEnabled onAuthorized={() => {}} />
+      </I18nextProvider>,
+    );
     expect(screen.getByTestId("schedule-leg").textContent).toContain("Ajaccio");
     const cabin = screen.getByRole("button", { name: "cabin_leg" });
     expect(cabin.getAttribute("data-kind")).toBe("cabin_leg");

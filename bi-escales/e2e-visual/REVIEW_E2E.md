@@ -8,6 +8,14 @@ Free Render Postgres is the option that keeps the ledger across those events. Li
 
 SQLite was rejected for this host. It would only be durable with a paid persistent disk, which free web services cannot attach.
 
+## Live sandbox attempt (2026-11-04, later run)
+
+`PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` were **not** in this process environment. They are also absent from `CLOUD_AGENT_INJECTED_SECRET_NAMES` (that list is `NVIDIA_API_KEY`, `EARTHDATA_TOKEN`, plus non-PayPal names on `CLOUD_AGENT_ALL_SECRET_NAMES`). `PAYPAL_WEBHOOK_ID` and `PAYPAL_ENV` are unset too. No values were printed or written down.
+
+Because of that, none of the live flows ran: create order, AUTHORIZE, capture, void, Vault (≥ 29 days), or `verify-webhook-signature`. `test_live_sandbox_create_authorize_order` and `test_live_webhook_verify_reaches_sandbox` stay skipped. No sandbox webhook was created. A public URL was not required, and the webhook simulator was not called.
+
+This VM was already running when the secrets were added to Cursor Cloud Agents. A **new** agent run, started after those secrets are saved for this environment, is what injects them. Re-run the live tests on that run.
+
 ## PayPal webhook signatures
 
 `PayPalClient.verify_webhook_signature` posts the original raw body to `POST /v1/notifications/verify-webhook-signature`. `signature_client` uses that live client when a client id, a secret, and `PAYPAL_WEBHOOK_ID` are set. Test doubles and `DemoPayPalClient` set `webhook_signature_mock` and never call PayPal. `test_live_webhook_verify_reaches_sandbox` is skipped until those sandbox values exist; it then calls the real endpoint. A forged body is expected to come back `FAILURE` (or HTTP below 500), which is enough to prove the call left the process. No sandbox credentials are in this environment, so that live test is skipped here.

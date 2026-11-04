@@ -35,3 +35,12 @@ services:
         sync: false
       - key: HELLOASSO_MEMBERSHIP_URL
         sync: false
+      # Captain IP limit and LLM daily cap are off unless this is production.
+      - key: ESCALES_ENV
+        value: production
+      - key: ESCALES_CAPTAIN_RATE_PER_MINUTE
+        value: "10"
+      - key: ESCALES_CAPTAIN_RATE_PER_DAY
+        value: "100"
+      - key: ESCALES_LLM_DAILY_CAP
+        value: "100"

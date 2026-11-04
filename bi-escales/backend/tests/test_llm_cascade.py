@@ -44,6 +44,11 @@ LLM_ENV = (
     "ESCALES_LLM_TIMEOUT_OPENROUTER_S",
     "ESCALES_LLM_TIMEOUT_ANTHROPIC_S",
     "ESCALES_LLM_TIMEOUT_TOKENFACTORY_S",
+    "ESCALES_ENV",
+    "ESCALES_RATE_LIMIT_ENABLED",
+    "ESCALES_LLM_DAILY_CAP",
+    "ESCALES_CAPTAIN_RATE_PER_MINUTE",
+    "ESCALES_CAPTAIN_RATE_PER_DAY",
 )
 
 
@@ -53,8 +58,10 @@ def isolated(monkeypatch):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("ESCALES_STORE", "memory")
     reset_ledger()
+    llm.reset_llm_budget()
     yield
     reset_ledger()
+    llm.reset_llm_budget()
 
 
 class Spy:
@@ -184,10 +191,13 @@ def test_env_example_lists_flags_and_empty_keys():
     lines = [line.strip() for line in ENV_FILE.read_text(encoding="utf-8").splitlines()]
     assert "ESCALES_LLM_ENABLED=" in lines
     assert "ESCALES_LLM_NEBIUS_ENABLED=false" in lines
+    assert "ESCALES_ENV=development" in lines
     for name in (
         "NVIDIA_API_KEY", "OPENROUTER_API_KEY", "OPENROUTER_MODEL", "ANTHROPIC_API_KEY", "NEBIUS_API_KEY",
         "NIM_MODEL", "NIM_TEMPERATURE", "NIM_MAX_TOKENS", "NIM_TOP_P", "NIM_REASONING", "NIM_EXTRA_BODY",
         "NIM_FALLBACK_MODEL", "ESCALES_LLM_TIMEOUT_NIM_S", "ESCALES_LLM_TIMEOUT_NIM_FALLBACK_S",
+        "ESCALES_ENV", "ESCALES_RATE_LIMIT_ENABLED", "ESCALES_LLM_DAILY_CAP",
+        "ESCALES_CAPTAIN_RATE_PER_MINUTE", "ESCALES_CAPTAIN_RATE_PER_DAY",
     ):
         assert any(line.startswith(f"{name}=") for line in lines)
     assert "ESCALES_LLM_TIMEOUT_S=10" in lines

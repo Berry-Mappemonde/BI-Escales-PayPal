@@ -8,6 +8,7 @@ SANDBOX_BASE = "https://api-m.sandbox.paypal.com"
 AUTH_MAX_DAYS = 29
 
 _TRUTHY = {"1", "true", "yes", "on"}
+_FALSY = {"0", "false", "no", "off"}
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,26 @@ class EscalesConfig:
 
 def escales_enabled() -> bool:
     return os.environ.get("ESCALES_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def escales_env() -> str:
+    """``development`` unless ``ESCALES_ENV`` says otherwise."""
+    raw = (os.environ.get("ESCALES_ENV") or "development").strip().lower()
+    return raw or "development"
+
+
+def limits_enabled() -> bool:
+    """IP rate limit and LLM daily cap. On in production only.
+
+    ``ESCALES_RATE_LIMIT_ENABLED`` overrides ``ESCALES_ENV`` when it is set.
+    Development, tests, and an empty environment do not limit LLM usage.
+    """
+    override = (os.environ.get("ESCALES_RATE_LIMIT_ENABLED") or "").strip().lower()
+    if override in _TRUTHY:
+        return True
+    if override in _FALSY:
+        return False
+    return escales_env() == "production"
 
 
 def toolkit_enabled() -> bool:

@@ -11,9 +11,13 @@ HTTP call is made. Nebius stays implemented but stays off unless
 resort before the rules.
 
 The captain proposes. This module never captures, voids, or moves money.
+
+A daily call cap applies only when ``ESCALES_ENV=production`` (or when
+``ESCALES_RATE_LIMIT_ENABLED`` forces it). Development does not count calls.
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 import os
@@ -247,6 +251,64 @@ def active_providers() -> list[str]:
 def has_llm() -> bool:
     """True when the master flag is on and at least one provider can run."""
     return llm_enabled() and bool(active_providers())
+
+
+LLM_DAILY_CAP_DEFAULT = 100
+_llm_day = ""
+_llm_count = 0
+
+
+class LlmBudgetExhausted(RuntimeError):
+    """The production daily cap is full. Callers fall back to the rules."""
+
+
+def _budget_now() -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc)
+
+
+def _limits_enabled() -> bool:
+    from app.escales.config import limits_enabled
+
+    return limits_enabled()
+
+
+def llm_daily_cap() -> int:
+    raw = _env("ESCALES_LLM_DAILY_CAP")
+    if not raw:
+        return LLM_DAILY_CAP_DEFAULT
+    try:
+        value = int(raw)
+    except ValueError:
+        return LLM_DAILY_CAP_DEFAULT
+    return value if value > 0 else LLM_DAILY_CAP_DEFAULT
+
+
+def reset_llm_budget() -> None:
+    global _llm_day, _llm_count
+    _llm_day = ""
+    _llm_count = 0
+
+
+def llm_calls_today() -> int:
+    return _llm_count
+
+
+def consume_llm_call(now: Optional[dt.datetime] = None) -> bool:
+    """Reserve one LLM call. Always allowed, and not counted, outside production."""
+    global _llm_day, _llm_count
+    if not _limits_enabled():
+        return True
+    moment = now or _budget_now()
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    day = moment.astimezone(dt.timezone.utc).date().isoformat()
+    if day != _llm_day:
+        _llm_day = day
+        _llm_count = 0
+    if _llm_count >= llm_daily_cap():
+        return False
+    _llm_count += 1
+    return True
 
 
 def _client() -> httpx.AsyncClient:
@@ -531,6 +593,8 @@ async def ask_text(
     """
     if not has_llm():
         raise RuntimeError("No LLM configured")
+    if not consume_llm_call():
+        raise LlmBudgetExhausted("ESCALES_LLM_DAILY_CAP reached")
     system_text = (system or "").strip() or _DEFAULT_SYSTEM
     user = prompt or ""
     budget = max(1, int(max_tokens))

@@ -292,6 +292,120 @@ def test_authorization_and_capture_read_related_order_id(api):
     assert capture_events[0]["outcome"] == "accepted"
 
 
+def test_pending_webhook_writes_one_counted_capture(api, monkeypatch):
+    """CAPTURE.COMPLETED on a pending pledge is one pledge_captured, with stop and amount."""
+    import asyncio
+
+    from app.escales.ledger import get_ledger, list_finance_entries, record_finance
+
+    monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
+
+    async def seed():
+        ledger = get_ledger()
+        await ledger.save_pledge({
+            "_id": "p-pend",
+            "status": "pending",
+            "intent": "AUTHORIZE",
+            "payment_mode": "AUTHORIZE",
+            "currency": "EUR",
+            "amount_eur": "20.00",
+            "description": "miles",
+            "milestone_id": "dep-mayotte",
+            "kind": "mile",
+            "target_id": "mayotte",
+            "order_id": "ORDER-PEND",
+            "history": ["authorized", "pending"],
+        })
+        await ledger.save_pledge({
+            "_id": "p-both",
+            "status": "pending",
+            "intent": "AUTHORIZE",
+            "payment_mode": "AUTHORIZE",
+            "currency": "EUR",
+            "amount_eur": "30.00",
+            "description": "deja",
+            "milestone_id": "dep-dakar",
+            "kind": "mile",
+            "target_id": "dakar",
+            "order_id": "ORDER-BOTH",
+            "history": ["authorized", "pending"],
+        })
+        await record_finance(
+            "pledge_captured",
+            pledge_id="p-both",
+            milestone_id="dep-dakar",
+            amount_eur="30.00",
+            currency="EUR",
+            status="captured",
+            actor="treasurer",
+            pledge_kind="mile",
+            target_id="dakar",
+        )
+
+    asyncio.run(seed())
+    client, _fake = api
+
+    def post(transmission, order_id, pledge_id):
+        headers = dict(HEADERS)
+        headers["PAYPAL-TRANSMISSION-ID"] = transmission
+        payload = {
+            "id": f"WH-{transmission}",
+            "event_type": "PAYMENT.CAPTURE.COMPLETED",
+            "resource": {
+                "id": f"CAP-{transmission}",
+                "status": "COMPLETED",
+                "supplementary_data": {"related_ids": {"order_id": order_id}},
+            },
+        }
+        response = client.post(
+            "/api/escales/webhooks/paypal",
+            headers=headers,
+            content=json.dumps(payload),
+        )
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    assert post("T-PEND", "ORDER-PEND", "p-pend")["pledge_id"] == "p-pend"
+    again = post("T-PEND-2", "ORDER-PEND", "p-pend")
+    assert again["pledge_id"] == "p-pend"
+    post("T-BOTH", "ORDER-BOTH", "p-both")
+
+    async def check():
+        pend = await get_ledger().get_pledge("p-pend")
+        entries = await list_finance_entries()
+        return pend, entries
+
+    pend, entries = asyncio.run(check())
+    assert pend["status"] == "captured"
+    captured = [row for row in entries if row["kind"] == "pledge_captured"]
+    pend_rows = [row for row in captured if row["pledge_id"] == "p-pend"]
+    both_rows = [row for row in captured if row["pledge_id"] == "p-both"]
+    assert len(pend_rows) == 1
+    assert pend_rows[0]["milestone_id"] == "dep-mayotte"
+    assert pend_rows[0]["amount_eur"] == "20.00"
+    assert "webhook_capture_completed" not in [row["kind"] for row in entries]
+    assert len(both_rows) == 1
+    assert both_rows[0]["amount_eur"] == "30.00"
+
+    fund = client.get("/api/escales/milestones/dep-mayotte/fund")
+    assert fund.status_code == 200
+    assert fund.json()["income_eur"] == "20.00"
+    assert fund.json()["captured_eur"] == "20.00"
+    spent = client.post(
+        "/api/escales/milestones/dep-mayotte/fund/spending",
+        json={"amount_eur": "20.00", "description": "le fond compte"},
+        headers={"x-admin-key": "test-admin-key"},
+    )
+    assert spent.status_code == 200, spent.text
+    assert spent.json()["balance_eur"] == "0.00"
+    over = client.post(
+        "/api/escales/milestones/dep-mayotte/fund/spending",
+        json={"amount_eur": "0.01", "description": "trop"},
+        headers={"x-admin-key": "test-admin-key"},
+    )
+    assert over.status_code == 422
+
+
 def test_malformed_signature_or_cert_is_not_a_502(api):
     from app.escales.paypal_client import PayPalError
 

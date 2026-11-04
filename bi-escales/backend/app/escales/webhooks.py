@@ -151,6 +151,20 @@ async def _apply_event(event: dict) -> dict:
         pledge_kind=identity.get("kind") if identity else None,
         target_id=identity.get("target_id") if identity else None,
     )
+    if (
+        pledge
+        and event_type == "PAYMENT.CAPTURE.COMPLETED"
+        and pledge.get("status") == "pending"
+    ):
+        pledge["status"] = "captured"
+        pledge["paypal_status"] = "COMPLETED"
+        if resource.get("id"):
+            pledge["capture_id"] = str(resource["id"])
+        pledge["history"] = list(pledge.get("history") or []) + ["captured"]
+        pledge = await get_ledger().save_pledge(pledge)
+        from .pledges import record_pledge_captured_once
+
+        await record_pledge_captured_once(pledge, actor="webhook")
 
     return {
         "accepted": True,

@@ -36,6 +36,15 @@ def db_name() -> str:
     return name or DEFAULT_DB_NAME
 
 
+def reset_db() -> None:
+    """Drop the cached client. Tests call this; it does not delete data."""
+    global _client
+    client = _client
+    _client = None
+    if client is not None:
+        client.close()
+
+
 def get_client() -> AsyncIOMotorClient:
     """Return the process client. Motor connects on the first operation."""
     global _client
@@ -45,6 +54,11 @@ def get_client() -> AsyncIOMotorClient:
             raise RuntimeError("MONGO_URL is not set")
         _client = AsyncIOMotorClient(url, **_CLIENT_KWARGS)
     return _client
+
+
+def get_db() -> Any:
+    """Return the Motor database. Requires ``MONGO_URL``."""
+    return get_client()[db_name()]
 
 
 class _LazyDatabase:

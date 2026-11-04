@@ -41,9 +41,10 @@ def test_kernel_evidence_when_enabled(monkeypatch):
 
     async def run():
         direct = await kernel_evidence("dep-mayotte", True, {"boats": 1})
-        assert direct["provider"] == "KERNEL"
+        assert direct["provider"] == "KERNEL-simulated"
+        assert direct["trusted"] is False
         stored = await record_evidence("dep-mayotte", True, {"boats": 1})
-        assert stored["provider"] == "KERNEL"
+        assert stored["provider"] == "KERNEL-simulated"
 
     asyncio.run(run())
 

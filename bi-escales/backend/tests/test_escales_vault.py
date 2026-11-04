@@ -139,6 +139,8 @@ def test_vault_pledge_lifecycle():
         captured = await capture_pledge(created["_id"], client)
         assert captured["status"] == "captured"
         assert ("charge_vaulted", "VAULT-SETUP1", "25.00", created["_id"], "paypal") in client.calls
+        assert ("delete_token", "VAULT-SETUP1") in client.calls
+        assert captured.get("vault_token_deleted") is True
 
         other_client = VaultPayPal()
         await _seed_far_milestone("dep-other")
@@ -427,6 +429,65 @@ def test_departure_clock_retries_vault_token_delete(monkeypatch):
         assert done["status"] == "voided"
         assert done["vault_token_deleted"] is True
         assert ("delete_token", "VAULT-RETRY") in fake.calls
+
+    asyncio.run(body())
+
+
+def test_vault_capture_captured_at_uses_simulated_clock(monkeypatch):
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-03-10T12:00:00Z")
+
+    async def body():
+        await _seed_far_milestone()
+        client = VaultPayPal()
+        created = await create_pledge(
+            amount_eur="1.00",
+            description="horloge",
+            milestone_id="dep-long-haul",
+            client=client,
+            client_key="cap-clock",
+        )
+        await register_vault_pledge(created["_id"], client)
+        captured = await capture_pledge(created["_id"], client)
+        assert captured["captured_at"] == "2026-03-10T12:00:00+00:00"
+
+    asyncio.run(body())
+
+
+def test_shared_vault_token_deleted_only_after_last_open_pledge_resolved():
+    async def body():
+        await _seed_far_milestone()
+        await _seed_far_milestone("dep-share-cap")
+        client = VaultPayPal()
+        first = await create_pledge(
+            amount_eur="1.00",
+            description="a",
+            milestone_id="dep-long-haul",
+            client=client,
+            client_key="cap-a",
+        )
+        await register_vault_pledge(first["_id"], client)
+        first = await get_ledger().get_pledge(first["_id"])
+        second = await create_pledge(
+            amount_eur="2.00",
+            description="b",
+            milestone_id="dep-share-cap",
+            client=client,
+            client_key="cap-b",
+        )
+        await register_vault_pledge(second["_id"], client)
+        second = await get_ledger().get_pledge(second["_id"])
+        shared = first["vault_id"]
+        twin = dict(second)
+        twin["vault_id"] = shared
+        await get_ledger().save_pledge(twin)
+
+        await capture_pledge(first["_id"], client)
+        assert sum(1 for call in client.calls if call[0] == "delete_token") == 0
+
+        await capture_pledge(second["_id"], client)
+        assert ("delete_token", shared) in client.calls
+        rows = [await get_ledger().get_pledge(first["_id"]), await get_ledger().get_pledge(second["_id"])]
+        assert all(row.get("vault_token_deleted") is True for row in rows)
 
     asyncio.run(body())
 

@@ -829,7 +829,7 @@ async def _finish_capture(pledge: dict, payload: Any, *, finance: dict) -> dict:
     if status == "COMPLETED":
         pledge["status"] = "captured"
         if not str(pledge.get("captured_at") or "").strip():
-            pledge["captured_at"] = now_iso()
+            pledge["captured_at"] = simulated_now().replace(microsecond=0).isoformat()
         pledge["history"] = list(pledge.get("history") or []) + ["captured"]
         saved = await get_ledger().save_pledge(pledge)
         await record("capture", status="captured", **audit_fields)
@@ -915,11 +915,17 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
             source=pledge.get("vault_source") or "paypal",
             description=str(pledge.get("description") or ""),
         )
-        return await _finish_capture(
+        saved = await _finish_capture(
             pledge,
             payload,
             finance={"vault_id": vault_id, "payment_mode": "VAULT"},
         )
+        if saved.get("status") == "captured":
+            await release_vault_token_if_unused(client, str(vault_id), exclude_pledge_id=pledge_id)
+            reloaded = await get_ledger().get_pledge(pledge_id)
+            if reloaded:
+                saved = reloaded
+        return saved
     _require_status(pledge, "authorized", "captured")
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "captured")
@@ -949,6 +955,54 @@ async def _other_open_pledges_share_vault(vault_id: str, exclude_pledge_id: str)
             continue
         return True
     return False
+
+
+async def find_pledge_by_vault_id(vault_id: str) -> Optional[dict]:
+    vid = str(vault_id or "").strip()
+    if not vid:
+        return None
+    for row in await get_ledger().list_pledges():
+        if str(row.get("vault_id") or "") == vid:
+            return row
+    return None
+
+
+async def mark_vault_token_deleted_for_vault_id(vault_id: str) -> list[str]:
+    """Mark every pledge on this vault token deleted (idempotent)."""
+    updated: list[str] = []
+    vid = str(vault_id or "").strip()
+    if not vid:
+        return updated
+    for row in await get_ledger().list_pledges():
+        if str(row.get("vault_id") or "") != vid:
+            continue
+        pledge_id = str(row.get("_id") or "")
+        if row.get("vault_token_deleted") is True:
+            if pledge_id:
+                updated.append(pledge_id)
+            continue
+        row["vault_token_deleted"] = True
+        row["history"] = list(row.get("history") or []) + ["vault_token_deleted"]
+        saved = await get_ledger().save_pledge(row)
+        updated.append(str(saved.get("_id") or pledge_id))
+    return updated
+
+
+async def release_vault_token_if_unused(
+    client: Any,
+    vault_id: str,
+    *,
+    exclude_pledge_id: str = "",
+) -> bool:
+    """Delete the PayPal vault token when no open pledge still references it."""
+    if await _other_open_pledges_share_vault(vault_id, exclude_pledge_id):
+        return False
+    vid = str(vault_id or "").strip()
+    if not vid:
+        return False
+    client.delete_payment_token(vid)
+    await mark_vault_token_deleted_for_vault_id(vid)
+    return True
 
 
 def _finish_vault_void(pledge: dict, *, token_deleted: bool) -> None:
@@ -997,10 +1051,12 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
         vault_id = pledge.get("vault_id")
         if not vault_id:
             raise IllegalTransition("vaulted", "voided")
-        keep_token = await _other_open_pledges_share_vault(str(vault_id), pledge_id)
-        if not keep_token:
-            client.delete_payment_token(vault_id)
-        _finish_vault_void(pledge, token_deleted=not keep_token)
+        token_deleted = await release_vault_token_if_unused(
+            client,
+            str(vault_id),
+            exclude_pledge_id=pledge_id,
+        )
+        _finish_vault_void(pledge, token_deleted=token_deleted)
         saved = await get_ledger().save_pledge(pledge)
         from .audit import record
         await record(

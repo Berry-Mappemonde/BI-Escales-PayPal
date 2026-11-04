@@ -44,6 +44,10 @@ class _VaultClockFake:
         self.calls.append(("charge_vaulted", vault_id, amount_eur, reference_id, source))
         return {"id": "ORD1", "status": "COMPLETED", "purchase_units": [{"payments": {"captures": [{"id": "CAP1", "status": "COMPLETED"}]}}]}
 
+    def delete_payment_token(self, vault_id):
+        self.calls.append(("delete_token", vault_id))
+        return {}
+
 
 def test_departure_clock_charges_vaulted_pledge_on_departure_day(monkeypatch):
     monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
@@ -69,7 +73,10 @@ def test_departure_clock_charges_vaulted_pledge_on_departure_day(monkeypatch):
         assert result["actions"] == [{"pledge_id": created["_id"], "action": "capture"}]
         stored = await get_ledger().get_pledge(created["_id"])
         assert stored["status"] == "captured"
+        assert stored["captured_at"] == "2026-11-20T12:00:00+00:00"
         assert ("charge_vaulted", "VAULT-1", "12.00", created["_id"], "paypal") in fake.calls
+        assert ("delete_token", "VAULT-1") in fake.calls
+        assert stored.get("vault_token_deleted") is True
 
     asyncio.run(body())
 

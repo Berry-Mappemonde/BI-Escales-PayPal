@@ -535,6 +535,61 @@ def test_pending_capture_follows_completed_and_denied(api):
     assert captured[0]["amount_eur"] == "20.00"
 
 
+def test_vault_payment_token_deleted_webhook_marks_pledges(api, monkeypatch):
+    import asyncio
+
+    from app.escales.ledger import get_ledger
+
+    client, _fake = api
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-04-01T08:00:00Z")
+
+    async def seed():
+        ledger = get_ledger()
+        await ledger.insert_pledge_once({
+            "_id": "vault-wh",
+            "status": "vaulted",
+            "intent": "VAULT",
+            "payment_mode": "VAULT",
+            "vault_id": "VAULT-WH-1",
+            "order_id": "ORD-VAULT",
+            "milestone_id": "dep-mayotte",
+            "amount_eur": "5.00",
+            "currency": "EUR",
+            "kind": "mile",
+            "target_id": "dep-mayotte",
+            "history": ["vaulted"],
+        })
+
+    asyncio.run(seed())
+
+    payload = {
+        "id": "WH-VAULT-DEL",
+        "event_type": "VAULT.PAYMENT-TOKEN.DELETED",
+        "resource": {"id": "VAULT-WH-1"},
+    }
+    headers = dict(HEADERS)
+    headers["PAYPAL-TRANSMISSION-ID"] = "T-VAULT-DEL"
+
+    first = client.post("/api/escales/webhooks/paypal", headers=headers, content=json.dumps(payload))
+    assert first.status_code == 200, first.text
+    assert first.json()["accepted"] is True
+
+    async def read():
+        return await get_ledger().get_pledge("vault-wh")
+
+    row = asyncio.run(read())
+    assert row["vault_token_deleted"] is True
+    assert "webhook_vault_token_deleted" in row["history"]
+
+    headers["PAYPAL-TRANSMISSION-ID"] = "T-VAULT-DEL-2"
+    payload["id"] = "WH-VAULT-DEL-2"
+    again = client.post("/api/escales/webhooks/paypal", headers=headers, content=json.dumps(payload))
+    assert again.status_code == 200, again.text
+    row2 = asyncio.run(read())
+    assert row2["vault_token_deleted"] is True
+    assert row2["history"].count("webhook_vault_token_deleted") == 2
+
+
 def test_event_id_is_claimed_only_after_the_ledger_write(api, monkeypatch):
     import asyncio
 

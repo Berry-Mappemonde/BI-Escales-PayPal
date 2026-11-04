@@ -7,7 +7,7 @@ import json
 from typing import Any, Optional
 from urllib.parse import urlsplit
 
-from .config import paypal_webhook_id, zapiper_enabled
+from .config import paypal_webhook_id, simulated_now, zapiper_enabled
 from .ledger import get_ledger, now_iso, pledge_defaults, record_finance, record_webhook_outcome
 from .paypal_client import PayPalClient, PayPalError
 
@@ -167,6 +167,14 @@ async def _apply_event(event: dict) -> dict:
     resource = event.get("resource") or {}
     order_id = _order_id_from_resource(resource)
     pledge = await get_ledger().find_pledge_by_order_id(order_id) if order_id else None
+    if event_type == "VAULT.PAYMENT-TOKEN.DELETED":
+        from .pledges import find_pledge_by_vault_id, mark_vault_token_deleted_for_vault_id
+
+        vault_token_id = str(resource.get("id") or "").strip()
+        if vault_token_id:
+            await mark_vault_token_deleted_for_vault_id(vault_token_id)
+            if pledge is None:
+                pledge = await find_pledge_by_vault_id(vault_token_id)
 
     identity = pledge_defaults(pledge) if pledge else None
     await record_finance(
@@ -191,6 +199,8 @@ async def _apply_event(event: dict) -> dict:
         pledge["history"] = list(pledge.get("history") or []) + ["webhook_vault_token_created"]
         pledge = await get_ledger().save_pledge(pledge)
     if event_type == "VAULT.PAYMENT-TOKEN.DELETED" and pledge:
+        if pledge.get("vault_token_deleted") is not True:
+            pledge["vault_token_deleted"] = True
         pledge["history"] = list(pledge.get("history") or []) + ["webhook_vault_token_deleted"]
         pledge = await get_ledger().save_pledge(pledge)
     if event_type == "PAYMENT.AUTHORIZATION.CREATED" and pledge and pledge.get("status") == "created":
@@ -211,7 +221,7 @@ async def _apply_event(event: dict) -> dict:
         if resource.get("id"):
             pledge["capture_id"] = str(resource["id"])
         if target == "captured" and not str(pledge.get("captured_at") or "").strip():
-            pledge["captured_at"] = now_iso()
+            pledge["captured_at"] = simulated_now().replace(microsecond=0).isoformat()
         pledge["history"] = list(pledge.get("history") or []) + [target]
         pledge = await get_ledger().save_pledge(pledge)
         if target == "captured":

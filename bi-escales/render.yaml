@@ -50,3 +50,17 @@ services:
         value: "100"
       - key: ESCALES_LLM_DAILY_CAP
         value: "100"
+  # Site statique du mini-mix. Auto-deploy off: ne pas lancer ce service depuis cette PR.
+  # VITE_API_BASE est lu au build. CORS de l'API autorise déjà https://bi-escales.onrender.com.
+  - type: web
+    name: bi-escales
+    runtime: static
+    rootDir: bi-escales/frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    autoDeployTrigger: off
+    envVars:
+      - key: VITE_API_BASE
+        value: https://bi-escales-api.onrender.com
+      - key: VITE_ENABLE_AG_GRID
+        value: "0"

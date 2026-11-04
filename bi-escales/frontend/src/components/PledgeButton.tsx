@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, createPledge, isVaultPledge, registerVault } from "../api/escales";
+import { createPledge, isVaultPledge, registerVault } from "../api/escales";
 import type { PublicPledge } from "../api/types";
 
 export interface PledgeFormValues {
@@ -21,16 +21,15 @@ export interface PledgeButtonProps {
 export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonProps) {
   const { t } = useTranslation();
   const [created, setCreated] = useState<PublicPledge | null>(null);
-  const [opened, setOpened] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const vault = created ? isVaultPledge(created) : false;
 
   const createOrder = async () => {
     setBusy(true);
     setError(null);
     setStatus(t("pledge.creating"));
-    setOpened(false);
     try {
       const pledge = await createPledge(
         {
@@ -45,7 +44,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
       );
       if (!pledge.approve_link) throw new Error("approve_link missing");
       setCreated(pledge);
-      setStatus(null);
+      setStatus(isVaultPledge(pledge) ? null : t("pledge.returnPending"));
     } catch (e) {
       setCreated(null);
       setError(e instanceof Error ? e.message : String(e));
@@ -54,24 +53,16 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
     }
   };
 
-  const confirmAfterApproval = async () => {
-    if (!created || !opened) return;
+  const confirmVault = async () => {
+    if (!created || !vault) return;
     setBusy(true);
     setError(null);
     try {
-      if (isVaultPledge(created)) {
-        setStatus(t("pledge.vaulting"));
-        const saved = await registerVault(created.id);
-        setCreated(saved);
-        setStatus(t("pledge.vaulted"));
-        onAuthorized?.(saved);
-        return;
-      }
-      setStatus(t("pledge.authorizing"));
-      const authorized = await authorizePledge(created.id);
-      setCreated(authorized);
-      setStatus(t("pledge.authorized"));
-      onAuthorized?.(authorized);
+      setStatus(t("pledge.vaulting"));
+      const saved = await registerVault(created.id);
+      setCreated(saved);
+      setStatus(t("pledge.vaulted"));
+      onAuthorized?.(saved);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -80,7 +71,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
   };
 
   return (
-    <div className="pledge-button" data-testid="paypal-buttons">
+    <div className="pledge-button" data-testid="paypal-buttons" data-kind={values.kind || ""}>
       <p className="hint">{t("pledge.intent")}</p>
       <button type="button" onClick={() => void createOrder()} disabled={disabled || busy}>
         {t("pledge.create")}
@@ -88,22 +79,17 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
       {created?.approve_link ? (
         <a
           href={created.approve_link}
-          target="_blank"
           rel="noreferrer"
           data-testid="paypal-approve-link"
-          onClick={() => setOpened(true)}
         >
-          {t("pledge.approve")}
+          {vault ? t("pledge.vaultApprove") : t("pledge.approve")}
         </a>
       ) : null}
-      <button
-        type="button"
-        data-testid="pledge-authorize"
-        onClick={() => void confirmAfterApproval()}
-        disabled={!created || !opened || busy}
-      >
-        {created && isVaultPledge(created) ? t("pledge.vaultConfirm") : t("pledge.authorize")}
-      </button>
+      {vault ? (
+        <button type="button" data-testid="pledge-authorize" onClick={() => void confirmVault()} disabled={busy}>
+          {t("pledge.vaultConfirm")}
+        </button>
+      ) : null}
       {status ? <p className="status">{status}</p> : null}
       {error ? (
         <p className="notice error">

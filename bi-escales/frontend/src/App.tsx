@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { fetchFeatures, fetchFund, fetchHealth, fetchSchedule, listMilestones } from "./api/escales";
-import type { CaptainChatResponse, FeatureFlags, FundView, Milestone, PublicPledge, ScheduleResponse } from "./api/types";
+import { authorizePledge, fetchFund, fetchHealth, fetchSchedule, listMilestones, readPaypalReturn, recordSpending } from "./api/escales";
+import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
 import { EscalePopup } from "./components/EscalePopup.jsx";
 import MarinasPanel from "./components/MarinasPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
-import { TreasurerGrid } from "./components/TreasurerGrid";
 import { TreasurerQueue } from "./components/TreasurerQueue";
-import { HELLOASSO_MEMBERSHIP_URL } from "./config/helloasso.js";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { setLanguage } from "./i18n";
 import { MapScene } from "./map/MapScene.jsx";
@@ -32,14 +30,21 @@ type VoyageStop = {
 
 type FlyTarget = { lat: number; lon: number; ts: number };
 
+const KIND_AMOUNT: Record<string, string | null> = {
+  mile: null,
+  night: "60.00",
+  meal: "60.00",
+  care: "40.00",
+  common_fund: null,
+};
+
 export default function App() {
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<TabId>("voyage");
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
   const [escalesOk, setEscalesOk] = useState<boolean | null>(null);
-  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
-  const [features, setFeatures] = useState<FeatureFlags>({ bryntum: false });
+  const [hash, setHash] = useState(() => window.location.hash);
   const [adminKey, setAdminKey] = useState("");
   const { pledges, loading, error, needsKey, refresh, updatePledge } = usePledgeQueue(adminKey);
 
@@ -55,8 +60,14 @@ export default function App() {
   const [amount, setAmount] = useState("20.00");
   const [description, setDescription] = useState("");
   const [contributor, setContributor] = useState("");
-  const [milestoneId, setMilestoneId] = useState("dep-mayotte");
+  const [kind, setKind] = useState("mile");
+  const [milestoneId, setMilestoneId] = useState("");
   const [fund, setFund] = useState<FundView | null>(null);
+  const [fundError, setFundError] = useState(false);
+  const [paypalNote, setPaypalNote] = useState<string | null>(null);
+  const [spendAmount, setSpendAmount] = useState("10.00");
+  const [spendNote, setSpendNote] = useState("");
+  const [spendError, setSpendError] = useState<string | null>(null);
 
   const prod = Boolean(import.meta.env.PROD);
   const t0 = resolveDepartureT0(prod, devT0 || undefined);
@@ -72,14 +83,8 @@ export default function App() {
 
   useEffect(() => {
     void fetchHealth().then(() => setHealthOk(true)).catch(() => setHealthOk(false));
-    void listMilestones()
-      .then((rows) => {
-        setEscalesOk(true);
-        setMilestones(rows);
-      })
-      .catch(() => setEscalesOk(false));
+    void listMilestones().then(() => setEscalesOk(true)).catch(() => setEscalesOk(false));
     void fetchSchedule().then(setSchedule).catch(() => setSchedule(null));
-    void fetchFeatures().then(setFeatures).catch(() => setFeatures({ bryntum: false }));
     void fetchJson("/route.geojson").then(setRouteFc).catch(() => setRouteFc(null));
     void fetchJson("/bi-projects.geojson").then(setProjects).catch(() => setProjects({ features: [] }));
   }, []);
@@ -120,10 +125,16 @@ export default function App() {
     let cancelled = false;
     void fetchFund(milestoneId)
       .then((row) => {
-        if (!cancelled) setFund(row);
+        if (!cancelled) {
+          setFund(row);
+          setFundError(false);
+        }
       })
       .catch(() => {
-        if (!cancelled) setFund(null);
+        if (!cancelled) {
+          setFund(null);
+          setFundError(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -141,15 +152,136 @@ export default function App() {
 
   const onAuthorized = useCallback((pledge: PublicPledge) => {
     updatePledge(pledge);
+    setPaypalNote("authorized");
     void refresh();
   }, [refresh, updatePledge]);
+
+  useEffect(() => {
+    const onHash = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  useEffect(() => {
+    const parsed = readPaypalReturn(window.location.search);
+    if (!parsed) return undefined;
+    const next = new URL(window.location.href);
+    next.searchParams.delete("paypal");
+    next.searchParams.delete("pledge_id");
+    next.searchParams.delete("token");
+    next.searchParams.delete("PayerID");
+    window.history.replaceState({}, "", `${next.pathname}${next.search}${next.hash}`);
+    if (parsed.action === "cancel") {
+      setPaypalNote("cancel");
+      return undefined;
+    }
+    if (!parsed.pledgeId) return;
+    setPaypalNote("authorizing");
+    void authorizePledge(parsed.pledgeId)
+      .then((pledge) => onAuthorized(pledge))
+      .catch((err: unknown) => {
+        setPaypalNote(err instanceof Error ? err.message : String(err));
+      });
+  }, [onAuthorized]);
+
+  const onKind = (next: string) => {
+    setKind(next);
+    const priced = KIND_AMOUNT[next];
+    if (priced) setAmount(priced);
+  };
+
+  const onSpend = async () => {
+    if (!adminKey.trim() || !milestoneId) return;
+    setSpendError(null);
+    try {
+      const row = await recordSpending(
+        milestoneId,
+        { amount_eur: spendAmount, description: spendNote },
+        adminKey.trim(),
+      );
+      setFund(row);
+      setFundError(false);
+      setSpendNote("");
+    } catch (err: unknown) {
+      setSpendError(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   const onSuggested = (pledge: CaptainChatResponse["suggested_pledge"]) => {
     if (!pledge) return;
     setAmount(pledge.amount_eur);
     setDescription(pledge.description);
     setMilestoneId(pledge.milestone_id);
+    if (pledge.kind) setKind(pledge.kind);
   };
+
+  if (hash === "#tresorier") {
+    return (
+      <div className="app-shell">
+        <header className="app-header">
+          <div>
+            <h1>{t("treasurer.screen")}</h1>
+            <p>{t("treasurer.adminKeyHint")}</p>
+          </div>
+          <a href="#">{t("treasurer.back")}</a>
+        </header>
+        <label className="admin-key shared-admin">
+          {t("treasurer.adminKey")}
+          <input
+            type="password"
+            autoComplete="off"
+            value={adminKey}
+            onChange={(event) => setAdminKey(event.target.value)}
+            data-testid="admin-key-input"
+          />
+        </label>
+        <label>
+          {t("pledge.milestone")}
+          <input value={milestoneId} onChange={(event) => setMilestoneId(event.target.value)} />
+        </label>
+        <TreasurerQueue
+          pledges={pledges}
+          loading={loading}
+          error={error}
+          needsKey={needsKey}
+          adminKey={adminKey}
+          onRefresh={() => void refresh()}
+          onUpdated={updatePledge}
+        />
+        <form
+          className="stack-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void onSpend();
+          }}
+        >
+          <h2>{t("fund.heading")}</h2>
+          <label>
+            {t("fund.spendAmount")}
+            <input value={spendAmount} onChange={(event) => setSpendAmount(event.target.value)} />
+          </label>
+          <label>
+            {t("fund.spendDescription")}
+            <input value={spendNote} onChange={(event) => setSpendNote(event.target.value)} />
+          </label>
+          <button type="submit" disabled={!adminKey.trim() || !milestoneId || !spendNote.trim()}>
+            {t("fund.spendSubmit")}
+          </button>
+          {spendError ? <p className="notice error">{spendError}</p> : null}
+          {fund ? (
+            <p data-testid="common-fund">
+              {t("fund.figures", {
+                balance: fund.balance_eur,
+                currency: fund.currency,
+                income: fund.income_eur,
+                spending: fund.spending_eur,
+              })}
+            </p>
+          ) : null}
+        </form>
+      </div>
+    );
+  }
 
   const marinaFeatures = ficheMarinas(fiche);
   const cumNm = Number(sample?.sailNm ?? sample?.cumNm ?? 0);
@@ -187,6 +319,12 @@ export default function App() {
         {healthOk ? t("app.healthOk") : t("app.healthFail")}
       </p>
       {escalesOk === false ? <p className="notice warn">{t("app.escalesOff")}</p> : null}
+      {paypalNote === "cancel" ? <p className="notice warn">{t("pledge.cancelled")}</p> : null}
+      {paypalNote === "authorizing" ? <p className="status">{t("pledge.authorizing")}</p> : null}
+      {paypalNote === "authorized" ? <p className="status">{t("pledge.authorized")}</p> : null}
+      {paypalNote && paypalNote !== "cancel" && paypalNote !== "authorizing" && paypalNote !== "authorized" ? (
+        <p className="notice error">{paypalNote}</p>
+      ) : null}
 
       <MapScene
         segments={voyage?.segments || []}
@@ -226,7 +364,6 @@ export default function App() {
             <ProjectList projects={projects} onFlyTo={onFlyTo} />
             <EscalesScheduler
               schedule={schedule}
-              features={features}
               onSelectEscale={(event: { milestoneId?: string; name?: string }) => {
                 const match = matchVoyageStop(voyage?.stops || [], event);
                 if (match) chooseStop(match);
@@ -254,29 +391,18 @@ export default function App() {
                   description,
                   milestoneId,
                   contributor,
+                  kind,
                   onAmount: setAmount,
                   onDescription: setDescription,
                   onMilestoneId: setMilestoneId,
                   onContributor: setContributor,
+                  onKind,
                 }}
                 onPledgeAuthorized={onAuthorized}
+                fund={fund}
+                fundError={fundError}
               />
             ) : <p className="hint">{t("sheet.pick")}</p>}
-            <p className="fund-line" data-testid="common-fund">
-              {fund ? (
-                <span>
-                  {t("fund.figures", {
-                    balance: fund.balance_eur,
-                    currency: fund.currency,
-                    income: fund.income_eur,
-                    spending: fund.spending_eur,
-                  })}
-                  {" · "}
-                </span>
-              ) : null}
-              {t("fund.line")}{" "}
-              <a href={HELLOASSO_MEMBERSHIP_URL} target="_blank" rel="noreferrer">{t("fund.helloasso")}</a>
-            </p>
           </div>
         </div>
       ) : (
@@ -300,40 +426,6 @@ export default function App() {
           />
         </div>
       )}
-
-      <section className="treasurer-column">
-        <h2>{t("treasurer.heading")}</h2>
-        <label className="admin-key shared-admin">
-          {t("treasurer.adminKey")}
-          <input
-            type="password"
-            autoComplete="off"
-            value={adminKey}
-            onChange={(event) => setAdminKey(event.target.value)}
-            data-testid="admin-key-input"
-          />
-        </label>
-        <p className="hint">{t("treasurer.adminKeyHint")}</p>
-        <EscalesPanel part="evidence" milestoneId={milestoneId} onMilestoneId={setMilestoneId} />
-        <TreasurerQueue
-          pledges={pledges}
-          loading={loading}
-          error={error}
-          needsKey={needsKey}
-          adminKey={adminKey}
-          onRefresh={() => void refresh()}
-          onUpdated={updatePledge}
-        />
-        <TreasurerGrid
-          pledges={pledges}
-          milestones={milestones}
-          adminKey={adminKey}
-          selectedMilestoneId={milestoneId}
-          onSelectMilestone={setMilestoneId}
-          onMilestonesChange={setMilestones}
-          onPledgeUpdated={updatePledge}
-        />
-      </section>
     </div>
   );
 }

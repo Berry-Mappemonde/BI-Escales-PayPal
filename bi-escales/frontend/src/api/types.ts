@@ -30,12 +30,26 @@ export interface PublicPledge {
   history?: string[];
 }
 
+export interface FundLine {
+  id?: string;
+  at?: string;
+  kind?: string;
+  amount_eur: string;
+  currency?: string;
+  description?: string | null;
+  pledge_id?: string | null;
+  pledge_kind?: string | null;
+}
+
 export interface FundView {
   milestone_id: string;
   currency: string;
   income_eur: string;
   spending_eur: string;
   balance_eur: string;
+  overdrawn?: boolean;
+  income?: FundLine[];
+  spending?: FundLine[];
 }
 
 export interface ScheduleEscale {
@@ -123,6 +137,7 @@ export interface CaptainChatResponse {
     milestone_id: string;
     intent: string;
     item?: string;
+    kind?: string;
   } | null;
   cart?: PledgeCart | null;
 }

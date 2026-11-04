@@ -14,6 +14,23 @@ function url(path: string): string {
   return base ? `${base}${p}` : p;
 }
 
+/** Absolute return and cancel URLs for this page. PayPal refuses a relative URL. */
+export function paypalPageUrls(): { return_url: string; cancel_url: string } {
+  const path = window.location.pathname || "/";
+  const origin = window.location.origin;
+  return {
+    return_url: `${origin}${path}?paypal=return`,
+    cancel_url: `${origin}${path}?paypal=cancel`,
+  };
+}
+
+export function readPaypalReturn(search: string): { action: "return" | "cancel"; pledgeId: string } | null {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+  const action = params.get("paypal");
+  if (action !== "return" && action !== "cancel") return null;
+  return { action, pledgeId: params.get("pledge_id") || "" };
+}
+
 async function parseError(res: Response): Promise<string> {
   try {
     const body = await res.json();
@@ -48,7 +65,7 @@ export async function createPledge(
       "Content-Type": "application/json",
       "PayPal-Request-Id": paypalRequestId,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...paypalPageUrls(), ...body }),
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
@@ -116,6 +133,20 @@ export async function voidPledge(pledgeId: string, adminKey: string): Promise<Pu
   const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}/void`), {
     method: "POST",
     headers: { "x-admin-key": adminKey },
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function recordSpending(
+  milestoneId: string,
+  body: { amount_eur: string; description: string },
+  adminKey: string,
+): Promise<FundView> {
+  const res = await fetch(url(`/api/escales/milestones/${encodeURIComponent(milestoneId)}/fund/spending`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-admin-key": adminKey },
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();

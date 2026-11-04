@@ -58,7 +58,7 @@ describe("EscalesPanel cart", () => {
     fireEvent.click(screen.getByRole("button", { name: "Demander une formulation" }));
     const line = await screen.findByTestId("cart-line");
     expect(line).toHaveTextContent("20 milles parrainés — 20.00 EUR");
-    expect(screen.getByTestId("paypal-buttons")).toBeInTheDocument();
-    expect(screen.getByTestId("pledge-authorize")).toBeDisabled();
+    expect(screen.getByTestId("paypal-buttons")).toHaveAttribute("data-kind", "mile");
+    expect(screen.queryByTestId("pledge-authorize")).toBeNull();
   });
 });

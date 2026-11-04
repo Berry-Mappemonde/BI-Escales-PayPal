@@ -69,7 +69,7 @@ export default function MarinasPanel({ marinas, onFlyTo, milestoneId, contributo
                 <span className="hint">{props.osm_id || `${Number(lat).toFixed(3)}, ${Number(lon).toFixed(3)}`}</span>
               </button>
               {pickedId === (props.id || props.osm_id) ? (
-                <div data-testid="marina-reserve">
+                <div data-testid="marina-reserve" data-kind="berth">
                   <p className="hint">{t("marinas.reservePrice")}</p>
                   <p>{t("marinas.reserveDescription", { name: props.name || t("marinas.unnamed") })}</p>
                   <PledgeButton
@@ -78,6 +78,8 @@ export default function MarinasPanel({ marinas, onFlyTo, milestoneId, contributo
                       description: t("marinas.reserveDescription", { name: props.name || t("marinas.unnamed") }),
                       milestone_id: milestoneId || "",
                       contributor: contributor || undefined,
+                      kind: "berth",
+                      target_id: milestoneId || "",
                     }}
                     disabled={!milestoneId}
                     onAuthorized={onAuthorized}

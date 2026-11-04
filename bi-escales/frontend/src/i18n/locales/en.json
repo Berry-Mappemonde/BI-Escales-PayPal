@@ -40,14 +40,22 @@
     "reserveDescription": "Berth (simulation) — {{name}}"
   },
   "fund": {
-    "line": "Common fund — association membership:",
+    "heading": "Common fund",
+    "line": "Association membership:",
     "helloasso": "HelloAsso",
-    "figures": "balance {{balance}} {{currency}} (income {{income}}, spending {{spending}})"
+    "figures": "balance {{balance}} {{currency}} (income {{income}}, spending {{spending}})",
+    "income": "Income",
+    "spending": "Spending",
+    "empty": "No entries for this stop.",
+    "missing": "No fund for this stop.",
+    "overdrawn": "The balance is negative.",
+    "spendAmount": "Spending (EUR)",
+    "spendDescription": "Spending note",
+    "spendSubmit": "Record spending"
   },
   "escales": {
     "heading": "Stops & AI Captain",
     "milestoneId": "Milestone id",
-    "loadMilestones": "Refresh milestones",
     "evidenceMet": "Evidence met (NAVIGUIDE simulation)",
     "postEvidence": "Record evidence",
     "captainChat": "Message to AI Captain",
@@ -60,8 +68,18 @@
   "pledge": {
     "amount": "Amount (EUR)",
     "description": "Description",
+    "kind": "Kind",
+    "kinds": {
+      "mile": "Sponsored miles (simulation)",
+      "night": "Night aboard (simulation)",
+      "meal": "Meal (simulation)",
+      "care": "Care with Elsa (simulation)",
+      "common_fund": "Common fund"
+    },
     "milestone": "Milestone",
     "contributor": "Contributor (optional)",
+    "returnPending": "Approve on PayPal. On return, authorization runs by itself.",
+    "cancelled": "Approval cancelled. Nothing is authorized.",
     "intent": "AUTHORIZE intent — PayPal sandbox",
     "create": "Create the PayPal order",
     "approve": "Approve on the PayPal page",
@@ -90,7 +108,9 @@
     "amount": "Amount",
     "description": "Description",
     "milestone": "Milestone",
-    "actions": "Actions"
+    "actions": "Actions",
+    "back": "Back to the map",
+    "screen": "Treasurer screen"
   },
   "grid": {
     "heading": "Treasurer view — gauges",
@@ -100,7 +120,6 @@
     "captured": "Captured",
     "voided": "Voided",
     "captainProposal": "AI Captain proposal",
-    "requestReview": "Request captain review",
     "proposalCapture": "Proposal: capture listed pledges",
     "proposalVoid": "Proposal: void listed pledges",
     "proposalWait": "Proposal: wait",

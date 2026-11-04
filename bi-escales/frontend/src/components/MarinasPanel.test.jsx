@@ -26,6 +26,8 @@ describe("MarinasPanel", () => {
     expect(screen.queryByTestId("marina-reserve")).toBeNull();
     fireEvent.click(screen.getByTestId("marina-row-m1"));
     expect(screen.getByTestId("marina-reserve")).toHaveTextContent("30,00 EUR");
+    expect(screen.getByTestId("marina-reserve")).toHaveAttribute("data-kind", "berth");
+    expect(screen.getByTestId("paypal-buttons")).toHaveAttribute("data-kind", "berth");
     expect(screen.getByText(/Amarrage \(simulation\) — Port des Minimes/)).toBeInTheDocument();
   });
 });

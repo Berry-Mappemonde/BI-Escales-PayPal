@@ -6,7 +6,10 @@
  */
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
+import { HELLOASSO_MEMBERSHIP_URL } from "../config/helloasso.js";
 import { PledgeButton } from "./PledgeButton";
+
+const STOP_KINDS = ["mile", "night", "meal", "care", "common_fund"];
 
 const LABELS = {
   fr: {
@@ -41,6 +44,23 @@ function label(key, lang) {
   return LABELS[lang]?.[key] || key;
 }
 
+function FundLines({ title, rows }) {
+  if (!rows?.length) return null;
+  return (
+    <div>
+      <div className="hint">{title}</div>
+      <ul className="escale-items">
+        {rows.map((row, index) => (
+          <li key={row.id || `${row.kind}-${index}`}>
+            <span>{row.amount_eur} {row.currency || "EUR"}</span>
+            {row.description ? <span> — {row.description}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export const EscaleSheet = memo(function EscaleSheet({
   stop,
   fiche,
@@ -49,6 +69,8 @@ export const EscaleSheet = memo(function EscaleSheet({
   onClose,
   pledge,
   onPledgeAuthorized,
+  fund,
+  fundError,
 }) {
   const { t, i18n } = useTranslation();
   if (!stop) return null;
@@ -99,9 +121,43 @@ export const EscaleSheet = memo(function EscaleSheet({
           ))}
         </div>
       ))}
+      <section className="fund-panel" data-testid="common-fund">
+        <div className="escale-kicker">{t("fund.heading")}</div>
+        {fund ? (
+          <p>
+            {t("fund.figures", {
+              balance: fund.balance_eur,
+              currency: fund.currency,
+              income: fund.income_eur,
+              spending: fund.spending_eur,
+            })}
+          </p>
+        ) : null}
+        {fund?.overdrawn ? <p className="notice warn">{t("fund.overdrawn")}</p> : null}
+        {fundError ? <p className="hint">{t("fund.missing")}</p> : null}
+        {fund && !fund.income?.length && !fund.spending?.length ? <p className="hint">{t("fund.empty")}</p> : null}
+        <FundLines title={t("fund.income")} rows={fund?.income} />
+        <FundLines title={t("fund.spending")} rows={fund?.spending} />
+        <p className="fund-line">
+          {t("fund.line")}{" "}
+          <a href={HELLOASSO_MEMBERSHIP_URL} target="_blank" rel="noreferrer">{t("fund.helloasso")}</a>
+        </p>
+      </section>
       {pledge ? (
         <div className="pledge-form">
           <p className="hint">{t("pledge.intent")}</p>
+          <label>
+            {t("pledge.kind")}
+            <select
+              data-testid="pledge-kind"
+              value={pledge.kind}
+              onChange={(event) => pledge.onKind(event.target.value)}
+            >
+              {STOP_KINDS.map((kind) => (
+                <option key={kind} value={kind}>{t(`pledge.kinds.${kind}`)}</option>
+              ))}
+            </select>
+          </label>
           <label>
             {t("pledge.amount")}
             <input value={pledge.amount} onChange={(event) => pledge.onAmount(event.target.value)} />
@@ -124,6 +180,8 @@ export const EscaleSheet = memo(function EscaleSheet({
               description: pledge.description,
               milestone_id: pledge.milestoneId,
               contributor: pledge.contributor.trim() || undefined,
+              kind: pledge.kind,
+              target_id: pledge.milestoneId,
             }}
             onAuthorized={onPledgeAuthorized}
           />

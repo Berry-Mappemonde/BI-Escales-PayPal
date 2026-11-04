@@ -35,6 +35,6 @@ describe("TreasurerGrid fallback", () => {
     );
     expect(screen.getByTestId("treasurer-fallback-table")).toBeInTheDocument();
     expect(screen.queryByTestId("treasurer-ag-grid")).toBeNull();
-    expect(screen.getByTestId("captain-proposal-widget")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /avis du capitaine|captain review/i })).toBeNull();
   });
 });

@@ -1,8 +1,8 @@
 /**
- * Calendrier des escales — Bryntum optionnel (ESCALES_BRYNTUM_ENABLED côté API).
- * Composant isolé : le frontend parent fournit `schedule` et `features`.
+ * Calendrier des escales, liste locale.
+ * Composant isolé : le frontend parent fournit `schedule`.
  */
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { advisoryView } from "./advisoryLabel.js";
 
 export function AdvisoryBadge({ llmProposal }) {
@@ -91,78 +91,15 @@ function LocalScheduleList({ events, onSelect }) {
   );
 }
 
-function BryntumSchedule({ events, onSelect }) {
-  const [Scheduler, setScheduler] = React.useState(null);
-  const [error, setError] = React.useState(null);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    const bryntumModule = ["@bryntum", "scheduler"].join("/");
-    import(/* @vite-ignore */ bryntumModule)
-      .then((mod) => {
-        if (!cancelled) setScheduler(() => mod.default || mod.Scheduler);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const containerRef = React.useRef(null);
-
-  React.useEffect(() => {
-    if (!Scheduler || !containerRef.current) return undefined;
-    const instance = new Scheduler({
-      appendTo: containerRef.current,
-      startDate: events[0]?.startDate || new Date(),
-      endDate: events[events.length - 1]?.endDate || new Date(),
-      viewPreset: "weekAndDay",
-      columns: [{ text: "Escale", field: "name", width: 220 }],
-      resources: [{ id: "route", name: "Route officielle" }],
-      events: events.map((event) => ({
-        id: event.id,
-        name: event.name,
-        resourceId: "route",
-        startDate: event.startDate,
-        endDate: event.endDate,
-        milestoneId: event.milestoneId,
-      })),
-      listeners: {
-        eventClick({ eventRecord }) {
-          onSelect?.({
-            id: eventRecord.id,
-            name: eventRecord.name,
-            milestoneId: eventRecord.milestoneId,
-            startDate: eventRecord.startDate,
-            endDate: eventRecord.endDate,
-          });
-        },
-      },
-    });
-    return () => instance.destroy();
-  }, [Scheduler, events, onSelect]);
-
-  if (error) {
-    return <LocalScheduleList events={events} onSelect={onSelect} />;
-  }
-  if (!Scheduler) {
-    return <p className="escales-scheduler-loading">Chargement du calendrier…</p>;
-  }
-  return <div className="escales-scheduler-bryntum" ref={containerRef} />;
-}
-
-export default function EscalesScheduler({ schedule, features, onSelectEscale, captainReview = null }) {
+export default function EscalesScheduler({ schedule, onSelectEscale, captainReview = null }) {
   const escales = schedule?.export?.escales || schedule?.escales || localFallbackEscales();
   const events = useMemo(() => buildEvents(escales), [escales]);
-  const useBryntum = Boolean(features?.bryntum);
 
   return (
     <section className="escales-scheduler" data-source={schedule?.source || "local"}>
       <header>
         <h2>Calendrier des escales</h2>
-        <p>Mode {useBryntum ? "Bryntum" : "local"} — Pay Only If We Sail</p>
+        <p>Pay Only If We Sail</p>
         {schedule?.clock?.start ? (
           <p className="escales-clock" data-clock-start={schedule.clock.start}>
             Horloge du voyage : {schedule.clock.start}
@@ -171,28 +108,13 @@ export default function EscalesScheduler({ schedule, features, onSelectEscale, c
       </header>
       <SimulatedPrices prices={schedule?.prices} />
       <AdvisoryBadge llmProposal={captainReview?.llm_proposal} />
-      {useBryntum ? (
-        <BryntumSchedule events={events} onSelect={onSelectEscale} />
-      ) : (
-        <LocalScheduleList events={events} onSelect={onSelectEscale} />
-      )}
+      <LocalScheduleList events={events} onSelect={onSelectEscale} />
     </section>
   );
 }
 
 export function localFallbackEscales() {
-  return [
-    {
-      milestone_id: "dep-mayotte",
-      name: "Mayotte",
-      arrival_iso: "2026-09-01T08:00:00Z",
-    },
-    {
-      milestone_id: "dep-fort-de-france",
-      name: "Fort-de-France",
-      arrival_iso: "2026-08-15T08:00:00Z",
-    },
-  ];
+  return [];
 }
 
 export { buildEvents, LocalScheduleList, shownEscaleName, withoutStoragePrefix };

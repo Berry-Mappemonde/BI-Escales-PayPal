@@ -171,7 +171,7 @@ def _transport(script: dict[str, list[httpx.Response]]):
 
 def test_cascade_order_puts_nebius_last_and_rules_after_it():
     assert llm.CASCADE == (
-        "nim", "nim_fallback", "openrouter", "anthropic", "tokenfactory", "rules",
+        "nim", "nim_fallback", "openrouter", "omniroute", "anthropic", "tokenfactory", "rules",
     )
     assert llm.NIM_MODEL == llm.NIM_MODEL_DEFAULT == "private/nvidia/nemotron-3.5-super-120b-a12b"
     assert llm.NIM_FALLBACK_MODEL_DEFAULT == "nvidia/nemotron-3.5-lightning-30b-a3b"
@@ -210,7 +210,7 @@ def test_env_example_lists_flags_and_empty_keys():
     assert "NIM_TOP_P=0.95" in lines
     assert "NIM_MAX_TOKENS=400" in lines
     assert "NIM_REASONING=none" in lines
-    assert "ESCALES_LLM_TIMEOUT_NIM_FALLBACK_S=8" in lines
+    assert "ESCALES_LLM_TIMEOUT_NIM_FALLBACK_S=10" in lines
     joined = "\n".join(lines)
     assert "enable_thinking" in joined
     extra = next(line for line in lines if line.startswith("NIM_EXTRA_BODY="))
@@ -303,8 +303,8 @@ def test_nim_answers_first_with_the_benchmarked_model(monkeypatch):
         assert call["x-api-key"] is None
         assert "test-nvidia-key" not in call["raw"]
         assert "temperature" not in call["body"]
-        assert call["body"]["top_p"] == 0.95
-        assert call["body"]["reasoning_effort"] == "none"
+        assert "top_p" not in call["body"]
+        assert "reasoning_effort" not in call["body"]
         assert call["body"]["chat_template_kwargs"] == {"enable_thinking": False}
         assert "thinking" not in call["body"]["chat_template_kwargs"]
         assert "guided_json" not in call["body"]
@@ -689,7 +689,7 @@ def test_nim_params_come_from_the_environment(monkeypatch):
         assert body_json["temperature"] == 0.15
         assert body_json["max_tokens"] == 128
         assert body_json["top_p"] == 0.5
-        assert body_json["reasoning_effort"] == "none"
+        assert "reasoning_effort" not in body_json
         assert body_json["seed"] == 7
         assert body_json["messages"][1]["content"] == "preuve"
         assert result.provider == "nim"
@@ -716,14 +716,14 @@ def test_invalid_nim_extra_body_is_ignored(monkeypatch):
 
 
 def test_provider_timeout_defaults_to_ten_seconds_and_is_configurable(monkeypatch):
-    assert llm.provider_timeout_seconds("nim") == 10.0
-    assert llm.provider_timeout_seconds("nim_fallback") == 8.0
-    assert 6 <= llm.provider_timeout_seconds("nim_fallback") <= 8
+    assert llm.provider_timeout_seconds("nim") == 20.0
+    assert llm.provider_timeout_seconds("nim_fallback") == 10.0
+    assert llm.provider_timeout_seconds("nim_fallback") == 10
     assert 8 <= llm.provider_timeout_seconds("openrouter") <= 10
     monkeypatch.setenv("ESCALES_LLM_TIMEOUT_S", "9")
     monkeypatch.setenv("ESCALES_LLM_TIMEOUT_NIM_S", "8")
     assert llm.provider_timeout_seconds("nim") == 8
-    assert llm.provider_timeout_seconds("nim_fallback") == 8
+    assert llm.provider_timeout_seconds("nim_fallback") == 10
     assert llm.provider_timeout_seconds("anthropic") == 9
     monkeypatch.setenv("ESCALES_LLM_TIMEOUT_NIM_FALLBACK_S", "7")
     assert llm.provider_timeout_seconds("nim_fallback") == 7
@@ -766,9 +766,9 @@ def test_nim_fallback_answers_before_openrouter():
         assert "nvapi" not in result.reason
         assert len(calls) == 2
         assert calls[0]["model"] == llm.NIM_MODEL_DEFAULT
-        assert calls[0]["read"] == 10
+        assert calls[0]["read"] == 20
         assert calls[1]["model"] == llm.NIM_FALLBACK_MODEL_DEFAULT
-        assert 6 <= calls[1]["read"] <= 8
+        assert calls[1]["read"] == 10
         assert calls[0]["guided"] is False
         assert calls[1]["nvext"] is False
 
@@ -792,7 +792,8 @@ def test_global_extra_body_cannot_carry_guided_json(monkeypatch):
         assert "nvext" not in body_json
         assert body_json["seed"] == 3
         assert body_json["chat_template_kwargs"] == {"enable_thinking": False}
-        assert body_json["reasoning_effort"] == "none"
+        assert "reasoning_effort" not in body_json
+        assert "nvext" not in body_json
         await client.aclose()
 
     asyncio.run(body())
@@ -817,7 +818,7 @@ def test_each_call_sends_its_own_timeout(monkeypatch):
     async def body():
         result = await llm.ask_text("preuve", client=FakeClient())
         assert result.text == "ok"
-        assert captured["timeout"].read == 10
+        assert captured["timeout"].read == 20
 
     asyncio.run(body())
 
@@ -826,17 +827,22 @@ def test_ask_json_parses_a_fenced_object():
     _enable("nim")
     seen, client = _transport({
         "integrate.api.nvidia.com": [_openai(
-            '```json\n{"status":"ready","note":"ok"}\n```',
-            llm.nim_model(),
+            '```json\n{"proposal":"wait","reason":"ok"}\n```',
+            llm.NIM_FALLBACK_MODEL_DEFAULT,
         )],
     })
 
     async def body():
         parsed = await llm.ask_json("Return JSON", client=client)
-        assert parsed.data == {"status": "ready", "note": "ok"}
-        assert parsed.provider == "nim"
+        assert parsed.data == {"proposal": "wait", "reason": "ok"}
+        assert parsed.provider == "nim_fallback"
+        assert parsed.model == llm.NIM_FALLBACK_MODEL_DEFAULT
         body_json = seen[0]["body"]
+        assert body_json["model"] == llm.NIM_FALLBACK_MODEL_DEFAULT
         assert body_json["temperature"] == 0
+        assert "top_p" not in body_json
+        assert "reasoning_effort" not in body_json
+        assert "nvext" not in body_json
         assert body_json["guided_json"] == llm.ADVISORY_PROPOSAL_SCHEMA
         assert body_json["guided_json"]["properties"]["proposal"]["enum"] == [
             "capture", "void", "wait", "reauthorize",

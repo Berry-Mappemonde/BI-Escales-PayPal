@@ -1,5 +1,17 @@
 """Shared pytest hooks. Registers the optional PayPal sandbox marker."""
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _reset_llm_hop_blocks():
+    from app.core import llm
+
+    llm.reset_hop_blocks()
+    llm.reset_nim_pace()
+    yield
+    llm.reset_hop_blocks()
+
 
 def pytest_configure(config):
     config.addinivalue_line(

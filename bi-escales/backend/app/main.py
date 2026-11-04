@@ -10,6 +10,19 @@ from starlette.responses import FileResponse
 from app.escales.config import cors_origins
 
 app = FastAPI(title="BI Escales — Pay Only If We Sail")
+
+
+def _log_nim_ids() -> None:
+    """Ids only. A missing LLM module must not stop the API."""
+    try:
+        from app.core.llm import log_effective_nim_models
+
+        log_effective_nim_models()
+    except Exception:
+        return
+
+
+_log_nim_ids()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins(),

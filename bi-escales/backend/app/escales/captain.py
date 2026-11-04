@@ -84,8 +84,13 @@ _TREASURER_Q = re.compile(
 _CAPTURE_RULE_Q = re.compile(
     r"\bwhen\b.{0,80}\bcaptur"
     r"|\bquand\b.{0,80}\bcaptur"
-    r"|\bwhen\b.{0,40}\bmoney\b.{0,40}\b(?:taken|charged)"
-    r"|\bquand\b.{0,40}\bargent\b.{0,40}\b(?:pr[ée]lev|encaiss)",
+    r"|\bwhen\b.{0,40}\bmoney\b.{0,40}\b(?:taken|charged|captured)"
+    r"|\bwill\b.{0,60}\bmoney\b.{0,40}\b(?:taken|charged|captured)"
+    r"|\bmoney\b.{0,40}\b(?:taken|captured)\b.{0,40}\bdeparture"
+    r"|\bquand\b.{0,40}\bargent\b.{0,40}\b(?:pr[ée]lev|encaiss|pris)"
+    r"|\bargent\b.{0,50}\b(?:pris|pr[ée]lev|encaiss).{0,40}\bd[ée]part"
+    r"|\bmon argent\b.{0,40}\bd[ée]part"
+    r"|\bmy money\b.{0,40}\bdeparture",
     re.IGNORECASE | re.DOTALL,
 )
 _STATUS_Q = re.compile(
@@ -469,14 +474,13 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
     return text
 
 
-def _chat_system(lang: str) -> str:
-    language = "English" if lang == "en" else "French"
+def _chat_system_en() -> str:
     return (
-        f"You are the Blue Intelligence Escales captain. Reply in {language}. "
-        "Repeat the computed pledge exactly: amount, currency, description, milestone and intent. "
+        "You are the Blue Intelligence Escales captain. Reply in English only. "
+        "Repeat the computed pledge exactly: amount, currency, description, stopover and intent. "
         "Do not propose to take or release money. Do not create an order. Do not invent a price. "
-        "State only facts present in the JSON: the stopover, its dates, the fund, and the computed pledge. "
-        "Do not invent a date. Copy only schedule.arrival_iso and schedule.departure_iso. "
+        "State only facts present in the JSON: the stopover, the fund, and the computed pledge. "
+        "Do not invent a date. Do not write a date. The code appends the schedule dates. "
         "If a fact is absent, say you do not know. Do not describe the place. "
         "A pledge is authorized as close to departure as possible. "
         "The money is captured on the departure day. "
@@ -487,6 +491,51 @@ def _chat_system(lang: str) -> str:
         "Write complete sentences and never stop mid-sentence. "
         "Sign once, and do not repeat your name. At most 80 words."
     )
+
+
+def _chat_system_fr() -> str:
+    return (
+        "Tu es le capitaine de Blue Intelligence Escales. Réponds uniquement en français. "
+        "Répète la promesse calculée telle quelle : montant, devise, description et escale. "
+        "Ne propose pas de prendre ou de libérer l'argent. Ne crée pas d'ordre. N'invente pas de prix. "
+        "Énonce seulement les faits présents dans le JSON : l'escale, la caisse et la promesse calculée. "
+        "N'invente pas de date. N'écris aucune date. Le code ajoute les dates de l'escale. "
+        "Si un fait manque, dis que tu ne sais pas. Ne décris pas le lieu. "
+        "Une promesse est autorisée au plus près du départ. "
+        "L'argent est capturé le jour du départ. "
+        "Si l'escale est annulée, l'autorisation est annulée. "
+        "N'envoie pas le lecteur vers le trésorier pour cette règle. "
+        "Mentionne l'adhésion seulement en répétant l'URL HelloAsso qu'on t'a donnée. "
+        "Sans URL, ne parle pas d'adhésion et n'écris aucune URL. "
+        "Écris des phrases complètes et ne t'arrête jamais au milieu d'une phrase. "
+        "Signe une seule fois, sans répéter ton nom. Au plus 80 mots."
+    )
+
+
+def _chat_system(lang: str) -> str:
+    if lang == "en":
+        return _chat_system_en()
+    if lang == "fr":
+        return _chat_system_fr()
+    return _chat_system_en()
+
+
+def resolve_chat_lang(
+    message: str,
+    requested: Optional[str] = None,
+    accept_language: str = "",
+) -> str:
+    """App language wins. Then Accept-Language. Then the message. Unknown is English."""
+    if (requested or "").strip():
+        return _forced_lang(requested) or "en"
+    token = (accept_language or "").split(",")[0].split(";")[0].strip()
+    header = _forced_lang(token)
+    if header:
+        return header
+    detected = message_lang(message)
+    if detected in {"fr", "en"}:
+        return detected
+    return "en"
 
 
 # A distorted spelling maps onto a slug from the display table.
@@ -1039,8 +1088,16 @@ def _french_lightning_labels(text: str) -> str:
 
 
 def _french_labels(text: str) -> str:
-    """French replies say jalon and intention, for the main model and for Lightning."""
-    return _french_lightning_labels(text)
+    """French replies say jalon, escale and étape, for the main model and for Lightning."""
+    cleaned = _french_lightning_labels(text)
+    cleaned = re.sub(r"\bstopovers?\b", "escale", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\blegs?\b", "étape", cleaned, flags=re.IGNORECASE)
+    return cleaned
+
+
+def _english_labels(text: str) -> str:
+    """English replies say stopover. The project name Escales stays."""
+    return re.sub(r"\bescale\b", "stopover", text or "", flags=re.IGNORECASE)
 
 
 def _fix_port_typos(text: str, milestone_id: str = "") -> str:
@@ -1396,7 +1453,7 @@ def _compose_chat_reply(
             return _fit_words("", [prose, _signature(lang)])
         elif ask_escale:
             if lang == "en":
-                prose = "Which escale? Name the stop and I will compute the pledge."
+                prose = "Which stopover? Name the stop and I will compute the pledge."
             else:
                 prose = "Quelle escale ? Indiquez son nom pour que je calcule la promesse."
         elif lang == "en":
@@ -1420,12 +1477,15 @@ def _compose_chat_reply(
     if lang == "fr":
         prose = _standardise_french(_french_labels(prose))
     elif lang == "en":
-        prose = _heading_toward(prose)
+        prose = _heading_toward(_english_labels(prose))
     prose = _drop_amount_without_port(prose, suggested)
     prose = _drop_model_pledge(prose)
     prose = _drop_milestone_intent_labels(prose, suggested)
     prose = _drop_standalone_intent(prose)
     required: list[str] = [_pledge_line(suggested, lang)]
+    dates = _code_dates_sentence(str(suggested.get("milestone_id") or ""), lang)
+    if dates and dates.casefold() not in (prose or "").casefold():
+        required.append(dates)
     rules = _public_rule(lang)
     if rules.casefold() not in (prose or "").casefold():
         required.append(rules)
@@ -1441,6 +1501,11 @@ def _compose_chat_reply(
     reply = _period_after_link(reply, url)
     if lang == "fr":
         reply = _standardise_french(reply)
+    elif lang == "en":
+        reply = _english_labels(reply)
+    if suggested and not _TREASURER_ONLY.search(reply):
+        sentence = _TREASURER_RULES_EN if lang == "en" else _TREASURER_DECIDES
+        reply = _fix_sentence_starts(f"{reply} {sentence}".strip())
     return _fix_sentence_starts(reply)
 
 
@@ -1783,6 +1848,43 @@ def _spoken_date(moment: dt.datetime, lang: str) -> str:
     return arrival_phrase({"facts": {"arrival_iso": moment.date().isoformat()}}, lang)
 
 
+def _code_dates_sentence(milestone_id: str, lang: str) -> str:
+    """One schedule sentence. An inverted range is never written."""
+    block = _schedule_slice(milestone_id)
+    departure = str(block.get("departure_iso") or "")[:10]
+    arrival = str(block.get("arrival_iso") or "")[:10]
+    if departure and arrival and departure <= arrival:
+        moment = _parse_clock(arrival)
+        spoken = _spoken_date(moment, "en" if lang == "en" else "fr") if moment else ""
+        if lang == "en":
+            extra = f", {spoken}" if spoken else ""
+            return f"Schedule dates: {departure} -> {arrival}{extra}."
+        extra = f", {spoken}" if spoken else ""
+        return f"Dates de l'escale : {departure} -> {arrival}{extra}."
+    day = arrival or departure
+    moment = _parse_clock(day) if day else None
+    if moment is None:
+        return ""
+    spoken = _spoken_date(moment, "en" if lang == "en" else "fr")
+    if lang == "en":
+        return f"The schedule date is {spoken}."
+    return f"La date de l'escale est {spoken}."
+
+
+def _drop_inverted_ranges(text: str) -> str:
+    """Drop a sentence whose last ISO date is earlier than its first."""
+    kept: list[str] = []
+    for sentence in _split_sentences(text or ""):
+        found = re.findall(r"\d{4}-\d{2}-\d{2}", sentence)
+        if len(found) >= 2 and found[-1] < found[0]:
+            continue
+        year = re.search(r"\b(1[89]\d{2}|20\d{2})\b", sentence)
+        if year and int(year.group(0)) < 2026:
+            continue
+        kept.append(sentence)
+    return " ".join(kept).strip()
+
+
 _ARRIVAL_CUE = re.compile(r"\barriv|\breach", re.IGNORECASE)
 _DEPARTURE_CUE = re.compile(
     r"\bdepart|\bd[ée]part|\bleav|\bpartons\b|\bquitt",
@@ -1900,18 +2002,24 @@ def _without_gaps(text: str, known: str, lang: str = "") -> str:
     return " ".join(kept).strip()
 
 
-def _source_of(raw: Any, text: str) -> dict[str, str]:
+def _source_of(raw: Any, text: str) -> dict[str, Any]:
     """Provider and model from the cascade. A bare string has no model id.
 
     ``reason`` is copied when the hop explains a fallback or a refused model id.
+    ``fallback_reason`` is the status or exception class of each earlier hop.
     """
     provider = getattr(raw, "provider", None)
     model = getattr(raw, "model", None)
     if isinstance(provider, str) and provider.strip():
-        source = {"provider": provider.strip(), "model": str(model or "").strip()}
+        source: dict[str, Any] = {"provider": provider.strip(), "model": str(model or "").strip()}
         reason = getattr(raw, "reason", "") or ""
         if isinstance(reason, str) and reason.strip():
             source["reason"] = reason.strip()
+        fallback = getattr(raw, "fallback_reason", None)
+        if isinstance(fallback, dict) and fallback:
+            source["fallback_reason"] = {
+                str(key): str(value) for key, value in fallback.items() if str(value).strip()
+            }
         return source
     if text:
         return {"provider": "llm", "model": ""}
@@ -2523,16 +2631,23 @@ def _cabin_price_reply(lang: str) -> str:
     return _fit_words("", [prose, _signature(lang)])
 
 
-async def chat(message: str, *, treasurer: bool = False) -> dict:
+async def chat(
+    message: str,
+    *,
+    treasurer: bool = False,
+    lang: Optional[str] = None,
+    accept_language: str = "",
+) -> dict:
     """Help a contributor phrase a pledge and offer the HelloAsso membership URL.
 
     ``treasurer`` is true only when the request carried a valid ``x-admin-key``.
+    ``lang`` is the app language. It wins over Accept-Language and the message.
     """
     text = (message or "").strip()
     if not text:
         raise ValueError("message is required")
     url = membership_url()
-    lang = message_lang(text)
+    lang = resolve_chat_lang(text, lang, accept_language)
     if _is_capture_rule_question(text):
         return {
             "reply": _capture_rule_reply(lang),
@@ -2554,11 +2669,26 @@ async def chat(message: str, *, treasurer: bool = False) -> dict:
         }
     if _is_cabin_price_question(text):
         suggested = suggest_pledge(text, lang)
+        milestone = str((suggested or {}).get("milestone_id") or "")
+        if not milestone.startswith("leg-"):
+            if lang == "en":
+                prose = "Which stopover? Name the stop and I will compute the pledge."
+            else:
+                prose = "Quelle escale ? Indiquez son nom pour que je calcule la promesse."
+            return {
+                "reply": _fit_words("", [prose, _signature(lang)]),
+                "membership_url": url,
+                "suggested_pledge": None,
+                "cart": None,
+                "model_source": _rules_source(),
+                "fund": None,
+            }
+        reply = _compose_chat_reply("", suggested, url, lang, treasurer=False, ask_escale=False)
         return {
-            "reply": _cabin_price_reply(lang),
+            "reply": reply,
             "membership_url": url,
             "suggested_pledge": suggested,
-            "cart": pledge_cart(text, lang, suggested) if suggested and suggested.get("milestone_id") else None,
+            "cart": pledge_cart(text, lang, suggested),
             "model_source": _rules_source(),
             "fund": None,
         }
@@ -2578,7 +2708,10 @@ async def chat(message: str, *, treasurer: bool = False) -> dict:
         if raw:
             if lang == "fr":
                 raw = _french_labels(raw)
+            elif lang == "en":
+                raw = _english_labels(raw)
             known = _with_known_facts(prompt)
+            raw = _drop_inverted_ranges(raw)
             raw = _ground_schedule_dates(raw, known, lang)
             raw = filter_numbers(raw, _with_schedule_numbers(allowed, known), lang=lang)
             raw = _without_gaps(raw, known, lang)

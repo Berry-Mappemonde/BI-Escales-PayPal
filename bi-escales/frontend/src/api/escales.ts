@@ -223,11 +223,13 @@ export async function captainReview(milestoneId: string, adminKey?: string): Pro
   return res.json();
 }
 
-export async function captainChat(message: string): Promise<CaptainChatResponse> {
+export async function captainChat(message: string, lang?: string): Promise<CaptainChatResponse> {
+  const body: { message: string; lang?: string } = { message };
+  if (lang === "fr" || lang === "en") body.lang = lang;
   const res = await fetch(url("/api/escales/captain/chat"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();

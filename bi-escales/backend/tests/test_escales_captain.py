@@ -1840,7 +1840,7 @@ def test_chat_maps_pointe_a_pitre_and_asks_when_unknown():
         assert "AUTHORIZE" not in missing["reply"]
         unknown = await chat("I'd like to sponsor 20 miles near Atlantis")
         assert unknown["suggested_pledge"] is None
-        assert "Which escale" in unknown["reply"]
+        assert "Which stopover" in unknown["reply"]
         assert "Unspecified" not in unknown["reply"]
         assert "20.00" not in unknown["reply"]
 
@@ -2081,7 +2081,7 @@ def test_french_vocabulary_and_the_pledge_line(monkeypatch):
         assert "en euros" not in reply.casefold()
         assert "10,00 €" in reply
         assert "au plus près du départ" in reply
-        assert "Seul le trésorier décide" not in reply
+        assert reply.count("Seul le trésorier décide") == 1
         assert reply.count("Promesse calculée") == 1
 
     asyncio.run(body())
@@ -2159,18 +2159,19 @@ def test_cabin_price_is_eighty_euros_per_leg_in_the_question_language(monkeypatc
 
     async def body():
         english = await chat("How much is a cabin?")
-        assert english["reply"].startswith("A cabin is 80 € per leg.")
+        assert "Which stopover" in english["reply"]
+        assert "80" not in english["reply"]
         assert "Seul le trésorier" not in english["reply"]
-        assert "Which escale" not in english["reply"]
         assert "— The captain" in english["reply"]
         assert "— Le capitaine" not in english["reply"]
         french = await chat("Combien coûte une cabine ?")
-        assert french["reply"].startswith("Une cabine coûte 80 € par jambe.")
+        assert "Quelle escale" in french["reply"]
+        assert "80" not in french["reply"]
+        assert "stopover" not in french["reply"].casefold()
         assert "Only the treasurer" not in french["reply"]
-        assert "Quelle escale" not in french["reply"]
         assert "— Le capitaine" in french["reply"]
         near = await chat("How much is a cabin near La Rochelle?")
-        assert "80 € per leg" in near["reply"]
+        assert "1 cabin leg (80.00 EUR)" in near["reply"]
         assert near["suggested_pledge"]["kind"] == "cabin_leg"
         assert near["suggested_pledge"]["amount_eur"] == "80.00"
 
@@ -2196,8 +2197,9 @@ def test_a_cabin_is_suggested_instead_of_one_mile():
 
     async def body():
         price = await chat("How much is a cabin?")
-        assert price["suggested_pledge"]["kind"] == "cabin_leg"
-        assert price["suggested_pledge"]["amount_eur"] == "80.00"
+        assert price["suggested_pledge"] is None
+        assert "Which stopover" in price["reply"]
+        assert "80" not in price["reply"]
         wanted = await chat("I want a cabin near La Rochelle")
         assert wanted["suggested_pledge"]["kind"] == "cabin_leg"
         assert wanted["suggested_pledge"]["amount_eur"] == "80.00"
@@ -2363,7 +2365,7 @@ def test_code_enforces_the_fixed_treasurer_sentence(monkeypatch):
         assert reply.count("au plus près du départ") == 1
         assert "jour du départ" in reply
         assert "annulée" in reply
-        assert "Seul le trésorier décide" not in reply
+        assert reply.count("Seul le trésorier décide") == 1
         assert "will decide" not in reply.casefold()
         assert "trancher" not in reply.casefold()
         assert "The treasurer" not in reply
@@ -2403,7 +2405,7 @@ def test_treasurer_sentence_is_added_when_the_model_omits_it(monkeypatch):
         reply = result["reply"]
         assert "au plus près du départ" in reply
         assert "jour du départ" in reply
-        assert "Seul le trésorier décide" not in reply
+        assert reply.count("Seul le trésorier décide") == 1
         assert "La mer est calme" in reply
         assert len(reply.split()) <= 80
 
@@ -2431,7 +2433,7 @@ def test_charge_claim_falls_back_to_the_rules_text(monkeypatch):
         assert "Votre carte" not in reply
         assert "La mer est calme" not in reply
         assert "au plus près du départ" in reply
-        assert "Seul le trésorier décide" not in reply
+        assert reply.count("Seul le trésorier décide") == 1
         assert "10,00 €" in reply
         assert "10 milles parrainés" in reply
         english = await chat("I'd like to sponsor 10 nautical miles near Lorient")
@@ -2440,7 +2442,7 @@ def test_charge_claim_falls_back_to_the_rules_text(monkeypatch):
         assert "The sea is calm" not in english_reply
         assert "as close to departure as possible" in english_reply
         assert "captured on the departure day" in english_reply
-        assert "Only the treasurer decides" not in english_reply
+        assert english_reply.count("Only the treasurer decides") == 1
         assert "10.00 EUR" in english_reply
         assert "10 sponsored miles" in english_reply
 
@@ -2701,7 +2703,7 @@ def test_nim_reply_does_not_repeat_the_treasurer_sentence(monkeypatch):
     async def body():
         result = await chat("Je parraine 10 milles près de Dakar")
         reply = result["reply"]
-        assert "Seul le trésorier décide" not in reply
+        assert reply.count("Seul le trésorier décide") == 1
         assert reply.count("au plus près du départ") == 1
         assert reply.count("Promesse calculée") == 1
 

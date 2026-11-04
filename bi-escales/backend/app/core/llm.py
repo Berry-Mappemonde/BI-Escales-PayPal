@@ -53,8 +53,10 @@ def safe_error_message(exc: BaseException) -> str:
 
 # HTTP hops, then the local rules applied by the captain when nothing answered.
 # NIM primary, then the smaller NIM fallback, then the other providers.
-CASCADE = ("nim", "nim_fallback", "openrouter", "anthropic", "tokenfactory", "rules")
-HTTP_CASCADE = ("nim", "nim_fallback", "openrouter", "anthropic", "tokenfactory")
+CASCADE = ("nim", "nim_fallback", "openrouter", "omniroute", "anthropic", "tokenfactory", "rules")
+HTTP_CASCADE = ("nim", "nim_fallback", "openrouter", "omniroute", "anthropic", "tokenfactory")
+# JSON advisory only. Chat and reports stay on Super first.
+JSON_HTTP_CASCADE = ("nim_fallback", "nim", "openrouter", "omniroute", "anthropic", "tokenfactory")
 
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -81,11 +83,18 @@ NIM_MAX_TOKENS_DEFAULT = 400
 NIM_TOP_P_DEFAULT = 0.95
 NIM_REASONING_DEFAULT = "none"
 NIM_EXTRA_BODY_DEFAULT = {"chat_template_kwargs": {"enable_thinking": False}}
-NIM_FALLBACK_TIMEOUT_S = 8.0
+NIM_TIMEOUT_S = 20.0
+NIM_FALLBACK_TIMEOUT_S = 10.0
+# A 404 or 403 means this key cannot use that hop. Skip it for ten minutes.
+HOP_BLOCK_S = 600.0
+RETRY_AFTER_CAP_S = 3.0
 # Attribute kept so a script can still assign llm.NIM_MODEL. Env wins.
 NIM_MODEL = NIM_MODEL_DEFAULT
 
-OPENROUTER_DEFAULT_MODEL = "openai/gpt-4o-mini"
+# Free router. A paid id is used only when OPENROUTER_MODEL sets one.
+OPENROUTER_DEFAULT_MODEL = "openrouter/free"
+OPENROUTER_REFERER = "https://github.com/Berry-Mappemonde/BI-Escales-PayPal"
+OPENROUTER_TITLE = "BI Escales"
 ANTHROPIC_MODEL = "claude-haiku-4-5"
 TOKENFACTORY_MODEL = "nvidia/Nemotron-3.5-Super-VL"
 
@@ -118,11 +127,23 @@ class LlmResult:
     success. It names model ids and failure kinds only, never a secret.
     """
 
-    def __init__(self, text: str, provider: str, model: str, reason: str = "") -> None:
+    def __init__(
+        self,
+        text: str,
+        provider: str,
+        model: str,
+        reason: str = "",
+        fallback_reason: Optional[dict[str, str]] = None,
+    ) -> None:
         self.text = text
         self.provider = provider
         self.model = model
         self.reason = reason
+        self.fallback_reason = {
+            str(key): str(value)
+            for key, value in (fallback_reason or {}).items()
+            if str(key).strip() and str(value).strip()
+        }
 
     def __bool__(self) -> bool:
         return bool(self.text)
@@ -167,6 +188,30 @@ def nebius_key() -> str:
 
 def openrouter_model() -> str:
     return _env("OPENROUTER_MODEL") or OPENROUTER_DEFAULT_MODEL
+
+
+def omniroute_base() -> str:
+    return _env("OMNIROUTE_BASE_URL").rstrip("/")
+
+
+def omniroute_key() -> str:
+    return _env("OMNIROUTE_API_KEY")
+
+
+def omniroute_model() -> str:
+    return _env("OMNIROUTE_MODEL") or "auto"
+
+
+def omniroute_url() -> str:
+    """OpenAI-compatible chat URL. Empty when OMNIROUTE_BASE_URL is empty."""
+    base = omniroute_base()
+    if not base:
+        return ""
+    if base.endswith("/chat/completions"):
+        return base
+    if base.endswith("/v1"):
+        return f"{base}/chat/completions"
+    return f"{base}/v1/chat/completions"
 
 
 def _env_float(raw: str, default: float) -> float:
@@ -277,11 +322,13 @@ def nim_extra_body() -> dict[str, Any]:
 
 
 def provider_timeout_seconds(provider: str = "") -> float:
-    """Per-provider timeout. The NIM fallback stays at 8 s unless its own env is set."""
+    """Per-hop timeout. Super is 20 s and Lightning is 10 s unless that hop's env is set."""
     specific = _env(_TIMEOUT_ENV.get(provider, "")) if provider else ""
     if specific:
         value = _env_float(specific, DEFAULT_PROVIDER_TIMEOUT_S)
         return value if value > 0 else DEFAULT_PROVIDER_TIMEOUT_S
+    if provider == "nim":
+        return NIM_TIMEOUT_S
     if provider == "nim_fallback":
         return NIM_FALLBACK_TIMEOUT_S
     raw = _env("ESCALES_LLM_TIMEOUT_S")
@@ -309,16 +356,21 @@ def tokenfactory_url() -> str:
     return f"{base}/chat/completions"
 
 
-def active_providers() -> list[str]:
-    """Configured HTTP hops, in cascade order. Nebius only when its flag is on."""
+def active_providers(order: Optional[tuple[str, ...]] = None) -> list[str]:
+    """Configured HTTP hops, in cascade order. Nebius only when its flag is on.
+
+    OmniRoute is absent unless ``OMNIROUTE_BASE_URL`` is set.
+    """
     ready = {
         "nim": bool(nvidia_key()),
         "nim_fallback": bool(nvidia_key()) and bool(nim_fallback_model()),
         "openrouter": bool(openrouter_key()),
+        "omniroute": bool(omniroute_url()) and bool(omniroute_key()),
         "anthropic": bool(anthropic_key()),
         "tokenfactory": nebius_enabled() and bool(nebius_key()),
     }
-    return [name for name in HTTP_CASCADE if ready[name]]
+    names = order or HTTP_CASCADE
+    return [name for name in names if ready.get(name)]
 
 
 def has_llm() -> bool:
@@ -402,8 +454,37 @@ def _clean_text(txt: str | None) -> str:
     return text.strip()
 
 
-def _http_error(provider: str, response: httpx.Response) -> RuntimeError:
-    return RuntimeError(f"{provider} HTTP {response.status_code}")
+class ProviderHTTPError(RuntimeError):
+    """HTTP failure. The message is the status only. The body is never kept."""
+
+    def __init__(self, provider: str, status: int, retry_after: Optional[float] = None) -> None:
+        super().__init__(f"{provider} HTTP {status}")
+        self.provider = provider
+        self.status = int(status)
+        self.retry_after = retry_after
+
+
+def _retry_after_seconds(response: httpx.Response) -> Optional[float]:
+    raw = (response.headers.get("retry-after") or "").strip()
+    if not raw:
+        return None
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        pass
+    try:
+        from email.utils import parsedate_to_datetime
+
+        moment = parsedate_to_datetime(raw)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return max(0.0, (moment - dt.datetime.now(dt.timezone.utc)).total_seconds())
+
+
+def _http_error(provider: str, response: httpx.Response) -> ProviderHTTPError:
+    return ProviderHTTPError(provider, response.status_code, _retry_after_seconds(response))
 
 
 # One pause inside this band, then the same NIM model is tried again.
@@ -416,6 +497,39 @@ _last_nim_at = 0.0
 def nim_rate_limit_pause() -> float:
     """Seconds to wait after NIM HTTP 429 before the same model is retried."""
     return NIM_RETRY_PAUSE_S
+
+
+def nim_retry_wait(retry_after: Optional[float]) -> float:
+    """Honour Retry-After, capped at 3 s, and never wait less than the NIM gap."""
+    floor = nim_call_gap()
+    if retry_after is None:
+        return max(floor, NIM_RETRY_PAUSE_S)
+    capped = min(max(0.0, float(retry_after)), RETRY_AFTER_CAP_S)
+    return max(capped, floor)
+
+
+_hop_blocked_until: dict[str, float] = {}
+_hop_block_reason: dict[str, str] = {}
+
+
+def reset_hop_blocks() -> None:
+    _hop_blocked_until.clear()
+    _hop_block_reason.clear()
+
+
+def hop_blocked(name: str) -> bool:
+    return time.monotonic() < _hop_blocked_until.get(name, 0.0)
+
+
+def hop_block_remaining(name: str) -> float:
+    return max(0.0, _hop_blocked_until.get(name, 0.0) - time.monotonic())
+
+
+def block_hop(name: str, reason: str, seconds: float = HOP_BLOCK_S) -> None:
+    """Skip this hop. The log names the hop, never the key or the response body."""
+    _hop_blocked_until[name] = time.monotonic() + seconds
+    _hop_block_reason[name] = reason
+    log.warning("model unavailable for this key; skipping %s", name)
 
 
 def nim_call_gap() -> float:
@@ -457,6 +571,16 @@ def _failure_kind(exc: BaseException) -> str:
     match = re.search(r"\bHTTP\s+(\d+)\b", str(exc))
     if match:
         return f"http_{match.group(1)}"
+    return type(exc).__name__
+
+
+def _public_failure(exc: BaseException) -> str:
+    """Status or exception class for fallback_reason. No body and no key."""
+    if isinstance(exc, ProviderHTTPError):
+        return f"HTTP {exc.status}"
+    match = re.search(r"\bHTTP\s+(\d+)\b", str(exc))
+    if match:
+        return f"HTTP {match.group(1)}"
     return type(exc).__name__
 
 
@@ -568,15 +692,20 @@ async def _call_nim(
     payload["messages"] = messages
     payload["model"] = chosen
     payload["max_tokens"] = nim_max_tokens(max_tokens)
-    payload["top_p"] = nim_top_p()
-    payload["reasoning_effort"] = nim_reasoning()
+    payload.pop("reasoning_effort", None)
     chosen_temperature = nim_temperature(temperature)
     if chosen_temperature is None:
         payload.pop("temperature", None)
+        payload.pop("top_p", None)
+    elif chosen_temperature > 0:
+        payload["temperature"] = chosen_temperature
+        payload["top_p"] = nim_top_p()
     else:
         payload["temperature"] = chosen_temperature
+        payload.pop("top_p", None)
     payload.pop("nvext", None)
     payload.pop("guided_json", None)
+    payload.pop("reasoning_effort", None)
     if guided_json is not None:
         payload["guided_json"] = guided_json
     data = await _post_json(
@@ -593,18 +722,32 @@ async def _call_nim(
     return LlmResult(text, provider, _reported_model(data, chosen))
 
 
+def _json_schema_format(schema: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    if not schema:
+        return None
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "advisory_proposal",
+            "strict": True,
+            "schema": schema,
+        },
+    }
+
+
 async def _call_openrouter(
     system: str,
     user: str,
     client: httpx.AsyncClient,
     max_tokens: int,
     temperature: Optional[float] = None,
+    response_schema: Optional[dict[str, Any]] = None,
 ) -> LlmResult:
     key = openrouter_key()
     if not key:
         raise RuntimeError("OPENROUTER_API_KEY missing")
     model = openrouter_model()
-    payload = {
+    payload: dict[str, Any] = {
         "model": model,
         "messages": [
             {"role": "system", "content": system},
@@ -613,11 +756,19 @@ async def _call_openrouter(
         "max_tokens": max_tokens,
         "temperature": _temperature(temperature, 0.4),
     }
+    formatted = _json_schema_format(response_schema)
+    if formatted is not None:
+        payload["response_format"] = formatted
     data = await _post_json(
         client,
         "openrouter",
         OPENROUTER_URL,
-        {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        {
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": _env("OPENROUTER_HTTP_REFERER") or OPENROUTER_REFERER,
+            "X-Title": _env("OPENROUTER_APP_TITLE") or OPENROUTER_TITLE,
+        },
         payload,
     )
     text = _openai_text(data)
@@ -697,12 +848,74 @@ async def _call_tokenfactory(
     return LlmResult(text, "tokenfactory", _reported_model(data, TOKENFACTORY_MODEL))
 
 
+async def _call_omniroute(
+    system: str,
+    user: str,
+    client: httpx.AsyncClient,
+    max_tokens: int,
+    temperature: Optional[float] = None,
+) -> LlmResult:
+    url = omniroute_url()
+    key = omniroute_key()
+    if not url or not key:
+        raise RuntimeError("omniroute disabled")
+    model = omniroute_model()
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "max_tokens": max_tokens,
+        "temperature": _temperature(temperature, 0.4),
+    }
+    data = await _post_json(
+        client,
+        "omniroute",
+        url,
+        {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        payload,
+    )
+    text = _openai_text(data)
+    if not text:
+        raise RuntimeError("omniroute empty")
+    return LlmResult(text, "omniroute", _reported_model(data, model))
+
+
 _CALLS: dict[str, _Caller] = {
     "nim": _call_nim,
     "openrouter": _call_openrouter,
+    "omniroute": _call_omniroute,
     "anthropic": _call_anthropic,
     "tokenfactory": _call_tokenfactory,
 }
+
+
+def log_effective_nim_models() -> None:
+    """Startup line. Model ids only, never a key."""
+    fallback = nim_fallback_model() or "-"
+    log.info("effective NIM model ids primary=%s fallback=%s", nim_model(), fallback)
+
+
+def _status_of(exc: BaseException) -> Optional[int]:
+    if isinstance(exc, ProviderHTTPError):
+        return exc.status
+    match = re.search(r"\bHTTP\s+(\d+)\b", str(exc))
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _hop_model_for_log(name: str) -> str:
+    if name == "nim":
+        return nim_model()
+    if name == "nim_fallback":
+        return nim_fallback_model()
+    if name == "openrouter":
+        return openrouter_model()
+    if name == "omniroute":
+        return omniroute_model()
+    return name
 
 
 async def ask_text(
@@ -712,12 +925,15 @@ async def ask_text(
     client: Optional[httpx.AsyncClient] = None,
     temperature: Optional[float] = None,
     guided_json: Optional[dict[str, Any]] = None,
+    order: Optional[tuple[str, ...]] = None,
 ) -> LlmResult:
     """Run the cascade. Raises when no provider answers so the captain uses its rules.
 
     ``client`` is for tests. Production opens a short-lived client and closes it.
     ``temperature`` is the caller's preference. NIM uses it unless ``NIM_TEMPERATURE`` is set.
     ``guided_json`` is attached only to the NIM hops, at the request root.
+    OpenRouter receives the same schema as ``response_format``.
+    ``fallback_reason`` names each earlier hop by status or exception class.
     """
     if not has_llm():
         raise RuntimeError("No LLM configured")
@@ -731,7 +947,12 @@ async def ask_text(
     try:
         last = "no_llm_backend"
         primary_failure = ""
-        for name in active_providers():
+        failures: dict[str, str] = {}
+        for name in active_providers(order):
+            if hop_blocked(name):
+                failures[name] = _hop_block_reason.get(name) or "HTTP 404"
+                log.info("cascade %s skipped (unavailable for this key)", name)
+                continue
             nim_hop = name in {"nim", "nim_fallback"}
             for attempt in range(2 if nim_hop else 1):
                 try:
@@ -740,8 +961,7 @@ async def ask_text(
                         sent = nim_fallback_model() if name == "nim_fallback" else nim_model()
                         if name == "nim" and nim_model_reason():
                             log.warning("NIM primary hop: %s", nim_model_reason())
-                        else:
-                            log.info("NIM hop %s sending model %s", name, sent)
+                        log.info("NIM hop %s sending model %s", name, sent)
                         result = await _call_nim(
                             system_text,
                             user,
@@ -752,22 +972,36 @@ async def ask_text(
                             model=sent,
                             guided_json=guided_json,
                         )
+                    elif name == "openrouter":
+                        log.info("openrouter hop sending model %s", openrouter_model())
+                        result = await _call_openrouter(
+                            system_text,
+                            user,
+                            http,
+                            budget,
+                            temperature,
+                            response_schema=guided_json,
+                        )
                     else:
+                        log.info("cascade hop %s sending model %s", name, _hop_model_for_log(name))
                         result = await _CALLS[name](system_text, user, http, budget, temperature)
                 except Exception as exc:
                     detail = safe_error_message(exc)
                     kind = _failure_kind(exc)
+                    public = _public_failure(exc)
+                    failures[name] = public
                     last = f"{name} {kind}"
                     log.warning(
                         "cascade %s failed (%s) model=%s: %s",
                         name,
                         kind,
-                        nim_model() if name == "nim" else (nim_fallback_model() if name == "nim_fallback" else name),
+                        _hop_model_for_log(name),
                         detail,
                     )
-                    if name == "nim":
-                        primary_failure = kind
-                        if kind == "http_404":
+                    status = _status_of(exc)
+                    if status in {403, 404}:
+                        block_hop(name, public)
+                        if name == "nim" and status == 404:
                             global _nim_404_fallbacks
                             _nim_404_fallbacks += 1
                             log.warning(
@@ -775,23 +1009,39 @@ async def ask_text(
                                 nim_model(),
                                 _nim_404_fallbacks,
                             )
+                    if name == "nim":
+                        primary_failure = kind
                     if attempt == 0 and nim_hop and _is_rate_limit(exc):
-                        pause = nim_rate_limit_pause()
+                        retry_after = exc.retry_after if isinstance(exc, ProviderHTTPError) else None
+                        pause = nim_retry_wait(retry_after)
                         log.warning("cascade %s HTTP 429, retrying once in %.2fs", name, pause)
                         await asyncio.sleep(pause)
                         continue
+                    if name == "openrouter" and status == 429:
+                        retry_after = exc.retry_after if isinstance(exc, ProviderHTTPError) else None
+                        pause = min(max(0.0, retry_after or 0.0), RETRY_AFTER_CAP_S)
+                        if pause:
+                            log.warning("cascade openrouter HTTP 429, waiting %.2fs then skipping", pause)
+                            await asyncio.sleep(pause)
+                    if status == 402:
+                        log.warning("cascade %s HTTP 402, skipping provider", name)
                     break
                 if result.text.strip():
+                    failures.pop(name, None)
+                    result.fallback_reason = dict(failures)
                     if name == "nim" and nim_model_reason():
                         result.reason = nim_model_reason()
-                    elif name == "nim_fallback":
+                    elif name == "nim_fallback" and (order or HTTP_CASCADE)[0] == "nim":
                         result.reason = (
                             f"primary hop sent {nim_model()} and failed ({primary_failure or 'error'}); "
                             f"nim_fallback sent {result.model}"
                         )
                         log.warning("%s", result.reason)
+                    elif failures and not result.reason:
+                        result.reason = "; ".join(f"{hop} {cause}" for hop, cause in failures.items())
                     return result
                 last = f"{name} empty"
+                failures[name] = "empty"
                 if name == "nim":
                     primary_failure = "empty"
                 break
@@ -815,6 +1065,18 @@ class LlmJson:
 
 
 _JSON_SYSTEM = "Reply with one JSON object only. No markdown fence and no commentary."
+
+
+def advisory_matches_schema(data: Any) -> bool:
+    """Hand check of ADVISORY_PROPOSAL_SCHEMA. No extra library."""
+    if not isinstance(data, dict):
+        return False
+    allowed = ADVISORY_PROPOSAL_SCHEMA["properties"]["proposal"]["enum"]
+    proposal = data.get("proposal")
+    reason = data.get("reason")
+    if proposal not in allowed:
+        return False
+    return isinstance(reason, str) and bool(reason.strip())
 
 
 def parse_json_object(text: str) -> dict[str, Any]:
@@ -849,5 +1111,11 @@ async def ask_json(
         client=client,
         temperature=0 if temperature is None else temperature,
         guided_json=ADVISORY_PROPOSAL_SCHEMA,
+        order=JSON_HTTP_CASCADE,
     )
-    return LlmJson(parse_json_object(result.text), result.provider, result.model, result.text)
+    data = parse_json_object(result.text)
+    if not advisory_matches_schema(data):
+        raise RuntimeError("advisory schema")
+    parsed = LlmJson(data, result.provider, result.model, result.text)
+    parsed.fallback_reason = result.fallback_reason
+    return parsed

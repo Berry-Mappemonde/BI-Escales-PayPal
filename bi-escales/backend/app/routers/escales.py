@@ -146,6 +146,7 @@ class EvidenceIn(BaseModel):
 
 class ChatIn(BaseModel):
     message: str
+    lang: Optional[str] = None
 
 
 class SpendingIn(BaseModel):
@@ -522,7 +523,12 @@ async def post_review(milestone_id: str, request: Request):
 async def post_chat(body: ChatIn, request: Request):
     _enforce_captain_rate(request, body.message)
     try:
-        return await captain_chat(body.message, treasurer=_valid_admin_key(request))
+        return await captain_chat(
+            body.message,
+            treasurer=_valid_admin_key(request),
+            lang=body.lang,
+            accept_language=request.headers.get("accept-language", ""),
+        )
     except ValueError as exc:
         raise _as_http(exc) from exc
 

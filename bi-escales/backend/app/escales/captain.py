@@ -103,6 +103,34 @@ _AWAY_CLAIM = re.compile(
     r"|\bmiles?\s+away\b|\bmilles?\s+loin\b|\bà parcourir\b|\bdistance restante\b",
     re.IGNORECASE,
 )
+# A model sentence that restates arrival, completion, or a distance still to sail.
+_MILES_AWAY = re.compile(
+    r"à\s+\d+(?:[.,]\d+)?\s+milles?"
+    r"|\d+(?:[.,]\d+)?\s+(?:nautical\s+)?miles?\s+away",
+    re.IGNORECASE,
+)
+_REACHED_CLAIM = re.compile(
+    r"\breach(?:ed)?\b"
+    r"|\batteinte?s?\b"
+    r"|no distance|distance remains|aucune distance|plus de distance"
+    r"|\bcomplete[ds]?\b|\bcompleted\b"
+    r"|\bterminés?\b|\bterminées?\b"
+    r"|\d{4}-\d{2}-\d{2}"
+    r"|\d{1,2}:\d{2}"
+    r"|arriv\w*"
+    r"|recorded on"
+    r"|enregistr\w*\s+le"
+    r"|à\s+\d+(?:[.,]\d+)?\s+milles?"
+    r"|\d+(?:[.,]\d+)?\s+(?:nautical\s+)?miles?\s+away",
+    re.IGNORECASE,
+)
+_INVENTED_SIGNATURE = re.compile(
+    r"capitaine de l['’]escales?\s+bleue"
+    r"|je m['’]appelle\s+blue\s+intelligence(?:\s+escales)?"
+    r"|\bsignés?\s*,\s*\.?"
+    r"|\bsigned\s*,\s*\.?",
+    re.IGNORECASE,
+)
 # Horizon and re-issue policy stay in code. Drop them if a model writes them anyway.
 _POLICY_RE = re.compile(
     r"\b29\s*(?:jours|days|day)\b"
@@ -193,32 +221,50 @@ def display_name(milestone_id: str) -> str:
     )
 
 
-def _report_system(milestone_id: str, lang: str = "fr", reached: bool = False) -> str:
-    """Instructions in the requested language. Code writes the reached sentence."""
+def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -> str:
+    """Full instructions written in the report language. Code writes the reached sentence."""
     port = display_name(milestone_id)
     if lang == "en":
-        return (
-            "You are the Blue Intelligence Escales captain. Reply in English only. "
-            "Write exactly 2 short, complete sentences. "
+        count = "exactly 1 short complete sentence" if reached else "exactly 2 short complete sentences"
+        text = (
+            "You are the Blue Intelligence Escales captain. "
+            "Write in English only. "
+            f"Write {count}. "
             "End each sentence with one period. Never stop mid-sentence. "
             "No title, no heading, no list. "
             f"Keep this port name verbatim: {port}. "
             "Use only numbers present in the evidence JSON. Do not invent a figure. "
-            "Do not mention a registration time. "
-            "Do not write an arrival sentence or how far the port still is. "
+            "Do not write any date or time. "
+            "distance_nm is the distance covered and planned_nm the planned distance. "
             "Do not repeat these instructions and do not write a Decision line."
         )
-    return (
-        "Tu es le capitaine de Blue Intelligence Escales. Réponds uniquement en français. "
-        "Écris exactement 2 phrases courtes et complètes. "
+        if reached:
+            text += (
+                " The code already writes the sentence saying this leg is reached, with its arrival date. "
+                "Do not say it is reached, and do not mention any distance left or remaining. "
+                "Describe only the evidence (source, distance covered)."
+            )
+        return text
+    count = "exactement 1 phrase courte et complète" if reached else "exactement 2 phrases courtes et complètes"
+    text = (
+        "Tu es le capitaine de Blue Intelligence Escales. "
+        "Réponds uniquement en français, même si les données JSON sont en anglais. "
+        f"Écris {count}. "
         "Termine chaque phrase par un seul point. Ne t'arrête jamais au milieu d'une phrase. "
         "Pas de titre, pas d'intertitre, pas de liste. "
         f"Garde ce nom de port tel quel : {port}. "
         "Utilise seulement les nombres présents dans le JSON de preuve. N'invente aucun chiffre. "
-        "Ne mentionne pas d'heure d'enregistrement. "
-        "N'écris pas si le port est atteint, ni de phrase d'arrivée. "
+        "N'écris aucune date ni heure. "
+        "distance_nm est la distance parcourue et planned_nm la distance prévue. "
         "Ne répète pas ces consignes et n'écris pas de ligne Décision."
     )
+    if reached:
+        text += (
+            " Le code écrit déjà la phrase qui dit que cette escale est atteinte, avec sa date d'arrivée. "
+            "Ne dis pas qu'elle est atteinte, et ne mentionne aucune distance restante. "
+            "Décris seulement la preuve (source, distance parcourue)."
+        )
+    return text
 
 
 def _chat_system(lang: str) -> str:
@@ -240,6 +286,8 @@ def _place(message: str) -> str:
     if not match:
         return "unspecified"
     slug = re.sub(r"[^a-z0-9]+", "-", match.group(1).lower()).strip("-")
+    if slug == "lorien":
+        return "lorient"
     return slug or "unspecified"
 
 
@@ -430,6 +478,7 @@ def _signature(lang: str) -> str:
 def _strip_signatures(text: str) -> str:
     """Drop every model sign-off so the reply can add exactly one."""
     cleaned = _LONG_SIGNATURE.sub(" ", text or "")
+    cleaned = _INVENTED_SIGNATURE.sub(" ", cleaned)
     cleaned = re.sub(
         r"[—–\-]+\s*(?:le capitaine|the captain)\b",
         " ",
@@ -460,6 +509,10 @@ def _pledge_line(suggested: dict, lang: str) -> str:
         f"{display_name(str(suggested.get('milestone_id') or ''))}, {suggested['intent']}"
     )
     if lang == "en":
+        exact = (
+            f"{suggested['description']} ({shown}), "
+            f"{display_name(str(suggested.get('milestone_id') or ''))}, intent {suggested['intent']}"
+        )
         return f"Computed pledge, no charge: {exact}."
     return f"Promesse calculée, sans débit : {exact}."
 
@@ -471,6 +524,9 @@ def _has_exact_pledge(text: str, suggested: dict) -> bool:
     milestone = str(suggested.get("milestone_id") or "").casefold()
     intent = str(suggested.get("intent") or "").casefold()
     currency = str(suggested.get("currency") or "").casefold()
+    if "promesse calculée" in folded and "sans débit" in folded:
+        if amount_in_text(text or "", str(suggested.get("amount_eur") or "")):
+            return True
     if not (description and milestone and intent):
         return False
     if not _description_present(description, folded) or milestone not in folded or intent not in folded:
@@ -493,7 +549,9 @@ def _description_present(description: str, folded: str) -> bool:
 def _french_lightning_labels(text: str) -> str:
     """Lightning sometimes keeps English labels. French uses a space before the colon."""
     cleaned = re.sub(r"\bMilestones?\s*:\s*", "Jalon : ", text or "", flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bmilestones?\b", "jalon", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bIntent\s*:\s*", "Intention : ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bintent\b", "intention", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(
         r"\b(Jalon|Décision|Intention|Proposition)\s*:",
         r"\1 :",
@@ -502,10 +560,14 @@ def _french_lightning_labels(text: str) -> str:
     return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
 
 
-def _with_lightning_french(text: str, source: dict, lang: str) -> str:
-    if lang != "fr" or (source or {}).get("provider") != "nim_fallback":
-        return text or ""
+def _french_labels(text: str) -> str:
+    """French replies say jalon and intention, for the main model and for Lightning."""
     return _french_lightning_labels(text)
+
+
+def _fix_port_typos(text: str) -> str:
+    """A misspelled port is shown under its real name."""
+    return re.sub(r"\blorien\b", "Lorient", text or "", flags=re.IGNORECASE)
 
 
 def _membership_line(url: str, lang: str) -> str:
@@ -552,76 +614,100 @@ _MONTHS_FR = (
     "", "janvier", "février", "mars", "avril", "mai", "juin",
     "juillet", "août", "septembre", "octobre", "novembre", "décembre",
 )
-_ARRIVAL_KEYS = ("arrival_iso", "arrival", "arrived_at", "arrival_at")
-_REGISTRATION_KEYS = {"recorded_at", "updated_at", "registered_at", "created_at"}
+_ARRIVAL_KEYS = (
+    "arrived", "arrival", "arrived_at", "arrival_at",
+    "arrival_date", "arrival_time", "arrival_iso",
+)
+_HIDDEN_FROM_MODEL = {"recorded_at", "at", "created_at"}
 
 
-def _without_registration_time(evidence: dict) -> dict:
-    """The model does not see when the evidence was registered."""
+def _evidence_for_model(evidence: dict) -> dict:
+    """Drop the registration clock and every arrival field. Code formats the date."""
     if not isinstance(evidence, dict):
         return {}
+    hidden = _HIDDEN_FROM_MODEL | set(_ARRIVAL_KEYS)
     cleaned: dict = {}
     for key, value in evidence.items():
-        if key in _REGISTRATION_KEYS:
+        if key in hidden:
             continue
         if key == "facts" and isinstance(value, dict):
             cleaned[key] = {
                 fact_key: fact_value
                 for fact_key, fact_value in value.items()
-                if fact_key not in _REGISTRATION_KEYS
+                if fact_key not in hidden
             }
         else:
             cleaned[key] = value
     return cleaned
 
 
-def _arrival_raw(evidence: dict, milestone: Optional[dict]) -> str:
+def arrival_phrase(evidence: dict, lang: str = "fr") -> str:
+    """Formatted arrival from evidence.facts only. recorded_at is never read."""
     facts = evidence.get("facts") if isinstance(evidence, dict) else None
-    if isinstance(facts, dict):
-        for key in _ARRIVAL_KEYS:
-            raw = facts.get(key)
-            if raw:
-                return str(raw)
-    meta = (milestone or {}).get("meta") if isinstance(milestone, dict) else None
-    if isinstance(meta, dict) and meta.get("arrival_iso"):
-        return str(meta["arrival_iso"])
-    return ""
-
-
-def _format_arrival(raw: str, lang: str) -> str:
-    moment = _parse_iso(raw)
-    if moment is None:
+    if not isinstance(facts, dict):
         return ""
+    raw = ""
+    for key in _ARRIVAL_KEYS:
+        value = facts.get(key)
+        if value:
+            raw = str(value).strip()
+            break
+    if not raw:
+        return ""
+    text = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+    try:
+        moment = dt.datetime.fromisoformat(text)
+    except ValueError:
+        return ""
+    if moment.tzinfo is not None:
+        moment = moment.astimezone(dt.timezone.utc)
+    has_time = bool(re.search(r"[T\s]\d{1,2}:\d{2}", raw))
+    clock = f"{moment.hour:02d}:{moment.minute:02d}"
     if lang == "en":
-        return f"{moment.day} {_MONTHS_EN[moment.month]} {moment.year}"
-    return f"{moment.day} {_MONTHS_FR[moment.month]} {moment.year}"
+        date = f"{moment.day} {_MONTHS_EN[moment.month]} {moment.year}"
+        if has_time:
+            return f"on {date} at {clock} UTC"
+        return f"on {date}"
+    day = "1er" if moment.day == 1 else str(moment.day)
+    date = f"{day} {_MONTHS_FR[moment.month]} {moment.year}"
+    if has_time:
+        return f"le {date} à {clock} UTC"
+    return f"le {date}"
 
 
 def _reached_sentence(milestone_id: str, lang: str, arrival: str) -> str:
-    """The only reached sentence. Code writes it, with a formatted arrival date."""
+    """The only reached sentence. Code writes it, with the formatted arrival."""
     port = display_name(milestone_id)
-    when = _format_arrival(arrival, lang)
     if lang == "en":
-        if when:
-            return f"Port {port} was reached on {when}, with no remaining distance."
-        return f"Port {port} was reached, with no remaining distance."
-    if when:
-        return f"L'escale {port} est atteinte le {when}, sans distance restante."
+        if arrival:
+            return f"Milestone {port} was reached {arrival}, with no remaining distance."
+        return f"Milestone {port} was reached, with no remaining distance."
+    if arrival:
+        return f"L'escale {port} est atteinte {arrival}, sans distance restante."
     return f"L'escale {port} est atteinte, sans distance restante."
 
 
-def _append_reached(text: str, milestone_id: str, lang: str, arrival: str) -> str:
-    """Drop a model claim of distance left, then add the single code sentence."""
-    kept = [sentence for sentence in _split_sentences(text) if not _AWAY_CLAIM.search(sentence)]
+def _is_bare_leg(sentence: str, milestone_id: str) -> bool:
+    shown = display_name(milestone_id)
+    body = (sentence or "").strip().rstrip(".").strip()
+    pattern = (
+        rf"(?:milestone|jalon|escale|port)\s+"
+        rf"(?:{re.escape(shown)}|{re.escape(milestone_id)})$"
+    )
+    return bool(re.fullmatch(pattern, body, flags=re.IGNORECASE))
+
+
+def _assert_reached(text: str, milestone_id: str, lang: str, arrival: str = "") -> str:
+    """Code fact first, then at most one model sentence that does not restate it."""
+    kept = []
+    for sentence in _split_sentences(text):
+        if _AWAY_CLAIM.search(sentence) or _REACHED_CLAIM.search(sentence):
+            continue
+        if _is_bare_leg(sentence, milestone_id):
+            continue
+        kept.append(sentence)
     fact = _reached_sentence(milestone_id, lang, arrival)
-    kept = [
-        sentence for sentence in kept
-        if not re.search(r"no remaining distance|sans distance restante|was reached|est atteinte", sentence, re.I)
-    ]
-    kept.append(fact)
-    if len(kept) > 3:
-        kept = kept[:-1][:2] + kept[-1:]
-    return " ".join(kept)
+    return " ".join([fact, *kept[:1]])
 
 
 def _capitalize_ports(text: str, milestone_id: str) -> str:
@@ -679,23 +765,24 @@ def _compose_chat_reply(
             prose = "Cette question porte sur le statut. Le capitaine ne propose pas de promesse."
         return _fit_words("", [prose, _signature(lang)])
     prose = _prepare_model_narrative(model_text)
+    prose = _fix_port_typos(prose)
     prose = _clean_model_urls(prose, url)
     prose = _drop_sentences(prose, _CHAT_DECIDE_RE)
     prose = _trim_cutoff(_normalize_dots(prose))
+    if lang == "fr":
+        prose = _french_labels(prose)
     required: list[str] = []
     if not _has_exact_pledge(prose, suggested):
         required.append(_pledge_line(suggested, lang))
     joined = " ".join(required)
-    if url and url not in prose and url not in joined:
+    if lang == "en" and not re.search(r"\bintent\s+authorize\b", f"{prose} {joined}", re.I):
+        required.append("intent AUTHORIZE.")
+    if url and url not in prose and url not in " ".join(required):
         required.append(_membership_line(url, lang))
     required.append(_signature(lang))
     reply = _fit_words(prose, required)
     port = str(suggested.get("milestone_id") or "") if suggested else ""
-    return _capitalize_ports(reply, port)
-
-
-def _leg_word(lang: str) -> str:
-    return "Milestone" if lang == "en" else "Jalon"
+    return _fix_port_typos(_capitalize_ports(reply, port))
 
 
 def _without_jalon(text: str, lang: str) -> str:
@@ -705,8 +792,8 @@ def _without_jalon(text: str, lang: str) -> str:
     return re.sub(r"\bJalons?\b", "Milestone", text or "", flags=re.IGNORECASE)
 
 
-def _shape_report(text: str, milestone_id: str, lang: str = "fr") -> str:
-    """Two or three sentences, no title, leg name kept verbatim."""
+def _shape_report(text: str, milestone_id: str, lang: str = "fr", name_leg: bool = True) -> str:
+    """No title. When the leg name is missing, prefix the first sentence."""
     lines = []
     for raw_line in (text or "").splitlines():
         line = raw_line.strip()
@@ -729,13 +816,21 @@ def _shape_report(text: str, milestone_id: str, lang: str = "fr") -> str:
     ]
     if lang == "en":
         sentences = [_without_jalon(sentence, "en") for sentence in sentences]
-    leg = _leg_word(lang)
+    sentences = [
+        sentence for sentence in sentences
+        if not _AWAY_CLAIM.search(sentence) and not _MILES_AWAY.search(sentence)
+    ]
     shown = display_name(milestone_id)
     blob = " ".join(sentences).casefold()
-    if milestone_id.casefold() not in blob and shown.casefold() not in blob:
-        sentences.append(f"{leg} {shown}.")
-    if len(sentences) < 2:
-        sentences.append(f"{leg} {shown}.")
+    named = milestone_id.casefold() in blob or shown.casefold() in blob
+    if name_leg and sentences and not named:
+        first = sentences[0].strip()
+        if lang == "en":
+            sentences[0] = f"Milestone {shown}: {first}"
+        elif first:
+            sentences[0] = f"Escale {shown} : {first[0].lower()}{first[1:]}"
+        else:
+            sentences[0] = f"Escale {shown} : {first}"
     return _without_jalon(" ".join(sentences[:3]), lang)
 
 
@@ -944,55 +1039,64 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
     return checked
 
 
-def _requested_lang(lang: str) -> str:
-    return "en" if (lang or "").strip().lower().startswith("en") else "fr"
+def _forced_lang(lang: Optional[str]) -> Optional[str]:
+    token = (lang or "").strip().lower()
+    if token.startswith("en"):
+        return "en"
+    if token.startswith("fr"):
+        return "fr"
+    return None
 
 
 async def _narrative_for_language(
     prompt: str,
     milestone_id: str,
-    lang: str,
+    lang: Optional[str],
     reached: bool,
-) -> tuple[str, dict[str, str]]:
-    """One retry when the model answers in the other language, then the rules."""
-    system = _report_system(milestone_id, lang=lang, reached=reached)
-    narrative, source = await _llm_text(
-        prompt,
-        system,
-        max_tokens=_REPORT_MAX_TOKENS,
-        temperature=_REPORT_TEMPERATURE,
-    )
-    usable = _prepare_model_narrative(narrative) if narrative else ""
-    usable = _with_lightning_french(usable, source, lang)
+) -> tuple[str, dict[str, str], str]:
+    """Up to two attempts. A forced language retries once, then the rules apply."""
+    forced = _forced_lang(lang)
+    prompt_lang = forced or "fr"
+    system = _report_system(milestone_id, reached, prompt_lang)
+
+    async def once(instruction: str) -> tuple[str, dict[str, str]]:
+        narrative, source = await _llm_text(
+            prompt,
+            instruction,
+            max_tokens=_REPORT_MAX_TOKENS,
+            temperature=_REPORT_TEMPERATURE,
+        )
+        usable = _prepare_model_narrative(narrative) if narrative else ""
+        return usable, source
+
+    usable, source = await once(system)
     if not usable:
-        return "", source
-    if _report_language(usable) == lang:
-        return usable, source
+        return "", source, prompt_lang
+    detected = _report_language(usable)
+    if forced is None or detected == forced:
+        if (forced or detected) == "fr":
+            usable = _french_labels(usable)
+        return usable, source, forced or detected
     reminder = (
-        "Reply in English only."
-        if lang == "en"
-        else "Réponds uniquement en français."
+        " RAPPEL : écris en français uniquement."
+        if forced == "fr"
+        else " Write in English only."
     )
-    narrative, source = await _llm_text(
-        prompt,
-        f"{system} {reminder}",
-        max_tokens=_REPORT_MAX_TOKENS,
-        temperature=_REPORT_TEMPERATURE,
-    )
-    usable = _prepare_model_narrative(narrative) if narrative else ""
-    usable = _with_lightning_french(usable, source, lang)
-    if usable and _report_language(usable) == lang:
-        return usable, source
-    return "", _rules_source()
+    usable, source = await once(f"{system}{reminder}")
+    if usable and _report_language(usable) == forced:
+        if forced == "fr":
+            usable = _french_labels(usable)
+        return usable, source, forced
+    return "", _rules_source(), forced
 
 
 async def review(
     milestone_id: str,
     reader: Optional[ReadOnlyTools] = None,
-    lang: str = "fr",
+    lang: Optional[str] = None,
 ) -> dict:
     """Propose capture or void from evidence. Does not execute either."""
-    report_lang = _requested_lang(lang)
+    report_lang = _forced_lang(lang) or "fr"
     milestone = await get_milestone(milestone_id)
     evidence = latest_evidence(milestone)
     met = evidence.get("met") if evidence else None
@@ -1006,39 +1110,42 @@ async def review(
     ]
     for pledge in concerned:
         _read(reader, pledge)
-    visible = _without_registration_time(evidence)
+    visible = _evidence_for_model(evidence)
     allowed = {
         "evidence": visible,
         "milestone_id": milestone_id,
         "decision": decision,
+        "language": report_lang,
     }
     prompt = json.dumps(allowed, ensure_ascii=False, default=str)
-    usable, source = await _narrative_for_language(prompt, milestone_id, report_lang, reached)
+    usable, source, report_lang = await _narrative_for_language(
+        prompt, milestone_id, _forced_lang(lang), reached,
+    )
     if not usable:
         narrative = _fallback_report(milestone_id, decision, evidence, lang=report_lang)
         source = _rules_source()
     else:
-        narrative = _shape_report(usable, milestone_id, report_lang)
+        narrative = _shape_report(
+            usable, milestone_id, report_lang, name_leg=not reached,
+        )
+        if not narrative.strip():
+            narrative = _fallback_report(milestone_id, decision, evidence, lang=report_lang)
+            source = _rules_source()
     narrative = _finish_text(narrative)
     narrative = _without_jalon(filter_numbers(narrative, allowed, lang=report_lang), report_lang)
     if reached:
-        narrative = _append_reached(
+        narrative = _assert_reached(
             narrative,
             milestone_id,
             report_lang,
-            _arrival_raw(evidence, milestone),
+            arrival_phrase(evidence, report_lang),
         )
     narrative = _capitalize_ports(_finish_text(narrative), milestone_id)
     decision_line = (
         f" Decision: {decision}." if report_lang == "en" else f" Décision : {decision}."
     )
     justification = _capitalize_ports(
-        _finish_text(
-            _without_jalon(
-                filter_numbers(f"{narrative}{decision_line}", allowed, lang=report_lang),
-                report_lang,
-            )
-        ),
+        _finish_text(f"{narrative}{decision_line}"),
         milestone_id,
     )
     age = _known_authorization_age(concerned)
@@ -1089,7 +1196,8 @@ async def chat(message: str) -> dict:
             prompt, _chat_system(lang), max_tokens=_CHAT_MAX_TOKENS, temperature=_CHAT_TEMPERATURE,
         )
         if raw:
-            raw = _with_lightning_french(raw, source, lang)
+            if lang == "fr":
+                raw = _french_labels(raw)
             raw = filter_numbers(raw, allowed, lang=lang)
         else:
             raw, source = "", _rules_source()

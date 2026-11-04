@@ -569,7 +569,7 @@ def test_captain_uses_rules_when_every_provider_fails(monkeypatch):
         result = await review("dep-mayotte", reader=None)
         assert result["model_source"] == {"provider": "rules", "model": ""}
         assert result["proposal"] == "capture"
-        assert "Proposition" in result["report"]
+        assert result["report"].startswith("L'escale Dep-Mayotte est atteinte")
         assert [item["host"] for item in seen_box["seen"]] == [
             "integrate.api.nvidia.com",
             "integrate.api.nvidia.com",

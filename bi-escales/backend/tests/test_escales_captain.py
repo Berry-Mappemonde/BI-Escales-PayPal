@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import re
 import sys
 from pathlib import Path
 
@@ -820,22 +821,24 @@ def test_reached_leg_prompt_says_there_is_no_remaining_distance(monkeypatch):
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
     monkeypatch.setattr(llm, "ask_text", fake_ask_text)
     monkeypatch.setattr(llm, "ask_json", fake_ask_json)
-    prompt = captain._report_system("lorient", lang="en", reached=True)
-    assert "Reply in English only." in prompt
+    prompt = captain._report_system("lorient", True, "en")
+    assert "Write in English only." in prompt
     assert "This leg was reached." not in prompt
     assert "no remaining distance" not in prompt.lower()
-    waiting = captain._report_system("lorient", lang="en", reached=False)
+    assert "exactly 1 short complete sentence" in prompt
+    waiting = captain._report_system("lorient", False, "en")
     assert "was reached" not in waiting
+    assert "exactly 2 short complete sentences" in waiting
     assert "no remaining distance" not in waiting
 
     async def body():
         await record_evidence("lorient", met=True, facts={"distance_nm": 120})
         result = await review("lorient", reader=None, lang="en")
-        assert "Reply in English only." in seen["system"]
+        assert "Write in English only." in seen["system"]
         assert "This leg was reached." not in seen["system"]
         assert "away" not in result["report"].lower()
         assert "away" not in result["justification"].lower()
-        assert "Port Lorient was reached" in result["report"]
+        assert "Milestone Lorient was reached" in result["report"]
         assert "no remaining distance" in result["report"]
         assert result["proposal"] == "capture"
         advisory = result["llm_proposal"]
@@ -869,7 +872,7 @@ def test_reached_sentence_follows_the_report_language(monkeypatch):
     async def body():
         await record_evidence("lorient", met=True, facts={"distance_nm": 120})
         english = await review("lorient", reader=None, lang="en")
-        assert "Port Lorient was reached" in english["report"]
+        assert "Milestone Lorient was reached" in english["report"]
         assert "no remaining distance" in english["report"]
         assert "L'escale" not in english["report"]
         assert "atteinte" not in english["report"]
@@ -963,7 +966,8 @@ def test_report_strips_echoed_instructions_in_both_languages(monkeypatch):
         assert "not executed" not in report.lower()
         assert "advisory" not in report.lower()
         assert "The boat is" not in report
-        assert "Arrival recorded at Lorient" in report
+        assert "Arrival recorded at Lorient" not in report
+        assert report.lower().count("was reached") == 1
         assert ".." not in report and ".." not in justification
         assert report.lower().count("decision:") == 0
         assert justification.lower().count("decision:") == 1
@@ -976,7 +980,9 @@ def test_report_strips_echoed_instructions_in_both_languages(monkeypatch):
         assert "consultatif" not in french_report.lower()
         assert "pas exécuté" not in french_report.lower()
         assert "Le bateau est" not in french_report
-        assert "L'arrivée est enregistrée à Lorient" in french_report
+        assert "L'arrivée est enregistrée à Lorient" not in french_report
+        assert "L'escale Brest est atteinte" in french_report
+        assert french_report.lower().count("est atteinte") == 1
         assert ".." not in french_report and ".." not in french_justification
         assert french_report.lower().count("décision") == 0
         assert french_justification.lower().count("décision") == 1
@@ -1010,9 +1016,10 @@ def test_code_writes_the_reached_sentence_with_a_formatted_date(monkeypatch):
         )
         english = await review("lorient", reader=None, lang="en")
         assert "recorded_at" not in seen["prompt"]
-        assert "Reply in English only." in seen["system"]
-        assert "Port Lorient was reached on 2 November 2026" in english["report"]
-        assert "14:00" not in english["report"]
+        assert "arrival_iso" not in seen["prompt"]
+        assert '"language": "en"' in seen["prompt"]
+        assert "Write in English only." in seen["system"]
+        assert "Milestone Lorient was reached on 2 November 2026 at 14:00 UTC" in english["report"]
         assert "no remaining distance" in english["report"]
         await record_evidence(
             "dakar",
@@ -1020,8 +1027,7 @@ def test_code_writes_the_reached_sentence_with_a_formatted_date(monkeypatch):
             facts={"arrival_iso": "2026-11-02T14:00:00Z"},
         )
         french = await review("dakar", reader=None, lang="fr")
-        assert "L'escale Dakar est atteinte le 2 novembre 2026" in french["report"]
-        assert "14:00" not in french["report"]
+        assert "L'escale Dakar est atteinte le 2 novembre 2026 à 14:00 UTC" in french["report"]
         assert "was reached" not in french["report"]
 
     asyncio.run(body())
@@ -1047,7 +1053,7 @@ def test_wrong_language_retries_then_uses_the_fallback(monkeypatch):
         await record_evidence("lorient", met=False, facts={"port": "Lorient"})
         result = await review("lorient", reader=None, lang="en")
         assert len(systems) == 2
-        assert "Reply in English only." in systems[0]
+        assert "Write in English only." in systems[0]
         assert "English" in systems[1]
         assert result["model_source"] == {"provider": "rules", "model": ""}
         assert "Milestone Lorient" in result["report"]
@@ -1125,6 +1131,232 @@ def test_lightning_french_translates_english_labels(monkeypatch):
         english = await chat("I'd like to sponsor 10 nautical miles near Lorient")
         assert "Milestone:" in english["reply"]
         assert "Jalon" not in english["reply"]
+
+    asyncio.run(body())
+
+
+def test_arrival_phrase_uses_arrived_not_the_registration_clock():
+    evidence = {
+        "recorded_at": "1999-01-01T00:00:00Z",
+        "facts": {"arrived": "2026-11-02T14:00:00Z", "distance_nm": 120},
+    }
+    assert captain.arrival_phrase(evidence, "en") == "on 2 November 2026 at 14:00 UTC"
+    assert captain.arrival_phrase(evidence, "fr") == "le 2 novembre 2026 à 14:00 UTC"
+    assert "1999" not in captain.arrival_phrase(evidence, "fr")
+    first = {"facts": {"arrived": "2026-11-01"}}
+    assert captain.arrival_phrase(first, "fr") == "le 1er novembre 2026"
+    assert captain.arrival_phrase({"facts": {"arrival_iso": "2026-11-02"}}, "en") == "on 2 November 2026"
+    hidden = captain._evidence_for_model(evidence)
+    assert "recorded_at" not in hidden
+    assert "arrived" not in hidden.get("facts", {})
+
+
+def test_reached_fact_is_stated_once_when_the_model_paraphrases(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return (
+            "The leg is reached and complete. Arrival was recorded on 2026-11-02. "
+            "The NAVIGUIDE simulation evidence covers 120 nautical miles. "
+            "It was reached again."
+        )
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "capture", "reason": "met"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence(
+            "lorient",
+            met=True,
+            facts={"arrived": "2026-11-02T14:00:00Z", "distance_nm": 120},
+        )
+        result = await review("lorient", reader=None, lang="en")
+        report = result["report"]
+        assert report.lower().count("was reached") == 1
+        assert report.startswith(
+            "Milestone Lorient was reached on 2 November 2026 at 14:00 UTC, "
+            "with no remaining distance."
+        )
+        assert "The NAVIGUIDE simulation evidence covers 120 nautical miles." in report
+        assert "2026-11-02" not in report
+
+    asyncio.run(body())
+
+
+def test_forced_french_review_retries_then_falls_back(monkeypatch):
+    import app.core.llm as llm
+
+    systems = []
+
+    async def fake_ask_text(prompt, system=None, **_kwargs):
+        systems.append(system or "")
+        return "The treasurer alone decides. This evidence is a simulation."
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "wait", "reason": "later"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence(
+            "lorient",
+            met=True,
+            facts={"arrived": "2026-11-02T14:00:00Z", "distance_nm": 120},
+        )
+        result = await review("lorient", reader=None, lang="fr")
+        assert len(systems) == 2
+        assert "RAPPEL : écris en français uniquement." in systems[1]
+        assert "Réponds uniquement en français" in systems[0]
+        assert result["model_source"] == {"provider": "rules", "model": ""}
+        assert result["report"].startswith(
+            "L'escale Lorient est atteinte le 2 novembre 2026 à 14:00 UTC"
+        )
+
+    asyncio.run(body())
+
+
+def test_forced_english_review_matches_the_reference_sentence(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return (
+            "Lorient was reached on 2026-11-02 at 14:00. "
+            "The NAVIGUIDE simulation evidence covers 120 nautical miles."
+        )
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "capture", "reason": "met"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence(
+            "lorient",
+            met=True,
+            facts={"arrived": "2026-11-02T14:00:00Z", "distance_nm": 120},
+        )
+        result = await review("lorient", reader=None, lang="en")
+        assert result["report"] == (
+            "Milestone Lorient was reached on 2 November 2026 at 14:00 UTC, "
+            "with no remaining distance. "
+            "The NAVIGUIDE simulation evidence covers 120 nautical miles."
+        )
+
+    asyncio.run(body())
+
+
+def test_leg_name_is_a_prefix_not_a_filler_sentence(monkeypatch):
+    import app.core.llm as llm
+
+    replies = [
+        "La preuve NAVIGUIDE est une simulation. Dakar is 80 nautical miles away.",
+        "The NAVIGUIDE simulation evidence covers 80 nautical miles. Dakar is 80 nautical miles away.",
+    ]
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return replies.pop(0)
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "wait", "reason": "open"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence("dakar", met=False, facts={"distance_nm": 80})
+        french = await review("dakar", reader=None, lang="fr")
+        assert french["report"].startswith("Escale Dakar : la preuve NAVIGUIDE")
+        assert "Jalon Dakar." not in french["report"]
+        assert "miles away" not in french["report"].lower()
+        assert "à 80 milles" not in french["report"]
+        english = await review("dakar", reader=None, lang="en")
+        assert english["report"].startswith(
+            "Milestone Dakar: The NAVIGUIDE simulation evidence covers 80 nautical miles."
+        )
+        assert "Jalon Dakar." not in english["report"]
+        assert "miles away" not in english["report"].lower()
+
+    asyncio.run(body())
+
+
+def test_french_chat_translates_milestone_and_intent(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "Le milestone est noté. Intent: AUTHORIZE pour Dakar."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Dakar")
+        reply = result["reply"]
+        assert result["model_source"]["provider"] == "llm"
+        assert "jalon" in reply.casefold()
+        assert "Intention : AUTHORIZE" in reply
+        assert not re.search(r"\bmilestone\b", reply, re.I)
+        assert not re.search(r"\bintent\b", reply, re.I)
+
+    asyncio.run(body())
+
+
+def test_french_pledge_line_is_not_repeated(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "Promesse calculée, sans débit : 120 milles parrainés (120,00 €), lorien, AUTHORIZE."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 120 milles près de Lorien")
+        reply = result["reply"]
+        assert result["suggested_pledge"]["milestone_id"] == "lorient"
+        assert reply.count("Promesse calculée") == 1
+        assert "Lorient" in reply
+        assert not re.search(r"\blorien\b", reply, re.I)
+
+    asyncio.run(body())
+
+
+def test_chat_strips_invented_signatures(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return (
+            "Voici la promesse. Capitaine de l'Escales Bleue. "
+            "Signé,. Je m'appelle Blue Intelligence Escales."
+        )
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Brest")
+        reply = result["reply"]
+        assert "Escales Bleue" not in reply
+        assert "Signé" not in reply
+        assert "Je m'appelle" not in reply
+        assert reply.count("— Le capitaine") == 1
+
+    asyncio.run(body())
+
+
+def test_english_pledge_mentions_intent_authorize():
+    async def body():
+        result = await chat("I'd like to sponsor 120 nautical miles near Lorient")
+        assert "intent AUTHORIZE" in result["reply"]
+        assert "120 sponsored miles" in result["reply"]
 
     asyncio.run(body())
 

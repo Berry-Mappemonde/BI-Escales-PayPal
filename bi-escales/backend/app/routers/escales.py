@@ -51,6 +51,7 @@ from app.escales.ledger import (
     list_webhook_outcomes,
     record_spending,
     to_public_fund,
+    to_public_project_donation_total,
 )
 from app.escales_names import display_name as escale_display_name
 from app.escales.milestones import list_milestones, record_evidence
@@ -871,6 +872,22 @@ async def post_subscription_approve(body: SubscriptionApproveIn):
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
+
+
+@router.get("/projects/{project_id}/fund")
+async def get_public_project_fund(project_id: str):
+    """Public crowdfunding totals for one BI project (``target_id`` slug).
+
+    Same spirit as public stopover ``GET /milestones/{id}/fund`` via ``to_public_fund``:
+    aggregates only. Treasurer detail stays on ``GET /milestones/{project_id}/fund``.
+    """
+    try:
+        if await _project_fund_target(project_id) is None:
+            raise LookupError("not a project fund")
+        fund = await fund_for_milestone(project_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Project fund not found") from exc
+    return to_public_project_donation_total(fund)
 
 
 @router.post("/projects/{project_id}/payouts")

@@ -603,6 +603,23 @@ def to_public_fund(fund: dict) -> dict:
     }
 
 
+def to_public_project_donation_total(fund: dict) -> dict:
+    """Public BI project crowdfunding totals only (pattern: ``to_public_fund`` stopover aggregates).
+
+    Donor-facing read: captured amount, donation count, refunds. No journal lines or ids.
+    """
+    income = fund.get("income")
+    donation_count = len(income) if isinstance(income, list) else 0
+    captured = str(fund.get("captured_eur") or fund.get("income_eur") or "0.00")
+    return {
+        "project_id": fund.get("milestone_id"),
+        "currency": fund.get("currency") or "EUR",
+        "amount_eur": captured,
+        "donation_count": donation_count,
+        "refunded_eur": str(fund.get("refunded_eur") or "0.00"),
+    }
+
+
 def _public_finance(entry: dict) -> dict:
     return {
         "id": entry.get("_id"),

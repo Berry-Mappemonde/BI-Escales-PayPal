@@ -180,8 +180,8 @@ def test_b11_reconcile_matches_on_capture_id():
     asyncio.run(run())
 
 
-def test_b12_stop_mile_pledge_settles_on_departure(monkeypatch):
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-01T08:00:00+00:00")
+def test_b12_stop_mile_pledge_settles_on_arrival(monkeypatch):
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00+00:00")
     monkeypatch.setenv("ESCALES_VAULT_ENABLED", "0")
     spy = CaptureSpy()
 
@@ -201,10 +201,10 @@ def test_b12_stop_mile_pledge_settles_on_departure(monkeypatch):
         await authorize_pledge(created["_id"], spy)
         early = await run_departure_clock(spy)
         assert early["actions"][0]["action"] == "wait"
-        departure_raw = str(doc["meta"]["departure_iso"])
-        text = departure_raw.replace("Z", "+00:00") if departure_raw.endswith("Z") else departure_raw
-        departure_day = __import__("datetime").datetime.fromisoformat(text)
-        done = await run_departure_clock(spy, now=departure_day)
+        arrival_raw = str(doc["meta"]["arrival_iso"])
+        text = arrival_raw.replace("Z", "+00:00") if arrival_raw.endswith("Z") else arrival_raw
+        arrival_day = __import__("datetime").datetime.fromisoformat(text)
+        done = await run_departure_clock(spy, now=arrival_day)
         assert done["actions"][0]["action"] == "capture"
 
     asyncio.run(run())

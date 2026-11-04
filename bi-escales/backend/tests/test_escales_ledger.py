@@ -16,7 +16,7 @@ from app.escales.pledges import authorize_pledge, capture_pledge, create_pledge,
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-01T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     reset_ledger()
     yield
     reset_ledger()

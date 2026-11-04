@@ -108,7 +108,7 @@ MAYOTTE_PLEDGE = {
     "milestone_id": "dep-mayotte",
     "description": "20 milles Mayotte",
 }
-NEAR_MAYOTTE_CLOCK = "2027-06-01T08:00:00Z"
+NEAR_MAYOTTE_CLOCK = "2027-05-15T08:00:00Z"
 
 
 def _ready_mayotte(client, key, monkeypatch, body=None):
@@ -945,7 +945,7 @@ def test_prices_and_clock(api, monkeypatch):
 
 
 def test_departure_clock_captures_on_the_day(api, monkeypatch):
-    """The simulated clock captures on departure day, voids a cancelled stop, and refuses an early authorization."""
+    """The simulated clock captures on arrival day, voids a cancelled stop, and refuses an early authorization."""
     import asyncio
 
     from app.escales.ledger import get_ledger
@@ -967,7 +967,7 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     sailing = resolve_milestone("dep-la-rochelle")
     assert sailing
     stop_doc = asyncio.run(load_stop(sailing))
-    departure_iso = str(stop_doc["meta"]["departure_iso"])
+    arrival_iso = str(stop_doc["meta"]["arrival_iso"])
     creates = [call for call in fake.calls if call[0] == "create"]
     early = _create(client, "dep-early", {
         **PLEDGE,
@@ -982,7 +982,7 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     held_body, held = _ready(client, "dep-held", {
         **PLEDGE,
         "milestone_id": sailing,
-        "description": "veille du depart",
+        "description": "veille de l'arrivee",
     })
     assert held["status"] == "authorized"
     before = client.post("/api/escales/clock/settle", headers=ADMIN)
@@ -1012,7 +1012,7 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     assert any(call[0] == "void" for call in fake.calls)
     assert all(call[0] != "capture" for call in fake.calls)
 
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", departure_iso.replace("+00:00", "Z")[:19] + "Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-12T08:00:00Z")
     public = client.get("/api/escales/clock")
     assert public.status_code == 200
     assert "settled" not in public.json()

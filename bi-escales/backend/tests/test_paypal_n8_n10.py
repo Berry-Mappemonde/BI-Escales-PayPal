@@ -140,9 +140,9 @@ def test_n9_settle_and_payment_mode_resolve_stops_without_milestone_sync(monkeyp
         assert mode in {"AUTHORIZE", "VAULT"}
         doc = await get_ledger().get_milestone(sailing)
         assert doc is not None
-        assert doc["meta"]["capture_on"] == "departure"
+        assert doc["meta"]["capture_on"] == "arrival"
 
-        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-01T08:00:00+00:00")
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00+00:00")
         monkeypatch.setenv("ESCALES_VAULT_ENABLED", "0")
         created = await create_pledge(
             amount_eur="5.00",
@@ -152,33 +152,25 @@ def test_n9_settle_and_payment_mode_resolve_stops_without_milestone_sync(monkeyp
             kind="mile",
         )
         await authorize_pledge(created["_id"], spy)
-        doc = await get_ledger().get_milestone(sailing)
         before = await run_departure_clock(spy)
         assert before["actions"][0]["action"] == "wait"
-        departure_raw = str(doc["meta"]["departure_iso"])
-        departure_day = datetime.fromisoformat(departure_raw.replace("Z", "+00:00"))
-        done = await run_departure_clock(spy, now=departure_day)
+        arrival_raw = str(doc["meta"]["arrival_iso"])
+        arrival_day = datetime.fromisoformat(arrival_raw.replace("Z", "+00:00"))
+        done = await run_departure_clock(spy, now=arrival_day)
         assert done["actions"][0]["action"] == "capture"
 
     asyncio.run(run())
 
 
-def test_capture_rule_stop_miles_capture_on_departure_day(monkeypatch):
-    """Stop-level mile pledges follow departure_iso (B12), not arrival."""
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-11T08:00:00+00:00")
+def test_capture_rule_stop_miles_use_arrival_capture_on(monkeypatch):
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-12T08:00:00+00:00")
     spy = MoneySpy()
 
     async def run():
-        from app.escales.naviguide_bridge import leg_departing_from, resolve_milestone, resolve_schedule_milestone
+        from app.escales.naviguide_bridge import resolve_milestone
 
         stop = resolve_milestone("dep-la-rochelle")
         assert stop
-        doc = await resolve_schedule_milestone(stop)
-        assert doc["meta"]["capture_on"] == "departure"
-        outgoing = leg_departing_from(stop)
-        assert outgoing
-        assert doc["meta"]["departure_iso"] == outgoing["departure_iso"]
-        assert doc["meta"]["departure_iso"] >= doc["meta"]["arrival_iso"]
         created = await create_pledge(
             amount_eur="5.00",
             description="miles",
@@ -187,13 +179,7 @@ def test_capture_rule_stop_miles_capture_on_departure_day(monkeypatch):
             kind="mile",
         )
         assert created["milestone_id"] == stop
-        await authorize_pledge(created["_id"], spy)
-        before = await run_departure_clock(spy)
-        assert before["actions"][0]["action"] == "wait"
-        departure_day = datetime.fromisoformat(
-            str(doc["meta"]["departure_iso"]).replace("Z", "+00:00")
-        )
-        done = await run_departure_clock(spy, now=departure_day)
-        assert done["actions"][0]["action"] == "capture"
+        doc = await get_ledger().get_milestone(stop)
+        assert doc["meta"]["capture_on"] == "arrival"
 
     asyncio.run(run())

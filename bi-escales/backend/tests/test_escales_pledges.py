@@ -31,7 +31,7 @@ from app.escales.pledges import (
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-01T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     reset_ledger()
     yield
     reset_ledger()
@@ -429,7 +429,6 @@ def test_cabin_leg_authorizes_and_waits_for_departure(monkeypatch):
 
     monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
     monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-01-01T08:00:00Z")
     leg = "leg-la-rochelle-to-ajaccio-corse"
 
     async def body():

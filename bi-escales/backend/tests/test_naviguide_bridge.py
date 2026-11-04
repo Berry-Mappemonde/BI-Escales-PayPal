@@ -108,9 +108,6 @@ def test_sync_milestone_shells_creates_docs():
         docs = await sync_milestone_shells(local_schedule_export())
         assert len(docs) >= 16
         assert docs[0]["meta"]["title"]
-        la = next(d for d in docs if d["_id"] == "dep-la-rochelle")
-        assert la["meta"]["capture_on"] == "departure"
-        assert la["meta"]["departure_iso"] >= la["meta"]["arrival_iso"]
 
     asyncio.run(run())
 

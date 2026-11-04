@@ -171,7 +171,7 @@ def decision_for(met: Optional[bool]) -> str:
 
 
 def decision_for_evidence(evidence: Optional[dict], milestone: Optional[dict] = None) -> str:
-    """Stop pledges: capture on departure day, void if cancelled. Cabins: leg departure."""
+    """Stop pledges: capture on arrival, void if cancelled. Cabins: capture on leg departure."""
     row = evidence or {}
     facts = row.get("facts") if isinstance(row.get("facts"), dict) else {}
     met = row.get("met")

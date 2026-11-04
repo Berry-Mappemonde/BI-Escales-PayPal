@@ -121,6 +121,7 @@ _UNPLACED_TARGET = {"project_pledge": "projet", "common_fund": "fonds-commun"}
 # Same figures as the captain catalogue. A mile cannot go under one unit.
 _UNIT_FLOOR = {
     "mile": Decimal("1.00"),
+    "project_pledge": Decimal("1.00"),
     "berth": Decimal("30.00"),
     "night": Decimal("60.00"),
     "meal": Decimal("60.00"),

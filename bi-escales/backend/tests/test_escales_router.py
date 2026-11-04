@@ -1382,8 +1382,18 @@ def test_priced_kind_requires_its_unit_price(api):
         "description": "promesse projet",
         "milestone_id": "",
         "kind": "project_pledge",
+        "target_id": "projet-ecole",
     })
     assert gift.status_code == 200, gift.text
+    project_under = _create(client, "project-half", {
+        "amount_eur": "0.50",
+        "description": "promesse projet",
+        "milestone_id": "",
+        "kind": "project_pledge",
+        "target_id": "projet-ecole",
+    })
+    assert project_under.status_code == 422
+    assert "1.00" in project_under.json()["detail"]
 
 
 def test_target_id_and_milestone_id_are_documented():

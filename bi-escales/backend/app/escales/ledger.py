@@ -8,6 +8,7 @@ from __future__ import annotations
 import copy
 import datetime as dt
 import os
+import re
 import threading
 import uuid
 from decimal import Decimal, InvalidOperation
@@ -670,6 +671,73 @@ def _entry_in_unplaced(entry: dict, bucket: str) -> bool:
     return entry.get("kind") == "spending" and milestone in aliases
 
 
+def _entry_for_project_target(entry: dict, target: str) -> bool:
+    """Finance lines for one BI project ``target_id`` (captured minus refunds)."""
+    wanted = str(target or "").strip().casefold()
+    if not wanted:
+        return False
+    entry_target = str(entry.get("target_id") or "").strip().casefold()
+    if entry_target != wanted:
+        return False
+    milestone = str(entry.get("milestone_id") or "").strip().casefold()
+    if milestone and milestone not in _PROJECT_ALIASES:
+        return False
+    kind = str(entry.get("kind") or "")
+    pledge_kind = str(entry.get("pledge_kind") or "").casefold()
+    if kind in {"pledge_captured", "pledge_refunded"}:
+        return pledge_kind == "project_pledge"
+    if kind == "spending":
+        return str(entry.get("milestone_id") or "").strip().casefold() == wanted
+    return False
+
+
+_PROJECT_TARGET_SLUG = re.compile(r"^[a-z0-9-]+$")
+
+
+async def _project_fund_target(milestone_id: str) -> Optional[str]:
+    """Per-project fund id when the URL names a ``target_id``, not the aggregate ``projet``."""
+    token = str(milestone_id or "").strip()
+    if not token or _unplaced_bucket(token) or _leg_id(token):
+        return None
+    slug = token.casefold()
+    if slug in _FUND_ALIASES or not _PROJECT_TARGET_SLUG.fullmatch(slug):
+        return None
+    try:
+        await _require_stopover(token)
+        return None
+    except LookupError:
+        pass
+    for entry in await list_finance_entries():
+        if _entry_for_project_target(entry, slug):
+            return slug
+    for row in await get_ledger().list_pledges():
+        if str(row.get("kind") or "") != "project_pledge":
+            continue
+        if str(row.get("target_id") or "").strip().casefold() != slug:
+            continue
+        if str(row.get("milestone_id") or "").strip() and str(row.get("milestone_id") or "").strip().casefold() not in _PROJECT_ALIASES:
+            continue
+        return slug
+    return None
+
+
+def fund_milestone_for_pledge(pledge: dict) -> str:
+    """Route id for ``fund_for_milestone`` from a pledge row."""
+    row = pledge_defaults(pledge) if pledge else {}
+    kind = str(row.get("kind") or "")
+    milestone = str(row.get("milestone_id") or "").strip()
+    target = str(row.get("target_id") or "").strip()
+    if kind == "project_pledge":
+        if target and target.casefold() not in _PROJECT_ALIASES:
+            return target
+        return _PROJECT_BUCKET
+    if kind == "common_fund" and not milestone:
+        return _FUND_BUCKET
+    if milestone:
+        return milestone
+    return target
+
+
 async def _assemble_fund(milestone_id: str, entries: list[dict]) -> dict:
     """Same totals the stopover fund route already returns."""
     income = [entry for entry in entries if entry.get("kind") == "pledge_captured"]
@@ -742,6 +810,23 @@ async def fund_for_milestone(milestone_id: str) -> dict:
         ]
         fund = await _assemble_fund(bucket, rows)
         fund["authorized_eur"] = await _authorized_eur(lambda row: _pledge_in_bucket(row, bucket))
+        return fund
+    project_target = await _project_fund_target(milestone_id)
+    if project_target:
+        rows = [
+            entry
+            for entry in await list_finance_entries()
+            if _entry_for_project_target(entry, project_target)
+        ]
+        fund = await _assemble_fund(project_target, rows)
+        fund["authorized_eur"] = await _authorized_eur(
+            lambda row: str(row.get("kind") or "") == "project_pledge"
+            and str(row.get("target_id") or "").strip().casefold() == project_target
+            and (
+                not str(row.get("milestone_id") or "").strip()
+                or str(row.get("milestone_id") or "").strip().casefold() in _PROJECT_ALIASES
+            )
+        )
         return fund
     leg_id = _leg_id(milestone_id)
     if leg_id:

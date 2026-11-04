@@ -115,3 +115,46 @@ def test_load_export_from_path(tmp_path):
     path = tmp_path / "x.json"
     path.write_text(json.dumps({"escales": []}), encoding="utf-8")
     assert load_export_from_path(str(path))["escales"] == []
+
+
+def test_clock_legs_one_per_stopover_pair(monkeypatch):
+    """Jambes datées par l'horloge du 12 novembre 2026. Le départ de A décide."""
+    from app.escales.naviguide_bridge import clock_legs, leg_departing_from, sync_leg_shells
+
+    monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
+    monkeypatch.delenv("ESCALES_ENV", raising=False)
+    legs = clock_legs()
+    assert len(legs) == 15
+    ids = [leg["id"] for leg in legs]
+    assert ids[0] == "leg-saint-maur-berry-indre-to-la-rochelle"
+    sea = next(leg for leg in legs if leg["id"] == "leg-la-rochelle-to-ajaccio-corse")
+    assert sea["kind"] == "sea"
+    assert sea["capture_on"] == "departure"
+    assert sea["departure_iso"].startswith("2026-11-12T08:00:00")
+    assert sea["from_name"] == "La Rochelle"
+    assert sea["to_name"] == "Ajaccio (Corse)"
+    ajaccio = next(leg for leg in legs if leg["from_slug"] == "ajaccio-corse")
+    assert ajaccio["hold_hours"] == 72
+    assert ajaccio["departure_iso"].startswith("2026-12-01T22:02:54")
+    assert leg_departing_from("Fort-de-France")["id"] == (
+        "leg-fort-de-france-martinique-to-pointe-a-pitre-guadeloupe"
+    )
+    assert leg_departing_from("Mayotte")["from_slug"] == "dzaoudzi-mayotte"
+    back = legs[-1]
+    assert back["id"] == "leg-europa-taaf-to-la-rochelle"
+    assert back["arrival_iso"].startswith("2027-08-27")
+
+    monkeypatch.setenv("ESCALES_ENV", "development")
+    monkeypatch.setenv("ESCALES_CLOCK_START", "2026-12-01")
+    shifted = next(
+        leg for leg in clock_legs() if leg["id"] == "leg-la-rochelle-to-ajaccio-corse"
+    )
+    assert shifted["departure_iso"].startswith("2026-12-01T08:00:00")
+
+    async def run():
+        docs = await sync_leg_shells()
+        assert len(docs) == 15
+        assert docs[1]["meta"]["capture_on"] == "departure"
+        assert docs[1]["meta"]["departure_iso"].startswith("2026-12-01T08:00:00")
+
+    asyncio.run(run())

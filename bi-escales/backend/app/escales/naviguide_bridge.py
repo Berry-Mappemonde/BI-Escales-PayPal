@@ -143,6 +143,134 @@ async def fetch_naviguide_export(client: Optional[httpx.AsyncClient] = None) -> 
             await http.aclose()
 
 
+# Heures figées depuis l'horloge NAVIGUIDE au 12 novembre 2026, 08:00 UTC.
+# Sources : voyageClock.js (buildVoyageClock), berryLegs.js (buildBerryLegs),
+# routePlayhead.js, escales.js, geo.js, public/route.geojson.
+# Une autre date d'horloge décale ces heures sans relancer le vent.
+_CABIN_LEGS_PATH = Path(__file__).with_name("cabin_legs.json")
+_LEG_TABLE: Optional[dict[str, Any]] = None
+
+
+def cabin_leg_table() -> dict[str, Any]:
+    """Table des jambes. Le fichier cite les pièces NAVIGUIDE dont il est tiré."""
+    global _LEG_TABLE
+    if _LEG_TABLE is None:
+        _LEG_TABLE = json.loads(_CABIN_LEGS_PATH.read_text(encoding="utf-8"))
+    return _LEG_TABLE
+
+
+def _clock_origin():
+    """08:00 UTC le jour de ``clock_start``. Même heure que le t0 de l'horloge."""
+    import datetime as dt
+
+    from .config import clock_start
+
+    return dt.datetime.fromisoformat(f"{clock_start()}T08:00:00+00:00")
+
+
+def _reference_t0():
+    import datetime as dt
+
+    raw = str(cabin_leg_table().get("t0") or "2026-11-12T08:00:00.000Z")
+    if raw.endswith("Z"):
+        raw = raw[:-1] + "+00:00"
+    moment = dt.datetime.fromisoformat(raw)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment
+
+
+def _shift_iso(raw: Any) -> str:
+    """Date de la table, décalée si l'horloge de développement n'est pas le 12 novembre."""
+    import datetime as dt
+
+    text = str(raw or "").strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    moment = dt.datetime.fromisoformat(text)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    shifted = moment + (_clock_origin() - _reference_t0())
+    return shifted.replace(microsecond=0).isoformat()
+
+
+def clock_legs() -> list[dict[str, Any]]:
+    """Une jambe par paire d'escales, datée par l'horloge du 12 novembre 2026.
+
+    ``departure_iso`` est le départ de A (arrivée + séjour au quai).
+    ``arrival_iso`` est l'arrivée en B. La capture d'une cabine suit le départ.
+    """
+    rows: list[dict[str, Any]] = []
+    for item in cabin_leg_table().get("legs") or []:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        row = dict(item)
+        row["milestone_id"] = item["id"]
+        row["departure_iso"] = _shift_iso(item.get("departure_iso"))
+        row["arrival_iso"] = _shift_iso(item.get("arrival_iso"))
+        row["capture_on"] = "departure"
+        rows.append(row)
+    return rows
+
+
+def leg_by_id(leg_id: str) -> Optional[dict[str, Any]]:
+    wanted = (leg_id or "").strip()
+    if not wanted:
+        return None
+    for leg in clock_legs():
+        if leg["id"] == wanted:
+            return leg
+    return None
+
+
+def leg_departing_from(place: str) -> Optional[dict[str, Any]]:
+    """Première jambe qui quitte cette escale, dans l'ordre de l'horloge."""
+    slug = _slug(place)
+    if len(slug) < 4:
+        return None
+    needle = f"-{slug}-"
+    for leg in clock_legs():
+        hay = f"-{leg.get('from_slug')}-"
+        if needle in hay:
+            return leg
+    return None
+
+
+def leg_milestone_meta(leg: dict[str, Any]) -> dict[str, Any]:
+    """Champs du jalon de jambe. La capture lit ``departure_iso``."""
+    title = f"{leg.get('from_name')} → {leg.get('to_name')}"
+    return {
+        "title": title,
+        "display_name": title,
+        "arrival_iso": leg.get("arrival_iso"),
+        "departure_iso": leg.get("departure_iso"),
+        "from": leg.get("from_slug"),
+        "to": leg.get("to_slug"),
+        "from_name": leg.get("from_name"),
+        "to_name": leg.get("to_name"),
+        "leg_kind": leg.get("kind"),
+        "capture_on": "departure",
+        "source": "clock",
+    }
+
+
+def legs_to_milestones(legs: Optional[list[dict[str, Any]]] = None) -> list[dict[str, Any]]:
+    """Même forme que ``escales_to_milestones``, une ligne par jambe."""
+    rows: list[dict[str, Any]] = []
+    for leg in legs if legs is not None else clock_legs():
+        meta = leg_milestone_meta(leg)
+        rows.append(
+            {
+                "_id": leg["id"],
+                "lat": None,
+                "lon": None,
+                "slug": leg["id"],
+                **meta,
+            }
+        )
+    return rows
+
+
 async def sync_milestone_shells(export: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
     """Ensure milestone documents exist for each exported escale (meta only)."""
     from .pledges import get_ledger
@@ -163,5 +291,18 @@ async def sync_milestone_shells(export: Optional[dict[str, Any]] = None) -> list
                 "source": row.get("source"),
             },
         )
+        synced.append(doc)
+    return synced
+
+
+async def sync_leg_shells() -> list[dict[str, Any]]:
+    """Un jalon par jambe. La capture suit ``departure_iso``, pas l'arrivée."""
+    from .pledges import get_ledger
+
+    ledger = get_ledger()
+    synced: list[dict[str, Any]] = []
+    for row in legs_to_milestones():
+        meta = {key: value for key, value in row.items() if key not in {"_id", "slug", "lat", "lon"}}
+        doc = await ledger.ensure_milestone(row["_id"], meta=meta)
         synced.append(doc)
     return synced

@@ -617,6 +617,13 @@ def test_schedule_local_fallback(api, monkeypatch):
     assert shown["display_name"] == "Fort-de-France"
     assert "dep-" not in shown["display_name"].lower()
     assert body["clock"]["start"] == "2026-11-12"
+    assert len(body["legs"]) == 15
+    cabin = next(row for row in body["legs"] if row["id"] == "leg-la-rochelle-to-ajaccio-corse")
+    assert cabin["capture_on"] == "departure"
+    assert cabin["departure_iso"].startswith("2026-11-12T08:00:00")
+    shown = next(row for row in body["milestones"] if row["_id"] == cabin["id"])
+    assert shown["display_name"] == "La Rochelle → Ajaccio (Corse)"
+    assert shown["capture_on"] == "departure"
     assert body["prices"]["label"] == "simulated price"
     assert body["prices"]["simulated"] is True
 

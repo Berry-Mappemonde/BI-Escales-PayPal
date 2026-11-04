@@ -299,7 +299,8 @@ def test_b12_canonical_capture_rule_wording():
     from app.escales.captain import _public_rule
     from app.escales.departure_clock import CAPTURE_RULES_EN, CAPTURE_RULES_FR
 
-    assert "project gifts" in CAPTURE_RULES_EN
+    assert "Project crowdfunding is collected immediately" in CAPTURE_RULES_EN
+    assert "project gifts" not in CAPTURE_RULES_EN.lower()
     assert "stop departure" not in CAPTURE_RULES_EN.lower()
     assert CAPTURE_RULES_EN in _public_rule("en")
     assert CAPTURE_RULES_FR in _public_rule("fr")

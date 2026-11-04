@@ -32,6 +32,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
   const sdkHost = useRef<HTMLDivElement | null>(null);
   const activePledgeIdRef = useRef<string | null>(null);
   const vault = created ? isVaultPledge(created) : false;
+  const isProjectPledge = (values.kind || "") === "project_pledge";
 
   useEffect(() => {
     let cancelled = false;
@@ -97,6 +98,8 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
       setCreated(pledge);
       if (isVaultPledge(pledge)) {
         setStatus(t("pledge.vaultRedirect"));
+      } else if (isProjectPledge) {
+        setStatus(t("pledge.returnPendingProject"));
       } else {
         setStatus(t("pledge.returnPending"));
       }
@@ -144,7 +147,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
 
   return (
     <div className="pledge-button" data-testid="paypal-buttons" data-kind={values.kind || ""}>
-      <p className="hint">{t("pledge.intent")}</p>
+      <p className="hint">{isProjectPledge ? t("pledge.intentProject") : t("pledge.intent")}</p>
       <p className="hint">{t("pledge.venmoNote")}</p>
       <button type="button" onClick={() => void createOrder()} disabled={disabled || busy}>
         {t("pledge.create")}

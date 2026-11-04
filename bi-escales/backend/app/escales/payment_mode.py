@@ -6,7 +6,7 @@ from typing import Literal, Optional
 
 from .config import AUTH_MAX_DAYS
 
-PaymentMode = Literal["AUTHORIZE", "VAULT"]
+PaymentMode = Literal["AUTHORIZE", "VAULT", "CAPTURE"]
 
 
 def _parse_arrival(raw: Optional[str]) -> Optional[dt.datetime]:

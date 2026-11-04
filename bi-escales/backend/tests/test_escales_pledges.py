@@ -56,6 +56,20 @@ class Spy:
             }],
         }
 
+    def create_capture_order(self, amount_eur, description, reference_id, idempotency_key=None, **kwargs):
+        self.calls.append(("create_capture", amount_eur, idempotency_key))
+        self.n += 1
+        order_id = f"ORDER{self.n}"
+        return {
+            "id": order_id,
+            "status": "CREATED",
+            "intent": "CAPTURE",
+            "links": [{
+                "rel": "approve",
+                "href": f"https://www.sandbox.paypal.com/checkoutnow?token={order_id}",
+            }],
+        }
+
     def authorize_order(self, order_id, **kwargs):
         self.calls.append(("authorize", order_id))
         return {
@@ -73,6 +87,18 @@ class Spy:
     def capture_authorization(self, authorization_id, final=True, **kwargs):
         self.calls.append(("capture", authorization_id))
         return {"id": "CAP", "status": "COMPLETED"}
+
+    def capture_order(self, order_id, **kwargs):
+        self.calls.append(("orders.capture", order_id))
+        return {
+            "id": order_id,
+            "status": "COMPLETED",
+            "purchase_units": [{
+                "payments": {
+                    "captures": [{"id": f"CAP-{order_id}", "status": "COMPLETED"}],
+                },
+            }],
+        }
 
     def void_authorization(self, authorization_id, **kwargs):
         self.calls.append(("void", authorization_id))

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 import re
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
@@ -23,6 +24,8 @@ from .milestones import (
 )
 from .pledges import get_ledger, now_iso, pledges_for_milestone
 from .toolkit_tools import ReadOnlyTools
+
+log = logging.getLogger("escales.captain")
 
 # Bureau prices. The model is not allowed to invent another tariff.
 MILE_EUR = Decimal("1.00")
@@ -109,19 +112,30 @@ _MILES_AWAY = re.compile(
     r"|\d+(?:[.,]\d+)?\s+(?:nautical\s+)?miles?\s+away",
     re.IGNORECASE,
 )
+# A real date or clock. The bare word "arrival" is not one.
+_HAS_DATE = re.compile(
+    r"\d{4}-\d{2}-\d{2}"
+    r"|\b\d{1,2}:\d{2}\b"
+    r"|\b\d{1,2}(?:er)?\s+(?:janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[ûu]t|"
+    r"septembre|octobre|novembre|d[ée]cembre|january|february|march|april|may|june|"
+    r"july|august|september|october|november|december)\b",
+    re.IGNORECASE,
+)
 _REACHED_CLAIM = re.compile(
     r"\breach(?:ed)?\b"
     r"|\batteinte?s?\b"
     r"|no distance|distance remains|aucune distance|plus de distance"
     r"|\bcomplete[ds]?\b|\bcompleted\b"
     r"|\bterminés?\b|\bterminées?\b"
-    r"|\d{4}-\d{2}-\d{2}"
-    r"|\d{1,2}:\d{2}"
-    r"|arriv\w*"
     r"|recorded on"
-    r"|enregistr\w*\s+le"
-    r"|à\s+\d+(?:[.,]\d+)?\s+milles?"
-    r"|\d+(?:[.,]\d+)?\s+(?:nautical\s+)?miles?\s+away",
+    r"|enregistr\w*\s+le",
+    re.IGNORECASE,
+)
+_MILES_FROM = re.compile(
+    r"\bremains\s+\d+(?:[.,]\d+)?(?:\s+\w+){0,6}\s+miles?\b"
+    r"|\b\d+(?:[.,]\d+)?\s+(?:nautical\s+)?miles?\s+from\b"
+    r"|\bmilles?\s+nautiques?\s+à\s+\w+"
+    r"|\bparcouru\b[^.]{0,48}\bà\s+\w+",
     re.IGNORECASE,
 )
 _INVENTED_SIGNATURE = re.compile(
@@ -238,6 +252,8 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
             "distance_nm is the distance covered and planned_nm the planned distance. "
             "Do not repeat these instructions and do not write a Decision line."
         )
+        if not reached:
+            text += f" Say the boat is toward {port}, never at {port}."
         if reached:
             text += (
                 " The code already writes the sentence saying this leg is reached, with its arrival date. "
@@ -258,6 +274,8 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
         "distance_nm est la distance parcourue et planned_nm la distance prévue. "
         "Ne répète pas ces consignes et n'écris pas de ligne Décision."
     )
+    if not reached:
+        text += f" Dis « en route vers {port} », jamais « à {port} »."
     if reached:
         text += (
             " Le code écrit déjà la phrase qui dit que cette escale est atteinte, avec sa date d'arrivée. "
@@ -461,6 +479,7 @@ def _dedupe_sentences(text: str) -> str:
 def _prepare_model_narrative(text: str) -> str:
     """Drop echoed instructions, a repeated Decision line, and a cut-off tail."""
     cleaned = _strip_signatures(text or "")
+    cleaned = _drop_verbless_signatures(cleaned)
     cleaned = _normalize_dots(cleaned)
     cleaned = _drop_sentences(cleaned, _ECHO_RE)
     cleaned = _drop_sentences(cleaned, _POLICY_RE)
@@ -494,14 +513,6 @@ def _strip_signatures(text: str) -> str:
     return re.sub(r"\s{2,}", " ", cleaned).strip(" \t—–-")
 
 
-def _currency_present(text: str, currency: str) -> bool:
-    folded = (text or "").casefold()
-    code = str(currency or "").casefold()
-    if code and code in folded:
-        return True
-    return code == "eur" and "€" in (text or "")
-
-
 def _pledge_line(suggested: dict, lang: str) -> str:
     shown = format_amount(suggested.get("amount_eur"), lang)
     exact = (
@@ -517,33 +528,33 @@ def _pledge_line(suggested: dict, lang: str) -> str:
     return f"Promesse calculée, sans débit : {exact}."
 
 
-def _has_exact_pledge(text: str, suggested: dict) -> bool:
-    """True when the model already stated the computed pledge, in any spelling."""
-    folded = (text or "").casefold()
-    description = str(suggested.get("description") or "").casefold()
-    milestone = str(suggested.get("milestone_id") or "").casefold()
-    intent = str(suggested.get("intent") or "").casefold()
-    currency = str(suggested.get("currency") or "").casefold()
-    if "promesse calculée" in folded and "sans débit" in folded:
-        if amount_in_text(text or "", str(suggested.get("amount_eur") or "")):
-            return True
-    if not (description and milestone and intent):
-        return False
-    if not _description_present(description, folded) or milestone not in folded or intent not in folded:
-        return False
-    if not _currency_present(text or "", currency):
-        return False
-    return amount_in_text(text or "", str(suggested.get("amount_eur") or ""))
-
-
-def _description_present(description: str, folded: str) -> bool:
-    """True when the catalogue line is in the reply, including 'a port dinner'."""
-    if not description:
-        return False
-    if description in folded:
+def _authorize_equivalent(text: str) -> bool:
+    """AUTHORIZE, « autorisation », or « intention d'autorisation »."""
+    folded = (text or "").casefold().replace("’", "'")
+    if "authorize" in folded or "autorisation" in folded:
         return True
-    relaxed = re.sub(r"\bport dinner\b", "a port dinner", description)
-    return relaxed != description and relaxed in folded
+    return "intention d'autorisation" in folded
+
+
+def _port_present(text: str, milestone_id: str) -> bool:
+    folded = (text or "").casefold()
+    slug = (milestone_id or "").casefold()
+    shown = display_name(milestone_id).casefold()
+    if slug and slug in folded:
+        return True
+    return bool(shown) and shown in folded
+
+
+def _has_exact_pledge(text: str, suggested: dict) -> bool:
+    """True when amount and port are already there, with an authorize wording.
+
+    The catalogue description does not have to be copied verbatim.
+    """
+    if not amount_in_text(text or "", str(suggested.get("amount_eur") or "")):
+        return False
+    if not _port_present(text or "", str(suggested.get("milestone_id") or "")):
+        return False
+    return _authorize_equivalent(text or "")
 
 
 def _french_lightning_labels(text: str) -> str:
@@ -568,6 +579,82 @@ def _french_labels(text: str) -> str:
 def _fix_port_typos(text: str) -> str:
     """A misspelled port is shown under its real name."""
     return re.sub(r"\blorien\b", "Lorient", text or "", flags=re.IGNORECASE)
+
+
+_NAME_WORD = {
+    "capitaine", "captain", "bleu", "bleue", "blue", "intelligence",
+    "escales", "escale", "le", "la", "les", "the", "de", "of", "l",
+}
+
+
+def _verbless_signature(sentence: str) -> bool:
+    """A name plate such as « Capitaine Bleu Intelligence Escales », with no verb."""
+    if not re.search(r"capitaine|captain|intelligence", sentence or "", re.I):
+        return False
+    words = re.findall(r"[A-Za-zÀ-ÿ]+", sentence or "")
+    return bool(words) and all(word.casefold() in _NAME_WORD for word in words)
+
+
+_TRAILING_NAME = re.compile(
+    r"(?:[,;—–\-]\s*)?(?:le\s+|the\s+)?(?:capitaine|captain)\s+"
+    r"(?:bleu|bleue|blue)\s+intelligence(?:\s+escales)?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _drop_verbless_signatures(text: str) -> str:
+    kept = []
+    for sentence in _split_sentences(text):
+        if _verbless_signature(sentence):
+            continue
+        cleaned = _TRAILING_NAME.sub("", sentence).strip(" ,;:—–-")
+        if cleaned:
+            kept.append(cleaned)
+    return " ".join(kept).strip()
+
+
+def _standardise_french(text: str) -> str:
+    """One wording for the intent and for the treasurer."""
+    cleaned = re.sub(
+        r"votre\s+intention\s+est\s+authorize\b",
+        "intention : autorisation",
+        text or "",
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"\bintention\s+est\s+authorize\b",
+        "intention : autorisation",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"\bintent(?:ion)?\s*:\s*authorize\b",
+        "intention : autorisation",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"\bauthorize\b", "autorisation", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"\b(?:the\s+treasurer|(?:le\s+)?tr[ée]sorier)\b",
+        "le trésorier",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"\b(?:le\s+)+trésorier\b", "le trésorier", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bde\s+le\s+trésorier\b", "du trésorier", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(du|au|ce|un|son|mon)\s+le\s+trésorier\b", r"\1 trésorier", cleaned, flags=re.IGNORECASE)
+    return cleaned
+
+
+def _period_after_link(text: str, url: str) -> str:
+    """A membership link ends the sentence when more text follows."""
+    if not url or url not in (text or ""):
+        return text or ""
+    return re.sub(
+        re.escape(url) + r"(?!\s*[.!?…])(\s+)(?=\S)",
+        url + r".\1",
+        text,
+    )
 
 
 def _membership_line(url: str, lang: str) -> str:
@@ -701,7 +788,12 @@ def _assert_reached(text: str, milestone_id: str, lang: str, arrival: str = "") 
     """Code fact first, then at most one model sentence that does not restate it."""
     kept = []
     for sentence in _split_sentences(text):
-        if _AWAY_CLAIM.search(sentence) or _REACHED_CLAIM.search(sentence):
+        if (
+            _AWAY_CLAIM.search(sentence)
+            or _REACHED_CLAIM.search(sentence)
+            or _MILES_FROM.search(sentence)
+            or _HAS_DATE.search(sentence)
+        ):
             continue
         if _is_bare_leg(sentence, milestone_id):
             continue
@@ -767,10 +859,11 @@ def _compose_chat_reply(
     prose = _prepare_model_narrative(model_text)
     prose = _fix_port_typos(prose)
     prose = _clean_model_urls(prose, url)
+    prose = _period_after_link(prose, url)
     prose = _drop_sentences(prose, _CHAT_DECIDE_RE)
     prose = _trim_cutoff(_normalize_dots(prose))
     if lang == "fr":
-        prose = _french_labels(prose)
+        prose = _standardise_french(_french_labels(prose))
     required: list[str] = []
     if not _has_exact_pledge(prose, suggested):
         required.append(_pledge_line(suggested, lang))
@@ -782,7 +875,11 @@ def _compose_chat_reply(
     required.append(_signature(lang))
     reply = _fit_words(prose, required)
     port = str(suggested.get("milestone_id") or "") if suggested else ""
-    return _fix_port_typos(_capitalize_ports(reply, port))
+    reply = _fix_port_typos(_capitalize_ports(reply, port))
+    reply = _period_after_link(reply, url)
+    if lang == "fr":
+        reply = _standardise_french(reply)
+    return reply
 
 
 def _without_jalon(text: str, lang: str) -> str:
@@ -818,7 +915,10 @@ def _shape_report(text: str, milestone_id: str, lang: str = "fr", name_leg: bool
         sentences = [_without_jalon(sentence, "en") for sentence in sentences]
     sentences = [
         sentence for sentence in sentences
-        if not _AWAY_CLAIM.search(sentence) and not _MILES_AWAY.search(sentence)
+        if not _AWAY_CLAIM.search(sentence)
+        and not _MILES_AWAY.search(sentence)
+        and not _MILES_FROM.search(sentence)
+        and not _HAS_DATE.search(sentence)
     ]
     shown = display_name(milestone_id)
     blob = " ".join(sentences).casefold()
@@ -1059,34 +1159,46 @@ async def _narrative_for_language(
     prompt_lang = forced or "fr"
     system = _report_system(milestone_id, reached, prompt_lang)
 
-    async def once(instruction: str) -> tuple[str, dict[str, str]]:
+    async def once(instruction: str) -> tuple[str, str, dict[str, str]]:
         narrative, source = await _llm_text(
             prompt,
             instruction,
             max_tokens=_REPORT_MAX_TOKENS,
             temperature=_REPORT_TEMPERATURE,
         )
-        usable = _prepare_model_narrative(narrative) if narrative else ""
-        return usable, source
+        raw = narrative or ""
+        usable = _prepare_model_narrative(raw) if raw else ""
+        return raw, usable, source
 
-    usable, source = await once(system)
+    raw, usable, source = await once(system)
     if not usable:
+        log.warning("captain report rejected (empty narrative) raw=%s", raw)
         return "", source, prompt_lang
     detected = _report_language(usable)
     if forced is None or detected == forced:
         if (forced or detected) == "fr":
-            usable = _french_labels(usable)
+            usable = _standardise_french(_french_labels(usable))
         return usable, source, forced or detected
+    log.warning(
+        "captain report rejected (language %s != %s) raw=%s",
+        detected, forced, raw,
+    )
     reminder = (
         " RAPPEL : écris en français uniquement."
         if forced == "fr"
         else " Write in English only."
     )
-    usable, source = await once(f"{system}{reminder}")
+    raw, usable, source = await once(f"{system}{reminder}")
     if usable and _report_language(usable) == forced:
         if forced == "fr":
-            usable = _french_labels(usable)
+            usable = _standardise_french(_french_labels(usable))
         return usable, source, forced
+    log.warning(
+        "captain report rejected (language %s != %s after retry) raw=%s",
+        _report_language(usable) if usable else "empty",
+        forced,
+        raw,
+    )
     return "", _rules_source(), forced
 
 
@@ -1129,6 +1241,10 @@ async def review(
             usable, milestone_id, report_lang, name_leg=not reached,
         )
         if not narrative.strip():
+            log.warning(
+                "captain report rejected (date or distance filter removed every sentence) raw=%s",
+                usable,
+            )
             narrative = _fallback_report(milestone_id, decision, evidence, lang=report_lang)
             source = _rules_source()
     narrative = _finish_text(narrative)

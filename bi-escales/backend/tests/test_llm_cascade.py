@@ -173,7 +173,7 @@ def test_cascade_order_puts_nebius_last_and_rules_after_it():
     assert llm.CASCADE == (
         "nim", "nim_fallback", "openrouter", "anthropic", "tokenfactory", "rules",
     )
-    assert llm.NIM_MODEL == llm.NIM_MODEL_DEFAULT == "nvidia/nemotron-3.5-super-vl-120b-a12b"
+    assert llm.NIM_MODEL == llm.NIM_MODEL_DEFAULT == "private/nvidia/nemotron-3.5-super-120b-a12b"
     assert llm.NIM_FALLBACK_MODEL_DEFAULT == "nvidia/nemotron-3.5-lightning-30b-a3b"
     module = Path(llm.__file__).read_text(encoding="utf-8")
     assert '{"thinking": False}' not in module
@@ -205,7 +205,7 @@ def test_env_example_lists_flags_and_empty_keys():
         assert any(line.startswith(f"{name}=") for line in lines)
     assert "ESCALES_LLM_TIMEOUT_S=10" in lines
     assert "NIM_TEMPERATURE=" in lines
-    assert "NIM_MODEL=nvidia/nemotron-3.5-super-vl-120b-a12b" in lines
+    assert "NIM_MODEL=private/nvidia/nemotron-3.5-super-120b-a12b" in lines
     assert "NIM_FALLBACK_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b" in lines
     assert "NIM_TOP_P=0.95" in lines
     assert "NIM_MAX_TOKENS=400" in lines
@@ -858,5 +858,32 @@ def test_report_temperature_is_about_0_2_unless_nim_env_overrides(monkeypatch):
         assert "Dep-Mayotte" not in result["report"]
         assert "dep-" not in result["report"].lower()
         assert result["proposal"] == "capture"
+
+    asyncio.run(body())
+
+
+def test_private_nim_id_is_the_default_and_a_404_is_counted(monkeypatch, caplog):
+    assert llm.NIM_MODEL_DEFAULT.startswith("private/nvidia/nemotron-3.5-super-120b-a12b")
+    render = (Path(__file__).resolve().parents[2] / "render.yaml").read_text(encoding="utf-8")
+    assert "private/nvidia/nemotron-3.5-super-120b-a12b" in render
+    assert "returns 404" in render
+    llm.reset_nim_404_fallbacks()
+    _enable("nim")
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [
+            httpx.Response(404, json={"error": {"message": "model not found"}}),
+            _openai("secours", llm.NIM_FALLBACK_MODEL_DEFAULT),
+        ],
+    })
+
+    async def body():
+        with caplog.at_level("WARNING"):
+            result = await llm.ask_text("preuve", client=client)
+        assert result.text == "secours"
+        assert result.model == llm.NIM_FALLBACK_MODEL_DEFAULT
+        assert seen[0]["model"] == llm.NIM_MODEL_DEFAULT
+        assert llm.nim_404_fallback_count() == 1
+        assert "returned 404" in caplog.text
+        await client.aclose()
 
     asyncio.run(body())

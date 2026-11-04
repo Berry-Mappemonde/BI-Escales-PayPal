@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, fetchFund, fetchHealth, fetchSchedule, readPaypalReturn, recordSpending } from "./api/escales";
+import { authorizePledge, fetchFund, fetchHealthRetrying, fetchSchedule, readPaypalReturn, recordSpending } from "./api/escales";
 import { nextStopover } from "./voyage/nextStopover.js";
 import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
@@ -113,10 +113,20 @@ export default function App() {
   const cumNm = Number(sample?.sailNm ?? sample?.cumNm ?? 0);
 
   useEffect(() => {
-    void fetchHealth().then(() => setHealthOk(true)).catch(() => setHealthOk(false));
+    let cancelled = false;
+    void fetchHealthRetrying()
+      .then(() => {
+        if (!cancelled) setHealthOk(true);
+      })
+      .catch(() => {
+        if (!cancelled) setHealthOk((current) => (current === true ? true : false));
+      });
     void fetchSchedule().then(setSchedule).catch(() => setSchedule(null));
     void fetchJson("/route.geojson").then(setRouteFc).catch(() => setRouteFc(null));
     void fetchJson("/bi-projects.geojson").then(setProjects).catch(() => setProjects({ features: [] }));
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -223,7 +233,10 @@ export default function App() {
     if (!parsed.pledgeId) return;
     setPaypalNote("authorizing");
     void authorizePledge(parsed.pledgeId)
-      .then((pledge) => onAuthorized(pledge))
+      .then((pledge) => {
+        onAuthorized(pledge);
+        setHealthOk(true);
+      })
       .catch((err: unknown) => {
         setPaypalNote(err instanceof Error ? err.message : String(err));
       });
@@ -421,7 +434,6 @@ export default function App() {
           <div>
             <ProjectList
               projects={projects}
-              routeStops={voyage?.stops || []}
               selectedProjectId={selectedProjectId}
               onSelectProject={setSelectedProjectId}
               contributor={contributor}

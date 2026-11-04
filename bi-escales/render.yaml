@@ -59,6 +59,11 @@ services:
         sync: false
       - key: NVIDIA_API_KEY
         sync: false
+      # NIM_MODEL is the id sent on the primary hop.
+      # Old id nvidia/nemotron-3.5-super-vl-120b-a12b returns 404.
+      # nvidia/nemotron-3.5-super-120b-a12b (no private/ prefix) returns 404 too.
+      # Send private/nvidia/nemotron-3.5-super-120b-a12b.
+      # model_source.model is the model that answered: lightning means the fallback hop ran.
       - key: NIM_MODEL
         sync: false
       - key: ESCALES_VAULT_ENABLED

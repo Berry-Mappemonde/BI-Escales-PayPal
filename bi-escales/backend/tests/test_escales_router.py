@@ -468,6 +468,31 @@ def test_capture_ok_with_admin_key(api):
     assert ("capture", "AUTH-ORDER1") in fake.calls
 
 
+def test_void_records_void_id_and_voided_at(api):
+    """A void keeps PayPal's id when the body has one, else the authorization id."""
+    client, fake = api
+    _created, authorized = _ready(client, "void-stamp")
+
+    def void_authorization(authorization_id):
+        fake.calls.append(("void", authorization_id))
+        return {"id": "VOID-1", "status": "VOIDED"}
+
+    fake.void_authorization = void_authorization
+    stamped = client.post(f"/api/escales/pledges/{authorized['id']}/void", headers=ADMIN)
+    assert stamped.status_code == 200, stamped.text
+    body = stamped.json()
+    assert body["status"] == "voided"
+    assert body["void_id"] == "VOID-1"
+    assert body["voided_at"].endswith("Z") or "+" in body["voided_at"]
+
+    _other, second = _ready(client, "void-fallback")
+    fake.void_authorization = lambda authorization_id: {}
+    fallback = client.post(f"/api/escales/pledges/{second['id']}/void", headers=ADMIN)
+    assert fallback.status_code == 200, fallback.text
+    assert fallback.json()["void_id"] == second["authorization_id"]
+    assert fallback.json()["voided_at"]
+
+
 def test_void_with_admin_key(api):
     client, fake = api
     _created, authorized = _ready(client, "void-ok")

@@ -180,6 +180,9 @@ async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> d
         "evidence_flag": evidence.get("flag"),
         "at": now_iso(),
     }
+    from .provisioning_channel3 import attach_provisioning
+
+    proposal = attach_provisioning(proposal, milestone_id)
     await get_ledger().set_proposal(milestone_id, proposal)
     from .audit import record
     await record(

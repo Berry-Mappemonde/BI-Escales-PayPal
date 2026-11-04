@@ -32,6 +32,34 @@ def toolkit_enabled() -> bool:
     return os.environ.get("ESCALES_TOOLKIT_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def naviguide_bridge_enabled() -> bool:
+    return os.environ.get("ESCALES_NAVIGUIDE_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def elastic_evidence_enabled() -> bool:
+    return os.environ.get("ESCALES_ELASTIC_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def kernel_evidence_enabled() -> bool:
+    return os.environ.get("ESCALES_KERNEL_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def channel3_enabled() -> bool:
+    return os.environ.get("ESCALES_CHANNEL3_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def bryntum_scheduler_enabled() -> bool:
+    return os.environ.get("ESCALES_BRYNTUM_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def naviguide_json_path() -> str:
+    return (os.environ.get("ESCALES_NAVIGUIDE_JSON") or "").strip()
+
+
+def naviguide_api_base() -> str:
+    return (os.environ.get("NAVIGUIDE_API_URL") or "http://127.0.0.1:8010").strip().rstrip("/")
+
+
 def load_config() -> EscalesConfig:
     env = (os.environ.get("PAYPAL_ENV") or "sandbox").strip().lower()
     if env != "sandbox":

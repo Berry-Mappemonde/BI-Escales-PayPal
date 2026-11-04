@@ -324,3 +324,20 @@ def test_main_registers_escales_only_when_enabled():
         if line.startswith("from app.routers import") and "escales" in line:
             raise AssertionError("escales must be imported only inside the ESCALES_ENABLED branch")
     assert "\n    from app.routers import escales\n" in text
+
+
+def test_schedule_local_fallback(api):
+    client, _fake = api
+    response = client.get("/api/escales/schedule")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source"] == "local"
+    assert any(row["_id"] == "dep-mayotte" for row in body["milestones"])
+
+
+def test_features_flags_off_by_default(api):
+    client, _fake = api
+    flags = client.get("/api/escales/features").json()
+    assert flags["naviguide_bridge"] is False
+    assert flags["bryntum"] is False
+

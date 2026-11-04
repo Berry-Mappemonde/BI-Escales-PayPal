@@ -74,9 +74,14 @@ def simulation_evidence(met: Optional[bool], facts: Optional[dict]) -> dict:
 
 
 async def record_evidence(milestone_id: str, met: Optional[bool], facts: Optional[dict]) -> dict:
+    from . import evidence_elastic, evidence_kernel
     from .pledges import get_ledger
 
-    evidence = simulation_evidence(met, facts)
+    evidence = await evidence_elastic.build_evidence(milestone_id, met, facts)
+    if evidence is None:
+        evidence = await evidence_kernel.build_evidence(milestone_id, met, facts)
+    if evidence is None:
+        evidence = simulation_evidence(met, facts)
     await get_ledger().append_evidence(milestone_id, evidence)
     return evidence
 

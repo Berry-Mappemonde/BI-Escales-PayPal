@@ -17,8 +17,21 @@ from starlette.responses import Response
 
 from app.escales.captain import chat as captain_chat
 from app.escales.captain import review as captain_review
-from app.escales.config import escales_enabled, load_config
+from app.escales.config import (
+    bryntum_scheduler_enabled,
+    channel3_enabled,
+    elastic_evidence_enabled,
+    escales_enabled,
+    kernel_evidence_enabled,
+    load_config,
+    naviguide_bridge_enabled,
+)
 from app.escales.milestones import list_milestones, record_evidence
+from app.escales.naviguide_bridge import (
+    escales_to_milestones,
+    fetch_naviguide_export,
+    sync_milestone_shells,
+)
 from app.escales.paypal_client import PayPalClient, PayPalError
 from app.escales.pledges import (
     IllegalTransition,
@@ -120,8 +133,36 @@ def _public_milestone(doc: dict) -> dict:
         "id": doc.get("_id"),
         "evidence": doc.get("evidence") or [],
         "proposal": doc.get("proposal"),
+        "meta": doc.get("meta"),
         "updated_at": doc.get("updated_at"),
     }
+
+
+@router.get("/features")
+async def get_features():
+    return {
+        "naviguide_bridge": naviguide_bridge_enabled(),
+        "elastic": elastic_evidence_enabled(),
+        "kernel": kernel_evidence_enabled(),
+        "channel3": channel3_enabled(),
+        "bryntum": bryntum_scheduler_enabled(),
+    }
+
+
+@router.get("/schedule")
+async def get_schedule():
+    export = await fetch_naviguide_export()
+    return {
+        "export": export,
+        "milestones": escales_to_milestones(export),
+        "source": "naviguide" if naviguide_bridge_enabled() else "local",
+    }
+
+
+@router.post("/schedule/sync")
+async def post_schedule_sync():
+    docs = await sync_milestone_shells()
+    return [_public_milestone(doc) for doc in docs]
 
 
 @router.post("/pledges")

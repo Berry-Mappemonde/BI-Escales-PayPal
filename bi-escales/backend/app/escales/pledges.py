@@ -147,6 +147,23 @@ class MemoryLedger:
             doc = self._milestones.get(milestone_id)
             return copy.deepcopy(doc) if doc else None
 
+    async def ensure_milestone(self, milestone_id: str, meta: Optional[dict] = None) -> dict:
+        with self._lock:
+            doc = self._milestones.get(milestone_id)
+            if doc is None:
+                doc = {
+                    "_id": milestone_id,
+                    "evidence": [],
+                    "proposal": None,
+                    "meta": copy.deepcopy(meta or {}),
+                    "updated_at": now_iso(),
+                }
+                self._milestones[milestone_id] = doc
+            elif meta:
+                doc["meta"] = {**(doc.get("meta") or {}), **copy.deepcopy(meta)}
+                doc["updated_at"] = now_iso()
+            return copy.deepcopy(doc)
+
     async def list_milestones(self) -> list[dict]:
         with self._lock:
             return [copy.deepcopy(doc) for doc in self._milestones.values()]
@@ -242,6 +259,28 @@ class MongoLedger:
     async def get_milestone(self, milestone_id: str) -> Optional[dict]:
         await self._ensure()
         return await self._milestones.find_one({"_id": milestone_id})
+
+    async def ensure_milestone(self, milestone_id: str, meta: Optional[dict] = None) -> dict:
+        await self._ensure()
+        existing = await self._milestones.find_one({"_id": milestone_id})
+        if existing is None:
+            doc = {
+                "_id": milestone_id,
+                "evidence": [],
+                "proposal": None,
+                "meta": copy.deepcopy(meta or {}),
+                "updated_at": now_iso(),
+            }
+            await self._milestones.insert_one(doc)
+            return doc
+        if meta:
+            merged = {**(existing.get("meta") or {}), **copy.deepcopy(meta)}
+            await self._milestones.update_one(
+                {"_id": milestone_id},
+                {"$set": {"meta": merged, "updated_at": now_iso()}},
+            )
+            existing = await self._milestones.find_one({"_id": milestone_id})
+        return existing or {"_id": milestone_id, "evidence": [], "proposal": None, "meta": meta or {}}
 
     async def list_milestones(self) -> list[dict]:
         await self._ensure()

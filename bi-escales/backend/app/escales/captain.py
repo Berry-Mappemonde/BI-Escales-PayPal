@@ -15,7 +15,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
-from .config import AUTH_MAX_DAYS, membership_url
+from .config import AUTH_MAX_DAYS, membership_url, simulated_now
 from .milestones import (
     amount_in_text,
     decision_for,
@@ -2632,12 +2632,55 @@ def _cabin_price_reply(lang: str) -> str:
     return _fit_words("", [prose, _signature(lang)])
 
 
+_PAYPAL_READONLY = re.compile(
+    r"\b(?:paypal\s+)?(?:transaction|dispute|order|authorization)s?\b",
+    re.IGNORECASE,
+)
+
+
+def _paypal_search_window() -> tuple[str, str]:
+    end = simulated_now().replace(microsecond=0)
+    start = end - dt.timedelta(days=7)
+    return start.isoformat(), end.isoformat()
+
+
+def _paypal_readonly_reply(message: str, lang: str, reader: ReadOnlyTools) -> Optional[str]:
+    if not _PAYPAL_READONLY.search(message or ""):
+        return None
+    if re.search(r"\bdisputes?\b", message, re.I):
+        payload = reader.get("disputes.list")
+        items = payload.get("items") if isinstance(payload, dict) else []
+        count = len(items or [])
+        if lang == "en":
+            return f"PayPal disputes (read-only): {count} open item(s)."
+        return f"Litiges PayPal (lecture seule) : {count} dossier(s)."
+    if re.search(r"\btransactions?\b", message, re.I):
+        start, end = _paypal_search_window()
+        payload = reader.get("transactions.search", f"{start}|{end}")
+        details = payload.get("transaction_details") if isinstance(payload, dict) else []
+        count = len(details or [])
+        if lang == "en":
+            return (
+                f"PayPal transactions from {start[:10]} to {end[:10]} (read-only): "
+                f"{count} row(s)."
+            )
+        return (
+            f"Transactions PayPal du {start[:10]} au {end[:10]} (lecture seule) : "
+            f"{count} ligne(s)."
+        )
+    tools = ", ".join(reader.allowed())
+    if lang == "en":
+        return f"Read-only PayPal tools available: {tools}."
+    return f"Outils PayPal en lecture seule disponibles : {tools}."
+
+
 async def chat(
     message: str,
     *,
     treasurer: bool = False,
     lang: Optional[str] = None,
     accept_language: str = "",
+    reader: Optional[ReadOnlyTools] = None,
 ) -> dict:
     """Help a contributor phrase a pledge and offer the HelloAsso membership URL.
 
@@ -2649,6 +2692,18 @@ async def chat(
         raise ValueError("message is required")
     url = membership_url()
     lang = resolve_chat_lang(text, lang, accept_language)
+    if treasurer and reader is not None:
+        tool_reply = _paypal_readonly_reply(text, lang, reader)
+        if tool_reply:
+            return {
+                "reply": _fit_words("", [tool_reply, _signature(lang)]),
+                "membership_url": url,
+                "suggested_pledge": None,
+                "cart": None,
+                "model_source": "paypal_readonly_tools",
+                "fund": None,
+                "paypal_tools": list(reader.allowed()),
+            }
     if _is_capture_rule_question(text):
         return {
             "reply": _capture_rule_reply(lang),

@@ -44,6 +44,29 @@ def authorization_from(order: dict) -> tuple[str, Optional[str]]:
     raise PayPalError(502, "authorization id missing")
 
 
+def vault_id_from_token(payload: dict) -> str:
+    """Payment token id from ``POST /v3/vault/payment-tokens``."""
+    token_id = payload.get("id")
+    if token_id:
+        return str(token_id)
+    source = payload.get("payment_source") or {}
+    paypal = source.get("paypal") or {}
+    nested = paypal.get("vault_id") or paypal.get("id")
+    if nested:
+        return str(nested)
+    raise PayPalError(502, "vault id missing")
+
+
+def setup_token_approve_link(payload: dict) -> str:
+    for link in payload.get("links") or []:
+        rel = (link.get("rel") or "").lower()
+        href = link.get("href") or ""
+        if rel in {"approve", "payer-action", "approve-url"} and href:
+            return href
+    token_id = payload.get("id") or ""
+    return f"https://www.sandbox.paypal.com/agreements/approve?approval_session_id={token_id}"
+
+
 class PayPalClient:
     def __init__(self, cfg: EscalesConfig, transport: Optional[httpx.BaseTransport] = None):
         self.cfg = cfg
@@ -98,6 +121,38 @@ class PayPalClient:
             "/v2/checkout/orders",
             body,
             idempotency_key=idempotency_key or f"order-{reference_id}",
+        )
+
+    def create_authorize_vault_order(
+        self,
+        amount_eur: str,
+        description: str,
+        reference_id: str,
+        *,
+        return_url: str,
+        cancel_url: str,
+        idempotency_key: Optional[str] = None,
+    ) -> dict:
+        """Orders v2 AUTHORIZE with store_in_vault ON_SUCCESS (production vault path)."""
+        body = {
+            "intent": "AUTHORIZE",
+            "payment_source": {
+                "paypal": {
+                    "attributes": {"vault": {"store_in_vault": "ON_SUCCESS", "usage_type": "MERCHANT"}},
+                    "experience_context": {"return_url": return_url, "cancel_url": cancel_url},
+                },
+            },
+            "purchase_units": [{
+                "reference_id": reference_id[:256],
+                "description": description[:127],
+                "amount": {"currency_code": self.cfg.currency, "value": amount_eur},
+            }],
+        }
+        return self._req(
+            "POST",
+            "/v2/checkout/orders",
+            body,
+            idempotency_key=idempotency_key or f"vault-order-{reference_id}",
         )
 
     def authorize_order(self, order_id: str) -> dict:

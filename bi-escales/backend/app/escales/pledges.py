@@ -1,4 +1,7 @@
-"""Pledge state machine: created -> authorized -> captured | voided.
+"""Pledge state machine: created -> authorized | vaulted -> captured | voided.
+
+AUTHORIZE pledges: created -> authorized -> captured | voided.
+VAULT pledges (ESCALES_VAULT_ENABLED): created -> vaulted -> captured | voided.
 
 Nothing is captured or voided until a treasurer calls the matching route.
 Forbidden transitions raise ``IllegalTransition`` (HTTP 409 at the edge).
@@ -11,7 +14,7 @@ import uuid
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
-from .config import AUTH_MAX_DAYS
+from .config import AUTH_MAX_DAYS, vault_cancel_url, vault_return_url
 from .ledger import (
     COLLECTIONS,
     get_ledger,
@@ -19,7 +22,14 @@ from .ledger import (
     record_finance,
     reset_ledger,
 )
-from .paypal_client import PayPalError, approve_link, authorization_from
+from .payment_mode import PaymentMode, select_payment_mode
+from .paypal_client import (
+    PayPalError,
+    approve_link,
+    authorization_from,
+    setup_token_approve_link,
+    vault_id_from_token,
+)
 
 PLEDGES_COLLECTION = "escales_pledges"
 MILESTONES_COLLECTION = "escales_milestones"
@@ -92,6 +102,19 @@ async def require_pledge(pledge_id: str) -> dict:
     return doc
 
 
+async def _milestone_arrival(milestone_id: str) -> Optional[str]:
+    doc = await get_ledger().get_milestone(milestone_id)
+    if not doc:
+        return None
+    meta = doc.get("meta") or {}
+    return meta.get("arrival_iso")
+
+
+async def resolve_payment_mode(milestone_id: str) -> PaymentMode:
+    arrival = await _milestone_arrival(milestone_id)
+    return select_payment_mode(arrival)
+
+
 async def create_pledge(
     *,
     amount_eur: str,
@@ -100,10 +123,40 @@ async def create_pledge(
     client: Any,
     client_key: Optional[str] = None,
     contributor: Optional[str] = None,
+    payment_mode: Optional[PaymentMode] = None,
 ) -> dict:
     amount = normalize_amount(amount_eur)
     description = _require_text(description, "description")
     milestone_id = _require_text(milestone_id, "milestone_id")
+    mode = payment_mode or await resolve_payment_mode(milestone_id)
+    if mode == "VAULT":
+        return await _create_vault_pledge(
+            amount=amount,
+            description=description,
+            milestone_id=milestone_id,
+            client=client,
+            client_key=client_key,
+            contributor=contributor,
+        )
+    return await _create_authorize_pledge(
+        amount=amount,
+        description=description,
+        milestone_id=milestone_id,
+        client=client,
+        client_key=client_key,
+        contributor=contributor,
+    )
+
+
+async def _create_authorize_pledge(
+    *,
+    amount: str,
+    description: str,
+    milestone_id: str,
+    client: Any,
+    client_key: Optional[str],
+    contributor: Optional[str],
+) -> dict:
     key = _client_key(client_key)
     ledger = get_ledger()
     if key:
@@ -130,6 +183,7 @@ async def create_pledge(
         "client_key": key,
         "status": "created",
         "intent": "AUTHORIZE",
+        "payment_mode": "AUTHORIZE",
         "currency": "EUR",
         "amount_eur": amount,
         "description": description,
@@ -139,6 +193,8 @@ async def create_pledge(
         "approve_link": approve_link(order),
         "authorization_id": None,
         "authorization_expires_at": None,
+        "vault_id": None,
+        "setup_token_id": None,
         "created_at": now_iso(),
         "history": ["created"],
     }
@@ -152,7 +208,101 @@ async def create_pledge(
             currency="EUR",
             order_id=order_id,
             status="created",
+            payment_mode="AUTHORIZE",
         )
+    return saved
+
+
+async def _create_vault_pledge(
+    *,
+    amount: str,
+    description: str,
+    milestone_id: str,
+    client: Any,
+    client_key: Optional[str],
+    contributor: Optional[str],
+) -> dict:
+    key = _client_key(client_key)
+    ledger = get_ledger()
+    if key:
+        existing = await ledger.find_by_client_key(key)
+        if existing:
+            return existing
+    pledge_id = uuid.uuid4().hex
+    idempotency_key = key or uuid.uuid4().hex
+    setup = client.create_setup_token(vault_return_url(), vault_cancel_url())
+    setup_id = setup.get("id")
+    if not setup_id:
+        raise PayPalError(502, "setup token id missing")
+    if key:
+        existing = await ledger.find_by_client_key(key)
+        if existing:
+            return existing
+    doc = {
+        "_id": pledge_id,
+        "client_key": key,
+        "status": "created",
+        "intent": "VAULT",
+        "payment_mode": "VAULT",
+        "currency": "EUR",
+        "amount_eur": amount,
+        "description": description,
+        "milestone_id": milestone_id,
+        "contributor": (contributor or "").strip() or None,
+        "order_id": None,
+        "approve_link": setup_token_approve_link(setup),
+        "authorization_id": None,
+        "authorization_expires_at": None,
+        "vault_id": None,
+        "setup_token_id": str(setup_id),
+        "created_at": now_iso(),
+        "history": ["created"],
+    }
+    saved = await ledger.insert_pledge_once(doc)
+    if saved.get("_id") == pledge_id and saved.get("history") == ["created"]:
+        await record_finance(
+            "pledge_created",
+            pledge_id=pledge_id,
+            milestone_id=milestone_id,
+            amount_eur=amount,
+            currency="EUR",
+            setup_token_id=str(setup_id),
+            status="created",
+            payment_mode="VAULT",
+        )
+    return saved
+
+
+async def register_vault_pledge(
+    pledge_id: str,
+    client: Any,
+    *,
+    setup_token_id: Optional[str] = None,
+) -> dict:
+    """Exchange an approved setup token for a vaulted payment method (no debit)."""
+    pledge = await require_pledge(pledge_id)
+    _require_status(pledge, "created", "vaulted")
+    if pledge.get("payment_mode") != "VAULT":
+        raise IllegalTransition(str(pledge.get("status")), "vaulted")
+    token_id = (setup_token_id or pledge.get("setup_token_id") or "").strip()
+    if not token_id:
+        raise ValueError("setup_token_id is required")
+    payment_token = client.create_payment_token(token_id)
+    vault_id = vault_id_from_token(payment_token)
+    pledge["status"] = "vaulted"
+    pledge["vault_id"] = vault_id
+    pledge["setup_token_id"] = token_id
+    pledge["history"] = list(pledge.get("history") or []) + ["vaulted"]
+    saved = await get_ledger().save_pledge(pledge)
+    await record_finance(
+        "pledge_vaulted",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        amount_eur=saved.get("amount_eur"),
+        currency="EUR",
+        vault_id=vault_id,
+        status="vaulted",
+    )
     return saved
 
 
@@ -186,6 +336,39 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
 
 async def capture_pledge(pledge_id: str, client: Any) -> dict:
     pledge = await require_pledge(pledge_id)
+    mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
+    if mode == "VAULT":
+        _require_status(pledge, "vaulted", "captured")
+        vault_id = pledge.get("vault_id")
+        if not vault_id:
+            raise IllegalTransition("vaulted", "captured")
+        client.charge_vaulted(vault_id, pledge["amount_eur"], pledge_id)
+        pledge["status"] = "captured"
+        pledge["history"] = list(pledge.get("history") or []) + ["captured"]
+        saved = await get_ledger().save_pledge(pledge)
+        from .audit import record
+        await record(
+            "capture",
+            actor="treasurer",
+            pledge_id=saved["_id"],
+            milestone_id=saved.get("milestone_id"),
+            status="captured",
+            amount_eur=saved.get("amount_eur"),
+            currency="EUR",
+            payment_mode="VAULT",
+        )
+        await record_finance(
+            "pledge_captured",
+            pledge_id=saved["_id"],
+            milestone_id=saved.get("milestone_id"),
+            amount_eur=saved.get("amount_eur"),
+            currency="EUR",
+            vault_id=vault_id,
+            status="captured",
+            actor="treasurer",
+            payment_mode="VAULT",
+        )
+        return saved
     _require_status(pledge, "authorized", "captured")
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "captured")
@@ -218,6 +401,39 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
 
 async def void_pledge(pledge_id: str, client: Any) -> dict:
     pledge = await require_pledge(pledge_id)
+    mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
+    if mode == "VAULT":
+        _require_status(pledge, "vaulted", "voided")
+        vault_id = pledge.get("vault_id")
+        if not vault_id:
+            raise IllegalTransition("vaulted", "voided")
+        client.delete_payment_token(vault_id)
+        pledge["status"] = "voided"
+        pledge["history"] = list(pledge.get("history") or []) + ["voided"]
+        saved = await get_ledger().save_pledge(pledge)
+        from .audit import record
+        await record(
+            "void",
+            actor="treasurer",
+            pledge_id=saved["_id"],
+            milestone_id=saved.get("milestone_id"),
+            status="voided",
+            amount_eur=saved.get("amount_eur"),
+            currency="EUR",
+            payment_mode="VAULT",
+        )
+        await record_finance(
+            "pledge_voided",
+            pledge_id=saved["_id"],
+            milestone_id=saved.get("milestone_id"),
+            amount_eur=saved.get("amount_eur"),
+            currency="EUR",
+            vault_id=vault_id,
+            status="voided",
+            actor="treasurer",
+            payment_mode="VAULT",
+        )
+        return saved
     _require_status(pledge, "authorized", "voided")
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "voided")

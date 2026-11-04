@@ -60,6 +60,19 @@ def naviguide_api_base() -> str:
     return (os.environ.get("NAVIGUIDE_API_URL") or "http://127.0.0.1:8010").strip().rstrip("/")
 
 
+def vault_enabled() -> bool:
+    """PayPal Vault (setup tokens / vaulted capture). Off unless ESCALES_VAULT_ENABLED is truthy."""
+    return os.environ.get("ESCALES_VAULT_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def vault_return_url() -> str:
+    return (os.environ.get("ESCALES_VAULT_RETURN_URL") or "https://example.com/escales/vault/return").strip()
+
+
+def vault_cancel_url() -> str:
+    return (os.environ.get("ESCALES_VAULT_CANCEL_URL") or "https://example.com/escales/vault/cancel").strip()
+
+
 def webhooks_enabled() -> bool:
     """PayPal inbound webhooks. Off unless ESCALES_WEBHOOKS_ENABLED is truthy."""
     return os.environ.get("ESCALES_WEBHOOKS_ENABLED", "").strip().lower() in _TRUTHY

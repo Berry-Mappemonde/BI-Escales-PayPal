@@ -25,6 +25,7 @@ from app.escales.config import (
     kernel_evidence_enabled,
     load_config,
     naviguide_bridge_enabled,
+    vault_enabled,
     webhooks_enabled,
 )
 from app.escales.milestones import list_milestones, record_evidence
@@ -40,7 +41,9 @@ from app.escales.pledges import (
     authorize_pledge,
     capture_pledge,
     create_pledge,
+    register_vault_pledge,
     require_pledge,
+    resolve_payment_mode,
     to_public,
     void_pledge,
 )
@@ -98,6 +101,10 @@ class EvidenceIn(BaseModel):
 
 class ChatIn(BaseModel):
     message: str
+
+
+class VaultRegisterIn(BaseModel):
+    setup_token_id: Optional[str] = None
 
 
 def _paypal() -> Any:
@@ -161,6 +168,7 @@ async def get_features():
         "kernel": kernel_evidence_enabled(),
         "channel3": channel3_enabled(),
         "bryntum": bryntum_scheduler_enabled(),
+        "vault": vault_enabled(),
     }
 
 
@@ -184,6 +192,7 @@ async def post_schedule_sync():
 async def post_pledge(body: PledgeIn, request: Request):
     client_key = request.headers.get("paypal-request-id")
     try:
+        mode = await resolve_payment_mode(body.milestone_id)
         doc = await create_pledge(
             amount_eur=body.amount_eur,
             description=body.description,
@@ -191,10 +200,31 @@ async def post_pledge(body: PledgeIn, request: Request):
             contributor=body.contributor,
             client=_paypal(),
             client_key=client_key,
+            payment_mode=mode,
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
-    return to_public(doc)
+    public = to_public(doc)
+    public["payment_mode"] = doc.get("payment_mode") or doc.get("intent")
+    return public
+
+
+@router.post("/pledges/{pledge_id}/vault")
+async def post_register_vault(pledge_id: str, body: VaultRegisterIn):
+    """Store the PayPal payment method after setup-token approval (no debit)."""
+    if not vault_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+    try:
+        doc = await register_vault_pledge(
+            pledge_id,
+            _paypal(),
+            setup_token_id=body.setup_token_id,
+        )
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
+        raise _as_http(exc) from exc
+    public = to_public(doc)
+    public["payment_mode"] = doc.get("payment_mode") or "VAULT"
+    return public
 
 
 @router.post("/pledges/{pledge_id}/authorize")

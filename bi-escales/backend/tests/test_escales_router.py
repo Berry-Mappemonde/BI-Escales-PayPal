@@ -341,3 +341,4 @@ def test_features_flags_off_by_default(api):
     flags = client.get("/api/escales/features").json()
     assert flags["naviguide_bridge"] is False
     assert flags["bryntum"] is False
+    assert flags["vault"] is False

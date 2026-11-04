@@ -157,7 +157,11 @@ async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> d
     evidence = latest_evidence(milestone)
     decision = decision_for(evidence.get("met") if evidence else None)
     related = await pledges_for_milestone(milestone_id)
-    concerned = [pledge for pledge in related if pledge.get("status") == "authorized"]
+    concerned = [
+        pledge
+        for pledge in related
+        if pledge.get("status") in ("authorized", "vaulted")
+    ]
     for pledge in concerned:
         _read(reader, pledge)
     allowed = {

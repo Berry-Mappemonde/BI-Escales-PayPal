@@ -51,7 +51,8 @@
     "invalidAmount": "Invalid amount (use at most 2 decimal places).",
     "pledgeDescription": "Project pledge — {{title}}",
     "visitSite": "Project website",
-    "noDescription": "No description in the snapshot."
+    "noDescription": "No description in the snapshot.",
+    "publicTotal": "{{amount}} {{currency}} collected · {{count}} donations"
   },
   "marinas": {
     "heading": "Marinas",

@@ -51,7 +51,8 @@
     "invalidAmount": "Montant invalide (deux décimales maximum).",
     "pledgeDescription": "Promesse projet — {{title}}",
     "visitSite": "Site du projet",
-    "noDescription": "Pas de description dans l’instantané."
+    "noDescription": "Pas de description dans l’instantané.",
+    "publicTotal": "{{amount}} {{currency}} collectés · {{count}} dons"
   },
   "marinas": {
     "heading": "Marinas",

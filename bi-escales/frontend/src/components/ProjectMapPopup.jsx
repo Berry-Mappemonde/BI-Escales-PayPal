@@ -1,10 +1,13 @@
 /**
  * PayPal pledge block inside a Leaflet project marker popup.
- * Source: Clément lot 4 Nov 2025 — project popup PayPal on the map (plan canvas).
+ * Source: Clément lot 4 Nov 2025 — project popup PayPal on the map (plan canvas inventory).
+ * Public totals: N34 — pattern from TreasurerPanel OpenFundTotals + fetchFund (EscaleSheet fund-line).
  */
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { fetchPublicProjectFund } from "../api/escales";
 import { parseProjectPledgeAmount } from "../projects/projectPledgeAmount.js";
+import { subscribePledgeReturn } from "../paypal/pledgeReturnEvents";
 import { PledgeButton } from "./PledgeButton";
 
 const MIN_EUR = "1.00";
@@ -14,12 +17,41 @@ export function ProjectMapPopup({ properties, contributorDefault = "", onAuthori
   const props = properties || {};
   const [amount, setAmount] = useState(MIN_EUR);
   const [who, setWho] = useState(contributorDefault || "");
+  const [publicTotal, setPublicTotal] = useState(null);
+  const [fundTick, setFundTick] = useState(0);
   const title = props.title || props.id || "";
   const description = String(props.description || "").trim();
   const siteUrl = String(props.url || "").trim();
   const parsed = parseProjectPledgeAmount(amount);
   const pledgeDescription = t("projects.pledgeDescription", { title: props.title || props.id || "" });
   const lang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
+  const projectId = String(props.id || "").trim();
+
+  const loadPublicTotal = useCallback(async () => {
+    if (!projectId) {
+      setPublicTotal(null);
+      return;
+    }
+    const data = await fetchPublicProjectFund(projectId);
+    setPublicTotal(data);
+  }, [projectId]);
+
+  useEffect(() => {
+    void loadPublicTotal();
+  }, [loadPublicTotal, fundTick]);
+
+  useEffect(() => {
+    return subscribePledgeReturn((detail) => {
+      if (detail.outcome === "authorized") {
+        setFundTick((tick) => tick + 1);
+      }
+    });
+  }, []);
+
+  const handleAuthorized = (pledge) => {
+    setFundTick((tick) => tick + 1);
+    onAuthorized?.(pledge);
+  };
 
   return (
     <div className="project-map-popup-inner" data-testid="project-map-popup">
@@ -33,6 +65,15 @@ export function ProjectMapPopup({ properties, contributorDefault = "", onAuthori
           {t("projects.noDescription")}
         </p>
       )}
+      {publicTotal ? (
+        <p className="hint fund-line" data-testid="project-map-public-total">
+          {t("projects.publicTotal", {
+            amount: publicTotal.amount_eur,
+            currency: publicTotal.currency,
+            count: publicTotal.donation_count,
+          })}
+        </p>
+      ) : null}
       {siteUrl ? (
         <p className="project-map-popup-link-row">
           <a
@@ -86,7 +127,7 @@ export function ProjectMapPopup({ properties, contributorDefault = "", onAuthori
             lang,
           }}
           disabled={parsed.kind !== "ok"}
-          onAuthorized={onAuthorized}
+          onAuthorized={handleAuthorized}
         />
       </div>
     </div>

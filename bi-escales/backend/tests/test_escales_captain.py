@@ -586,19 +586,36 @@ def test_advisory_proposal_drops_a_false_expiry_under_29_days():
     assert voided["authorization_age_days"] == 28
     assert voided["authorization_valid"] is True
     assert "expired" not in (voided["reason"] or "").lower()
-    kept = captain.validate_advisory_proposal("void", "milestone not met", age_days=28)
+    kept = captain.validate_advisory_proposal(
+        "void", "milestone not met", age_days=28, met=False,
+    )
     assert kept["proposal"] == "void"
     assert kept["reason"] == "milestone not met"
     assert kept["dropped"] is False
+    assert kept["contradicted"] is False
+    assert kept["code_decision"] == "void"
     assert kept["advisory"] is True
     older = captain.validate_advisory_proposal(
+        "void",
+        "the 29-day authorization has expired",
+        age_days=29,
+        met=False,
+    )
+    assert older["proposal"] == "void"
+    assert older["authorization_valid"] is False
+    assert older["dropped"] is False
+    assert older["advisory"] is True
+    reauthorize = captain.validate_advisory_proposal(
         "reauthorize",
         "the 29-day authorization has expired",
         age_days=29,
+        met=False,
     )
-    assert older["proposal"] == "reauthorize"
-    assert older["authorization_valid"] is False
-    assert older["advisory"] is True
+    assert reauthorize["proposal"] is None
+    assert reauthorize["raw_proposal"] == "reauthorize"
+    assert reauthorize["code_decision"] == "void"
+    assert reauthorize["contradicted"] is True
+    assert reauthorize["dropped"] is True
 
 
 def test_review_labels_ask_json_as_advisory_and_drops_a_28_day_reauthorize(monkeypatch):
@@ -647,6 +664,182 @@ def test_review_labels_ask_json_as_advisory_and_drops_a_28_day_reauthorize(monke
         assert "Jalon" not in result["justification"]
         assert "Milestone" in result["report"]
         assert (await require_pledge(pledge["_id"]))["status"] == "authorized"
+
+    asyncio.run(body())
+
+
+def test_advisory_proposal_drops_a_decision_that_is_not_the_code_decision():
+    capture = captain.validate_advisory_proposal("capture", "the leg looks ready")
+    assert capture["dropped"] is True
+    assert capture["contradicted"] is True
+    assert capture["proposal"] is None
+    assert capture["raw_proposal"] == "capture"
+    assert capture["code_decision"] == "wait"
+    unmet = captain.validate_advisory_proposal("capture", "not validated", met=False)
+    assert unmet["dropped"] is True
+    assert unmet["contradicted"] is True
+    assert unmet["proposal"] is None
+    assert unmet["code_decision"] == "void"
+    matched = captain.validate_advisory_proposal("capture", "milestone met", met=True)
+    assert matched["dropped"] is False
+    assert matched["contradicted"] is False
+    assert matched["proposal"] == "capture"
+    assert matched["code_decision"] == "capture"
+
+
+def test_advisory_proposal_drops_a_one_day_expiry_claim():
+    english = captain.validate_advisory_proposal(
+        "void",
+        "Authorization expires in 1 day",
+        age_days=10,
+        met=False,
+    )
+    assert english["dropped"] is True
+    assert english["contradicted"] is True
+    assert english["authorization_valid"] is True
+    assert english["proposal"] is None
+    assert "expir" not in (english["reason"] or "").lower()
+    assert "1 day" not in (english["reason"] or "")
+    french = captain.validate_advisory_proposal(
+        "reauthorize",
+        "L'autorisation va expire dans un jour",
+        age_days=4,
+        met=True,
+    )
+    assert french["dropped"] is True
+    assert french["contradicted"] is True
+    assert french["proposal"] is None
+    assert french["code_decision"] == "capture"
+    assert french["authorization_valid"] is True
+    assert "expir" not in (french["reason"] or "").lower()
+    assert "jour" not in (french["reason"] or "").lower()
+
+
+def test_model_signature_collapses_to_one_in_both_languages(monkeypatch):
+    import app.core.llm as llm
+
+    replies = [
+        "Bien reçu. Capitaine de la Blue Intelligence Escales — Le capitaine",
+        "Noted. Blue Intelligence Escales Captain — The captain",
+    ]
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return replies.pop(0)
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        french = await chat("Je parraine 10 milles près de Brest")
+        french_reply = french["reply"]
+        assert "Blue Intelligence" not in french_reply
+        assert french_reply.lower().count("capitaine") == 1
+        assert french_reply.count("— Le capitaine") == 1
+        assert "The captain" not in french_reply
+        english = await chat("I'd like to sponsor 10 nautical miles near Brest")
+        english_reply = english["reply"]
+        assert "Blue Intelligence" not in english_reply
+        assert english_reply.lower().count("captain") == 1
+        assert english_reply.count("— The captain") == 1
+        assert "Le capitaine" not in english_reply
+
+    asyncio.run(body())
+
+
+def test_unset_membership_url_strips_invented_links(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return (
+            "Promesse notée. Membership: "
+            "https://www.helloasso.com/associations/berry-mappemonde/adhesions/adhesion-[?]-[?]."
+        )
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.delenv("HELLOASSO_MEMBERSHIP_URL", raising=False)
+
+    async def body():
+        result = await chat("Je parraine 120 milles près de Lorient")
+        reply = result["reply"]
+        assert result["membership_url"] == ""
+        assert "http" not in reply.lower()
+        assert "helloasso" not in reply.lower()
+        assert "adhesion" not in reply.lower()
+        assert "membership" not in reply.lower()
+        assert "adhésion" not in reply.lower()
+        assert "configur" not in reply.lower()
+        assert "[?]" not in reply
+        assert "120,00 €" in reply
+        assert reply.count("— Le capitaine") == 1
+
+    asyncio.run(body())
+
+
+def test_only_the_configured_membership_url_is_injected(monkeypatch):
+    import app.core.llm as llm
+
+    official = "https://www.helloasso.com/associations/blue-intelligence/adhesions/membre"
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "Membership: https://www.helloasso.com/associations/berry-mappemonde/adhesions/adhesion-2026."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setenv("HELLOASSO_MEMBERSHIP_URL", official)
+
+    async def body():
+        result = await chat("I'd like to sponsor 120 nautical miles near Lorient")
+        reply = result["reply"]
+        assert reply.count(official) == 1
+        assert "berry-mappemonde" not in reply
+        assert "adhesion-2026" not in reply
+        assert "[?]" not in reply
+        assert "120.00 EUR" in reply
+
+    asyncio.run(body())
+
+
+def test_reached_leg_prompt_says_there_is_no_remaining_distance(monkeypatch):
+    import app.core.llm as llm
+
+    seen = {}
+
+    async def fake_ask_text(prompt, system=None, **_kwargs):
+        seen["system"] = system
+        return "Lorient is 120 nautical miles away. The treasurer decides."
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson(
+            {"proposal": "capture", "reason": "looks reached"},
+            "nim",
+            "test-model",
+            "{}",
+        )
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+    prompt = captain._report_system("lorient", reached=True)
+    assert "This leg was reached." in prompt
+    assert "There is no remaining distance." in prompt
+    waiting = captain._report_system("lorient", reached=False)
+    assert "was reached" not in waiting
+    assert "no remaining distance" not in waiting
+
+    async def body():
+        await record_evidence("lorient", met=True, facts={"distance_nm": 120})
+        result = await review("lorient", reader=None)
+        assert "This leg was reached." in seen["system"]
+        assert "There is no remaining distance." in seen["system"]
+        assert "away" not in result["report"].lower()
+        assert "away" not in result["justification"].lower()
+        assert "no remaining distance" in result["report"].lower()
+        assert result["proposal"] == "capture"
+        advisory = result["llm_proposal"]
+        assert advisory["proposal"] == "capture"
+        assert advisory["code_decision"] == "capture"
+        assert advisory["contradicted"] is False
 
     asyncio.run(body())
 

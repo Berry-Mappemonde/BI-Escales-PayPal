@@ -70,14 +70,34 @@ _AUTH_AGE = re.compile(
     re.IGNORECASE,
 )
 _EXPIRED_CLAIM = re.compile(
-    r"expir(?:ed|ée|é)|has expired|a expir|périm|perim|échue?s?|echue?s?"
+    r"expir(?:e(?:s|d)?|ing|era(?:it)?|é(?:e|s|es)?)"
+    r"|has expired|a expir|périm\w*|perim\w*|échue?s?|echue?s?"
     r"|no longer valid|plus valide|n['’]est plus valide|lapsed"
     r"|honor\s*period|p[ée]riode d['’]honneur",
     re.IGNORECASE,
 )
 _STILL_VALID_REASON = "authorization still valid: younger than 29 days"
+# Either order: "Captain Blue Intelligence" or "Blue Intelligence Escales Captain".
+_ROLE = r"(?:the\s+|le\s+)?(?:captain|capitaine)"
+_BLUE = r"blue\s+intelligence(?:\s+escales)?"
 _LONG_SIGNATURE = re.compile(
-    r"[—–-]{0,2}\s*(?:le\s+|the\s+)?(?:capitaine|captain)\s+blue\s+intelligence(?:\s+escales)?",
+    rf"(?:[—–\-]\s*)?(?:"
+    rf"{_ROLE}\s+(?:de\s+la\s+|of\s+(?:the\s+)?)?{_BLUE}"
+    rf"|{_BLUE}\s+{_ROLE}"
+    rf")",
+    re.IGNORECASE,
+)
+_URL_RE = re.compile(
+    r"https?://[^\s<>\"']+|www\.[^\s<>\"']+|/[^\s<>\"']*adh[ée]sions?/[^\s<>\"']+",
+    re.IGNORECASE,
+)
+_MEMBERSHIP_WORD = re.compile(
+    r"helloasso|adh[ée]sions?|membership|adhesion-\[",
+    re.IGNORECASE,
+)
+_AWAY_CLAIM = re.compile(
+    r"\baway\b|\bremaining\b|\brestant(?:e|s|es)?\b"
+    r"|\bmiles?\s+away\b|\bmilles?\s+loin\b|\bà parcourir\b|\bdistance restante\b",
     re.IGNORECASE,
 )
 # Horizon and re-issue policy stay in code. Drop them if a model writes them anyway.
@@ -119,8 +139,8 @@ def _no_pledge_suggestion(message: str) -> bool:
     return _is_treasurer_question(message) or _is_status_question(message)
 
 
-def _report_system(milestone_id: str) -> str:
-    return (
+def _report_system(milestone_id: str, reached: bool = False) -> str:
+    text = (
         "You are the Blue Intelligence Escales captain. "
         "Write exactly 2 or 3 sentences. No title, no heading, no list. "
         f"Keep this leg name verbatim: {milestone_id}. "
@@ -128,6 +148,12 @@ def _report_system(milestone_id: str) -> str:
         "The decision field is fixed by the program. "
         "Anything you write is advisory and is not executed."
     )
+    if reached:
+        text += (
+            " This leg was reached. There is no remaining distance."
+            " Do not say the leg is away, or that any distance is left."
+        )
+    return text
 
 
 def _chat_system(lang: str) -> str:
@@ -137,8 +163,9 @@ def _chat_system(lang: str) -> str:
         "Repeat the computed pledge exactly: amount, currency, description, milestone and intent. "
         "Do not propose to take or release money. Do not create an order. Do not invent a price. "
         "If the message asks whether money will be taken or released, say that only the treasurer review decides. "
-        "Mention membership only with the HelloAsso URL you were given. "
-        "Sign once. At most 80 words."
+        "Mention membership only by repeating the HelloAsso URL you were given. "
+        "If no URL was given, do not mention membership and do not write any URL. "
+        "Sign once, and do not repeat your name. At most 80 words."
     )
 
 
@@ -262,15 +289,21 @@ def _signature(lang: str) -> str:
 
 
 def _strip_signatures(text: str) -> str:
-    """Drop model sign-offs so the reply keeps a single short signature."""
+    """Drop every model sign-off so the reply can add exactly one."""
     cleaned = _LONG_SIGNATURE.sub(" ", text or "")
     cleaned = re.sub(
-        r"[—–-]{1,2}\s*(?:Le capitaine|The captain)\b",
+        r"[—–\-]+\s*(?:le capitaine|the captain)\b",
         " ",
         cleaned,
         flags=re.IGNORECASE,
     )
-    return re.sub(r"\s{2,}", " ", cleaned).strip()
+    cleaned = re.sub(
+        r"(?:[—–\-]+\s*)?(?:le capitaine|the captain)\s*$",
+        " ",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"\s{2,}", " ", cleaned).strip(" \t—–-")
 
 
 def _currency_present(text: str, currency: str) -> bool:
@@ -309,13 +342,54 @@ def _has_exact_pledge(text: str, suggested: dict) -> bool:
 
 
 def _membership_line(url: str, lang: str) -> str:
-    if url:
-        if lang == "en":
-            return f"For membership, the HelloAsso link is {url}."
-        return f"Pour l'adhésion, le lien HelloAsso est {url}."
+    """The only membership sentence. It exists only when code has a URL."""
     if lang == "en":
-        return "The HelloAsso membership link is not configured."
-    return "Pour l'adhésion, le lien HelloAsso n'est pas configuré."
+        return f"For membership, the HelloAsso link is {url}."
+    return f"Pour l'adhésion, le lien HelloAsso est {url}."
+
+
+def _clean_model_urls(text: str, url: str) -> str:
+    """Drop URLs the model invented. Code inserts the configured URL later."""
+    allowed = (url or "").strip()
+
+    def replace(match: re.Match) -> str:
+        found = match.group(0).rstrip(".,;:)")
+        if allowed and found == allowed:
+            return found
+        return ""
+
+    cleaned = _URL_RE.sub(replace, text or "")
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r"\s+([,.;:!?…])", r"\1", cleaned)
+    kept: list[str] = []
+    for sentence in _split_sentences(cleaned):
+        body = sentence.strip()
+        if not body or re.fullmatch(r"[\s\W_]+", body):
+            continue
+        mentions = bool(_MEMBERSHIP_WORD.search(body) or re.search(r"https?://|www\.", body, re.I))
+        if allowed:
+            if mentions and allowed not in body:
+                continue
+        elif mentions:
+            continue
+        kept.append(body)
+    return " ".join(kept).strip()
+
+
+def _assert_reached(text: str, milestone_id: str, lang: str) -> str:
+    """A reached leg has no distance left. Drop a sentence that says otherwise."""
+    kept = [sentence for sentence in _split_sentences(text) if not _AWAY_CLAIM.search(sentence)]
+    if lang == "en":
+        fact = f"Milestone {milestone_id} was reached, with no remaining distance."
+    else:
+        fact = f"L'escale {milestone_id} est atteinte, sans distance restante."
+    if not any(re.search(r"no remaining distance|sans distance restante", sentence, re.I) for sentence in kept):
+        kept.append(fact)
+    if len(kept) < 2:
+        kept.append(f"{_leg_word(lang)} {milestone_id}.")
+    if len(kept) > 3:
+        kept = kept[:-1][:2] + kept[-1:]
+    return " ".join(kept)
 
 
 def _word_count(text: str) -> int:
@@ -358,6 +432,7 @@ def _compose_chat_reply(
             prose = "Cette question porte sur le statut. Le capitaine ne propose pas de promesse."
         return _fit_words("", [prose, _signature(lang)])
     prose = _strip_signatures(model_text)
+    prose = _clean_model_urls(prose, url)
     prose = _drop_sentences(prose, _POLICY_RE)
     prose = _drop_sentences(prose, _CHAT_DECIDE_RE)
     required: list[str] = []
@@ -366,8 +441,6 @@ def _compose_chat_reply(
     joined = " ".join(required)
     if url and url not in prose and url not in joined:
         required.append(_membership_line(url, lang))
-    elif not url and "HelloAsso" not in prose and "HelloAsso" not in joined:
-        required.append(_membership_line("", lang))
     required.append(_signature(lang))
     return _fit_words(prose, required)
 
@@ -546,12 +619,14 @@ def validate_advisory_proposal(
     proposal: Optional[str],
     reason: Optional[str],
     age_days: Optional[int] = None,
+    met: Optional[bool] = None,
 ) -> dict:
-    """Check an ask_json proposal and its reason against the 29-day rule.
+    """Check an ask_json proposal against the code decision and the 29-day rule.
 
-    An authorization younger than 29 days is still valid. A reauthorize
-    proposal, or a void proposal whose reason says the authorization has
-    expired, is dropped. A reason that claims expiry is overridden.
+    ``decision_for(met)`` is the only action the model may repeat. A different
+    proposal is dropped and flagged contradicted. An authorization younger
+    than 29 days is still valid, so a reason that claims it has expired, or
+    that it expires in one day, is overridden.
     The result is always advisory: it never replaces the code decision.
     """
     raw_proposal = (proposal or "").strip().lower() or None
@@ -560,12 +635,15 @@ def validate_advisory_proposal(
     stated = _stated_authorization_age(raw_reason or "")
     age = known if known is not None else stated
     still_valid = None if age is None else age < AUTH_MAX_DAYS
+    code_decision = decision_for(met)
     reason_contradicts = bool(still_valid and raw_reason and _EXPIRED_CLAIM.search(raw_reason))
-    proposal_contradicts = False
+    proposal_differs = bool(raw_proposal) and raw_proposal != code_decision
+    proposal_contradicts = proposal_differs
     if still_valid and raw_proposal == "reauthorize":
         proposal_contradicts = True
     if still_valid and raw_proposal == "void" and reason_contradicts:
         proposal_contradicts = True
+    contradicted = proposal_contradicts or reason_contradicts
     shown_reason = _STILL_VALID_REASON if reason_contradicts else raw_reason
     shown_proposal = None if proposal_contradicts else raw_proposal
     return {
@@ -575,7 +653,9 @@ def validate_advisory_proposal(
         "reason": shown_reason,
         "raw_proposal": raw_proposal,
         "raw_reason": raw_reason,
-        "dropped": proposal_contradicts or reason_contradicts,
+        "dropped": contradicted,
+        "contradicted": contradicted,
+        "code_decision": code_decision,
         "authorization_age_days": age,
         "authorization_valid": still_valid,
     }
@@ -600,10 +680,13 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
     except Exception:
         return None
     data = parsed.data if isinstance(getattr(parsed, "data", None), dict) else {}
+    evidence = allowed.get("evidence") if isinstance(allowed, dict) else None
+    met = evidence.get("met") if isinstance(evidence, dict) else None
     checked = validate_advisory_proposal(
         str(data.get("proposal") or ""),
         str(data.get("reason") or ""),
         age,
+        met=met if isinstance(met, bool) else None,
     )
     checked["provider"] = getattr(parsed, "provider", "") or ""
     checked["model"] = getattr(parsed, "model", "") or ""
@@ -614,7 +697,9 @@ async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> d
     """Propose capture or void from evidence. Does not execute either."""
     milestone = await get_milestone(milestone_id)
     evidence = latest_evidence(milestone)
-    decision = decision_for(evidence.get("met") if evidence else None)
+    met = evidence.get("met") if evidence else None
+    reached = met is True
+    decision = decision_for(met if isinstance(met, bool) else None)
     related = await pledges_for_milestone(milestone_id)
     concerned = [
         pledge
@@ -631,7 +716,7 @@ async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> d
     prompt = json.dumps(allowed, ensure_ascii=False, default=str)
     narrative, source = await _llm_text(
         prompt,
-        _report_system(milestone_id),
+        _report_system(milestone_id, reached=reached),
         max_tokens=220,
         temperature=_REPORT_TEMPERATURE,
     )
@@ -642,6 +727,8 @@ async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> d
     else:
         report_lang = message_lang(narrative)
         narrative = _shape_report(narrative, milestone_id, report_lang)
+    if reached:
+        narrative = _assert_reached(narrative, milestone_id, report_lang)
     narrative = _without_jalon(filter_numbers(narrative, allowed, lang=report_lang), report_lang)
     decision_line = (
         f" Decision: {decision}." if report_lang == "en" else f" Décision : {decision}."

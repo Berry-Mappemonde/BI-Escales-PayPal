@@ -12,6 +12,17 @@ from app.escales.config import cors_origins
 app = FastAPI(title="BI Escales — Pay Only If We Sail")
 
 
+def install_cors(application: FastAPI) -> None:
+    """Cross-origin access from ``ESCALES_CORS_ORIGINS`` only (empty → none)."""
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins(),
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Accept", "Accept-Language", "Content-Type", "PayPal-Request-Id", "x-admin-key"],
+    )
+
+
 def _log_nim_ids() -> None:
     """Ids only. A missing LLM module must not stop the API."""
     try:
@@ -23,13 +34,7 @@ def _log_nim_ids() -> None:
 
 
 _log_nim_ids()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_origins(),
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Accept", "Accept-Language", "Content-Type", "PayPal-Request-Id", "x-admin-key"],
-)
+install_cors(app)
 
 
 @app.get("/api/health")

@@ -387,10 +387,10 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
             "Each sentence is complete and contains a verb. "
             "No title, no heading, no list. "
             f"Keep this port name verbatim: {port}. "
-            "Use only numbers present in the evidence JSON. Do not invent a figure. "
-            "Do not write any date or time. "
+            "Use only numbers and facts present in the JSON. Do not invent a figure or a fact. "
+            "The only date you may write is arrival_iso, copied exactly. "
             "distance_nm is the distance covered and planned_nm the planned distance. "
-            "Write nautical miles or nm immediately after every distance number. "
+            "Write nautical miles or nm immediately after every distance number from the JSON. Never write nm alone. "
             "Do not repeat these instructions and do not write a Decision line."
         )
         if not reached:
@@ -412,10 +412,10 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
         "Chaque phrase est complète et contient un verbe. "
         "Pas de titre, pas d'intertitre, pas de liste. "
         f"Garde ce nom de port tel quel : {port}. "
-        "Utilise seulement les nombres présents dans le JSON de preuve. N'invente aucun chiffre. "
-        "N'écris aucune date ni heure. "
+        "Utilise seulement les nombres et les faits présents dans le JSON. N'invente aucun chiffre ni aucun fait. "
+        "La seule date permise est arrival_iso, recopiée telle quelle. "
         "distance_nm est la distance parcourue et planned_nm la distance prévue. "
-        "Écris milles ou nm juste après chaque nombre de distance. "
+        "Écris milles ou nm juste après chaque nombre de distance du JSON. N'écris jamais nm seul. "
         "Ne répète pas ces consignes et n'écris pas de ligne Décision."
     )
     if not reached:
@@ -435,6 +435,8 @@ def _chat_system(lang: str) -> str:
         f"You are the Blue Intelligence Escales captain. Reply in {language}. "
         "Repeat the computed pledge exactly: amount, currency, description, milestone and intent. "
         "Do not propose to take or release money. Do not create an order. Do not invent a price. "
+        "State only facts present in the JSON: the stopover, its dates, the fund, and the computed pledge. "
+        "If a fact is absent, say you do not know. Do not describe the place. "
         "If the message asks whether money will be taken or released, say that only the treasurer review decides. "
         "Mention membership only by repeating the HelloAsso URL you were given. "
         "If no URL was given, do not mention membership and do not write any URL. "
@@ -1473,6 +1475,84 @@ def _text_of(raw: Any) -> str:
     return str(getattr(raw, "text", "") or "").strip()
 
 
+_BARE_UNIT = re.compile(r"\b(nm|milles?|km)\b", re.IGNORECASE)
+_MONTH_NAME = re.compile(
+    r"\b(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|"
+    r"octobre|novembre|décembre|decembre|january|february|march|april|may|june|"
+    r"july|august|september|october|november|december)\b",
+    re.IGNORECASE,
+)
+
+
+def _schedule_arrival(milestone_id: str) -> str:
+    """Arrival from the frozen clock. Empty when this id is not on the schedule."""
+    from .naviguide_bridge import clock_legs, local_schedule_export, resolve_milestone
+
+    wanted = {str(milestone_id or "").strip()}
+    resolved = resolve_milestone(milestone_id)
+    if resolved:
+        wanted.add(resolved)
+    for row in local_schedule_export().get("escales") or []:
+        if row.get("milestone_id") in wanted and row.get("arrival_iso"):
+            return str(row["arrival_iso"])
+    for leg in clock_legs():
+        if leg.get("id") in wanted and leg.get("arrival_iso"):
+            return str(leg["arrival_iso"])
+    return ""
+
+
+def _with_known_facts(prompt: str) -> str:
+    """Add the schedule arrival and the evidence distance. Nothing else is invented."""
+    try:
+        data = json.loads(prompt)
+    except (TypeError, ValueError):
+        return prompt
+    if not isinstance(data, dict):
+        return prompt
+    milestone = str(data.get("milestone_id") or "").strip()
+    suggested = data.get("suggested")
+    if not milestone and isinstance(suggested, dict):
+        milestone = str(suggested.get("milestone_id") or "").strip()
+    if milestone and not data.get("arrival_iso"):
+        arrival = _schedule_arrival(milestone)
+        if arrival:
+            data["arrival_iso"] = arrival
+    evidence = data.get("evidence") if isinstance(data.get("evidence"), dict) else {}
+    facts = evidence.get("facts") if isinstance(evidence.get("facts"), dict) else {}
+    for key in ("distance_nm", "planned_nm"):
+        if data.get(key) in (None, "") and facts.get(key) not in (None, ""):
+            data[key] = facts[key]
+    return json.dumps(data, ensure_ascii=False, default=str)
+
+
+_INVENTED_FACT = re.compile(
+    r"traditions?|shared meal|repas partag|infrastructures? modernes|"
+    r"point de départ privilégié|privileged departure",
+    re.IGNORECASE,
+)
+
+
+def _without_gaps(text: str, known: str) -> str:
+    """Drop a gap ([?], a unit with no number, an unknown month, an invented fact)."""
+    kept: list[str] = []
+    blob = known or ""
+    for sentence in _split_sentences(text or ""):
+        piece = sentence.strip()
+        if not piece or _INVENTED_FACT.search(piece):
+            continue
+        if "[?]" in piece:
+            piece = re.sub(r"\s+", " ", piece.replace("[?]", " ")).strip(" ,;:")
+            if not piece or not re.search(r"\d", piece):
+                continue
+        if _BARE_UNIT.search(piece) and not re.search(r"\d", piece):
+            continue
+        month = _MONTH_NAME.search(piece)
+        if month and month.group(0).casefold() not in blob.casefold():
+            continue
+        kept.append(piece)
+    return " ".join(kept).strip()
+
+
 def _source_of(raw: Any, text: str) -> dict[str, str]:
     """Provider and model from the cascade. A bare string has no model id."""
     provider = getattr(raw, "provider", None)
@@ -1504,7 +1584,10 @@ async def _llm_text(
     started = time.monotonic()
     try:
         raw = await llm.ask_text(
-            prompt, system=system, max_tokens=max_tokens, temperature=temperature,
+            _with_known_facts(prompt),
+            system=system,
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
     except Exception as exc:
         from app.core.llm import safe_error_message
@@ -1666,12 +1749,14 @@ def _verdict_system(lang: str) -> str:
         return (
             "Reply with one JSON object only. No markdown fence and no commentary. "
             "Write reason in English. proposal is capture, void, wait or reauthorize. "
-            "Do not invent a figure."
+            "Do not invent a figure or a fact. reason may only use the JSON. "
+            "Do not write [?] or a unit such as nm without its number."
         )
     return (
         "Réponds par un seul objet JSON. Pas de balise markdown et pas de commentaire. "
         "Écris reason en français. proposal vaut capture, void, wait ou reauthorize. "
-        "N'invente aucun chiffre."
+        "N'invente aucun chiffre ni aucun fait. reason n'utilise que le JSON. "
+        "N'écris pas [?] ni une unité comme nm sans son nombre."
     )
 
 
@@ -1688,7 +1773,7 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
         return None
     payload = dict(allowed)
     payload["authorization_age_days"] = age
-    prompt = json.dumps(payload, ensure_ascii=False, default=str)
+    prompt = _with_known_facts(json.dumps(payload, ensure_ascii=False, default=str))
     verdict_lang = "en" if str(allowed.get("language") or "") == "en" else "fr"
     try:
         parsed = await llm.ask_json(
@@ -1700,6 +1785,8 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
     except Exception:
         return None
     data = parsed.data if isinstance(getattr(parsed, "data", None), dict) else {}
+    reason = _without_gaps(str(data.get("reason") or ""), prompt)
+    data = {**data, "reason": reason}
     evidence = allowed.get("evidence") if isinstance(allowed, dict) else None
     met = evidence.get("met") if isinstance(evidence, dict) else None
     checked = validate_advisory_proposal(
@@ -1811,9 +1898,12 @@ async def review(
         "language": report_lang,
     }
     prompt = json.dumps(allowed, ensure_ascii=False, default=str)
+    known = _with_known_facts(prompt)
     usable, source, report_lang = await _narrative_for_language(
         prompt, milestone_id, _forced_lang(lang), reached,
     )
+    if usable:
+        usable = _without_gaps(usable, known)
     model_lost = not usable
     if not usable:
         narrative = _fallback_report(milestone_id, decision, evidence, lang=report_lang)
@@ -2089,6 +2179,7 @@ async def chat(message: str, *, treasurer: bool = False) -> dict:
             if lang == "fr":
                 raw = _french_labels(raw)
             raw = filter_numbers(raw, allowed, lang=lang)
+            raw = _without_gaps(raw, _with_known_facts(prompt))
         else:
             raw, source = "", _rules_source()
     reply = _compose_chat_reply(

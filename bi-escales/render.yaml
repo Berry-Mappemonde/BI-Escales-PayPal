@@ -59,6 +59,8 @@ services:
         sync: false
       - key: NVIDIA_API_KEY
         sync: false
+      # NIM_MODEL is the id sent to NVIDIA and the one reported.
+      # Default: private/nvidia/nemotron-3.5-super-120b-a12b (the id without private/ returns 404).
       - key: NIM_MODEL
         sync: false
       - key: ESCALES_VAULT_ENABLED

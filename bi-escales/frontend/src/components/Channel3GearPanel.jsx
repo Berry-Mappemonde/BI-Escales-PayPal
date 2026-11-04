@@ -6,7 +6,7 @@ import { PledgeButton } from "./PledgeButton";
 
 export function Channel3GearPanel({ milestoneId, onAuthorized }) {
   const { t } = useTranslation();
-  const [items, setItems] = useState<Channel3GearItem[]>([]);
+  const [items, setItems] = useState([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

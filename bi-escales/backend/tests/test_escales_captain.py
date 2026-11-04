@@ -2004,3 +2004,86 @@ def test_ui_labels_the_llm_proposal_as_advisory():
     assert 'label: "Advisory"' in badge
     assert "data-advisory" in screen
     assert "Advisory" in screen
+
+
+def test_miles_and_dinner_stay_one_pledge_and_list_two_cart_lines():
+    pledge = captain.suggest_pledge("250 mi + dinner 60 € près de Dakar")
+    assert pledge["amount_eur"] == "310.00"
+    assert pledge["description"] == "250 milles parrainés et dîner d'escale"
+    assert pledge["intent"] == "AUTHORIZE"
+    assert "kind" not in pledge
+    cart = captain.pledge_cart("250 mi + dinner 60 € près de Dakar", "fr", pledge)
+    assert cart["amount_eur"] == "310.00"
+    assert cart["intent"] == "AUTHORIZE"
+    assert [line["kind"] for line in cart["lines"]] == ["mile", "meal"]
+    assert [line["amount_eur"] for line in cart["lines"]] == ["250.00", "60.00"]
+    assert cart["lines"][0]["price_label"] == "simulated price"
+    assert cart["lines"][0]["target_id"] == "dakar"
+    assert cart["available"] is False
+    assert cart["eta"] is None
+    assert "order_id" not in cart
+
+
+def test_other_kinds_use_the_simulated_catalogue():
+    night = captain.suggest_pledge("2 nuits près de Mayotte")
+    assert night["amount_eur"] == "120.00"
+    assert night["kind"] == "night"
+    assert night["description"] == "2 nuits"
+    assert "mille" not in night["description"]
+    berth = captain.suggest_pledge("1 poste près de Fort-de-France")
+    assert berth["amount_eur"] == "30.00"
+    assert berth["kind"] == "berth"
+    care = captain.suggest_pledge("un soin près de Mayotte")
+    assert care["amount_eur"] == "40.00"
+    assert care["kind"] == "care"
+    cabin = captain.suggest_pledge("1 cabine près de Mayotte")
+    assert cabin["amount_eur"] == "80.00"
+    assert cabin["kind"] == "cabin_leg"
+    both = captain.suggest_pledge("10 milles et 1 nuit près de Mayotte")
+    assert both["amount_eur"] == "70.00"
+    assert both["item"] == "mixed"
+    assert "kind" not in both
+    assert "milles parrainés" in both["description"]
+    assert "1 nuit" in both["description"]
+    fund = captain.suggest_pledge("fonds commun 25 euros près de Mayotte")
+    assert fund["amount_eur"] == "25.00"
+    assert fund["kind"] == "common_fund"
+    assert "mille" not in fund["description"]
+    project = captain.suggest_pledge("promesse projet 15 EUR près de Dakar")
+    assert project["amount_eur"] == "15.00"
+    assert project["kind"] == "project_pledge"
+    english = captain.suggest_pledge("2 nights near Mayotte", lang="en")
+    assert english["description"] == "2 nights"
+    assert english["amount_eur"] == "120.00"
+
+
+def test_chat_cart_keeps_authorize_and_reads_clock_and_schedule(monkeypatch):
+    monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
+
+    async def body():
+        mayotte = await chat("2 nuits près de Mayotte")
+        cart = mayotte["cart"]
+        assert cart["clock_start"] == "2026-11-12"
+        assert cart["eta"] == "2026-09-01T08:00:00+00:00"
+        assert cart["available"] is True
+        assert cart["intent"] == "AUTHORIZE"
+        assert cart["lines"][0]["kind"] == "night"
+        assert cart["lines"][0]["quantity"] == "2"
+        assert cart["amount_eur"] == mayotte["suggested_pledge"]["amount_eur"] == "120.00"
+        assert "120,00 €" in mayotte["reply"]
+        assert "order_id" not in mayotte
+        assert mayotte["model_source"] == {"provider": "rules", "model": ""}
+        english = await chat("I would like 2 nights near Mayotte")
+        assert english["suggested_pledge"]["description"] == "2 nights"
+        assert "120.00 EUR" in english["reply"]
+        assert english["cart"]["available"] is True
+        status = await chat("Quel est le statut ?")
+        assert status["suggested_pledge"] is None
+        assert status["cart"] is None
+        mixed = await chat("250 mi + dinner 60 € près de Dakar")
+        assert mixed["suggested_pledge"]["amount_eur"] == "310.00"
+        assert mixed["cart"]["lines"][1]["kind"] == "meal"
+        assert "310,00 €" in mixed["reply"]
+        assert "250,00" not in mixed["reply"]
+
+    asyncio.run(body())

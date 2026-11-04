@@ -1782,6 +1782,7 @@ async def chat(message: str) -> dict:
     lang = message_lang(text)
     treasurer = _is_treasurer_question(text)
     suggested = suggest_pledge(text, lang)
+    cart = pledge_cart(text, lang, suggested)
     ask_escale = suggested is None and not treasurer and not _is_status_question(text)
     allowed = {"message": text, "suggested": suggested, "membership_url": url}
     if treasurer or suggested is None:
@@ -1805,5 +1806,296 @@ async def chat(message: str) -> dict:
         "reply": reply,
         "membership_url": url,
         "suggested_pledge": suggested,
+        "cart": cart,
         "model_source": source,
     }
+
+
+# Kinds other than mile and meal. Same catalogue as ``_SIMULATED_EUR`` /
+# ``simulated_unit``. A project pledge and the common fund stay free-amount:
+# the line exists only when the visitor writes the euros.
+_BERTH_COUNT = re.compile(
+    r"\b(?:(\d+(?:[.,]\d+)?)\s+)?(?:berths?|postes?|mouillages?)\b",
+    re.IGNORECASE,
+)
+_NIGHT_COUNT = re.compile(
+    r"\b(?:(\d+(?:[.,]\d+)?)\s+)?(?:nights?|nuits?)\b",
+    re.IGNORECASE,
+)
+_CARE_COUNT = re.compile(
+    r"\b(?:(\d+(?:[.,]\d+)?)\s+)?(?:cares?|soins?|elsa)\b",
+    re.IGNORECASE,
+)
+_CABIN_COUNT = re.compile(
+    r"\b(?:(\d+(?:[.,]\d+)?)\s+)?(?:cabines?|cabins?|cabin\s+legs?|boat-stops?)\b",
+    re.IGNORECASE,
+)
+_PROJECT_PLEDGE = re.compile(
+    r"\b(?:promesse\s+)?projets?\b|\bproject\s+pledges?\b",
+    re.IGNORECASE,
+)
+_COMMON_FUND = re.compile(
+    r"\bfonds?\s+commun\b|\bcommon\s+fund\b",
+    re.IGNORECASE,
+)
+_EUR_AMOUNT = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*(?:€|eur|euros?)\b",
+    re.IGNORECASE,
+)
+_KIND_WORDS = {
+    "berth": (("poste", "postes"), ("berth", "berths")),
+    "night": (("nuit", "nuits"), ("night", "nights")),
+    "care": (("soin", "soins"), ("care", "cares")),
+    "cabin_leg": (("cabine", "cabines"), ("cabin leg", "cabin legs")),
+    "project_pledge": (("promesse projet", "promesse projet"), ("project pledge", "project pledge")),
+    "common_fund": (("fonds commun", "fonds commun"), ("common fund", "common fund")),
+}
+
+
+def _explicit_miles(text: str) -> Decimal:
+    total = Decimal("0")
+    for match in _MILES.finditer(text or ""):
+        try:
+            count = Decimal(match.group(1).replace(",", "."))
+        except InvalidOperation:
+            continue
+        if count > 0:
+            total += count
+    return total
+
+
+def _explicit_dinners(text: str) -> int:
+    return len(_DINNER.findall(text or ""))
+
+
+def _sum_quantity(pattern: re.Pattern, text: str) -> Decimal:
+    total = Decimal("0")
+    for match in pattern.finditer(text or ""):
+        raw = match.group(1)
+        if not raw:
+            total += 1
+            continue
+        try:
+            qty = Decimal(raw.replace(",", "."))
+        except InvalidOperation:
+            continue
+        if qty > 0:
+            total += qty
+    return total
+
+
+def _amount_near(text: str, pattern: re.Pattern) -> Optional[Decimal]:
+    match = pattern.search(text or "")
+    if not match:
+        return None
+    start = max(0, match.start() - 48)
+    end = min(len(text), match.end() + 48)
+    found = _EUR_AMOUNT.search(text[start:end])
+    if not found:
+        return None
+    try:
+        amount = Decimal(found.group(1).replace(",", "."))
+    except InvalidOperation:
+        return None
+    if amount <= 0:
+        return None
+    return amount.quantize(Decimal("0.01"))
+
+
+def _kind_description(kind: str, quantity: Decimal, lang: str) -> str:
+    french, english = _KIND_WORDS[kind]
+    pair = english if lang == "en" else french
+    noun = pair[0] if quantity == 1 else pair[1]
+    if kind in {"project_pledge", "common_fund"}:
+        return noun
+    return f"{_format_count(quantity)} {noun}"
+
+
+def _join_desc(lines: list[dict], lang: str) -> str:
+    parts = [str(line.get("description") or "") for line in lines if line.get("description")]
+    if not parts:
+        return ""
+    if lang == "en":
+        return " and ".join(parts)
+    return " et ".join(parts)
+
+
+def _cart_line(
+    kind: str,
+    quantity: Decimal,
+    place: str,
+    lang: str,
+    amount: Optional[Decimal],
+    description: str,
+) -> dict:
+    """One cart row. Copies ``simulated_unit`` and keeps AUTHORIZE."""
+    row = simulated_unit(kind)
+    row.update(
+        {
+            "quantity": _format_count(quantity),
+            "description": description,
+            "milestone_id": place,
+            "target_id": place,
+            "intent": "AUTHORIZE",
+            "price_label": SIMULATED_PRICE_LABEL,
+        }
+    )
+    if amount is not None:
+        row["amount_eur"] = f"{amount.quantize(Decimal('0.01')):.2f}"
+    return row
+
+
+def _fixed_line(kind: str, quantity: Decimal, place: str, lang: str) -> dict:
+    unit = _SIMULATED_EUR[kind]
+    amount = (quantity * unit).quantize(Decimal("0.01"))
+    if kind == "mile":
+        description = _miles_description(quantity, lang)
+    elif kind == "meal":
+        description = _dinner_description(int(quantity), lang)
+    else:
+        description = _kind_description(kind, quantity, lang)
+    return _cart_line(kind, quantity, place, lang, amount, description)
+
+
+def _chosen_line(kind: str, place: str, lang: str, amount: Decimal) -> dict:
+    return _cart_line(
+        kind,
+        Decimal("1"),
+        place,
+        lang,
+        amount,
+        _kind_description(kind, Decimal("1"), lang),
+    )
+
+
+def _catalogue_lines(text: str, lang: str, place: str) -> list[dict]:
+    """Miles and meals first, then the other priced kinds, in catalogue order."""
+    lines: list[dict] = []
+    miles = _explicit_miles(text)
+    dinners = _explicit_dinners(text)
+    if miles > 0:
+        lines.append(_fixed_line("mile", miles, place, lang))
+    if dinners > 0:
+        lines.append(_fixed_line("meal", Decimal(dinners), place, lang))
+    for kind, pattern in (
+        ("berth", _BERTH_COUNT),
+        ("night", _NIGHT_COUNT),
+        ("care", _CARE_COUNT),
+        ("cabin_leg", _CABIN_COUNT),
+    ):
+        quantity = _sum_quantity(pattern, text)
+        if quantity > 0:
+            lines.append(_fixed_line(kind, quantity, place, lang))
+    for kind, pattern in (
+        ("project_pledge", _PROJECT_PLEDGE),
+        ("common_fund", _COMMON_FUND),
+    ):
+        amount = _amount_near(text, pattern)
+        if amount is not None:
+            lines.append(_chosen_line(kind, place, lang, amount))
+    if not lines:
+        lines.append(_fixed_line("mile", Decimal("1"), place, lang))
+    return lines
+
+
+def _schedule_stop(place: str) -> Optional[dict]:
+    """Arrival already stored on the local schedule. No partner call."""
+    from .naviguide_bridge import local_schedule_export
+
+    slug = _escale_slug(place)
+    if not slug:
+        return None
+    for item in local_schedule_export().get("escales") or []:
+        if not isinstance(item, dict):
+            continue
+        keys = {
+            _escale_slug(str(item.get("slug") or "")),
+            _escale_slug(str(item.get("milestone_id") or "")),
+            _escale_slug(str(item.get("name") or "")),
+        }
+        if slug in keys:
+            return item
+    return None
+
+
+def pledge_cart(message: str, lang: str, suggested: Optional[dict]) -> Optional[dict]:
+    """Multi-line cart for the same AUTHORIZE total. No PayPal order.
+
+    ``eta`` is the schedule ``arrival_iso``. ``clock_start`` is the voyage
+    clock. ``available`` is the schedule flag for that stopover.
+    """
+    if not suggested:
+        return None
+    from .config import clock_start
+
+    text = message or ""
+    place = str(suggested.get("milestone_id") or "")
+    lines = _catalogue_lines(text, lang, place)
+    had_named = _explicit_miles(text) > 0 or _explicit_dinners(text) > 0
+    extras = [line for line in lines if line["kind"] not in {"mile", "meal"}]
+    if extras and not had_named:
+        lines = extras
+    stop = _schedule_stop(place)
+    return {
+        "lines": lines,
+        "amount_eur": suggested.get("amount_eur"),
+        "currency": "EUR",
+        "description": suggested.get("description"),
+        "milestone_id": place,
+        "target_id": place,
+        "intent": "AUTHORIZE",
+        "clock_start": clock_start(),
+        "eta": stop.get("arrival_iso") if stop else None,
+        "available": bool(stop and stop.get("flag")),
+        "simulated": True,
+        "indicative": True,
+        "price_label": SIMULATED_PRICE_LABEL,
+    }
+
+
+def _extend_pledge(base: dict, message: str, lang: str) -> dict:
+    text = message or ""
+    place = str(base.get("milestone_id") or "")
+    lines = _catalogue_lines(text, lang, place)
+    extras = [line for line in lines if line["kind"] not in {"mile", "meal"}]
+    if not extras:
+        return base
+    had_named = _explicit_miles(text) > 0 or _explicit_dinners(text) > 0
+    if had_named:
+        priced = lines
+        description = base.get("description") or ""
+        extra = _join_desc(extras, lang)
+        if extra:
+            if lang == "en":
+                description = f"{description} and {extra}"
+            else:
+                description = f"{description} et {extra[0].lower() + extra[1:]}"
+        item = "mixed"
+    else:
+        priced = extras
+        description = _join_desc(extras, lang)
+        item = extras[0]["kind"] if len(extras) == 1 else "mixed"
+    total = sum(
+        (Decimal(str(line["amount_eur"])) for line in priced if line.get("amount_eur")),
+        Decimal("0"),
+    ).quantize(Decimal("0.01"))
+    result = dict(base)
+    result["amount_eur"] = f"{total:.2f}"
+    result["description"] = description
+    result["item"] = item
+    if item == "mixed":
+        result.pop("kind", None)
+    else:
+        result["kind"] = item
+    return result
+
+
+_suggest_pledge_miles = suggest_pledge
+
+
+def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
+    """Mile and dinner pledge, plus the other catalogue lines in the same total."""
+    base = _suggest_pledge_miles(message, lang)
+    if not base:
+        return None
+    return _extend_pledge(base, message, lang)

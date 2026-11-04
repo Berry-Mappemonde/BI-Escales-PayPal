@@ -44,6 +44,7 @@ from app.escales.pledges import (
     create_pledge,
     register_vault_pledge,
     require_pledge,
+    reset_ledger,
     resolve_payment_mode,
     to_public,
     void_pledge,
@@ -159,6 +160,26 @@ def _public_milestone(doc: dict) -> dict:
         "meta": doc.get("meta"),
         "updated_at": doc.get("updated_at"),
     }
+
+
+def _paypal_mock_enabled() -> bool:
+    return os.environ.get("ESCALES_PAYPAL_MOCK", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+@router.post("/demo/reset")
+async def post_demo_reset(request: Request):
+    """Clear the in-memory ledger. Only when ESCALES_PAYPAL_MOCK is on."""
+    if not _paypal_mock_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+    _require_treasurer(request)
+    reset_ledger()
+    from app.escales.paypal_demo_client import reset_demo_client
+
+    reset_demo_client()
+    from app.demo_seed import ensure_demo_milestones
+
+    await ensure_demo_milestones()
+    return {"reset": True}
 
 
 @router.get("/features")

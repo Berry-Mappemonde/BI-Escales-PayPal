@@ -30,9 +30,34 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
   onAuthorizedRef.current = onAuthorized;
   const pledgeRef = useRef<PublicPledge | null>(null);
   const [vaultPledge, setVaultPledge] = useState<PublicPledge | null>(null);
+  const paypalMock = import.meta.env.VITE_PAYPAL_MOCK === "1";
+
+  const runDemoApprove = async () => {
+    setError(null);
+    setStatus(t("pledge.creating"));
+    try {
+      const requestId = crypto.randomUUID();
+      const pledge = await createPledge(valuesRef.current, requestId);
+      pledgeRef.current = pledge;
+      if (isVaultPledge(pledge)) {
+        setVaultPledge(pledge);
+        setStatus(null);
+        return;
+      }
+      if (!pledge.order_id) throw new Error("order_id missing");
+      setVaultPledge(null);
+      setStatus(t("pledge.authorizing"));
+      const authorized = await authorizePledge(pledge.id);
+      setStatus(t("pledge.authorized"));
+      onAuthorizedRef.current?.(authorized);
+    } catch (e) {
+      setStatus(null);
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   useEffect(() => {
-    if (!clientId || disabled) return;
+    if (paypalMock || !clientId || disabled) return;
     let cancelled = false;
 
     const mount = async () => {
@@ -85,11 +110,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
       cancelled = true;
       if (containerRef.current) containerRef.current.innerHTML = "";
     };
-  }, [clientId, disabled, t]);
-
-  if (!clientId) {
-    return <p className="notice warn">{t("pledge.missingClientId")}</p>;
-  }
+  }, [clientId, disabled, paypalMock, t]);
 
   const confirmVault = async () => {
     if (!vaultPledge) return;
@@ -101,14 +122,25 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
       setStatus(t("pledge.vaulted"));
       onAuthorizedRef.current?.(saved);
     } catch (e) {
+      setStatus(null);
       setError(e instanceof Error ? e.message : String(e));
     }
   };
 
+  if (!paypalMock && !clientId) {
+    return <p className="notice warn">{t("pledge.missingClientId")}</p>;
+  }
+
   return (
     <div className="pledge-button">
-      <p className="hint">{t("pledge.intent")}</p>
-      <div ref={containerRef} data-testid="paypal-buttons" />
+      <p className="hint">{paypalMock ? t("pledge.demoIntent") : t("pledge.intent")}</p>
+      {paypalMock ? (
+        <button type="button" data-testid="paypal-demo-approve" onClick={() => void runDemoApprove()} disabled={disabled}>
+          {t("pledge.demoApprove")}
+        </button>
+      ) : (
+        <div ref={containerRef} data-testid="paypal-buttons" />
+      )}
       {vaultPledge ? (
         <div className="vault-setup" data-testid="vault-setup">
           <p className="hint">{t("pledge.vaultHint")}</p>
@@ -122,7 +154,11 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
           </button>
         </div>
       ) : null}
-      {status ? <p className="status">{status}</p> : null}
+      {status ? (
+        <p className="status" data-testid="pledge-status">
+          {status}
+        </p>
+      ) : null}
       {error ? (
         <p className="notice error">
           {t("pledge.error")}: {error}

@@ -2,8 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchHealth, listMilestones } from "./api/escales";
 import type { Milestone, PublicPledge } from "./api/types";
+import { DemoModeBanner } from "./components/DemoModeBanner";
 import { EscalesPanel } from "./components/EscalesPanel";
 import { EscalesScheduler } from "./components/EscalesScheduler";
+import { FinanceLedgerPanel } from "./components/FinanceLedgerPanel";
+import { PledgeLifecycle } from "./components/PledgeLifecycle";
 import { TreasurerGrid } from "./components/TreasurerGrid";
 import { TreasurerQueue } from "./components/TreasurerQueue";
 import { setLanguage } from "./i18n";
@@ -64,8 +67,14 @@ export default function App() {
         </div>
       </header>
 
-      <p className={`health ${healthOk ? "ok" : "bad"}`}>
-        {healthOk ? t("app.healthOk") : t("app.healthFail")}
+      <DemoModeBanner />
+
+      <p
+        className={`health ${healthOk === false ? "bad" : "ok"}`}
+        data-testid="health-status"
+        role="status"
+      >
+        {healthOk === null ? t("app.healthLoading") : healthOk ? t("app.healthOk") : t("app.healthFail")}
       </p>
       {escalesOk === false ? <p className="notice warn">{t("app.escalesOff")}</p> : null}
 
@@ -98,6 +107,7 @@ export default function App() {
             onRefresh={() => void refresh()}
             onUpdated={updatePledge}
           />
+          <PledgeLifecycle pledges={pledges} needsKey={needsKey} />
           <TreasurerGrid
             pledges={pledges}
             milestones={milestones}
@@ -107,6 +117,7 @@ export default function App() {
             onMilestonesChange={setMilestones}
             onPledgeUpdated={updatePledge}
           />
+          <FinanceLedgerPanel adminKey={adminKey} />
         </div>
       </main>
     </div>

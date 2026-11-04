@@ -124,6 +124,12 @@ export function EscalesPanel({ onPledgeAuthorized }: EscalesPanelProps) {
         <div className="chat-result">
           <h3>{t("escales.chatReply")}</h3>
           <p>{chatResult.reply}</p>
+          {chatResult.model_source ? (
+            <p data-testid="chat-model-source">
+              {t("grid.modelSource")}: {chatResult.model_source.provider || "—"}
+              {chatResult.model_source.model ? ` · ${chatResult.model_source.model}` : ""}
+            </p>
+          ) : null}
           <h4>{t("escales.suggestedPledge")}</h4>
           <pre>{JSON.stringify(chatResult.suggested_pledge, null, 2)}</pre>
           <button type="button" onClick={applySuggested}>

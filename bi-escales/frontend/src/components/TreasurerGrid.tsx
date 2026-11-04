@@ -182,6 +182,12 @@ export function CaptainProposalWidget({
           <p>
             <strong>{proposalLabel}</strong>
           </p>
+          {stored.model_source ? (
+            <p data-testid="captain-model-source">
+              {t("grid.modelSource")}: {stored.model_source.provider || "—"}
+              {stored.model_source.model ? ` · ${stored.model_source.model}` : ""}
+            </p>
+          ) : null}
           {stored.justification ? <p>{stored.justification}</p> : null}
           <p>IDs: {stored.pledge_ids.join(", ") || "—"}</p>
           {stored.proposal === "capture" ? (
@@ -221,6 +227,9 @@ export function TreasurerGrid(props: TreasurerGridProps) {
     <section className="panel treasurer-grid">
       <h2>{t("grid.heading")}</h2>
       {!agGrid ? <p className="hint">{t("grid.agGridOff")}</p> : null}
+      <p className="hint" data-testid="gauge-blind-spot">
+        {t("grid.blindSpot")}
+      </p>
       {agGrid ? <OptionalAgGrid rows={rows} /> : <FallbackTreasurerTable rows={rows} />}
       <CaptainProposalWidget
         milestoneId={props.selectedMilestoneId}

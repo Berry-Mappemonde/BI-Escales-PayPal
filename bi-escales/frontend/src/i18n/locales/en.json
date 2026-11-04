@@ -5,6 +5,7 @@
     "langFr": "Français",
     "langEn": "English",
     "healthOk": "Backend reachable",
+    "healthLoading": "Checking the backend…",
     "healthFail": "Backend unreachable",
     "escalesOff": "ESCALES_ENABLED is off: /api/escales returns 404."
   },
@@ -26,6 +27,8 @@
     "milestone": "Milestone",
     "contributor": "Contributor (optional)",
     "intent": "AUTHORIZE intent — PayPal sandbox",
+    "demoIntent": "Demo mode — the PayPal button stays in this page. Nothing is sent to PayPal.",
+    "demoApprove": "Approve with PayPal (demo)",
     "missingClientId": "VITE_PAYPAL_CLIENT_ID missing: PayPal button unavailable.",
     "creating": "Creating pledge…",
     "authorizing": "Authorizing on server…",
@@ -42,6 +45,7 @@
     "adminKey": "Treasurer key (x-admin-key)",
     "adminKeyHint": "Held in memory only — never stored.",
     "refresh": "Refresh queue",
+    "loading": "Loading pledges…",
     "capture": "Capture",
     "void": "Void authorization",
     "queueEmpty": "No authorized, vaulted, or pending pledges on the server.",
@@ -53,9 +57,45 @@
     "milestone": "Milestone",
     "actions": "Actions"
   },
+  "demo": {
+    "bannerTitle": "Sandbox demo mode",
+    "bannerBody": "PayPal calls are mocked in this browser. Local treasurer key: demo-admin-key. No real money."
+  },
+  "finance": {
+    "heading": "Finance ledger (append-only)",
+    "hint": "PayPal pledge lifecycle and webhook events as recorded by the backend.",
+    "load": "Load ledger",
+    "empty": "No ledger entries yet.",
+    "needsKey": "Treasurer key required.",
+    "kind": "Event",
+    "pledge": "Pledge",
+    "detail": "Detail",
+    "at": "Timestamp"
+  },
+  "paypal": {
+    "authShort": "Auth",
+    "vaultShort": "Vault",
+    "captureShort": "Capture",
+    "paypalStatus": "PayPal"
+  },
+  "lifecycle": {
+    "heading": "PayPal pledge timeline",
+    "hint": "Every pledge on the server, including states the treasurer queue hides.",
+    "empty": "No pledges on the server yet.",
+    "needsKey": "Enter the treasurer key to load the PayPal timeline.",
+    "refundAbsent": "Refunded is not a pledge status in this build. A denied capture is stored as failed."
+  },
+  "scheduler": {
+    "heading": "Stopover calendar",
+    "mode": "Mode {{mode}}. Bryntum loads only when the API flag is on.",
+    "past": "date already past",
+    "ledgerDate": "ledger {{date}}"
+  },
   "grid": {
     "heading": "Treasurer view — gauges",
     "agGridOff": "AG Grid community is off (VITE_ENABLE_AG_GRID=0). HTML table. This is not AG Studio.",
+    "blindSpot": "These gauges count only authorized, captured, and voided. Created, vaulted, pending, failed, and settled are omitted.",
+    "modelSource": "Wording source",
     "milestone": "Milestone",
     "authorized": "Authorized",
     "captured": "Captured",

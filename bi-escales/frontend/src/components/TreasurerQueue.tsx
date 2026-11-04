@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { capturePledge, voidPledge } from "../api/escales";
 import type { PublicPledge } from "../api/types";
 import { isQueuedPledge } from "../hooks/queueFilter";
+import { PayPalStatusBadge } from "./PayPalStatusBadge";
 
 export interface TreasurerQueueProps {
   pledges: PublicPledge[];
@@ -56,13 +57,30 @@ export function TreasurerQueue({
       <button type="button" onClick={onRefresh} disabled={loading}>
         {t("treasurer.refresh")}
       </button>
-      {error ? <p className="notice error">{t("treasurer.loadError")}: {error}</p> : null}
-      {actionError ? <p className="notice error">{actionError}</p> : null}
+      {loading ? (
+        <p className="hint" role="status" data-testid="queue-loading">
+          {t("treasurer.loading")}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="notice error" data-testid="queue-error">
+          {t("treasurer.loadError")}: {error}
+        </p>
+      ) : null}
+      {actionError ? (
+        <p className="notice error" data-testid="queue-action-error">
+          {actionError}
+        </p>
+      ) : null}
 
       {needsKey ? (
-        <p className="hint">{t("treasurer.queueNeedsKey")}</p>
-      ) : queue.length === 0 ? (
-        <p className="hint">{t("treasurer.queueEmpty")}</p>
+        <p className="hint" data-testid="queue-needs-key">
+          {t("treasurer.queueNeedsKey")}
+        </p>
+      ) : loading ? null : queue.length === 0 ? (
+        <p className="hint" data-testid="queue-empty">
+          {t("treasurer.queueEmpty")}
+        </p>
       ) : (
         <table className="fallback-table">
           <thead>
@@ -77,7 +95,9 @@ export function TreasurerQueue({
           <tbody>
             {queue.map((p) => (
               <tr key={p.id} data-testid={`queue-row-${p.id}`}>
-                <td>{p.status}</td>
+                <td>
+                  <PayPalStatusBadge pledge={p} />
+                </td>
                 <td>
                   {p.amount_eur} {p.currency}
                 </td>

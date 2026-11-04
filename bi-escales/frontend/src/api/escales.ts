@@ -154,3 +154,18 @@ export async function captainChat(message: string): Promise<CaptainChatResponse>
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
+
+export interface FinanceEntry {
+  kind: string;
+  pledge_id?: string | null;
+  detail?: Record<string, unknown>;
+  at?: string;
+}
+
+export async function listFinanceEntries(adminKey: string): Promise<FinanceEntry[]> {
+  const res = await fetch(url("/api/escales/finance"), {
+    headers: { "x-admin-key": adminKey },
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}

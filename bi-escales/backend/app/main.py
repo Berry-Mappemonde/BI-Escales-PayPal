@@ -33,9 +33,22 @@ def health():
     return {"status": "ok"}
 
 
-_escales_on = os.environ.get("ESCALES_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+_TRUTHY = {"1", "true", "yes", "on"}
+
+_escales_on = os.environ.get("ESCALES_ENABLED", "").strip().lower() in _TRUTHY
 if _escales_on:
     from app.routers import escales
 
     app.include_router(escales.router)
     app.include_router(escales.webhooks_router)
+
+    if os.environ.get("ESCALES_PAYPAL_MOCK", "").strip().lower() in _TRUTHY:
+
+        @app.on_event("startup")
+        async def _install_demo_paypal() -> None:
+            from app.demo_seed import ensure_demo_milestones
+            from app.escales.paypal_demo_client import demo_client_factory
+            from app.routers.escales import set_paypal_client_factory
+
+            await ensure_demo_milestones()
+            set_paypal_client_factory(demo_client_factory)

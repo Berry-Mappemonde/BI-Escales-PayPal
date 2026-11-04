@@ -61,6 +61,7 @@ export interface Milestone {
   id: string;
   evidence: MilestoneEvidence[];
   proposal?: CaptainProposal | null;
+  meta?: { title?: string; arrival_iso?: string | null };
   updated_at?: string;
 }
 
@@ -71,6 +72,7 @@ export interface CaptainProposal {
   justification?: string;
   pledge_ids: string[];
   evidence_flag?: string;
+  model_source?: { provider?: string; model?: string };
   at?: string;
 }
 
@@ -85,6 +87,7 @@ export interface CaptainChatResponse {
     intent: string;
     item?: string;
   };
+  model_source?: { provider?: string; model?: string };
 }
 
 export interface PledgeGaugeRow {

@@ -18,4 +18,9 @@ export default i18n;
 export function setLanguage(lang: "fr" | "en") {
   void i18n.changeLanguage(lang);
   localStorage.setItem("bi-escales-lang", lang);
+  if (typeof document !== "undefined") document.documentElement.lang = lang;
+}
+
+if (typeof document !== "undefined") {
+  document.documentElement.lang = fallbackLng;
 }

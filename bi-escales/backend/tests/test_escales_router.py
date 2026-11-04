@@ -182,6 +182,122 @@ def test_capture_refused_when_admin_key_unset(api, monkeypatch):
     assert "capture" not in [call[0] for call in fake.calls]
 
 
+def test_fund_counts_captured_income_and_treasurer_spending(api):
+    client, _fake = api
+    empty = client.get("/api/escales/milestones/dep-mayotte/fund")
+    assert empty.status_code == 200
+    assert empty.json()["income_eur"] == "0.00"
+    assert empty.json()["spending_eur"] == "0.00"
+    assert empty.json()["balance_eur"] == "0.00"
+    assert empty.json()["income"] == []
+
+    _created, authorized = _ready(client, "fund-auth")
+    held = client.get("/api/escales/milestones/dep-mayotte/fund").json()
+    assert held["income_eur"] == "0.00"
+    assert held["income"] == []
+
+    captured = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
+    assert captured.status_code == 200
+    other = _create(client, "fund-other", {**PLEDGE, "milestone_id": "dakar", "amount_eur": "60.00"})
+    assert other.status_code == 200
+    other_id = other.json()["id"]
+    assert _authorize(client, other_id).status_code == 200
+    assert client.post(f"/api/escales/pledges/{other_id}/capture", headers=ADMIN).status_code == 200
+
+    refused = client.post(
+        "/api/escales/milestones/dep-mayotte/fund/spending",
+        json={"amount_eur": "5.00", "description": "gasoil"},
+    )
+    assert refused.status_code == 401
+    bad = client.post(
+        "/api/escales/milestones/dep-mayotte/fund/spending",
+        json={"amount_eur": "0", "description": "gasoil"},
+        headers=ADMIN,
+    )
+    assert bad.status_code == 422
+
+    spent = client.post(
+        "/api/escales/milestones/dep-mayotte/fund/spending",
+        json={"amount_eur": "5.00", "description": "gasoil"},
+        headers=ADMIN,
+    )
+    assert spent.status_code == 200
+    fund = spent.json()
+    assert fund["milestone_id"] == "mayotte"
+    assert fund["currency"] == "EUR"
+    assert fund["income_eur"] == "20.00"
+    assert fund["spending_eur"] == "5.00"
+    assert fund["balance_eur"] == "15.00"
+    assert fund["overdrawn"] is False
+    assert fund["income"][0]["kind"] == "pledge_captured"
+    assert fund["income"][0]["pledge_id"] == authorized["id"]
+    assert fund["income"][0]["description"] == "20 milles Mayotte"
+    assert fund["income"][0]["pledge_kind"] == "mile"
+    assert fund["income"][0]["target_id"] == "dep-mayotte"
+    assert fund["spending"][0]["description"] == "gasoil"
+    assert fund["spending"][0]["amount_eur"] == "5.00"
+    same = client.get("/api/escales/milestones/mayotte/fund").json()
+    assert same["income_eur"] == "20.00"
+    assert same["spending_eur"] == "5.00"
+    dakar = client.get("/api/escales/milestones/dakar/fund").json()
+    assert dakar["income_eur"] == "60.00"
+    assert dakar["spending_eur"] == "0.00"
+    assert dakar["balance_eur"] == "60.00"
+    assert captured.json()["fund"]["milestone_id"] == "mayotte"
+    assert captured.json()["fund"]["income_eur"] == "20.00"
+
+
+def test_fund_rejects_bad_amounts_and_unknown_stopovers(api):
+    client, _fake = api
+    missing = client.get("/api/escales/milestones/nulle-part/fund")
+    assert missing.status_code == 404
+    for amount in ("NaN", "Infinity", "-Infinity", "1.999", "10000.01", "0"):
+        response = client.post(
+            "/api/escales/milestones/lorient/fund/spending",
+            json={"amount_eur": amount, "description": "essai"},
+            headers=ADMIN,
+        )
+        assert response.status_code == 422, amount
+    unknown = client.post(
+        "/api/escales/milestones/nulle-part/fund/spending",
+        json={"amount_eur": "1.00", "description": "essai"},
+        headers=ADMIN,
+    )
+    assert unknown.status_code == 404
+
+    _created, authorized = _ready(client, "fund-alias")
+    assert client.post(
+        f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN
+    ).status_code == 200
+    capped = client.post(
+        "/api/escales/milestones/dep-lorient/fund/spending",
+        json={"amount_eur": "10000", "description": "cale sèche"},
+        headers=ADMIN,
+    )
+    assert capped.status_code == 200, capped.text
+    assert capped.json()["milestone_id"] == "lorient"
+    assert capped.json()["spending_eur"] == "10000.00"
+    assert capped.json()["overdrawn"] is True
+    alias = client.get("/api/escales/milestones/lorient/fund")
+    assert alias.status_code == 200
+    assert alias.json()["spending_eur"] == "10000.00"
+    assert alias.json()["milestone_id"] == "lorient"
+    over = client.post(
+        "/api/escales/milestones/dep-mayotte/fund/spending",
+        json={"amount_eur": "30.00", "description": "cale sèche"},
+        headers=ADMIN,
+    )
+    assert over.status_code == 200, over.text
+    body = over.json()
+    assert body["milestone_id"] == "mayotte"
+    assert body["overdrawn"] is True
+    assert body["balance_eur"] == "-10.00"
+    assert body["income_eur"] == "20.00"
+    plain = client.get("/api/escales/milestones/mayotte/fund").json()
+    assert plain["spending_eur"] == "30.00"
+    assert plain["income_eur"] == "20.00"
+
+
 def test_capture_ok_with_admin_key(api):
     client, fake = api
     _created, authorized = _ready(client, "cap-ok")

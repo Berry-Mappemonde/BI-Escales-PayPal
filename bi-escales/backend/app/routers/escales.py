@@ -31,6 +31,7 @@ from app.escales.config import (
     vault_enabled,
     webhooks_enabled,
 )
+from app.escales.ledger import fund_for_milestone, record_spending
 from app.escales_names import display_name as escale_display_name
 from app.escales.milestones import list_milestones, record_evidence
 from app.escales.naviguide_bridge import (
@@ -116,6 +117,11 @@ class ChatIn(BaseModel):
     message: str
 
 
+class SpendingIn(BaseModel):
+    amount_eur: str
+    description: str
+
+
 class VaultRegisterIn(BaseModel):
     setup_token_id: Optional[str] = None
 
@@ -186,6 +192,16 @@ def _public_pledge(doc: dict) -> dict:
     return public
 
 
+async def _public_pledge_with_fund(doc: dict) -> dict:
+    """Public pledge, with the same fund object the fund route returns."""
+    public = _public_pledge(doc)
+    try:
+        public["fund"] = await fund_for_milestone(str(doc.get("milestone_id") or ""))
+    except LookupError:
+        public["fund"] = None
+    return public
+
+
 @router.get("/features")
 async def get_features():
     return {
@@ -244,7 +260,7 @@ async def post_pledge(body: PledgeIn, request: Request):
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
-    return _public_pledge(doc)
+    return await _public_pledge_with_fund(doc)
 
 
 @router.post("/pledges/{pledge_id}/vault")
@@ -260,7 +276,7 @@ async def post_register_vault(pledge_id: str, body: VaultRegisterIn):
         )
     except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
-    return _public_pledge(doc)
+    return await _public_pledge_with_fund(doc)
 
 
 @router.post("/pledges/{pledge_id}/authorize")
@@ -269,7 +285,7 @@ async def post_authorize(pledge_id: str):
         doc = await authorize_pledge(pledge_id, _paypal())
     except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
         raise _as_http(exc) from exc
-    return _public_pledge(doc)
+    return await _public_pledge_with_fund(doc)
 
 
 @router.post("/pledges/{pledge_id}/capture")
@@ -279,7 +295,7 @@ async def post_capture(pledge_id: str, request: Request):
         doc = await capture_pledge(pledge_id, _paypal())
     except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
         raise _as_http(exc) from exc
-    return _public_pledge(doc)
+    return await _public_pledge_with_fund(doc)
 
 
 @router.post("/pledges/{pledge_id}/void")
@@ -289,7 +305,7 @@ async def post_void(pledge_id: str, request: Request):
         doc = await void_pledge(pledge_id, _paypal())
     except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
         raise _as_http(exc) from exc
-    return _public_pledge(doc)
+    return await _public_pledge_with_fund(doc)
 
 
 @router.get("/pledges/{pledge_id}")
@@ -298,7 +314,29 @@ async def get_pledge(pledge_id: str):
         doc = await require_pledge(pledge_id)
     except PledgeNotFound as exc:
         raise _as_http(exc) from exc
-    return _public_pledge(doc)
+    return await _public_pledge_with_fund(doc)
+
+
+@router.get("/milestones/{milestone_id}/fund")
+async def get_fund(milestone_id: str):
+    try:
+        return await fund_for_milestone(milestone_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Milestone not found") from exc
+
+
+@router.post("/milestones/{milestone_id}/fund/spending")
+async def post_spending(milestone_id: str, body: SpendingIn, request: Request):
+    _require_treasurer(request)
+    try:
+        entry = await record_spending(milestone_id, body.amount_eur, body.description)
+        fund = await fund_for_milestone(milestone_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Milestone not found") from exc
+    except ValueError as exc:
+        raise _as_http(exc) from exc
+    fund["entry_id"] = entry.get("id") or entry.get("_id")
+    return fund
 
 
 @router.get("/milestones")

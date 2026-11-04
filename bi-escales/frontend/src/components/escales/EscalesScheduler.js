@@ -63,7 +63,7 @@ function SimulatedPrices({ prices }) {
         {rows.map((row) => (
           <li key={row.kind} data-kind={row.kind}>
             <span>{row.kind}</span>
-            <span>{row.amount_eur} {row.currency || "EUR"}</span>
+            {row.amount_eur ? <span>{row.amount_eur} {row.currency || "EUR"}</span> : null}
             <em>{row.label || label}</em>
           </li>
         ))}

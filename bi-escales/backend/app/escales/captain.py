@@ -29,11 +29,20 @@ from .toolkit_tools import ReadOnlyTools
 log = logging.getLogger("escales.captain")
 
 # Bureau prices. The model is not allowed to invent another tariff.
-# meal reuses the dinner line. Every other kind reuses the mile unit.
-# Both figures are a simulation, not a PayPal quote.
+# mile and meal keep these two figures. The other fixed lines are the
+# labelled simulation (berth 30, night 60, care 40, cabin leg 80).
+# A project pledge and the common fund have no unit: the visitor chooses.
 MILE_EUR = Decimal("1.00")
 DINNER_EUR = Decimal("60.00")
 SIMULATED_PRICE_LABEL = "simulated price"
+_SIMULATED_EUR = {
+    "mile": MILE_EUR,
+    "berth": Decimal("30.00"),
+    "night": Decimal("60.00"),
+    "meal": DINNER_EUR,
+    "care": Decimal("40.00"),
+    "cabin_leg": Decimal("80.00"),
+}
 
 _MILES = re.compile(
     r"(\d+(?:[.,]\d+)?)\s*(?:nautical\s+|nautiques?\s+)?(?:milles?|miles?|nm|mi)\b",
@@ -306,27 +315,22 @@ def display_name(milestone_id: str) -> str:
     return slug or raw
 
 
-def _simulated_amount(kind: str) -> Decimal:
-    if kind == "meal":
-        return DINNER_EUR
-    return MILE_EUR
-
-
 def simulated_unit(kind: str) -> dict:
     """One catalogue line. ``label`` is always ``simulated price``."""
-    amount = _simulated_amount(kind)
-    return {
+    row = {
         "kind": kind,
-        "amount_eur": f"{amount:.2f}",
         "currency": "EUR",
         "label": SIMULATED_PRICE_LABEL,
         "simulated": True,
-        "copied_from": "dinner" if kind == "meal" else "mile",
     }
+    amount = _SIMULATED_EUR.get(kind)
+    if amount is not None:
+        row["amount_eur"] = f"{amount:.2f}"
+    return row
 
 
 def simulated_prices() -> dict:
-    """Same two bureau figures, one row per pledge kind."""
+    """One row per pledge kind. Fixed lines carry amount_eur."""
     return {
         "simulated": True,
         "label": SIMULATED_PRICE_LABEL,

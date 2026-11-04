@@ -411,8 +411,13 @@ def test_prices_and_clock(api, monkeypatch):
     assert all(row["label"] == "simulated price" and row["simulated"] is True for row in catalogue["prices"])
     by_kind = {row["kind"]: row for row in catalogue["prices"]}
     assert by_kind["mile"]["amount_eur"] == "1.00"
+    assert by_kind["berth"]["amount_eur"] == "30.00"
+    assert by_kind["night"]["amount_eur"] == "60.00"
     assert by_kind["meal"]["amount_eur"] == "60.00"
-    assert by_kind["berth"]["copied_from"] == "mile"
+    assert by_kind["care"]["amount_eur"] == "40.00"
+    assert by_kind["cabin_leg"]["amount_eur"] == "80.00"
+    assert "amount_eur" not in by_kind["project_pledge"]
+    assert "amount_eur" not in by_kind["common_fund"]
     clock = client.get("/api/escales/clock")
     assert clock.status_code == 200
     assert clock.json()["start"] == "2026-11-12"

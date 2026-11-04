@@ -7,6 +7,7 @@
  * Les couches passent par SceneLayerRegistry.js.
  */
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { SceneLayerRegistry } from "../../../../naviguide-escales/src/map/SceneLayerRegistry.js";
@@ -64,12 +65,18 @@ export function MapScene({
   showMarinas,
   flyTo,
   onSelectStop,
+  onSelectProject,
 }) {
+  const { t } = useTranslation();
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const layersRef = useRef(null);
   const onSelectRef = useRef(onSelectStop);
   onSelectRef.current = onSelectStop;
+  const onProjectRef = useRef(onSelectProject);
+  onProjectRef.current = onSelectProject;
+  const pledgeLabelRef = useRef(t("projects.pledge"));
+  pledgeLabelRef.current = t("projects.pledge");
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return undefined;
@@ -170,8 +177,26 @@ export function MapScene({
         pane: "overlayPane",
       }).addTo(group);
       if (feature.properties?.title) marker.bindTooltip(feature.properties.title, { direction: "top" });
+      marker.on("click", (event) => {
+        L.DomEvent.stopPropagation(event);
+        onProjectRef.current?.(feature.properties);
+        const title = feature.properties?.title || "";
+        const popup = document.createElement("div");
+        popup.className = "project-map-popup";
+        const heading = document.createElement("strong");
+        heading.textContent = title;
+        popup.appendChild(heading);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = pledgeLabelRef.current;
+        btn.addEventListener("click", () => {
+          onProjectRef.current?.(feature.properties);
+        });
+        popup.appendChild(btn);
+        marker.bindPopup(popup).openPopup();
+      });
     });
-  }, [projects, showProjects]);
+  }, [projects, showProjects, t]);
 
   useEffect(() => {
     const map = mapRef.current;

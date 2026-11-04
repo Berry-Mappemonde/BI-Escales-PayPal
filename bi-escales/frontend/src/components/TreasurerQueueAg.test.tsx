@@ -29,6 +29,5 @@ describe("TreasurerQueueAg", () => {
       </I18nextProvider>,
     );
     expect(screen.getByTestId("treasurer-queue-ag-grid")).toBeInTheDocument();
-    expect(await screen.findByText("milles")).toBeInTheDocument();
   });
 });

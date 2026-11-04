@@ -7,6 +7,9 @@ import { PledgeButton } from "./PledgeButton";
 
 vi.mock("../api/escales", () => ({
   createPledge: vi.fn(),
+  registerVault: vi.fn(),
+  isVaultPledge: (pledge: { payment_mode?: string; intent?: string }) =>
+    pledge.payment_mode === "VAULT" || pledge.intent === "VAULT",
 }));
 
 const values = {
@@ -50,5 +53,29 @@ describe("PledgeButton", () => {
     fireEvent.click(link);
     expect(screen.queryByTestId("pledge-authorize")).toBeNull();
     expect(screen.getByText(/Au retour, l’autorisation/)).toBeInTheDocument();
+  });
+
+  it("affiche le bouton d’enregistrement Vault", async () => {
+    vi.mocked(createPledge).mockResolvedValue({
+      id: "vault-1",
+      status: "created",
+      intent: "VAULT",
+      payment_mode: "VAULT",
+      currency: "EUR",
+      amount_eur: "20.00",
+      description: values.description,
+      milestone_id: values.milestone_id,
+      approve_link: "https://www.sandbox.paypal.com/vault/setup",
+    });
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <PledgeButton values={values} />
+      </I18nextProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Créer l’ordre PayPal" }));
+    expect(await screen.findByTestId("pledge-authorize")).toBeInTheDocument();
+    expect(screen.getByText(/Vault : approuvez/)).toBeInTheDocument();
   });
 });

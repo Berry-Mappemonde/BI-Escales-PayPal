@@ -93,10 +93,14 @@ async def run_departure_clock(client: Any, *, now: Optional[dt.datetime] = None)
     moment = now or simulated_now()
     actions: list[dict] = []
     for pledge in await get_ledger().list_pledges():
-        if not pledge or pledge.get("status") != "authorized":
+        if not pledge:
             continue
         mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
+        status = str(pledge.get("status") or "")
         if mode == "VAULT":
+            if status != "vaulted":
+                continue
+        elif status != "authorized":
             continue
         doc = await departure_milestone(pledge)
         if not doc:

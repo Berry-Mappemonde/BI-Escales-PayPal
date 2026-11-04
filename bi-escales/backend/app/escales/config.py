@@ -162,11 +162,13 @@ def vault_enabled() -> bool:
 
 
 def vault_return_url() -> str:
-    return (os.environ.get("ESCALES_VAULT_RETURN_URL") or "https://example.com/escales/vault/return").strip()
+    default = f"{public_base_url()}/?vault=return"
+    return (os.environ.get("ESCALES_VAULT_RETURN_URL") or default).strip()
 
 
 def vault_cancel_url() -> str:
-    return (os.environ.get("ESCALES_VAULT_CANCEL_URL") or "https://example.com/escales/vault/cancel").strip()
+    default = f"{public_base_url()}/?vault=cancel"
+    return (os.environ.get("ESCALES_VAULT_CANCEL_URL") or default).strip()
 
 
 # Same Render service that serves the built frontend. The static host 404s.

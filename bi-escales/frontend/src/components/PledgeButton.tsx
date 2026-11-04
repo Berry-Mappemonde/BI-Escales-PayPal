@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { createPledge } from "../api/escales";
+import { createPledge, isVaultPledge, registerVault } from "../api/escales";
 import type { PublicPledge } from "../api/types";
 
 export interface PledgeFormValues {
@@ -18,12 +18,13 @@ export interface PledgeButtonProps {
   onAuthorized?: (pledge: PublicPledge) => void;
 }
 
-export function PledgeButton({ values, disabled, onAuthorized: _onAuthorized }: PledgeButtonProps) {
+export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonProps) {
   const { t } = useTranslation();
   const [created, setCreated] = useState<PublicPledge | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const vault = created ? isVaultPledge(created) : false;
 
   const createOrder = async () => {
     setBusy(true);
@@ -43,9 +44,26 @@ export function PledgeButton({ values, disabled, onAuthorized: _onAuthorized }: 
       );
       if (!pledge.approve_link) throw new Error("approve_link missing");
       setCreated(pledge);
-      setStatus(t("pledge.returnPending"));
+      setStatus(isVaultPledge(pledge) ? t("pledge.vaultHint") : t("pledge.returnPending"));
     } catch (e) {
       setCreated(null);
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmVault = async () => {
+    if (!created || !vault) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setStatus(t("pledge.vaulting"));
+      const saved = await registerVault(created.id);
+      setCreated(saved);
+      setStatus(t("pledge.vaulted"));
+      onAuthorized?.(saved);
+    } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
@@ -64,8 +82,13 @@ export function PledgeButton({ values, disabled, onAuthorized: _onAuthorized }: 
           rel="noreferrer"
           data-testid="paypal-approve-link"
         >
-          {t("pledge.approve")}
+          {vault ? t("pledge.vaultApprove") : t("pledge.approve")}
         </a>
+      ) : null}
+      {vault ? (
+        <button type="button" data-testid="pledge-authorize" onClick={() => void confirmVault()} disabled={busy}>
+          {t("pledge.vaultConfirm")}
+        </button>
       ) : null}
       {status ? <p className="status">{status}</p> : null}
       {error ? (

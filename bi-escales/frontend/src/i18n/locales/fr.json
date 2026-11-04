@@ -95,6 +95,12 @@
     "authorize": "J’ai approuvé — autoriser",
     "creating": "Création de la promesse…",
     "authorized": "Promesse autorisée",
+    "vaultHint": "Vault : approuvez le moyen de paiement sur PayPal, puis confirmez. Rien n’est encaissé.",
+    "vaultApprove": "Approuver le moyen de paiement",
+    "vaultConfirm": "J’ai approuvé — enregistrer",
+    "vaulting": "Enregistrement du moyen de paiement…",
+    "vaulted": "Moyen de paiement enregistré",
+    "vaultCancelled": "Enregistrement Vault annulé. Rien n’a été enregistré.",
     "error": "Erreur promesse"
   },
   "treasurer": {

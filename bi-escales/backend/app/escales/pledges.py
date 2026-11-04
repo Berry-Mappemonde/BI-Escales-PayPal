@@ -23,7 +23,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from .config import AUTH_MAX_DAYS, order_cancel_url, order_return_url, vault_cancel_url, vault_return_url
+from .config import AUTH_MAX_DAYS, order_cancel_url, order_return_url, vault_cancel_url, vault_enabled, vault_return_url
 from .ledger import (
     COLLECTIONS,
     get_ledger,
@@ -331,6 +331,15 @@ def _callback_url(base: str, pledge_id: str, flag: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
+def _vault_callback_url(base: str, pledge_id: str, flag: str) -> str:
+    """Vault setup return or cancel URL, with the pledge id the page registers."""
+    parts = urlsplit(base)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["vault"] = flag
+    query["pledge_id"] = pledge_id
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
 def _create_authorize_order(client: Any, **kwargs: Any) -> dict:
     """Pass return URLs when the client accepts them. Older fakes do not."""
     try:
@@ -460,9 +469,15 @@ async def create_pledge(
     }
     await refuse_cancelled_departure(draft)
     # An authorization lasts 29 days. Refuse before PayPal creates the order.
-    # A vault setup is not an authorization and stays open.
+    # When Vault is on, a far departure falls back to saving the payment method.
     if mode != "VAULT":
-        await refuse_early_authorization(draft)
+        try:
+            await refuse_early_authorization(draft)
+        except ValueError as exc:
+            if vault_enabled() and pledge_kind != "cabin_leg" and "29 days" in str(exc):
+                mode = "VAULT"
+            else:
+                raise
     if mode == "VAULT":
         return await _create_vault_pledge(
             amount=amount,
@@ -596,7 +611,10 @@ async def _create_vault_pledge(
             return existing
     pledge_id = uuid.uuid4().hex
     idempotency_key = key or uuid.uuid4().hex
-    setup = client.create_setup_token(vault_return_url(), vault_cancel_url())
+    setup = client.create_setup_token(
+        _vault_callback_url(vault_return_url(), pledge_id, "return"),
+        _vault_callback_url(vault_cancel_url(), pledge_id, "cancel"),
+    )
     setup_id = setup.get("id")
     if not setup_id:
         raise PayPalError(502, "setup token id missing")

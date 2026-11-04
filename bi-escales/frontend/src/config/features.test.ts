@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { readPaypalReturn } from "../api/escales";
+import { readPaypalReturn, readVaultReturn } from "../api/escales";
 import { featureAgGridEnabled } from "../config/features";
 import { loadTrackedPledgeIds, saveTrackedPledgeIds, trackPledgeId } from "../hooks/pledgeQueueStorage";
 
@@ -24,6 +24,14 @@ describe("readPaypalReturn", () => {
     expect(readPaypalReturn("?token=ORDER1")).toBeNull();
     expect(readPaypalReturn("?paypal=return&pledge_id=abc")).toEqual({ action: "return", pledgeId: "abc" });
     expect(readPaypalReturn("?paypal=cancel&pledge_id=abc")).toEqual({ action: "cancel", pledgeId: "abc" });
+  });
+});
+
+describe("readVaultReturn", () => {
+  it("lit le retour Vault PayPal", () => {
+    expect(readVaultReturn("?vault=return&pledge_id=v1")).toEqual({ action: "return", pledgeId: "v1" });
+    expect(readVaultReturn("?vault=cancel&pledge_id=v1")).toEqual({ action: "cancel", pledgeId: "v1" });
+    expect(readVaultReturn("?paypal=return&pledge_id=abc")).toBeNull();
   });
 });
 

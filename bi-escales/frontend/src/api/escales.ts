@@ -31,6 +31,13 @@ export function readPaypalReturn(search: string): { action: "return" | "cancel";
   return { action, pledgeId: params.get("pledge_id") || "" };
 }
 
+export function readVaultReturn(search: string): { action: "return" | "cancel"; pledgeId: string } | null {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+  const action = params.get("vault");
+  if (action !== "return" && action !== "cancel") return null;
+  return { action, pledgeId: params.get("pledge_id") || "" };
+}
+
 async function parseError(res: Response): Promise<string> {
   try {
     const body = await res.json();

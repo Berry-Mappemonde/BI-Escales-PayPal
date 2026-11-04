@@ -1490,6 +1490,7 @@ def test_vault_stays_off_unless_escales_vault_enabled(monkeypatch):
     assert vault_enabled() is True
     text = (Path(__file__).resolve().parents[2] / "render.yaml").read_text(encoding="utf-8")
     start = text.index("key: ESCALES_VAULT_ENABLED")
-    window = text[start:start + 80]
-    assert 'value: "false"' in window
-    assert 'value: "true"' not in window
+    window = text[start:start + 120]
+    assert 'value: "true"' in window
+    assert "ESCALES_VAULT_RETURN_URL" in text
+    assert "bi-escales-api.onrender.com/?vault=return" in text

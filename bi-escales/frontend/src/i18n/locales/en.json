@@ -95,6 +95,12 @@
     "creating": "Creating pledge…",
     "authorizing": "Authorizing on server…",
     "authorized": "Pledge authorized",
+    "vaultHint": "Vault: approve the saved payment method on PayPal, then confirm. Nothing is captured yet.",
+    "vaultApprove": "Approve the payment method",
+    "vaultConfirm": "I approved — save it",
+    "vaulting": "Saving the payment method…",
+    "vaulted": "Payment method saved",
+    "vaultCancelled": "Vault setup cancelled. Nothing was saved.",
     "error": "Pledge error"
   },
   "treasurer": {

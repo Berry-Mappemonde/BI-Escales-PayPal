@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, fetchFund, fetchHealthRetrying, fetchSchedule, readPaypalReturn, recordSpending } from "./api/escales";
+import { authorizePledge, fetchFund, fetchHealthRetrying, fetchSchedule, readPaypalReturn, readVaultReturn, recordSpending, registerVault } from "./api/escales";
 import { nextStopover } from "./voyage/nextStopover.js";
 import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
@@ -218,6 +218,31 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const vaultParsed = readVaultReturn(window.location.search);
+    if (vaultParsed) {
+      const next = new URL(window.location.href);
+      next.searchParams.delete("vault");
+      next.searchParams.delete("pledge_id");
+      next.searchParams.delete("token");
+      window.history.replaceState({}, "", `${next.pathname}${next.search}${next.hash}`);
+      if (vaultParsed.action === "cancel") {
+        setPaypalNote("vaultCancel");
+        return undefined;
+      }
+      if (!vaultParsed.pledgeId) return undefined;
+      setPaypalNote("vaulting");
+      void registerVault(vaultParsed.pledgeId)
+        .then((pledge) => {
+          onAuthorized(pledge);
+          setPaypalNote("vaulted");
+          setHealthOk(true);
+        })
+        .catch((err: unknown) => {
+          setPaypalNote(err instanceof Error ? err.message : String(err));
+        });
+      return undefined;
+    }
+
     const parsed = readPaypalReturn(window.location.search);
     if (!parsed) return undefined;
     const next = new URL(window.location.href);
@@ -386,9 +411,18 @@ export default function App() {
 
       {healthOk === false ? <p className="notice error">{t("app.healthFail")}</p> : null}
       {paypalNote === "cancel" ? <p className="notice warn">{t("pledge.cancelled")}</p> : null}
+      {paypalNote === "vaultCancel" ? <p className="notice warn">{t("pledge.vaultCancelled")}</p> : null}
       {paypalNote === "authorizing" ? <p className="status">{t("pledge.authorizing")}</p> : null}
+      {paypalNote === "vaulting" ? <p className="status">{t("pledge.vaulting")}</p> : null}
       {paypalNote === "authorized" ? <p className="status">{t("pledge.authorized")}</p> : null}
-      {paypalNote && paypalNote !== "cancel" && paypalNote !== "authorizing" && paypalNote !== "authorized" ? (
+      {paypalNote === "vaulted" ? <p className="status">{t("pledge.vaulted")}</p> : null}
+      {paypalNote &&
+      paypalNote !== "cancel" &&
+      paypalNote !== "vaultCancel" &&
+      paypalNote !== "authorizing" &&
+      paypalNote !== "vaulting" &&
+      paypalNote !== "authorized" &&
+      paypalNote !== "vaulted" ? (
         <p className="notice error">{paypalNote}</p>
       ) : null}
 

@@ -1,0 +1,80 @@
+# Un seul service Render. FastAPI sert l'API et le build Vite.
+# autoDeployTrigger off : un push ne déploie pas. Ne pas lancer le déploiement depuis la PR.
+services:
+  - type: web
+    name: bi-escales-api
+    runtime: python
+    region: frankfurt
+    plan: free
+    autoDeployTrigger: off
+    rootDir: bi-escales
+    buildCommand: cd frontend && npm ci && npm run build && cd ../backend && pip install -r requirements.txt
+    startCommand: cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: ESCALES_ENABLED
+        sync: false
+      - key: ESCALES_ADMIN_KEY
+        sync: false
+      - key: ESCALES_STORE
+        sync: false
+      - key: MONGO_URL
+        sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_ENV
+        value: sandbox
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: ESCALES_WEBHOOKS_ENABLED
+        sync: false
+      - key: ESCALES_PUBLIC_URL
+        value: https://bi-escales-api.onrender.com
+      - key: ESCALES_RETURN_URL
+        value: https://bi-escales-api.onrender.com/?paypal=return
+      - key: ESCALES_CANCEL_URL
+        value: https://bi-escales-api.onrender.com/?paypal=cancel
+      - key: ESCALES_CORS_ORIGINS
+        value: http://localhost:5173,http://127.0.0.1:5173
+      - key: DB_NAME
+        value: bi_escales
+      - key: ESCALES_TOOLKIT_ENABLED
+        sync: false
+      - key: ESCALES_ZAPIER_ENABLED
+        sync: false
+      - key: HELLOASSO_MEMBERSHIP_URL
+        sync: false
+      # Captain IP limit and LLM daily cap are off unless this is production.
+      - key: ESCALES_ENV
+        value: production
+      - key: ESCALES_CAPTAIN_RATE_PER_MINUTE
+        value: "10"
+      - key: ESCALES_CAPTAIN_RATE_PER_DAY
+        value: "100"
+      - key: ESCALES_TRUSTED_PROXY_HOPS
+        value: "1"
+      - key: ESCALES_LLM_DAILY_CAP
+        value: "100"
+      - key: ESCALES_LLM_ENABLED
+        sync: false
+      - key: NVIDIA_API_KEY
+        sync: false
+      # NIM_MODEL is the id sent on the primary hop. sync false: the dashboard value wins.
+      # Old id nvidia/nemotron-3.5-super-vl-120b-a12b returns 404.
+      # nvidia/nemotron-3.5-super-120b-a12b (no private/ prefix) returns 404 too.
+      # The code refuses those ids and the lightning id, and sends
+      # private/nvidia/nemotron-3.5-super-120b-a12b. Set NIM_MODEL to that id or unset it.
+      # model_source.model is the model that answered.
+      # lightning means the nim_fallback hop ran; model_source.reason says why (404 or timeout).
+      - key: NIM_MODEL
+        sync: false
+      - key: ESCALES_VAULT_ENABLED
+        value: "true"
+      - key: ESCALES_VAULT_RETURN_URL
+        value: https://bi-escales-api.onrender.com/?vault=return
+      - key: ESCALES_VAULT_CANCEL_URL
+        value: https://bi-escales-api.onrender.com/?vault=cancel
+      - key: VITE_PAYPAL_CLIENT_ID
+        sync: false

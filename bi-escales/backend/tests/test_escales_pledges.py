@@ -17,10 +17,13 @@ from app.escales.paypal_client import PayPalClient, approve_link
 from app.escales.pledges import (
     COLLECTIONS,
     IllegalTransition,
+    PLEDGE_KINDS,
     authorize_pledge,
     capture_pledge,
     create_pledge,
+    get_ledger,
     reset_ledger,
+    to_public,
     void_pledge,
 )
 
@@ -28,6 +31,7 @@ from app.escales.pledges import (
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     reset_ledger()
     yield
     reset_ledger()
@@ -52,7 +56,21 @@ class Spy:
             }],
         }
 
-    def authorize_order(self, order_id):
+    def create_capture_order(self, amount_eur, description, reference_id, idempotency_key=None, **kwargs):
+        self.calls.append(("create_capture", amount_eur, idempotency_key))
+        self.n += 1
+        order_id = f"ORDER{self.n}"
+        return {
+            "id": order_id,
+            "status": "CREATED",
+            "intent": "CAPTURE",
+            "links": [{
+                "rel": "approve",
+                "href": f"https://www.sandbox.paypal.com/checkoutnow?token={order_id}",
+            }],
+        }
+
+    def authorize_order(self, order_id, **kwargs):
         self.calls.append(("authorize", order_id))
         return {
             "id": order_id,
@@ -60,19 +78,42 @@ class Spy:
                 "payments": {
                     "authorizations": [{
                         "id": f"AUTH-{order_id}",
-                        "expiration_time": "2026-12-01T00:00:00Z",
+                        "expiration_time": "2099-01-01T00:00:00Z",
                     }],
                 },
             }],
         }
 
-    def capture_authorization(self, authorization_id, final=True):
+    def capture_authorization(self, authorization_id, final=True, **kwargs):
         self.calls.append(("capture", authorization_id))
         return {"id": "CAP", "status": "COMPLETED"}
 
-    def void_authorization(self, authorization_id):
+    def capture_order(self, order_id, **kwargs):
+        self.calls.append(("orders.capture", order_id))
+        return {
+            "id": order_id,
+            "status": "COMPLETED",
+            "purchase_units": [{
+                "payments": {
+                    "captures": [{"id": f"CAP-{order_id}", "status": "COMPLETED"}],
+                },
+            }],
+        }
+
+    def void_authorization(self, authorization_id, **kwargs):
         self.calls.append(("void", authorization_id))
         return {}
+
+    def reauthorize(self, authorization_id, **kwargs):
+        self.calls.append(("reauthorize", authorization_id))
+        return {
+            "id": f"REAUTH-{authorization_id}",
+            "expiration_time": "2027-01-01T00:00:00Z",
+        }
+
+    def refund_capture(self, capture_id, **kwargs):
+        self.calls.append(("refund", capture_id, kwargs.get("amount_eur")))
+        return {"id": "REF1", "status": "COMPLETED"}
 
     def get_order(self, order_id):
         self.calls.append(("orders.get", order_id))
@@ -82,16 +123,35 @@ class Spy:
         self.calls.append(("authorizations.get", authorization_id))
         return {"id": authorization_id, "status": "CREATED"}
 
+    def create_setup_token(self, return_url, cancel_url, **kwargs):
+        self.calls.append(("setup_token", kwargs))
+        return {
+            "id": "SETUP1",
+            "status": "CREATED",
+            "links": [{
+                "rel": "approve",
+                "href": "https://www.sandbox.paypal.com/ag/v1/vault/setup-token/SETUP1",
+            }],
+        }
+
 
 def _names(spy: Spy) -> list[str]:
     return [call[0] for call in spy.calls]
 
 
-def test_create_authorize_order_is_eur_and_idempotent():
+def test_create_authorize_order_is_eur_and_idempotent(monkeypatch):
+    monkeypatch.delenv("ESCALES_RETURN_URL", raising=False)
+    monkeypatch.delenv("ESCALES_CANCEL_URL", raising=False)
     seen = []
 
     def handler(request: httpx.Request):
-        seen.append((request.method, request.url.path, request.headers.get("PayPal-Request-Id"), request.content))
+        seen.append((
+            request.method,
+            request.url.path,
+            request.headers.get("PayPal-Request-Id"),
+            request.content,
+            request.headers.get("Prefer"),
+        ))
         path = request.url.path
         if path == "/v1/oauth2/token":
             return httpx.Response(200, json={"access_token": "T", "expires_in": 3600})
@@ -99,6 +159,13 @@ def test_create_authorize_order_is_eur_and_idempotent():
             body = json.loads(request.content)
             assert body["intent"] == "AUTHORIZE"
             assert body["purchase_units"][0]["amount"] == {"currency_code": "EUR", "value": "20.00"}
+            context = body["payment_source"]["paypal"]["experience_context"]
+            assert context["return_url"] == "https://bi-escales-api.onrender.com/?paypal=return"
+            assert context["cancel_url"] == "https://bi-escales-api.onrender.com/?paypal=cancel"
+            assert context["user_action"] == "CONTINUE"
+            assert context["shipping_preference"] == "NO_SHIPPING"
+            assert context["brand_name"] == "Berry-Mappemonde"
+            assert context["locale"] == "fr-FR"
             return httpx.Response(201, json={
                 "id": "ORDER1",
                 "status": "CREATED",
@@ -109,7 +176,7 @@ def test_create_authorize_order_is_eur_and_idempotent():
             return httpx.Response(201, json={
                 "id": "ORDER1",
                 "purchase_units": [{
-                    "payments": {"authorizations": [{"id": "AUTH1", "expiration_time": "2026-12-01T00:00:00Z"}]},
+                    "payments": {"authorizations": [{"id": "AUTH1", "expiration_time": "2099-01-01T00:00:00Z"}]},
                 }],
             })
         if path == "/v2/checkout/orders/ORDER1" and request.method == "GET":
@@ -142,7 +209,32 @@ def test_create_authorize_order_is_eur_and_idempotent():
         "/v2/payments/authorizations/AUTH1/void",
     ]
     assert seen[1][2] == "pledge-key-1"
+    assert seen[1][4] == "return=representation"
+    assert seen[2][4] == "return=representation"
+    assert seen[3][4] is None
     assert all("capture" not in path for path in paths)
+
+
+def test_charge_vaulted_sends_the_matching_payment_source():
+    bodies = []
+
+    def handler(request: httpx.Request):
+        if request.url.path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "T", "expires_in": 3600})
+        bodies.append(json.loads(request.content))
+        return httpx.Response(201, json={"id": "ORD-V", "status": "COMPLETED", "intent": "CAPTURE"})
+
+    client = PayPalClient(
+        EscalesConfig("test-client-id", "test-client-secret"),
+        transport=httpx.MockTransport(handler),
+    )
+    client.charge_vaulted("WALLET1", "1.00", "ref-wallet", idempotency_key="vault-wallet")
+    client.charge_vaulted("CARD1", "1.00", "ref-card", source="card", idempotency_key="vault-card")
+    assert bodies[0]["payment_source"] == {"paypal": {"vault_id": "WALLET1"}}
+    card = bodies[1]["payment_source"]["card"]
+    assert card["vault_id"] == "CARD1"
+    assert card["stored_credential"]["usage"] == "SUBSEQUENT"
+    assert card["attributes"]["verification"]["method"] == "SCA_WHEN_REQUIRED"
 
 
 def test_non_sandbox_env_is_refused(monkeypatch):
@@ -152,7 +244,13 @@ def test_non_sandbox_env_is_refused(monkeypatch):
 
 
 def test_collections_are_namespaced():
-    assert COLLECTIONS == ("escales_pledges", "escales_milestones", "escales_audit")
+    assert COLLECTIONS == (
+        "escales_pledges",
+        "escales_milestones",
+        "escales_audit",
+        "escales_finance",
+        "escales_webhooks",
+    )
 
 
 def test_same_client_key_reuses_pledge_without_a_second_order():
@@ -202,10 +300,13 @@ def test_state_machine_and_forbidden_transitions():
         authorized = await authorize_pledge(created["_id"], spy)
         assert authorized["status"] == "authorized"
         assert authorized["authorization_id"] == "AUTH-ORDER1"
-        assert authorized["authorization_expires_at"] == "2026-12-01T00:00:00Z"
+        assert authorized["authorization_expires_at"] == "2099-01-01T00:00:00Z"
         with pytest.raises(IllegalTransition):
             await authorize_pledge(created["_id"], spy)
 
+        import os
+
+        os.environ["ESCALES_CLOCK_NOW"] = "2027-06-12T08:00:00Z"
         captured = await capture_pledge(created["_id"], spy)
         assert captured["status"] == "captured"
         with pytest.raises(IllegalTransition):
@@ -230,7 +331,268 @@ def test_state_machine_and_forbidden_transitions():
 
         assert _names(spy).count("capture") == 1
         assert _names(spy).count("void") == 1
-        assert "orders.get" not in _names(spy)
+        assert _names(spy).count("orders.get") == 2
+        assert "authorizations.get" not in _names(spy)
+
+    asyncio.run(body())
+
+
+def test_omitted_kind_stays_a_mile_and_targets_the_milestone():
+    async def body():
+        spy = Spy()
+        created = await create_pledge(
+            amount_eur="20.00",
+            description="20 milles",
+            milestone_id="dep-mayotte",
+            client=spy,
+        )
+        assert created["kind"] == "mile"
+        assert created["target_id"] == "dzaoudzi-mayotte"
+        assert created["intent"] == "AUTHORIZE"
+        assert created["status"] == "created"
+        assert _names(spy) == ["create"]
+
+    asyncio.run(body())
+
+
+def test_kind_and_target_are_stored_and_unknown_kind_is_rejected():
+    async def body():
+        spy = Spy()
+        created = await create_pledge(
+            amount_eur="60.00",
+            description="diner",
+            milestone_id="dep-mayotte",
+            client=spy,
+            kind="meal",
+            target_id="mayotte",
+        )
+        assert created["kind"] == "meal"
+        assert created["target_id"] == "dzaoudzi-mayotte"
+        assert created["milestone_id"] == "dep-dzaoudzi-mayotte"
+        prefixed = await create_pledge(
+            amount_eur="20.00",
+            description="20 milles",
+            milestone_id="dep-mayotte",
+            client=spy,
+            kind="mile",
+            target_id="dep-mayotte",
+        )
+        assert prefixed["target_id"] == "dzaoudzi-mayotte"
+        assert prefixed["milestone_id"] == "dep-dzaoudzi-mayotte"
+        stored = await get_ledger().get_pledge(created["_id"])
+        assert stored["kind"] == "meal"
+        assert stored["target_id"] == "dzaoudzi-mayotte"
+        project = await create_pledge(
+            amount_eur="15.00",
+            description="don",
+            milestone_id="dep-mayotte",
+            client=spy,
+            kind="project_pledge",
+            target_id="projet-ecole",
+        )
+        assert project["target_id"] == "projet-ecole"
+        fund = await create_pledge(
+            amount_eur="8.00",
+            description="caisse",
+            milestone_id="dep-mayotte",
+            client=spy,
+            kind="common_fund",
+            target_id="mayotte",
+        )
+        assert fund["target_id"] == "dzaoudzi-mayotte"
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="8.00",
+                description="caisse",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="common_fund",
+                target_id="projet-ecole",
+            )
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="1.00",
+                description="autre escale",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="mile",
+                target_id="dakar",
+            )
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="30.00",
+                description="poste",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="berth",
+                target_id="nulle-part",
+            )
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="30.00",
+                description="poste",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="berth",
+                target_id="Projet Ecole",
+            )
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="1.00",
+                description="inconnu",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="yacht",
+            )
+        assert set(PLEDGE_KINDS) == {
+            "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "common_fund",
+        }
+
+    asyncio.run(body())
+
+
+def test_cabin_leg_authorizes_and_waits_for_departure(monkeypatch):
+    """Réserver une cabine autorise. Le départ de A capture, l'annulation vide."""
+    from app.escales.milestones import decision_for_evidence, record_evidence
+    from app.escales.naviguide_bridge import sync_leg_shells
+
+    monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+    monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
+    leg = "leg-la-rochelle-to-ajaccio-corse"
+
+    async def body():
+        await sync_leg_shells()
+        spy = Spy()
+        created = await create_pledge(
+            amount_eur="80.00",
+            description="cabine Ajaccio Fort-de-France",
+            milestone_id=leg,
+            client=spy,
+            kind="cabin_leg",
+        )
+        assert created["intent"] == "AUTHORIZE"
+        assert created["payment_mode"] == "AUTHORIZE"
+        assert created["kind"] == "cabin_leg"
+        assert created["target_id"] == leg
+        assert created["status"] == "created"
+        assert _names(spy) == ["create"]
+        from_stop = await create_pledge(
+            amount_eur="80.00",
+            description="cabine depuis La Rochelle",
+            milestone_id="dep-la-rochelle",
+            client=spy,
+            kind="cabin_leg",
+        )
+        assert from_stop["milestone_id"] == "leg-la-rochelle-to-ajaccio-corse"
+        far_cabin = await create_pledge(
+            amount_eur="80.00",
+            description="cabine depuis Mayotte",
+            milestone_id="dep-mayotte",
+            client=spy,
+            kind="cabin_leg",
+        )
+        assert far_cabin["payment_mode"] == "VAULT"
+        assert far_cabin["intent"] == "VAULT"
+        assert far_cabin["setup_token_id"] == "SETUP1"
+        assert _names(spy)[-1] == "setup_token"
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="80.00",
+                description="cabine inconnue",
+                milestone_id="dep-nulle-part",
+                client=spy,
+                kind="cabin_leg",
+            )
+        departed = await record_evidence(leg, met=True, facts={"departed": True})
+        milestone = await get_ledger().get_milestone(leg)
+        assert decision_for_evidence({"facts": departed["facts"], "met": True}, milestone) == "capture"
+        cancelled = await record_evidence(leg, met=False, facts={"cancelled": True})
+        assert decision_for_evidence(
+            {"facts": cancelled["facts"], "met": False}, milestone,
+        ) == "void"
+        assert decision_for_evidence({"facts": {"departed": True}, "met": None}, milestone) == "capture"
+        assert decision_for_evidence({"facts": {"cancelled": True}, "met": True}, milestone) == "void"
+
+    asyncio.run(body())
+
+
+def test_two_cabins_same_leg_both_authorize_at_28_days(monkeypatch):
+    """Payment mode must not flip to VAULT on the 2nd cabin when departure is within 29 days."""
+    from app.escales.naviguide_bridge import sync_leg_shells
+
+    monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-10-15T08:00:00Z")
+    leg = "leg-la-rochelle-to-ajaccio-corse"
+
+    async def body():
+        await sync_leg_shells()
+        spy = Spy()
+        first = await create_pledge(
+            amount_eur="80.00",
+            description="cabine a",
+            milestone_id=leg,
+            client=spy,
+            client_key="cabin-a",
+            kind="cabin_leg",
+        )
+        second = await create_pledge(
+            amount_eur="80.00",
+            description="cabine b",
+            milestone_id=leg,
+            client=spy,
+            client_key="cabin-b",
+            kind="cabin_leg",
+        )
+        assert first["payment_mode"] == "AUTHORIZE"
+        assert second["payment_mode"] == "AUTHORIZE"
+        assert _names(spy) == ["create", "create"]
+
+    asyncio.run(body())
+
+
+def test_cabin_uses_vault_only_when_departure_beyond_29_days(monkeypatch):
+    from app.escales.naviguide_bridge import sync_leg_shells
+
+    monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-10-01T08:00:00Z")
+    leg = "leg-la-rochelle-to-ajaccio-corse"
+
+    async def body():
+        await sync_leg_shells()
+        spy = Spy()
+        created = await create_pledge(
+            amount_eur="80.00",
+            description="cabine lointaine",
+            milestone_id=leg,
+            client=spy,
+            kind="cabin_leg",
+        )
+        assert created["payment_mode"] == "VAULT"
+        assert spy.calls[-1][0] == "setup_token"
+
+    asyncio.run(body())
+
+
+def test_legacy_memory_row_reads_as_a_mile():
+    async def body():
+        ledger = get_ledger()
+        ledger._pledges["old"] = {
+            "_id": "old",
+            "milestone_id": "dep-mayotte",
+            "status": "authorized",
+            "intent": "AUTHORIZE",
+            "amount_eur": "20.00",
+        }
+        got = await ledger.get_pledge("old")
+        assert got["kind"] == "mile"
+        assert got["target_id"] == "dep-mayotte"
+        assert "kind" not in ledger._pledges["old"]
+        public = to_public(got)
+        assert public["kind"] == "mile"
+        assert public["target_id"] == "dep-mayotte"
+        assert public["id"] == "old"
+        listed = await ledger.list_pledges_for_milestone("dep-mayotte")
+        assert listed[0]["kind"] == "mile"
 
     asyncio.run(body())
 
@@ -243,12 +605,48 @@ def test_live_sandbox_create_authorize_order():
     if not os.environ.get("PAYPAL_CLIENT_SECRET"):
         pytest.skip("PAYPAL_CLIENT_SECRET is not set")
     client = PayPalClient(load_config())
+    # New key: escales-live-probe cached a minimal body that omitted intent.
     order = client.create_authorize_order(
         "1.00",
         "BI Escales live probe",
         "live-probe",
-        idempotency_key="escales-live-probe",
+        idempotency_key="escales-live-probe-v2",
     )
     assert order.get("id")
-    assert order.get("intent") == "AUTHORIZE"
+    shown = order if order.get("intent") else client.get_order(order["id"])
+    assert shown.get("intent") == "AUTHORIZE"
+    assert shown.get("status") in {"CREATED", "PAYER_ACTION_REQUIRED", "APPROVED"}
     assert approve_link(order)
+
+
+def test_pending_capture_is_recorded_and_can_be_retried():
+    """PR #7 recorded PayPal's capture status. A PENDING hold stays pending."""
+
+    class PendingSpy(Spy):
+        def __init__(self):
+            super().__init__()
+            self.capture_body = {"id": "CAP-P", "status": "PENDING"}
+
+        def capture_authorization(self, authorization_id, final=True, **kwargs):
+            self.calls.append(("capture", authorization_id))
+            return self.capture_body
+
+    async def body():
+        spy = PendingSpy()
+        created = await create_pledge(
+            amount_eur="20.00",
+            description="20 milles",
+            milestone_id="dep-mayotte",
+            client=spy,
+            client_key="pending-cap",
+        )
+        await authorize_pledge(created["_id"], spy)
+        import os
+
+        os.environ["ESCALES_CLOCK_NOW"] = "2027-06-12T08:00:00Z"
+        pending = await capture_pledge(created["_id"], spy)
+        assert pending["status"] == "pending"
+        assert pending["paypal_status"] == "PENDING"
+        assert pending["capture_id"] == "CAP-P"
+
+    asyncio.run(body())

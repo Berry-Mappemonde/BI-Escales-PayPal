@@ -69,7 +69,7 @@ class FakePayPal:
             }],
         }
 
-    def authorize_order(self, order_id):
+    def authorize_order(self, order_id, **kwargs):
         self.calls.append(("authorize", order_id))
         return {
             "id": order_id,
@@ -77,17 +77,17 @@ class FakePayPal:
                 "payments": {
                     "authorizations": [{
                         "id": f"AUTH-{order_id}",
-                        "expiration_time": "2026-12-01T00:00:00Z",
+                        "expiration_time": "2099-01-01T00:00:00Z",
                     }],
                 },
             }],
         }
 
-    def capture_authorization(self, authorization_id, final=True):
+    def capture_authorization(self, authorization_id, final=True, **kwargs):
         self.calls.append(("capture", authorization_id))
         return {"id": "CAP", "status": "COMPLETED"}
 
-    def void_authorization(self, authorization_id):
+    def void_authorization(self, authorization_id, **kwargs):
         self.calls.append(("void", authorization_id))
         return {}
 
@@ -273,6 +273,7 @@ def test_flag_off_app_and_captain_work_without_the_toolkit(monkeypatch):
     monkeypatch.delenv("ESCALES_TOOLKIT_ENABLED", raising=False)
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
     import app.core.llm as llm
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: False)
@@ -301,13 +302,19 @@ def test_flag_off_app_and_captain_work_without_the_toolkit(monkeypatch):
             evidence = client.post(
                 "/api/escales/milestones/dep-mayotte/evidence",
                 json={"met": True, "facts": {"port": "Mayotte"}},
+                headers={"x-admin-key": "test-admin-key"},
             )
             assert evidence.status_code == 200
             review = client.post("/api/escales/captain/review/dep-mayotte")
             assert review.status_code == 200, review.text
             proposal = review.json()
             assert proposal["proposal"] == "capture"
-            assert authorized["id"] in proposal["pledge_ids"]
+            assert "pledge_ids" not in proposal
+            opened = client.post(
+                "/api/escales/captain/review/dep-mayotte",
+                headers={"x-admin-key": "test-admin-key"},
+            )
+            assert authorized["id"] in opened.json()["pledge_ids"]
             names = [call[0] for call in fake.calls]
             assert "orders.get" in names
             assert "authorizations.get" in names
@@ -347,6 +354,7 @@ def test_flag_on_mocked_toolkit_is_used_and_stays_readonly(monkeypatch):
     monkeypatch.setenv("ESCALES_TOOLKIT_ENABLED", "1")
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
     import app.core.llm as llm
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: False)
@@ -371,6 +379,7 @@ def test_flag_on_mocked_toolkit_is_used_and_stays_readonly(monkeypatch):
             evidence = client.post(
                 "/api/escales/milestones/dep-mayotte/evidence",
                 json={"met": True, "facts": {"port": "Mayotte"}},
+                headers={"x-admin-key": "test-admin-key"},
             )
             assert evidence.status_code == 200
             review = client.post("/api/escales/captain/review/dep-mayotte")

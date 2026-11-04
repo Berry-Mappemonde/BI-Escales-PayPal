@@ -550,6 +550,14 @@ async def post_watch_settings(body: dict[str, Any]):
     return escale_watch.watch_settings()
 
 
+@router.get("/escales/export")
+async def get_escales_export():
+    """Export JSON read-only des escales officielles (pont BI Escales)."""
+    import escales_export  # noqa: PLC0415
+
+    return escales_export.export_official_escales()
+
+
 @router.get("/escale", dependencies=[Depends(_escale_limited)])
 async def get_escale(
     name: str = Query(..., min_length=1, max_length=120),

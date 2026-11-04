@@ -1,29 +1,222 @@
-"""Pledge state machine: created -> authorized -> captured | voided.
+"""Pledge state machine: created -> authorized | vaulted -> captured | voided.
+
+AUTHORIZE pledges: created -> authorized -> captured | voided.
+VAULT pledges (ESCALES_VAULT_ENABLED): created -> vaulted -> captured | voided.
 
 Nothing is captured or voided until a treasurer calls the matching route.
 Forbidden transitions raise ``IllegalTransition`` (HTTP 409 at the edge).
 Storage is ``escales_pledges`` when Mongo is configured, otherwise memory.
+
+``milestone_id`` is where the pledge sits on the route: a stop (``dep-…`` or
+``ret-…``) or a cabin leg (``leg-…``). ``target_id`` is what the money is for.
+For a stopover kind the target is the bare slug of that same stop. For a cabin
+the target is the leg id, the same string as ``milestone_id``. A project pledge
+or the common fund may leave ``milestone_id`` empty; the target then defaults
+to ``projet`` or ``fonds-commun``.
+
+Capture timing (7488f15): stop-level pledges on boat arrival at the stop (void if
+cancelled); cabin legs on leg departure; common fund at once (treasurer, not the clock).
 """
 from __future__ import annotations
 
-import copy
 import datetime as dt
-import os
+import hashlib
 import re
-import threading
 import uuid
 from decimal import Decimal, InvalidOperation
-from typing import Any, Optional
+from typing import Any, Callable, Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from .config import AUTH_MAX_DAYS
-from .paypal_client import PayPalError, approve_link, authorization_from
+import httpx
+
+from .config import (
+    AUTH_MAX_DAYS,
+    order_cancel_url,
+    order_return_url,
+    simulated_now,
+    vault_cancel_url,
+    vault_enabled,
+    vault_return_url,
+)
+from .ledger import (
+    COLLECTIONS,
+    get_ledger,
+    now_iso,
+    pledge_defaults,
+    record_finance,
+    reset_ledger,
+)
+from .payment_mode import PaymentMode
+from .paypal_client import (
+    PayPalError,
+    approve_link,
+    authorization_from,
+    read_capture_result,
+    setup_token_approve_link,
+    vault_id_from_token,
+    vault_source_from_token,
+)
+
+HONOR_DAYS = 3
+
+
+def _normalize_refunds(pledge: dict) -> list[dict]:
+    rows = pledge.get("refunds")
+    if isinstance(rows, list) and rows:
+        return [dict(row) for row in rows if isinstance(row, dict)]
+    legacy_id = str(pledge.get("refund_id") or "").strip()
+    legacy_amount = str(pledge.get("refunded_amount_eur") or "").strip()
+    if legacy_id and legacy_amount:
+        return [{
+            "id": legacy_id,
+            "amount": legacy_amount,
+            "key": "",
+            "status": "COMPLETED",
+            "at": str(pledge.get("refunded_at") or now_iso()),
+        }]
+    return []
+
+
+def refunded_amount_from_pledge(pledge: dict) -> Decimal:
+    """Sum of unique refund ids with COMPLETED or PENDING status."""
+    seen: set[str] = set()
+    total = Decimal("0.00")
+    for row in _normalize_refunds(pledge):
+        refund_id = str(row.get("id") or "").strip()
+        if not refund_id or refund_id in seen:
+            continue
+        status = str(row.get("status") or "COMPLETED").upper()
+        if status not in {"COMPLETED", "PENDING", "REFUNDED"}:
+            continue
+        seen.add(refund_id)
+        total += Decimal(str(row.get("amount") or "0"))
+    return total
+
+
+def _append_refund_row(refunds: list[dict], row: dict) -> list[dict]:
+    refund_id = str(row.get("id") or "").strip()
+    if not refund_id:
+        return refunds
+    if any(str(existing.get("id") or "") == refund_id for existing in refunds):
+        return refunds
+    return [*refunds, row]
+
+
+def _is_transport_retry(exc: Exception) -> bool:
+    if isinstance(exc, httpx.TimeoutException):
+        return True
+    if isinstance(exc, PayPalError) and exc.status >= 500:
+        body = exc.body
+        if body is None or body == "" or body == {}:
+            return True
+    return False
+
+
+async def _persist_capture_attempt(pledge: dict) -> str:
+    pledge_id = str(pledge.get("_id") or "")
+    attempt = int(pledge.get("capture_attempt") or 1)
+    if attempt < 1:
+        attempt = 1
+    pledge["capture_attempt"] = attempt
+    key = f"capture-{pledge_id}-{attempt}"
+    pledge["capture_idempotency_key"] = key
+    return key
+
+
+async def _record_capture_attempt_outcome(pledge: dict, payload: dict) -> None:
+    status, _, _ = read_capture_result(payload if isinstance(payload, dict) else {})
+    recorded = str(status or "").upper()
+    pledge["last_capture_status"] = recorded
+    if recorded and recorded not in {"COMPLETED", "PENDING"}:
+        attempt = int(pledge.get("capture_attempt") or 1)
+        pledge["capture_attempt"] = attempt + 1
+
+
+async def _call_with_capture_idempotency(
+    pledge: dict,
+    call: Callable[[str], dict],
+) -> tuple[dict, dict]:
+    key = await _persist_capture_attempt(pledge)
+    saved = await get_ledger().save_pledge(pledge)
+    try:
+        payload = call(key)
+    except Exception as exc:
+        if _is_transport_retry(exc):
+            raise
+        raise
+    await _record_capture_attempt_outcome(saved, payload)
+    saved = await get_ledger().save_pledge(saved)
+    return saved, payload
+
+
+async def reconcile_refund_on_pledge(
+    pledge: dict,
+    *,
+    refund_id: str,
+    amount_eur: str,
+    status: str = "COMPLETED",
+    key: str = "",
+    at: Optional[str] = None,
+) -> dict:
+    """Merge one PayPal refund id into ``pledge["refunds"]`` (webhook or API)."""
+    stored_status = str(status or "COMPLETED").upper()
+    if stored_status == "REFUNDED":
+        stored_status = "COMPLETED"
+    refunds = _append_refund_row(
+        _normalize_refunds(pledge),
+        {
+            "id": str(refund_id),
+            "amount": amount_eur,
+            "key": key,
+            "status": stored_status,
+            "at": at or now_iso(),
+        },
+    )
+    pledge["refunds"] = refunds
+    total = refunded_amount_from_pledge(pledge)
+    pledge["refunded_amount_eur"] = f"{total:.2f}"
+    capture_total = Decimal(str(pledge.get("amount_eur") or "0"))
+    if total >= capture_total:
+        pledge["status"] = "refunded"
+    elif total > Decimal("0"):
+        pledge["status"] = "partially_refunded"
+    if refunds:
+        pledge["refund_id"] = str(refunds[-1].get("id") or "")
+    if at and not str(pledge.get("refunded_at") or "").strip():
+        pledge["refunded_at"] = at
+    elif at and total >= capture_total:
+        pledge["refunded_at"] = at
+    pledge.pop("pending_refund", None)
+    return await get_ledger().save_pledge(pledge)
+
+
+def sponsor_customer_id(pledge_id: str, contributor: Optional[str]) -> str:
+    """Stable PayPal Vault customer.id (PayPal max length 22)."""
+    label = (contributor or "").strip().lower()
+    if label:
+        digest = hashlib.sha256(label.encode("utf-8")).hexdigest()[:21]
+        return f"s{digest}"
+    pid = str(pledge_id or "").strip()
+    return f"p{pid[:21]}"
+
 
 PLEDGES_COLLECTION = "escales_pledges"
 MILESTONES_COLLECTION = "escales_milestones"
 AUDIT_COLLECTION = "escales_audit"
-COLLECTIONS = (PLEDGES_COLLECTION, MILESTONES_COLLECTION, AUDIT_COLLECTION)
 
 _AMOUNT = re.compile(r"^\d+(?:\.\d{1,2})?$")
+
+# Même liste pour la création, le catalogue et l'API. ``mile`` est le défaut.
+PLEDGE_KINDS = (
+    "mile",
+    "project_pledge",
+    "berth",
+    "night",
+    "meal",
+    "care",
+    "cabin_leg",
+    "common_fund",
+)
 
 
 class IllegalTransition(Exception):
@@ -39,11 +232,8 @@ class PledgeNotFound(Exception):
         super().__init__(f"pledge {pledge_id} not found")
 
 
-def now_iso() -> str:
-    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
-
-
 def default_expiration() -> str:
+    import datetime as dt
     moment = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=AUTH_MAX_DAYS)
     return moment.replace(microsecond=0).isoformat()
 
@@ -62,234 +252,182 @@ def normalize_amount(raw: str) -> str:
 
 
 def to_public(doc: dict) -> dict:
+    row = pledge_defaults(doc) or doc
     hidden = {"_id", "client_key"}
-    out = {key: value for key, value in doc.items() if key not in hidden}
+    out = {key: value for key, value in row.items() if key not in hidden}
     out["id"] = doc["_id"]
     return out
 
 
-def _mongo_wanted() -> bool:
-    # ESCALES_STORE=memory forces the in-memory ledger (tests). Otherwise Mongo
-    # is used when MONGO_URL is set, so pledges land in escales_* collections.
-    mode = os.environ.get("ESCALES_STORE", "").strip().lower()
-    if mode == "memory":
+def _kind(raw: Optional[str]) -> str:
+    if raw is None or not str(raw).strip():
+        return "mile"
+    kind = str(raw).strip().lower()
+    if kind not in PLEDGE_KINDS:
+        raise ValueError("kind must be one of: " + ", ".join(PLEDGE_KINDS))
+    return kind
+
+
+_TARGET_SLUG = re.compile(r"^[a-z0-9-]+$")
+_TARGET_MUST_BE_KNOWN = {"mile", "berth", "night", "meal", "care"}
+# Escale kinds and the common fund name this stopover. A project pledge does not.
+_TARGET_MUST_MATCH_MILESTONE = _TARGET_MUST_BE_KNOWN | {"common_fund"}
+# No stopover required. An empty milestone keeps this default target.
+_UNPLACED_TARGET = {"project_pledge": "projet", "common_fund": "fonds-commun"}
+# Same figures as the captain catalogue. A mile cannot go under one unit.
+_UNIT_FLOOR = {
+    "mile": Decimal("1.00"),
+    "project_pledge": Decimal("1.00"),
+    "berth": Decimal("30.00"),
+    "night": Decimal("60.00"),
+    "meal": Decimal("60.00"),
+    "care": Decimal("40.00"),
+    "cabin_leg": Decimal("80.00"),
+}
+# Fixed tariffs are the catalogue price, not a minimum. A mile stays editable.
+_EXACT_PRICE = {
+    "berth": Decimal("30.00"),
+    "night": Decimal("60.00"),
+    "meal": Decimal("60.00"),
+    "care": Decimal("40.00"),
+    "cabin_leg": Decimal("80.00"),
+}
+
+
+def _target_slug(value: str) -> str:
+    from ..escales_names import _slug
+
+    return _slug(value)
+
+
+async def _known_stopover(slug: str) -> bool:
+    """True when the single resolver knows this stopover or leg."""
+    if not slug:
         return False
-    if mode == "mongo":
-        return True
-    return bool((os.environ.get("MONGO_URL") or "").strip())
+    from .naviguide_bridge import resolve_milestone
+
+    return resolve_milestone(slug) is not None
 
 
-class MemoryLedger:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._pledges: dict[str, dict] = {}
-        self._by_key: dict[str, str] = {}
-        self._milestones: dict[str, dict] = {}
-        self._audit: list[dict] = []
+def _cabin_target(explicit: str, milestone_id: str) -> str:
+    """A cabin names the leg milestone. The stored target is that leg id."""
+    from .naviguide_bridge import leg_by_id
 
-    async def insert_pledge_once(self, doc: dict) -> dict:
-        with self._lock:
-            key = doc.get("client_key")
-            if key and key in self._by_key:
-                return copy.deepcopy(self._pledges[self._by_key[key]])
-            stored = copy.deepcopy(doc)
-            self._pledges[stored["_id"]] = stored
-            if key:
-                self._by_key[key] = stored["_id"]
-            return copy.deepcopy(stored)
-
-    async def save_pledge(self, doc: dict) -> dict:
-        with self._lock:
-            stored = copy.deepcopy(doc)
-            self._pledges[stored["_id"]] = stored
-            key = stored.get("client_key")
-            if key:
-                self._by_key[key] = stored["_id"]
-            return copy.deepcopy(stored)
-
-    async def get_pledge(self, pledge_id: str) -> Optional[dict]:
-        with self._lock:
-            doc = self._pledges.get(pledge_id)
-            return copy.deepcopy(doc) if doc else None
-
-    async def find_by_client_key(self, client_key: str) -> Optional[dict]:
-        with self._lock:
-            pledge_id = self._by_key.get(client_key)
-            if not pledge_id:
-                return None
-            return copy.deepcopy(self._pledges[pledge_id])
-
-    async def list_pledges_for_milestone(self, milestone_id: str) -> list[dict]:
-        with self._lock:
-            return [
-                copy.deepcopy(doc)
-                for doc in self._pledges.values()
-                if doc.get("milestone_id") == milestone_id
-            ]
-
-    async def append_evidence(self, milestone_id: str, evidence: dict) -> dict:
-        with self._lock:
-            doc = self._milestones.get(milestone_id)
-            if doc is None:
-                doc = {
-                    "_id": milestone_id,
-                    "evidence": [],
-                    "proposal": None,
-                    "updated_at": evidence.get("recorded_at"),
-                }
-                self._milestones[milestone_id] = doc
-            doc["evidence"].append(copy.deepcopy(evidence))
-            doc["updated_at"] = evidence.get("recorded_at")
-            return copy.deepcopy(evidence)
-
-    async def get_milestone(self, milestone_id: str) -> Optional[dict]:
-        with self._lock:
-            doc = self._milestones.get(milestone_id)
-            return copy.deepcopy(doc) if doc else None
-
-    async def list_milestones(self) -> list[dict]:
-        with self._lock:
-            return [copy.deepcopy(doc) for doc in self._milestones.values()]
-
-    async def set_proposal(self, milestone_id: str, proposal: dict) -> dict:
-        with self._lock:
-            doc = self._milestones.get(milestone_id)
-            if doc is None:
-                doc = {"_id": milestone_id, "evidence": [], "proposal": None, "updated_at": now_iso()}
-                self._milestones[milestone_id] = doc
-            doc["proposal"] = copy.deepcopy(proposal)
-            doc["updated_at"] = proposal.get("at") or now_iso()
-            return copy.deepcopy(doc)
-
-    async def append_audit(self, entry: dict) -> dict:
-        with self._lock:
-            stored = copy.deepcopy(entry)
-            self._audit.append(stored)
-            return copy.deepcopy(stored)
-
-    async def list_audit(self) -> list[dict]:
-        with self._lock:
-            return [copy.deepcopy(entry) for entry in self._audit]
+    chosen = explicit or milestone_id
+    if not _TARGET_SLUG.fullmatch(chosen):
+        raise ValueError("target_id must match [a-z0-9-]+")
+    leg = leg_by_id(chosen)
+    if leg is None:
+        raise ValueError("target_id must name a cabin leg")
+    if milestone_id != leg["id"]:
+        raise ValueError("target_id must match the milestone")
+    return leg["id"]
 
 
-class MongoLedger:
-    """Motor-backed escales_* collections. Not used by the default test run."""
+def _bare_canonical(milestone_id: str) -> str:
+    """Stored target: the route slug, without the ``dep-`` prefix."""
+    if milestone_id.startswith("dep-"):
+        return milestone_id[4:]
+    return milestone_id
 
-    def __init__(self, db: Any) -> None:
-        self._pledges = db[PLEDGES_COLLECTION]
-        self._milestones = db[MILESTONES_COLLECTION]
-        self._audit = db[AUDIT_COLLECTION]
-        self._ready = False
 
-    async def _ensure(self) -> None:
-        if self._ready:
-            return
-        await self._pledges.create_index(
-            "client_key", unique=True, sparse=True, name="escales_pledges_client_key",
-        )
-        await self._audit.create_index("at", name="escales_audit_at")
-        self._ready = True
+async def _resolve_target(target_id: Optional[str], milestone_id: str, kind: str) -> str:
+    from .naviguide_bridge import resolve_milestone
 
-    async def insert_pledge_once(self, doc: dict) -> dict:
-        await self._ensure()
-        key = doc.get("client_key")
-        if key:
-            existing = await self._pledges.find_one({"client_key": key})
-            if existing:
-                return existing
-        try:
-            await self._pledges.insert_one(copy.deepcopy(doc))
-        except Exception as exc:
-            if key and exc.__class__.__name__ == "DuplicateKeyError":
-                existing = await self._pledges.find_one({"client_key": key})
-                if existing:
-                    return existing
-            raise
-        return doc
+    explicit = (target_id or "").strip()
+    if kind in _UNPLACED_TARGET and not (milestone_id or "").strip():
+        if not explicit:
+            return _UNPLACED_TARGET[kind]
+        slug = _target_slug(explicit)
+        if not slug or not _TARGET_SLUG.fullmatch(slug):
+            raise ValueError("target_id must match [a-z0-9-]+")
+        resolved = resolve_milestone(explicit)
+        return _bare_canonical(resolved) if resolved else slug
+    if kind == "cabin_leg":
+        return _cabin_target(explicit, milestone_id)
+    if explicit and not _TARGET_SLUG.fullmatch(_target_slug(explicit)):
+        raise ValueError("target_id must match [a-z0-9-]+")
+    milestone_resolved = resolve_milestone(milestone_id)
+    explicit_resolved = resolve_milestone(explicit) if explicit else None
+    if kind in _TARGET_MUST_MATCH_MILESTONE and explicit:
+        if not explicit_resolved or explicit_resolved != milestone_resolved:
+            raise ValueError("target_id must match the milestone")
+    if kind in _TARGET_MUST_BE_KNOWN:
+        chosen = explicit_resolved or milestone_resolved
+        if not chosen:
+            known = await get_ledger().get_milestone(explicit or milestone_id)
+            if known:
+                return _bare_canonical(explicit or milestone_id)
+            raise ValueError("target_id must name a known stopover")
+        return _bare_canonical(chosen)
+    if explicit_resolved:
+        return _bare_canonical(explicit_resolved)
+    if explicit:
+        slug = _target_slug(explicit)
+        if not slug:
+            raise ValueError("target_id must match [a-z0-9-]+")
+        return slug
+    if milestone_resolved:
+        return _bare_canonical(milestone_resolved)
+    raise ValueError("target_id must match [a-z0-9-]+")
 
-    async def save_pledge(self, doc: dict) -> dict:
-        await self._ensure()
-        stored = copy.deepcopy(doc)
-        await self._pledges.replace_one({"_id": stored["_id"]}, stored, upsert=True)
+
+def _identity(doc: dict) -> dict:
+    row = pledge_defaults(doc) or doc
+    return {"pledge_kind": row.get("kind"), "target_id": row.get("target_id")}
+
+
+def finance_milestone_id(pledge: dict) -> str:
+    """Journal id for a pledge. A cabin is the leg, not either port."""
+    stored = str(pledge.get("milestone_id") or "")
+    if str(pledge.get("kind") or "") != "cabin_leg":
         return stored
+    from .naviguide_bridge import leg_by_id
 
-    async def get_pledge(self, pledge_id: str) -> Optional[dict]:
-        await self._ensure()
-        return await self._pledges.find_one({"_id": pledge_id})
-
-    async def find_by_client_key(self, client_key: str) -> Optional[dict]:
-        await self._ensure()
-        return await self._pledges.find_one({"client_key": client_key})
-
-    async def list_pledges_for_milestone(self, milestone_id: str) -> list[dict]:
-        await self._ensure()
-        cursor = self._pledges.find({"milestone_id": milestone_id})
-        return [doc async for doc in cursor]
-
-    async def append_evidence(self, milestone_id: str, evidence: dict) -> dict:
-        await self._ensure()
-        await self._milestones.update_one(
-            {"_id": milestone_id},
-            {
-                "$push": {"evidence": evidence},
-                "$set": {"updated_at": evidence.get("recorded_at")},
-                "$setOnInsert": {"proposal": None},
-            },
-            upsert=True,
-        )
-        return evidence
-
-    async def get_milestone(self, milestone_id: str) -> Optional[dict]:
-        await self._ensure()
-        return await self._milestones.find_one({"_id": milestone_id})
-
-    async def list_milestones(self) -> list[dict]:
-        await self._ensure()
-        cursor = self._milestones.find({})
-        return [doc async for doc in cursor]
-
-    async def set_proposal(self, milestone_id: str, proposal: dict) -> dict:
-        await self._ensure()
-        await self._milestones.update_one(
-            {"_id": milestone_id},
-            {
-                "$set": {"proposal": proposal, "updated_at": proposal.get("at") or now_iso()},
-                "$setOnInsert": {"evidence": []},
-            },
-            upsert=True,
-        )
-        doc = await self._milestones.find_one({"_id": milestone_id})
-        return doc or {"_id": milestone_id, "proposal": proposal, "evidence": []}
-
-    async def append_audit(self, entry: dict) -> dict:
-        await self._ensure()
-        stored = copy.deepcopy(entry)
-        await self._audit.insert_one(stored)
-        return stored
-
-    async def list_audit(self) -> list[dict]:
-        await self._ensure()
-        cursor = self._audit.find({}).sort("at", 1)
-        return [doc async for doc in cursor]
+    for candidate in (stored, str(pledge.get("target_id") or "")):
+        leg = leg_by_id(candidate)
+        if leg:
+            return str(leg["id"])
+    return stored
 
 
-_ledger: Any = None
+async def ensure_finance_milestone(pledge: dict, milestone_id: str) -> None:
+    """Keep the cabin leg in the ledger so its fund can be read."""
+    if str(pledge.get("kind") or "") != "cabin_leg" or not milestone_id:
+        return
+    from .naviguide_bridge import leg_by_id, leg_milestone_meta
+
+    leg = leg_by_id(milestone_id)
+    if leg:
+        await get_ledger().ensure_milestone(milestone_id, meta=leg_milestone_meta(leg))
 
 
-def reset_ledger() -> None:
-    global _ledger
-    _ledger = None
+async def record_pledge_captured_once(pledge: dict, *, actor: str) -> bool:
+    """One ``pledge_captured`` line per pledge. A webhook and a direct capture share it."""
+    from .ledger import list_finance_entries, record_finance
 
-
-def get_ledger() -> Any:
-    global _ledger
-    if _ledger is None:
-        if _mongo_wanted():
-            from app.db import db
-            _ledger = MongoLedger(db)
-        else:
-            _ledger = MemoryLedger()
-    return _ledger
+    pledge_id = str(pledge.get("_id") or "")
+    if not pledge_id:
+        return False
+    for entry in await list_finance_entries():
+        if entry.get("kind") == "pledge_captured" and entry.get("pledge_id") == pledge_id:
+            return False
+    milestone_id = finance_milestone_id(pledge)
+    await ensure_finance_milestone(pledge, milestone_id)
+    at = str(pledge.get("captured_at") or "").strip() or now_iso()
+    await record_finance(
+        "pledge_captured",
+        pledge_id=pledge_id,
+        milestone_id=milestone_id,
+        amount_eur=pledge.get("amount_eur"),
+        currency=pledge.get("currency") or "EUR",
+        status="captured",
+        actor=actor,
+        at=at,
+        capture_id=pledge.get("capture_id"),
+        **_identity(pledge),
+    )
+    return True
 
 
 def _require_text(value: str, field: str) -> str:
@@ -297,6 +435,167 @@ def _require_text(value: str, field: str) -> str:
     if not text:
         raise ValueError(f"{field} is required")
     return text
+
+
+def _origin_of(raw: str) -> str:
+    parts = urlsplit((raw or "").strip())
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        return ""
+    return f"{parts.scheme}://{parts.netloc}".rstrip("/")
+
+
+def _allowed_return_origins(caller_origin: Optional[str] = None) -> set[str]:
+    """CORS list, plus ESCALES_PUBLIC_URL and the origin serving this request."""
+    import os
+
+    from .config import PUBLIC_API_ORIGIN, cors_origins, public_base_url
+
+    allowed = {item.rstrip("/") for item in cors_origins()}
+    for raw in (
+        public_base_url(),
+        os.environ.get("ESCALES_PUBLIC_URL") or "",
+        PUBLIC_API_ORIGIN,
+        caller_origin or "",
+    ):
+        origin = _origin_of(raw)
+        if origin:
+            allowed.add(origin)
+    return allowed
+
+
+def _http_url(
+    raw: Optional[str],
+    fallback: str,
+    field: str,
+    *,
+    caller_origin: Optional[str] = None,
+) -> str:
+    text = (raw or "").strip() or fallback
+    parts = urlsplit(text)
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        raise ValueError(f"{field} must be an http(s) URL")
+    if field in {"return_url", "cancel_url"}:
+        origin = f"{parts.scheme}://{parts.netloc}".rstrip("/")
+        if origin not in _allowed_return_origins(caller_origin):
+            raise ValueError(f"{field} must use an allowed frontend origin")
+    return text
+
+
+def _callback_url(base: str, pledge_id: str, flag: str) -> str:
+    """PayPal return or cancel URL, with the pledge id the page authorizes."""
+    parts = urlsplit(base)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["paypal"] = flag
+    query["pledge_id"] = pledge_id
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _vault_callback_url(base: str, pledge_id: str, flag: str) -> str:
+    """Vault setup return or cancel URL, with the pledge id the page registers."""
+    parts = urlsplit(base)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["vault"] = flag
+    query["pledge_id"] = pledge_id
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _create_authorize_order(client: Any, **kwargs: Any) -> dict:
+    """Pass return URLs when the client accepts them. Older fakes do not."""
+    try:
+        return client.create_authorize_order(**kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if not any(token in message for token in ("return_url", "cancel_url", "checkout_locale")):
+            raise
+        slim = {
+            key: value
+            for key, value in kwargs.items()
+            if key not in {"return_url", "cancel_url", "checkout_locale"}
+        }
+        return client.create_authorize_order(**slim)
+
+
+def _create_capture_order(client: Any, **kwargs: Any) -> dict:
+    create = getattr(client, "create_capture_order", None)
+    if create is None:
+        raise PayPalError(502, "capture checkout unavailable")
+    try:
+        return create(**kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if not any(token in message for token in ("return_url", "cancel_url", "checkout_locale")):
+            raise
+        slim = {
+            key: value
+            for key, value in kwargs.items()
+            if key not in {"return_url", "cancel_url", "checkout_locale"}
+        }
+        return create(**slim)
+
+
+def _create_authorize_vault_order(client: Any, **kwargs: Any) -> dict:
+    create = getattr(client, "create_authorize_vault_order", None)
+    if create is None:
+        raise PayPalError(502, "vault-on-purchase unavailable")
+    try:
+        return create(**kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if "checkout_locale" not in message:
+            raise
+        slim = {key: value for key, value in kwargs.items() if key != "checkout_locale"}
+        return create(**slim)
+
+
+def _normalize_checkout_method(raw: Optional[str]) -> str:
+    token = (raw or "wallet").strip().lower()
+    if token not in {"wallet", "card"}:
+        raise ValueError("checkout_method must be wallet or card")
+    return token
+
+
+def _create_card_authorize_order(client: Any, **kwargs: Any) -> dict:
+    create = getattr(client, "create_card_authorize_order", None)
+    if create is None:
+        raise PayPalError(502, "card checkout unavailable")
+    try:
+        return create(**kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if "checkout_locale" not in message:
+            raise
+        slim = {key: value for key, value in kwargs.items() if key != "checkout_locale"}
+        return create(**slim)
+
+
+def _create_card_setup_token(client: Any, **kwargs: Any) -> dict:
+    create = getattr(client, "create_card_setup_token", None)
+    if create is None:
+        raise PayPalError(502, "card vault setup unavailable")
+    try:
+        return create(**kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if "checkout_locale" not in message:
+            raise
+        slim = {key: value for key, value in kwargs.items() if key != "checkout_locale"}
+        return create(**slim)
+
+
+def _buyer_approved(client: Any, order_id: str) -> bool:
+    """True when PayPal shows APPROVED or COMPLETED.
+
+    A client without ``get_order`` cannot say, so the older fakes still pass.
+    An empty status fails closed: the order is not treated as approved.
+    """
+    getter = getattr(client, "get_order", None)
+    if getter is None or not order_id:
+        return True
+    current = getter(order_id) or {}
+    status = str(current.get("status") or "").strip().upper()
+    if not status:
+        return False
+    return status in {"APPROVED", "COMPLETED"}
 
 
 def _client_key(raw: Optional[str]) -> Optional[str]:
@@ -317,6 +616,23 @@ async def require_pledge(pledge_id: str) -> dict:
     return doc
 
 
+async def resolve_payment_mode(milestone_id: str) -> PaymentMode:
+    """AUTHORIZE when departure is within 29 days; otherwise VAULT when enabled."""
+    from .config import vault_enabled
+    from .departure_clock import refuse_early_authorization
+    from .naviguide_bridge import resolve_schedule_milestone
+
+    if not vault_enabled():
+        return "AUTHORIZE"
+    await resolve_schedule_milestone(milestone_id)
+    draft = {"milestone_id": milestone_id, "kind": "mile"}
+    try:
+        await refuse_early_authorization(draft)
+    except ValueError:
+        return "VAULT"
+    return "AUTHORIZE"
+
+
 async def create_pledge(
     *,
     amount_eur: str,
@@ -325,10 +641,141 @@ async def create_pledge(
     client: Any,
     client_key: Optional[str] = None,
     contributor: Optional[str] = None,
+    payment_mode: Optional[PaymentMode] = None,
+    kind: Optional[str] = None,
+    target_id: Optional[str] = None,
+    return_url: Optional[str] = None,
+    cancel_url: Optional[str] = None,
+    caller_origin: Optional[str] = None,
+    checkout_locale: Optional[str] = None,
+    checkout_method: Optional[str] = None,
 ) -> dict:
     amount = normalize_amount(amount_eur)
     description = _require_text(description, "description")
-    milestone_id = _require_text(milestone_id, "milestone_id")
+    pledge_kind = _kind(kind)
+    exact = _EXACT_PRICE.get(pledge_kind)
+    if exact is not None and Decimal(amount) != exact:
+        raise ValueError(f"{pledge_kind} amount must be {exact:.2f} EUR")
+    floor = _UNIT_FLOOR.get(pledge_kind)
+    if exact is None and floor is not None and Decimal(amount) < floor:
+        raise ValueError(f"{pledge_kind} amount must be at least {floor:.2f} EUR")
+    if pledge_kind in _UNPLACED_TARGET and not (milestone_id or "").strip():
+        milestone_id = ""
+    else:
+        milestone_id = _require_text(milestone_id, "milestone_id")
+    replay_key = _client_key(client_key)
+    if replay_key:
+        existing = await get_ledger().find_by_client_key(replay_key)
+        if existing:
+            return existing
+    from .naviguide_bridge import leg_departing_from, resolve_milestone
+
+    if pledge_kind in _UNPLACED_TARGET and milestone_id == "":
+        canonical = ""
+    else:
+        canonical = resolve_milestone(milestone_id)
+        if canonical is None:
+            known = await get_ledger().get_milestone(milestone_id)
+            if known:
+                canonical = milestone_id
+        if pledge_kind == "cabin_leg" and canonical and not str(canonical).startswith("leg-"):
+            leg = leg_departing_from(canonical)
+            if leg:
+                canonical = str(leg["id"])
+        if not canonical:
+            raise ValueError("milestone_id must name a known stopover")
+        milestone_id = str(canonical)
+    resolved_target = await _resolve_target(target_id, milestone_id, pledge_kind)
+    if pledge_kind == "cabin_leg":
+        from .naviguide_bridge import leg_by_id, leg_milestone_meta, resolve_schedule_milestone
+
+        leg = leg_by_id(resolved_target)
+        if leg:
+            await resolve_schedule_milestone(leg["id"])
+    elif milestone_id:
+        from .naviguide_bridge import resolve_schedule_milestone
+
+        await resolve_schedule_milestone(milestone_id)
+    if pledge_kind == "project_pledge":
+        return await _create_capture_pledge(
+            amount=amount,
+            description=description,
+            milestone_id=milestone_id,
+            client=client,
+            client_key=client_key,
+            contributor=contributor,
+            target_id=resolved_target,
+            return_url=return_url,
+            cancel_url=cancel_url,
+            caller_origin=caller_origin,
+            checkout_locale=checkout_locale,
+            checkout_method=checkout_method,
+        )
+    mode: PaymentMode = payment_mode or "AUTHORIZE"
+    from .departure_clock import refuse_cancelled_departure, refuse_early_authorization
+
+    draft = {
+        "milestone_id": milestone_id,
+        "kind": pledge_kind,
+        "target_id": resolved_target,
+    }
+    await refuse_cancelled_departure(draft)
+    # An authorization lasts 29 days. Refuse before PayPal creates the order.
+    # When Vault is on, a far departure falls back to saving the payment method.
+    if mode != "VAULT":
+        try:
+            await refuse_early_authorization(draft)
+        except ValueError as exc:
+            if vault_enabled() and "29 days" in str(exc):
+                mode = "VAULT"
+            else:
+                raise
+    if mode == "VAULT":
+        return await _create_vault_pledge(
+            amount=amount,
+            description=description,
+            milestone_id=milestone_id,
+            client=client,
+            client_key=client_key,
+            contributor=contributor,
+            kind=pledge_kind,
+            target_id=resolved_target,
+            checkout_locale=checkout_locale,
+            checkout_method=checkout_method,
+        )
+    return await _create_authorize_pledge(
+        amount=amount,
+        description=description,
+        milestone_id=milestone_id,
+        client=client,
+        client_key=client_key,
+        contributor=contributor,
+        kind=pledge_kind,
+        target_id=resolved_target,
+        return_url=return_url,
+        cancel_url=cancel_url,
+        caller_origin=caller_origin,
+        checkout_locale=checkout_locale,
+        checkout_method=checkout_method,
+    )
+
+
+async def _create_capture_pledge(
+    *,
+    amount: str,
+    description: str,
+    milestone_id: str,
+    client: Any,
+    client_key: Optional[str],
+    contributor: Optional[str],
+    target_id: str,
+    return_url: Optional[str] = None,
+    cancel_url: Optional[str] = None,
+    caller_origin: Optional[str] = None,
+    checkout_locale: Optional[str] = None,
+    checkout_method: Optional[str] = None,
+) -> dict:
+    """Project crowdfunding: CAPTURE intent, charged when the buyer approves on return."""
     key = _client_key(client_key)
     ledger = get_ledger()
     if key:
@@ -337,11 +784,28 @@ async def create_pledge(
             return existing
     pledge_id = uuid.uuid4().hex
     idempotency_key = key or uuid.uuid4().hex
-    order = client.create_authorize_order(
+    method = _normalize_checkout_method(checkout_method)
+    if method == "card":
+        raise ValueError("project_pledge uses PayPal wallet checkout only")
+    back = _callback_url(
+        _http_url(return_url, order_return_url(), "return_url", caller_origin=caller_origin),
+        pledge_id,
+        "return",
+    )
+    cancel = _callback_url(
+        _http_url(cancel_url, order_cancel_url(), "cancel_url", caller_origin=caller_origin),
+        pledge_id,
+        "cancel",
+    )
+    order = _create_capture_order(
+        client,
         amount_eur=amount,
         description=description,
         reference_id=pledge_id,
         idempotency_key=idempotency_key,
+        return_url=back,
+        cancel_url=cancel,
+        checkout_locale=checkout_locale,
     )
     order_id = order.get("id")
     if not order_id:
@@ -354,70 +818,843 @@ async def create_pledge(
         "_id": pledge_id,
         "client_key": key,
         "status": "created",
-        "intent": "AUTHORIZE",
+        "intent": "CAPTURE",
+        "payment_mode": "CAPTURE",
         "currency": "EUR",
         "amount_eur": amount,
         "description": description,
         "milestone_id": milestone_id,
+        "kind": "project_pledge",
+        "target_id": target_id,
         "contributor": (contributor or "").strip() or None,
         "order_id": order_id,
         "approve_link": approve_link(order),
         "authorization_id": None,
         "authorization_expires_at": None,
+        "vault_id": None,
+        "vault_source": None,
+        "setup_token_id": None,
+        "checkout_method": method,
+        "vault_on_purchase": False,
+        "checkout_locale": (checkout_locale or "").strip() or None,
         "created_at": now_iso(),
         "history": ["created"],
     }
-    return await ledger.insert_pledge_once(doc)
+    saved = await ledger.insert_pledge_once(doc)
+    if saved.get("_id") == pledge_id and saved.get("history") == ["created"]:
+        await record_finance(
+            "pledge_created",
+            pledge_id=pledge_id,
+            milestone_id=milestone_id,
+            amount_eur=amount,
+            currency="EUR",
+            order_id=order_id,
+            status="created",
+            payment_mode="CAPTURE",
+            **_identity(saved),
+        )
+    return saved
 
 
-def _require_status(pledge: dict, expected: str, target: str) -> None:
-    current = pledge.get("status")
-    if current != expected:
-        raise IllegalTransition(str(current), target)
+async def _create_authorize_pledge(
+    *,
+    amount: str,
+    description: str,
+    milestone_id: str,
+    client: Any,
+    client_key: Optional[str],
+    contributor: Optional[str],
+    kind: str,
+    target_id: str,
+    return_url: Optional[str] = None,
+    cancel_url: Optional[str] = None,
+    caller_origin: Optional[str] = None,
+    checkout_locale: Optional[str] = None,
+    checkout_method: Optional[str] = None,
+) -> dict:
+    key = _client_key(client_key)
+    ledger = get_ledger()
+    if key:
+        existing = await ledger.find_by_client_key(key)
+        if existing:
+            return existing
+    pledge_id = uuid.uuid4().hex
+    idempotency_key = key or uuid.uuid4().hex
+    method = _normalize_checkout_method(checkout_method)
+    from .config import card_fields_enabled, vault_on_purchase_enabled
+
+    if method == "card" and not card_fields_enabled():
+        raise ValueError("card checkout is disabled")
+    back = _callback_url(
+        _http_url(return_url, order_return_url(), "return_url", caller_origin=caller_origin),
+        pledge_id,
+        "return",
+    )
+    cancel = _callback_url(
+        _http_url(cancel_url, order_cancel_url(), "cancel_url", caller_origin=caller_origin),
+        pledge_id,
+        "cancel",
+    )
+    order_kwargs = dict(
+        amount_eur=amount,
+        description=description,
+        reference_id=pledge_id,
+        idempotency_key=idempotency_key,
+        return_url=back,
+        cancel_url=cancel,
+        checkout_locale=checkout_locale,
+    )
+    if method == "card":
+        order = _create_card_authorize_order(client, **order_kwargs)
+    elif vault_on_purchase_enabled():
+        order = _create_authorize_vault_order(client, **order_kwargs)
+    else:
+        order = _create_authorize_order(client, **order_kwargs)
+    order_id = order.get("id")
+    if not order_id:
+        raise PayPalError(502, "order id missing")
+    if key:
+        existing = await ledger.find_by_client_key(key)
+        if existing:
+            return existing
+    doc = {
+        "_id": pledge_id,
+        "client_key": key,
+        "status": "created",
+        "intent": "AUTHORIZE",
+        "payment_mode": "AUTHORIZE",
+        "currency": "EUR",
+        "amount_eur": amount,
+        "description": description,
+        "milestone_id": milestone_id,
+        "kind": kind,
+        "target_id": target_id,
+        "contributor": (contributor or "").strip() or None,
+        "order_id": order_id,
+        "approve_link": approve_link(order),
+        "authorization_id": None,
+        "authorization_expires_at": None,
+        "vault_id": None,
+        "vault_source": None,
+        "setup_token_id": None,
+        "checkout_method": method,
+        "vault_on_purchase": vault_on_purchase_enabled() and method != "card",
+        "checkout_locale": (checkout_locale or "").strip() or None,
+        "created_at": now_iso(),
+        "history": ["created"],
+    }
+    saved = await ledger.insert_pledge_once(doc)
+    if saved.get("_id") == pledge_id and saved.get("history") == ["created"]:
+        await record_finance(
+            "pledge_created",
+            pledge_id=pledge_id,
+            milestone_id=milestone_id,
+            amount_eur=amount,
+            currency="EUR",
+            order_id=order_id,
+            status="created",
+            payment_mode="AUTHORIZE",
+            pledge_kind=kind,
+            target_id=target_id,
+        )
+    return saved
 
 
-async def authorize_pledge(pledge_id: str, client: Any) -> dict:
+async def _create_vault_pledge(
+    *,
+    amount: str,
+    description: str,
+    milestone_id: str,
+    client: Any,
+    client_key: Optional[str],
+    contributor: Optional[str],
+    kind: str,
+    target_id: str,
+    checkout_locale: Optional[str] = None,
+    checkout_method: Optional[str] = None,
+) -> dict:
+    key = _client_key(client_key)
+    ledger = get_ledger()
+    if key:
+        existing = await ledger.find_by_client_key(key)
+        if existing:
+            return existing
+    pledge_id = uuid.uuid4().hex
+    idempotency_key = key or uuid.uuid4().hex
+    method = _normalize_checkout_method(checkout_method)
+    from .config import card_fields_enabled
+
+    if method == "card" and not card_fields_enabled():
+        raise ValueError("card checkout is disabled")
+    back = _vault_callback_url(vault_return_url(), pledge_id, "return")
+    cancel = _vault_callback_url(vault_cancel_url(), pledge_id, "cancel")
+    if method == "card":
+        setup = _create_card_setup_token(
+            client,
+            return_url=back,
+            cancel_url=cancel,
+            customer_id=sponsor_customer_id(pledge_id, contributor),
+            idempotency_key=idempotency_key,
+            checkout_locale=checkout_locale,
+        )
+    else:
+        setup = client.create_setup_token(
+            back,
+            cancel,
+            customer_id=sponsor_customer_id(pledge_id, contributor),
+            idempotency_key=idempotency_key,
+            checkout_locale=checkout_locale,
+        )
+    setup_id = setup.get("id")
+    if not setup_id:
+        raise PayPalError(502, "setup token id missing")
+    if key:
+        existing = await ledger.find_by_client_key(key)
+        if existing:
+            return existing
+    doc = {
+        "_id": pledge_id,
+        "client_key": key,
+        "status": "created",
+        "intent": "VAULT",
+        "payment_mode": "VAULT",
+        "currency": "EUR",
+        "amount_eur": amount,
+        "description": description,
+        "milestone_id": milestone_id,
+        "kind": kind,
+        "target_id": target_id,
+        "contributor": (contributor or "").strip() or None,
+        "order_id": None,
+        "approve_link": setup_token_approve_link(setup),
+        "authorization_id": None,
+        "authorization_expires_at": None,
+        "vault_id": None,
+        "vault_source": None,
+        "setup_token_id": str(setup_id),
+        "checkout_method": method,
+        "checkout_locale": (checkout_locale or "").strip() or None,
+        "created_at": now_iso(),
+        "history": ["created"],
+    }
+    saved = await ledger.insert_pledge_once(doc)
+    if saved.get("_id") == pledge_id and saved.get("history") == ["created"]:
+        await record_finance(
+            "pledge_created",
+            pledge_id=pledge_id,
+            milestone_id=milestone_id,
+            amount_eur=amount,
+            currency="EUR",
+            setup_token_id=str(setup_id),
+            status="created",
+            payment_mode="VAULT",
+            pledge_kind=kind,
+            target_id=target_id,
+        )
+    return saved
+
+
+async def admin_reauthorize_pledge(
+    pledge_id: str,
+    client: Any,
+    *,
+    mock_response: Optional[str] = None,
+    effective_at: Optional[dt.datetime] = None,
+) -> dict:
+    """TEST-only treasurer helper: force honor-period reauthorize on an AUTHORIZE pledge."""
+    if mock_response:
+        client.mock_response = mock_response
     pledge = await require_pledge(pledge_id)
-    _require_status(pledge, "created", "authorized")
-    order = client.authorize_order(pledge["order_id"])
-    auth_id, expiration = authorization_from(order)
-    pledge["status"] = "authorized"
-    pledge["authorization_id"] = auth_id
-    pledge["authorization_expires_at"] = expiration or default_expiration()
-    pledge["history"] = list(pledge.get("history") or []) + ["authorized"]
+    if pledge.get("payment_mode") not in {None, "AUTHORIZE"} and pledge.get("intent") != "AUTHORIZE":
+        raise ValueError("reauthorize applies to AUTHORIZE pledges only")
+    if pledge.get("status") != "authorized":
+        raise ValueError("pledge must be authorized")
+    if not pledge.get("authorization_id"):
+        raise ValueError("authorization_id missing")
+    changed = _prepare_authorization_capture(pledge, client, now=effective_at)
+    if not changed:
+        raise ValueError("authorization is still inside the honor period")
     return await get_ledger().save_pledge(pledge)
 
 
-async def capture_pledge(pledge_id: str, client: Any) -> dict:
+async def register_vault_pledge(
+    pledge_id: str,
+    client: Any,
+    *,
+    setup_token_id: Optional[str] = None,
+) -> dict:
+    """Exchange an approved setup token for a vaulted payment method (no debit)."""
     pledge = await require_pledge(pledge_id)
-    _require_status(pledge, "authorized", "captured")
-    if not pledge.get("authorization_id"):
-        raise IllegalTransition("authorized", "captured")
-    client.capture_authorization(pledge["authorization_id"])
-    pledge["status"] = "captured"
-    pledge["history"] = list(pledge.get("history") or []) + ["captured"]
+    _require_status(pledge, "created", "vaulted")
+    if pledge.get("payment_mode") != "VAULT":
+        raise IllegalTransition(str(pledge.get("status")), "vaulted")
+    stored_token = (pledge.get("setup_token_id") or "").strip()
+    if not stored_token:
+        raise ValueError("setup_token_id is required")
+    supplied = (setup_token_id or "").strip()
+    if supplied and supplied != stored_token:
+        raise ValueError("setup_token_id does not match this pledge")
+    token_id = stored_token
+    shown = client.get_setup_token(token_id)
+    if str((shown or {}).get("status") or "").upper() != "APPROVED":
+        raise ValueError("setup token is not approved")
+    payment_token = client.create_payment_token(token_id, pledge_id=pledge_id)
+    vault_id = vault_id_from_token(payment_token)
+    pledge["status"] = "vaulted"
+    pledge["vault_id"] = vault_id
+    pledge["vault_source"] = vault_source_from_token(payment_token)
+    pledge["setup_token_id"] = token_id
+    pledge["history"] = list(pledge.get("history") or []) + ["vaulted"]
     saved = await get_ledger().save_pledge(pledge)
-    from .audit import record
-    await record(
-        "capture",
-        actor="treasurer",
+    await record_finance(
+        "pledge_vaulted",
         pledge_id=saved["_id"],
         milestone_id=saved.get("milestone_id"),
-        status="captured",
         amount_eur=saved.get("amount_eur"),
         currency="EUR",
+        vault_id=vault_id,
+        status="vaulted",
+        **_identity(saved),
     )
     return saved
 
 
-async def void_pledge(pledge_id: str, client: Any) -> dict:
+def _require_status(pledge: dict, expected: str | tuple[str, ...], target: str) -> None:
+    current = pledge.get("status")
+    allowed = expected if isinstance(expected, tuple) else (expected,)
+    if current not in allowed:
+        raise IllegalTransition(str(current), target)
+
+
+async def _capture_order_pledge(pledge_id: str, client: Any, pledge: dict) -> dict:
+    """Capture a CAPTURE-intent order after the buyer approved on PayPal."""
+    _require_status(pledge, "created", "captured")
+    order_id = str(pledge.get("order_id") or "")
+    if not _buyer_approved(client, order_id):
+        raise ValueError("order not approved yet")
+    capture = getattr(client, "capture_order", None)
+    if capture is None:
+        raise PayPalError(502, "order capture unavailable")
+    pledge, payload = await _call_with_capture_idempotency(
+        pledge,
+        lambda key: capture(order_id, idempotency_key=key),
+    )
+    return await _finish_capture(
+        pledge,
+        payload,
+        finance={"payment_mode": "CAPTURE", "order_id": order_id},
+    )
+
+
+async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     pledge = await require_pledge(pledge_id)
+    mode = str(pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE")
+    if mode == "CAPTURE":
+        return await _capture_order_pledge(pledge_id, client, pledge)
+    _require_status(pledge, "created", "authorized")
+    order_id = str(pledge.get("order_id") or "")
+    if not _buyer_approved(client, order_id):
+        raise ValueError("order not approved yet")
+    from .departure_clock import refuse_cancelled_departure
+
+    await refuse_cancelled_departure(pledge)
+    order = client.authorize_order(order_id, pledge_id=pledge_id)
+    auth_id, expiration = authorization_from(order)
+    pledge["status"] = "authorized"
+    pledge["authorized_at"] = _money_event_timestamp()
+    pledge["authorization_id"] = auth_id
+    pledge["authorization_expires_at"] = expiration or default_expiration()
+    pledge["history"] = list(pledge.get("history") or []) + ["authorized"]
+    saved = await get_ledger().save_pledge(pledge)
+    await record_finance(
+        "pledge_authorized",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        amount_eur=saved.get("amount_eur"),
+        currency="EUR",
+        authorization_id=auth_id,
+        status="authorized",
+        **_identity(saved),
+    )
+    return saved
+
+
+def _money_event_timestamp(
+    at: Optional[dt.datetime] = None,
+    *,
+    not_before: Optional[str] = None,
+) -> str:
+    moment = (at or simulated_now()).replace(microsecond=0)
+    floor = _parse_moment(not_before)
+    if floor is not None and moment < floor:
+        moment = floor
+    return moment.isoformat()
+
+
+def _parse_moment(value: Optional[str]) -> Optional[dt.datetime]:
+    text = (value or "").strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        moment = dt.datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment.astimezone(dt.timezone.utc)
+
+
+def _prepare_authorization_capture(
+    pledge: dict,
+    client: Any,
+    *,
+    now: Optional[dt.datetime] = None,
+) -> bool:
+    """Reauthorize once the 3-day honor period has passed, and refuse an expired hold."""
+    moment = now or simulated_now()
+    expires = _parse_moment(pledge.get("authorization_expires_at"))
+    if expires is not None and moment >= expires:
+        raise ValueError("PayPal authorization has expired")
+    authorized_at = _parse_moment(pledge.get("authorized_at"))
+    if authorized_at is None or moment <= authorized_at + dt.timedelta(days=HONOR_DAYS):
+        return False
+    try:
+        refreshed = client.reauthorize(
+            pledge["authorization_id"],
+            pledge_id=str(pledge.get("_id") or ""),
+        ) or {}
+    except PayPalError:
+        if expires is not None and moment >= expires:
+            raise ValueError("PayPal authorization has expired") from None
+        return False
+    new_id = refreshed.get("id") or pledge.get("authorization_id")
+    pledge["authorization_id"] = str(new_id)
+    expiration = refreshed.get("expiration_time")
+    if expiration:
+        pledge["authorization_expires_at"] = str(expiration)
+    pledge["authorized_at"] = _money_event_timestamp(moment)
+    pledge["history"] = list(pledge.get("history") or []) + ["reauthorized"]
+    return True
+
+
+async def _finish_capture(
+    pledge: dict,
+    payload: Any,
+    *,
+    finance: dict,
+    effective_at: Optional[dt.datetime] = None,
+) -> dict:
+    """Record PayPal's capture status. COMPLETED and PENDING are kept; anything else can be retried."""
+    from .audit import record
+
+    status, capture_id, order_id = read_capture_result(payload if isinstance(payload, dict) else {})
+    if order_id:
+        pledge["order_id"] = order_id
+    if capture_id:
+        pledge["capture_id"] = capture_id
+    recorded = status or "MISSING"
+    pledge["paypal_status"] = recorded
+    mode = finance.get("payment_mode")
+    milestone_id = finance_milestone_id(pledge)
+    await ensure_finance_milestone(pledge, milestone_id)
+    base = {
+        "pledge_id": pledge["_id"],
+        "milestone_id": milestone_id,
+        "amount_eur": pledge.get("amount_eur"),
+        "currency": "EUR",
+        "paypal_status": recorded,
+        "capture_id": capture_id,
+        "actor": "treasurer",
+        **finance,
+        **_identity(pledge),
+    }
+    audit_fields = {
+        "actor": "treasurer",
+        "pledge_id": pledge["_id"],
+        "milestone_id": milestone_id,
+        "amount_eur": pledge.get("amount_eur"),
+        "currency": "EUR",
+        "paypal_status": recorded,
+        "capture_id": capture_id,
+        **_identity(pledge),
+    }
+    if mode:
+        audit_fields["payment_mode"] = mode
+
+    if status == "COMPLETED":
+        pledge["status"] = "captured"
+        if not str(pledge.get("captured_at") or "").strip():
+            pledge["captured_at"] = _money_event_timestamp(
+                effective_at,
+                not_before=str(pledge.get("authorized_at") or ""),
+            )
+        pledge["history"] = list(pledge.get("history") or []) + ["captured"]
+        saved = await get_ledger().save_pledge(pledge)
+        await record("capture", status="captured", **audit_fields)
+        await record_pledge_captured_once(saved, actor="treasurer")
+        return saved
+    if status == "PENDING":
+        pledge["status"] = "pending"
+        pledge["history"] = list(pledge.get("history") or []) + ["pending"]
+        saved = await get_ledger().save_pledge(pledge)
+        await record("capture", status="pending", **audit_fields)
+        await record_finance("pledge_capture_pending", status="pending", **base)
+        return saved
+
+    failed_status = "charge_failed" if mode == "VAULT" else "capture_failed"
+    pledge["status"] = failed_status
+    pledge["history"] = list(pledge.get("history") or []) + [failed_status]
+    saved = await get_ledger().save_pledge(pledge)
+    await record(failed_status, status=saved.get("status"), **audit_fields)
+    finance_event = "pledge_charge_failed" if mode == "VAULT" else "pledge_capture_failed"
+    await record_finance(finance_event, status=saved.get("status"), **base)
+    raise ValueError(f"PayPal capture status {recorded} is not COMPLETED or PENDING")
+
+
+async def mark_vault_charge_failed(pledge_id: str, detail: str) -> dict:
+    """Vault charge declined or requires payer action — do not retry on every settle."""
+    from .audit import record
+
+    pledge = await require_pledge(pledge_id)
+    pledge["status"] = "charge_failed"
+    pledge["paypal_status"] = str(detail or "")[:120]
+    pledge["history"] = list(pledge.get("history") or []) + ["charge_failed"]
+    saved = await get_ledger().save_pledge(pledge)
+    await record(
+        "charge_failed",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        detail=str(detail or "")[:200],
+        **_identity(saved),
+    )
+    await record_finance(
+        "pledge_charge_failed",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        amount_eur=saved.get("amount_eur"),
+        status="charge_failed",
+        **_identity(saved),
+    )
+    return saved
+
+
+async def mark_vault_token_delete_after_capture(pledge_id: str, detail: str) -> dict:
+    """Vault charge succeeded but token delete failed — keep captured, retry delete later."""
+    from .audit import record
+
+    pledge = await require_pledge(pledge_id)
+    if str(pledge.get("status") or "") != "captured":
+        raise ValueError("vault token delete retry applies only to captured pledges")
+    pledge["vault_token_delete_pending"] = True
+    pledge["vault_delete_detail"] = str(detail or "")[:200]
+    pledge["history"] = list(pledge.get("history") or []) + ["vault_token_delete_pending"]
+    saved = await get_ledger().save_pledge(pledge)
+    await record(
+        "vault_token_delete_pending",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        detail=str(detail or "")[:200],
+        payment_mode="VAULT",
+        **_identity(saved),
+    )
+    return saved
+
+
+async def retry_vault_token_delete(pledge_id: str, client: Any) -> dict:
+    """Retry PayPal vault token delete for a captured pledge."""
+    pledge = await require_pledge(pledge_id)
+    if not pledge.get("vault_token_delete_pending"):
+        return pledge
+    vault_id = str(pledge.get("vault_id") or "").strip()
+    if not vault_id:
+        raise ValueError("vault_id is required to delete token")
+    await release_vault_token_if_unused(client, vault_id, exclude_pledge_id=pledge_id)
+    pledge = await require_pledge(pledge_id)
+    pledge["vault_token_delete_pending"] = False
+    pledge.pop("vault_delete_detail", None)
+    pledge["history"] = list(pledge.get("history") or []) + ["vault_token_deleted"]
+    return await get_ledger().save_pledge(pledge)
+
+
+async def mark_token_delete_pending(pledge_id: str, detail: str) -> dict:
+    """PayPal vault token delete failed on void — retry on the next departure settle."""
+    from .audit import record
+
+    pledge = await require_pledge(pledge_id)
+    pledge["status"] = "token_delete_pending"
+    pledge["paypal_status"] = str(detail or "")[:120]
+    pledge["history"] = list(pledge.get("history") or []) + ["token_delete_pending"]
+    saved = await get_ledger().save_pledge(pledge)
+    await record(
+        "token_delete_pending",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        detail=str(detail or "")[:200],
+        payment_mode="VAULT",
+        **_identity(saved),
+    )
+    return saved
+
+
+async def capture_pledge(
+    pledge_id: str,
+    client: Any,
+    *,
+    effective_at: Optional[dt.datetime] = None,
+) -> dict:
+    pledge = await require_pledge(pledge_id)
+    from .departure_clock import refuse_early_capture
+
+    mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
+    if mode == "VAULT":
+        _require_status(pledge, ("vaulted", "charge_failed"), "captured")
+        await refuse_early_capture(pledge, now=effective_at)
+        vault_id = pledge.get("vault_id")
+        if not vault_id:
+            raise IllegalTransition("vaulted", "captured")
+        pledge, payload = await _call_with_capture_idempotency(
+            pledge,
+            lambda key: client.charge_vaulted(
+                vault_id,
+                pledge["amount_eur"],
+                pledge_id,
+                source=pledge.get("vault_source") or "paypal",
+                description=str(pledge.get("description") or ""),
+                idempotency_key=key,
+            ),
+        )
+        saved = await _finish_capture(
+            pledge,
+            payload,
+            finance={"vault_id": vault_id, "payment_mode": "VAULT"},
+            effective_at=effective_at,
+        )
+        if saved.get("status") == "captured":
+            try:
+                await release_vault_token_if_unused(
+                    client, str(vault_id), exclude_pledge_id=pledge_id,
+                )
+                reloaded = await get_ledger().get_pledge(pledge_id)
+                if reloaded:
+                    saved = reloaded
+            except Exception as exc:
+                saved = await mark_vault_token_delete_after_capture(
+                    pledge_id, _vault_delete_failure_detail(exc),
+                )
+        return saved
+    _require_status(pledge, ("authorized", "capture_failed"), "captured")
+    if not pledge.get("authorization_id"):
+        raise IllegalTransition("authorized", "captured")
+    await refuse_early_capture(pledge, now=effective_at)
+    if _prepare_authorization_capture(pledge, client):
+        pledge = await get_ledger().save_pledge(pledge)
+    pledge, payload = await _call_with_capture_idempotency(
+        pledge,
+        lambda key: client.capture_authorization(
+            pledge["authorization_id"],
+            idempotency_key=key,
+        ),
+    )
+    return await _finish_capture(
+        pledge,
+        payload,
+        finance={"authorization_id": pledge.get("authorization_id")},
+        effective_at=effective_at,
+    )
+
+
+_VAULT_VOID_CLOSED = frozenset({
+    "voided",
+    "captured",
+    "charge_failed",
+    "refunded",
+    "partially_refunded",
+})
+
+
+def _vault_delete_failure_detail(exc: Exception) -> str:
+    if isinstance(exc, PayPalError):
+        return str(exc.body or exc)[:200]
+    return str(exc)[:200]
+
+
+async def _other_open_pledges_share_vault(vault_id: str, exclude_pledge_id: str) -> bool:
+    """True when another non-terminal pledge still references the same vault token."""
+    vid = str(vault_id or "").strip()
+    if not vid:
+        return False
+    for row in await get_ledger().list_pledges():
+        if str(row.get("_id") or "") == exclude_pledge_id:
+            continue
+        if str(row.get("vault_id") or "") != vid:
+            continue
+        if str(row.get("status") or "") in _VAULT_VOID_CLOSED:
+            continue
+        return True
+    return False
+
+
+async def find_pledge_by_vault_id(vault_id: str) -> Optional[dict]:
+    vid = str(vault_id or "").strip()
+    if not vid:
+        return None
+    for row in await get_ledger().list_pledges():
+        if str(row.get("vault_id") or "") == vid:
+            return row
+    return None
+
+
+async def mark_vault_token_deleted_for_vault_id(vault_id: str) -> list[str]:
+    """Mark every pledge on this vault token deleted (idempotent)."""
+    updated: list[str] = []
+    vid = str(vault_id or "").strip()
+    if not vid:
+        return updated
+    for row in await get_ledger().list_pledges():
+        if str(row.get("vault_id") or "") != vid:
+            continue
+        pledge_id = str(row.get("_id") or "")
+        if row.get("vault_token_deleted") is True:
+            if pledge_id:
+                updated.append(pledge_id)
+            continue
+        row["vault_token_deleted"] = True
+        row["history"] = list(row.get("history") or []) + ["vault_token_deleted"]
+        saved = await get_ledger().save_pledge(row)
+        updated.append(str(saved.get("_id") or pledge_id))
+    return updated
+
+
+async def release_vault_token_if_unused(
+    client: Any,
+    vault_id: str,
+    *,
+    exclude_pledge_id: str = "",
+) -> bool:
+    """Delete the PayPal vault token when no open pledge still references it."""
+    if await _other_open_pledges_share_vault(vault_id, exclude_pledge_id):
+        return False
+    vid = str(vault_id or "").strip()
+    if not vid:
+        return False
+    client.delete_payment_token(vid)
+    await mark_vault_token_deleted_for_vault_id(vid)
+    return True
+
+
+def _finish_vault_void(pledge: dict, *, token_deleted: bool, effective_at: Optional[dt.datetime] = None) -> None:
+    """Void a vaulted pledge without storing PayPal authorization void_id fields."""
+    pledge.pop("void_id", None)
+    pledge.pop("void_id_source", None)
+    pledge.pop("void_note", None)
+    pledge["vault_token_deleted"] = token_deleted
+    pledge["vault_voided_at"] = _money_event_timestamp(
+        effective_at,
+        not_before=str(pledge.get("captured_at") or pledge.get("authorized_at") or ""),
+    )
+    pledge["status"] = "voided"
+    pledge["history"] = list(pledge.get("history") or []) + ["voided"]
+
+
+def _stamp_void(
+    pledge: dict,
+    payload: Any,
+    fallback_id: str,
+    *,
+    hold: str,
+    effective_at: Optional[dt.datetime] = None,
+) -> None:
+    """Store the id PayPal's void returns.
+
+    A void of an authorization is often HTTP 204 with no body, or a body whose
+    ``id`` is the authorization itself. When the body has an id, that id is
+    ``void_id`` and ``void_id_source`` is ``paypal``. When it does not,
+    ``void_id`` is the authorization id (or the vault id) and ``void_note``
+    says so.
+    """
+    body = payload if isinstance(payload, dict) else {}
+    returned = str(body.get("id") or "").strip()
+    if returned:
+        pledge["void_id"] = returned
+        pledge["void_id_source"] = "paypal"
+        pledge.pop("void_note", None)
+    else:
+        fallback = str(fallback_id or "").strip()
+        if not fallback:
+            raise PayPalError(502, "void id missing")
+        pledge["void_id"] = fallback
+        pledge["void_id_source"] = hold
+        pledge["void_note"] = f"PayPal's void returned no id. void_id is the {hold} id."
+    pledge["voided_at"] = _money_event_timestamp(
+        effective_at,
+        not_before=str(pledge.get("authorized_at") or ""),
+    )
+    pledge["status"] = "voided"
+    pledge["history"] = list(pledge.get("history") or []) + ["voided"]
+
+
+async def void_pledge(
+    pledge_id: str,
+    client: Any,
+    *,
+    effective_at: Optional[dt.datetime] = None,
+) -> dict:
+    pledge = await require_pledge(pledge_id)
+    mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
+    if mode == "VAULT":
+        _require_status(pledge, ("vaulted", "token_delete_pending"), "voided")
+        vault_id = pledge.get("vault_id")
+        if not vault_id:
+            raise IllegalTransition("vaulted", "voided")
+        token_deleted = await release_vault_token_if_unused(
+            client,
+            str(vault_id),
+            exclude_pledge_id=pledge_id,
+        )
+        _finish_vault_void(pledge, token_deleted=token_deleted, effective_at=effective_at)
+        saved = await get_ledger().save_pledge(pledge)
+        from .audit import record
+        await record(
+            "void",
+            actor="treasurer",
+            pledge_id=saved["_id"],
+            milestone_id=saved.get("milestone_id"),
+            status="voided",
+            amount_eur=saved.get("amount_eur"),
+            currency="EUR",
+            payment_mode="VAULT",
+            vault_token_deleted=saved.get("vault_token_deleted"),
+            vault_voided_at=saved.get("vault_voided_at"),
+            **_identity(saved),
+        )
+        await record_finance(
+            "pledge_voided",
+            pledge_id=saved["_id"],
+            milestone_id=saved.get("milestone_id"),
+            amount_eur=saved.get("amount_eur"),
+            currency="EUR",
+            vault_id=vault_id,
+            status="voided",
+            actor="treasurer",
+            payment_mode="VAULT",
+            vault_token_deleted=saved.get("vault_token_deleted"),
+            vault_voided_at=saved.get("vault_voided_at"),
+            **_identity(saved),
+        )
+        return saved
     _require_status(pledge, "authorized", "voided")
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "voided")
-    client.void_authorization(pledge["authorization_id"])
-    pledge["status"] = "voided"
-    pledge["history"] = list(pledge.get("history") or []) + ["voided"]
+    released = client.void_authorization(pledge["authorization_id"], pledge_id=pledge_id)
+    _stamp_void(
+        pledge,
+        released,
+        str(pledge["authorization_id"]),
+        hold="authorization",
+        effective_at=effective_at,
+    )
     saved = await get_ledger().save_pledge(pledge)
     from .audit import record
     await record(
@@ -428,9 +1665,147 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
         status="voided",
         amount_eur=saved.get("amount_eur"),
         currency="EUR",
+        void_id=saved.get("void_id"),
+        voided_at=saved.get("voided_at"),
+        **_identity(saved),
+    )
+    await record_finance(
+        "pledge_voided",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        amount_eur=saved.get("amount_eur"),
+        currency="EUR",
+        authorization_id=saved.get("authorization_id"),
+        status="voided",
+        actor="treasurer",
+        void_id=saved.get("void_id"),
+        voided_at=saved.get("voided_at"),
+        **_identity(saved),
+    )
+    return saved
+
+
+async def refund_pledge(
+    pledge_id: str,
+    client: Any,
+    *,
+    amount_eur: Optional[str] = None,
+    effective_at: Optional[dt.datetime] = None,
+) -> dict:
+    """Treasurer refund for a captured pledge. Does not run without admin approval."""
+    from .audit import record
+
+    pledge = await require_pledge(pledge_id)
+    current = str(pledge.get("status") or "")
+    if current not in ("captured", "partially_refunded"):
+        raise IllegalTransition(current, "refunded")
+    capture_id = str(pledge.get("capture_id") or "").strip()
+    if not capture_id:
+        raise ValueError("capture_id is required to refund")
+    capture_total = Decimal(str(pledge.get("amount_eur") or "0"))
+    already_refunded = refunded_amount_from_pledge(pledge)
+    pending = pledge.get("pending_refund")
+    if isinstance(pending, dict) and str(pending.get("key") or "").strip():
+        idempotency_key = str(pending["key"])
+        refund_this = Decimal(str(pending.get("amount") or "0"))
+        if refund_this <= Decimal("0"):
+            refund_this = capture_total - already_refunded
+    else:
+        if amount_eur:
+            refund_this = Decimal(normalize_amount(amount_eur))
+        else:
+            refund_this = capture_total - already_refunded
+        if refund_this <= Decimal("0"):
+            raise ValueError("refund amount must be positive")
+        if already_refunded + refund_this > capture_total:
+            raise ValueError("refund exceeds captured amount")
+        refund_count = len(_normalize_refunds(pledge))
+        idempotency_key = f"refund-{pledge_id}-{refund_count + 1}"
+        pledge["pending_refund"] = {
+            "key": idempotency_key,
+            "amount": f"{refund_this:.2f}",
+        }
+        pledge = await get_ledger().save_pledge(pledge)
+    if already_refunded + refund_this > capture_total:
+        raise ValueError("refund exceeds captured amount")
+    try:
+        payload = client.refund_capture(
+            capture_id,
+            amount_eur=f"{refund_this:.2f}",
+            idempotency_key=idempotency_key,
+        )
+    except Exception as exc:
+        if _is_transport_retry(exc):
+            raise
+        raise
+    if not isinstance(payload, dict):
+        raise ValueError("PayPal refund response is invalid")
+    refund_id = str(payload.get("id") or "").strip()
+    refund_status = str(payload.get("status") or "").upper()
+    if not refund_id:
+        raise ValueError("PayPal refund id is required")
+    if refund_status not in {"COMPLETED", "PENDING"}:
+        raise ValueError(f"PayPal refund status {refund_status or 'MISSING'} is not COMPLETED or PENDING")
+    normalized_status = refund_status
+    if normalized_status == "REFUNDED":
+        normalized_status = "COMPLETED"
+    saved = await reconcile_refund_on_pledge(
+        pledge,
+        refund_id=refund_id,
+        amount_eur=f"{refund_this:.2f}",
+        status=normalized_status,
+        key=idempotency_key,
+        at=_money_event_timestamp(
+            effective_at,
+            not_before=str(pledge.get("captured_at") or ""),
+        ),
+    )
+    saved["refunded_at"] = _money_event_timestamp(
+        effective_at,
+        not_before=str(pledge.get("captured_at") or ""),
+    )
+    saved["paypal_status"] = refund_status
+    event = "refunded" if saved.get("status") == "refunded" else "partially_refunded"
+    saved["history"] = list(saved.get("history") or []) + [event]
+    saved = await get_ledger().save_pledge(saved)
+    milestone_id = finance_milestone_id(saved)
+    await record(
+        "refund",
+        actor="treasurer",
+        pledge_id=saved["_id"],
+        milestone_id=milestone_id,
+        amount_eur=f"{refund_this:.2f}",
+        currency="EUR",
+        capture_id=capture_id,
+        refund_id=saved.get("refund_id"),
+        refunded_amount_eur=saved.get("refunded_amount_eur"),
+        **_identity(saved),
+    )
+    await record_finance(
+        "pledge_refunded",
+        pledge_id=saved["_id"],
+        milestone_id=milestone_id,
+        amount_eur=f"{refund_this:.2f}",
+        currency="EUR",
+        capture_id=capture_id,
+        refund_id=saved.get("refund_id"),
+        refunded_amount_eur=saved.get("refunded_amount_eur"),
+        status=saved.get("status"),
+        actor="treasurer",
+        **_identity(saved),
     )
     return saved
 
 
 async def pledges_for_milestone(milestone_id: str) -> list[dict]:
-    return await get_ledger().list_pledges_for_milestone(milestone_id)
+    from .naviguide_bridge import resolve_milestone
+
+    canonical = resolve_milestone(milestone_id) or milestone_id
+    rows = await get_ledger().list_pledges_for_milestone(canonical)
+    if canonical == milestone_id:
+        return rows
+    seen = {row.get("_id") for row in rows}
+    for row in await get_ledger().list_pledges_for_milestone(milestone_id):
+        if row.get("_id") not in seen:
+            rows.append(row)
+    return rows

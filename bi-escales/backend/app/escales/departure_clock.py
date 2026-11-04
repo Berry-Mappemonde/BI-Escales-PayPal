@@ -260,7 +260,14 @@ async def _settle_timed_pledge(
             actions.append({"pledge_id": pledge_id, "action": "wait"})
             return
         saved = await capture_pledge(pledge_id, client, effective_at=moment)
-        actions.append({"pledge_id": saved["_id"], "action": "capture"})
+        entry: dict = {"pledge_id": saved["_id"], "action": "capture"}
+        if saved.get("status"):
+            entry["status"] = saved["status"]
+        if saved.get("capture_id"):
+            entry["capture_id"] = saved["capture_id"]
+        if saved.get("paypal_status"):
+            entry["paypal_status"] = saved["paypal_status"]
+        actions.append(entry)
     except Exception as exc:
         if mode == "VAULT":
             detail = _vault_failure_detail(exc)

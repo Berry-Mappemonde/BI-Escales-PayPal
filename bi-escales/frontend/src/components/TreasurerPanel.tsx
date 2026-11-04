@@ -132,8 +132,13 @@ export function TreasurerPanel({
             {t("treasurer.settle")}
           </button>
           {settleNote ? (
-            <p className="notice" data-testid="settle-note">
-              {settleNote}
+            <p className="notice treasurer-settle-note" data-testid="settle-note">
+              {settleNote.split("\n").map((line, index) => (
+                <span key={`${index}-${line}`} className="settle-note-line">
+                  {line}
+                  {index < settleNote.split("\n").length - 1 ? <br /> : null}
+                </span>
+              ))}
             </p>
           ) : null}
           {clockPinned ? (

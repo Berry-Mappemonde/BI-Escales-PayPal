@@ -1058,7 +1058,12 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     assert locked.status_code == 401
     departed = client.post("/api/escales/clock/settle", headers=ADMIN)
     assert departed.status_code == 200
-    assert departed.json()["settled"]["actions"] == [{"pledge_id": held["id"], "action": "capture"}]
+    cap_row = next(
+        row for row in departed.json()["settled"]["actions"] if row["pledge_id"] == held["id"]
+    )
+    assert cap_row["action"] == "capture"
+    assert cap_row["status"] == "captured"
+    assert cap_row["capture_id"] == "CAP"
     assert status(held["id"]) == "captured"
     assert any(call[0] == "capture" for call in fake.calls)
 

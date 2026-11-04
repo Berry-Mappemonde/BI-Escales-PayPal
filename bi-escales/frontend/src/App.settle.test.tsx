@@ -13,7 +13,7 @@ vi.mock("./hooks/usePledgeQueue", () => ({
     loading: false,
     error: null,
     needsKey: true,
-    refresh: vi.fn(),
+    refresh: vi.fn().mockResolvedValue(undefined),
     updatePledge: vi.fn(),
   }),
 }));
@@ -68,7 +68,7 @@ describe("departure-day settle", () => {
   });
 
   it("stays disabled until the masked treasurer key is set, then posts that key", async () => {
-    vi.mocked(settleClock).mockResolvedValue({ settled: [] });
+    vi.mocked(settleClock).mockResolvedValue({ settled: { actions: [] } });
     const user = userEvent.setup();
     render(
       <I18nextProvider i18n={i18n}>
@@ -93,7 +93,7 @@ describe("departure-day settle", () => {
 
   it("shows settle-at controls only when the clock is pinned", async () => {
     vi.mocked(escalesApi.fetchFeatures).mockResolvedValue({ clock_pinned: true });
-    vi.mocked(settleClock).mockResolvedValue({ settled: [] });
+    vi.mocked(settleClock).mockResolvedValue({ settled: { actions: [] } });
     const user = userEvent.setup();
     render(
       <I18nextProvider i18n={i18n}>
@@ -110,5 +110,34 @@ describe("departure-day settle", () => {
     expect(atButton).toBeEnabled();
     await user.click(atButton);
     expect(settleClock).toHaveBeenCalledWith("secret-admin", expect.stringMatching(/2026-11-20/));
+  });
+
+  it("shows capture id in the settle note after a sandbox capture", async () => {
+    vi.mocked(escalesApi.fetchFeatures).mockResolvedValue({ clock_pinned: true });
+    vi.mocked(settleClock).mockResolvedValue({
+      settled: {
+        actions: [
+          {
+            pledge_id: "pledge-99",
+            action: "capture",
+            status: "captured",
+            capture_id: "5S15987870835280T",
+          },
+        ],
+      },
+    });
+    const user = userEvent.setup();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+    await user.type(screen.getByTestId("admin-key-input"), "secret-admin");
+    await user.type(screen.getByTestId("settle-at-input"), "2027-06-01T12:00");
+    await user.click(screen.getByTestId("settle-at-chosen-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("settle-note")).toHaveTextContent("5S15987870835280T");
+    });
+    expect(screen.getByTestId("settle-note")).toHaveTextContent("captured");
   });
 });

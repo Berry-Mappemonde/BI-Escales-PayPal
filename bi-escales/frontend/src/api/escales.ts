@@ -7,6 +7,7 @@ import type {
   FeatureFlags,
   FundView,
   PublicProjectDonationTotal,
+  ClockSettleResponse,
 } from "./types";
 
 function url(path: string): string {
@@ -196,7 +197,7 @@ export async function getPledge(pledgeId: string): Promise<PublicPledge> {
   return res.json();
 }
 
-export async function settleClock(adminKey: string, now?: string): Promise<{ settled?: unknown }> {
+export async function settleClock(adminKey: string, now?: string): Promise<ClockSettleResponse> {
   const key = adminKey.trim();
   if (!key) {
     throw new Error("treasurer key required");

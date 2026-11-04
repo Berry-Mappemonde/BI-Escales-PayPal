@@ -109,6 +109,7 @@ export function TreasurerQueue({
           <thead>
             <tr>
               <th>{t("treasurer.status")}</th>
+              <th>{t("treasurer.captureId")}</th>
               <th>{t("treasurer.amount")}</th>
               <th>{t("treasurer.description")}</th>
               <th>{t("treasurer.milestone")}</th>
@@ -120,6 +121,7 @@ export function TreasurerQueue({
             {queue.map((p) => (
               <tr key={p.id} data-testid={`queue-row-${p.id}`}>
                 <td>{p.status}</td>
+                <td data-testid={`capture-id-${p.id}`}>{p.capture_id || "—"}</td>
                 <td>
                   {p.amount_eur} {p.currency}
                 </td>

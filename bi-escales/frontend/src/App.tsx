@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { formatSettleCaptureNote } from "./api/settleCaptureNote";
 import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchHealthRetrying, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { emitCrewSubscribeReturn } from "./paypal/crewSubscribeReturnEvents";
 import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
@@ -379,14 +380,17 @@ export default function App() {
     else if (next === "mile") setAmount("1.00");
   };
 
-  const onSettle = async () => {
+  const runSettle = async (atIso?: string) => {
     const key = adminKey.trim();
     if (!key) return;
     setSettleBusy(true);
     setSettleNote(null);
     try {
-      await settleClock(key);
-      setSettleNote(t("treasurer.settleDone"));
+      const body = atIso?.trim()
+        ? await settleClock(key, atIso)
+        : await settleClock(key);
+      await refresh();
+      setSettleNote(formatSettleCaptureNote(t, body.settled));
     } catch (err: unknown) {
       setSettleNote(err instanceof Error ? err.message : String(err));
     } finally {
@@ -394,25 +398,20 @@ export default function App() {
     }
   };
 
+  const onSettle = async () => {
+    await runSettle();
+  };
+
   const onSettleAt = async () => {
-    const key = adminKey.trim();
     const raw = settleAt.trim();
-    if (!key || !raw) return;
-    setSettleBusy(true);
-    setSettleNote(null);
-    try {
-      const parsed = new Date(raw);
-      if (Number.isNaN(parsed.getTime())) {
-        throw new Error(t("treasurer.settleAtInvalid"));
-      }
-      const iso = parsed.toISOString().replace(/\.\d{3}Z$/, "Z");
-      await settleClock(key, iso);
-      setSettleNote(t("treasurer.settleDone"));
-    } catch (err: unknown) {
-      setSettleNote(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSettleBusy(false);
+    if (!raw) return;
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) {
+      setSettleNote(t("treasurer.settleAtInvalid"));
+      return;
     }
+    const iso = parsed.toISOString().replace(/\.\d{3}Z$/, "Z");
+    await runSettle(iso);
   };
 
   const onSpend = async () => {

@@ -253,6 +253,16 @@ def leg_by_id(leg_id: str) -> Optional[dict[str, Any]]:
     return None
 
 
+def stopover_departure_meta(milestone_id: str) -> dict[str, Any]:
+    """Méta jalon escale pour une capture au départ (équipement Channel3, etc.)."""
+    leg = leg_departing_from(milestone_id)
+    meta: dict[str, Any] = {"capture_on": "departure"}
+    if leg:
+        if leg.get("departure_iso"):
+            meta["departure_iso"] = leg["departure_iso"]
+    return meta
+
+
 def leg_departing_from(place: str) -> Optional[dict[str, Any]]:
     """Première jambe qui quitte cette escale, dans l'ordre de l'horloge."""
     slug = _slug(place)

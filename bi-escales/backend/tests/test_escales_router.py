@@ -664,7 +664,7 @@ def test_prices_and_clock(api, monkeypatch):
     assert catalogue["label"] == "simulated price"
     kinds = [row["kind"] for row in catalogue["prices"]]
     assert kinds == [
-        "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "common_fund",
+        "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "gear", "common_fund",
     ]
     assert all(row["label"] == "simulated price" and row["simulated"] is True for row in catalogue["prices"])
     by_kind = {row["kind"]: row for row in catalogue["prices"]}

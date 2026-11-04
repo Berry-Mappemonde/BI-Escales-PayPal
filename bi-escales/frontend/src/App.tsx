@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, fetchFund, fetchHealth, fetchSchedule, listMilestones, readPaypalReturn, recordSpending } from "./api/escales";
-import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
+import { authorizePledge, fetchFund, fetchFeatures, fetchHealth, fetchSchedule, listMilestones, readPaypalReturn, recordSpending } from "./api/escales";
+import type { CaptainChatResponse, FeatureFlags, FundView, PublicPledge, ScheduleResponse } from "./api/types";
+import { Channel3GearPanel } from "./components/Channel3GearPanel.jsx";
 import { EscalesPanel } from "./components/EscalesPanel";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
 import { EscalePopup } from "./components/EscalePopup.jsx";
@@ -72,6 +73,7 @@ export default function App() {
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
   const [escalesOk, setEscalesOk] = useState<boolean | null>(null);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
+  const [features, setFeatures] = useState<FeatureFlags | null>(null);
   const [hash, setHash] = useState(() => window.location.hash);
   const [adminKey, setAdminKey] = useState("");
   const { pledges, loading, error, needsKey, refresh, updatePledge } = usePledgeQueue(adminKey);
@@ -115,6 +117,7 @@ export default function App() {
     void fetchHealth().then(() => setHealthOk(true)).catch(() => setHealthOk(false));
     void listMilestones().then(() => setEscalesOk(true)).catch(() => setEscalesOk(false));
     void fetchSchedule().then(setSchedule).catch(() => setSchedule(null));
+    void fetchFeatures().then(setFeatures).catch(() => setFeatures(null));
     void fetchJson("/route.geojson").then(setRouteFc).catch(() => setRouteFc(null));
     void fetchJson("/bi-projects.geojson").then(setProjects).catch(() => setProjects({ features: [] }));
   }, []);
@@ -436,6 +439,9 @@ export default function App() {
               onSuggested={onSuggested}
               onAuthorized={onAuthorized}
             />
+            {features?.channel3 && milestoneId ? (
+              <Channel3GearPanel milestoneId={milestoneId} onAuthorized={onAuthorized} />
+            ) : null}
           </div>
           <div>
             {stop ? (

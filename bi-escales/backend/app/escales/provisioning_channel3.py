@@ -16,8 +16,8 @@ def attach_provisioning(proposal: dict[str, Any], milestone_id: str) -> dict[str
         "status": "proposed",
         "milestone_id": milestone_id,
         "note": (
-            "Provisioning Channel3 : proposition d'encaissement seulement. "
-            "Aucun débit automatique."
+            "Provisioning Channel3 : encaissement proposé le jour du départ de l'escale ; "
+            "annulé si l'escale est annulée. Aucun débit automatique."
         ),
         "at": now_iso(),
     }

@@ -78,6 +78,26 @@ export interface ScheduleResponse {
 export interface FeatureFlags {
   bryntum?: boolean;
   vault?: boolean;
+  channel3?: boolean;
+}
+
+export interface Channel3GearItem {
+  id: string;
+  title: string;
+  description?: string;
+  image_url?: string | null;
+  amount_eur: string;
+  currency: string;
+  buy_url?: string;
+  query?: string;
+}
+
+export interface Channel3GearResponse {
+  items: Channel3GearItem[];
+  capture_on?: "departure";
+  label?: string;
+  source?: string;
+  docs?: string;
 }
 
 export interface MilestoneEvidence {

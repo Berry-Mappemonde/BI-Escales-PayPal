@@ -769,23 +769,27 @@ def _parse_moment(value: Optional[str]) -> Optional[dt.datetime]:
     return moment
 
 
-def _prepare_authorization_capture(pledge: dict, client: Any) -> None:
+def _prepare_authorization_capture(pledge: dict, client: Any) -> bool:
     """Reauthorize once the 3-day honor period has passed, and refuse an expired hold."""
-    now = dt.datetime.now(dt.timezone.utc)
+    now = simulated_now()
     expires = _parse_moment(pledge.get("authorization_expires_at"))
     if expires is not None and now >= expires:
         raise ValueError("PayPal authorization has expired")
     authorized_at = _parse_moment(pledge.get("authorized_at"))
     if authorized_at is None or now <= authorized_at + dt.timedelta(days=HONOR_DAYS):
-        return
-    refreshed = client.reauthorize(pledge["authorization_id"]) or {}
+        return False
+    refreshed = client.reauthorize(
+        pledge["authorization_id"],
+        pledge_id=str(pledge.get("_id") or ""),
+    ) or {}
     new_id = refreshed.get("id") or pledge.get("authorization_id")
     pledge["authorization_id"] = str(new_id)
     expiration = refreshed.get("expiration_time")
     if expiration:
         pledge["authorization_expires_at"] = str(expiration)
-    pledge["authorized_at"] = now_iso()
+    pledge["authorized_at"] = now.replace(microsecond=0).isoformat()
     pledge["history"] = list(pledge.get("history") or []) + ["reauthorized"]
+    return True
 
 
 async def _finish_capture(pledge: dict, payload: Any, *, finance: dict) -> dict:
@@ -929,7 +933,8 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
     _require_status(pledge, "authorized", "captured")
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "captured")
-    _prepare_authorization_capture(pledge, client)
+    if _prepare_authorization_capture(pledge, client):
+        pledge = await get_ledger().save_pledge(pledge)
     payload = client.capture_authorization(pledge["authorization_id"], pledge_id=pledge_id)
     return await _finish_capture(
         pledge,
@@ -1117,6 +1122,55 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
         actor="treasurer",
         void_id=saved.get("void_id"),
         voided_at=saved.get("voided_at"),
+        **_identity(saved),
+    )
+    return saved
+
+
+async def refund_pledge(pledge_id: str, client: Any, *, amount_eur: Optional[str] = None) -> dict:
+    """Treasurer refund for a captured pledge. Does not run without admin approval."""
+    from .audit import record
+
+    pledge = await require_pledge(pledge_id)
+    _require_status(pledge, "captured", "refunded")
+    capture_id = str(pledge.get("capture_id") or "").strip()
+    if not capture_id:
+        raise ValueError("capture_id is required to refund")
+    payload = client.refund_capture(
+        capture_id,
+        amount_eur=amount_eur,
+        pledge_id=pledge_id,
+    )
+    refund_id = payload.get("id") if isinstance(payload, dict) else None
+    pledge["status"] = "refunded"
+    pledge["paypal_status"] = str(payload.get("status") or "COMPLETED") if isinstance(payload, dict) else "COMPLETED"
+    if refund_id:
+        pledge["refund_id"] = str(refund_id)
+    pledge["refunded_at"] = simulated_now().replace(microsecond=0).isoformat()
+    pledge["history"] = list(pledge.get("history") or []) + ["refunded"]
+    saved = await get_ledger().save_pledge(pledge)
+    milestone_id = finance_milestone_id(saved)
+    await record(
+        "refund",
+        actor="treasurer",
+        pledge_id=saved["_id"],
+        milestone_id=milestone_id,
+        amount_eur=saved.get("amount_eur"),
+        currency="EUR",
+        capture_id=capture_id,
+        refund_id=saved.get("refund_id"),
+        **_identity(saved),
+    )
+    await record_finance(
+        "pledge_refunded",
+        pledge_id=saved["_id"],
+        milestone_id=milestone_id,
+        amount_eur=amount_eur or saved.get("amount_eur"),
+        currency="EUR",
+        capture_id=capture_id,
+        refund_id=saved.get("refund_id"),
+        status="refunded",
+        actor="treasurer",
         **_identity(saved),
     )
     return saved

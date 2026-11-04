@@ -66,6 +66,13 @@ class FakePayPal:
         self.calls.append(("void", authorization_id))
         return {}
 
+    def reauthorize(self, authorization_id, **kwargs):
+        self.calls.append(("reauthorize", authorization_id))
+        return {
+            "id": authorization_id,
+            "expiration_time": "2027-06-01T00:00:00Z",
+        }
+
     def get_order(self, order_id):
         self.calls.append(("orders.get", order_id))
         return {"id": order_id, "status": self.order_status}

@@ -642,9 +642,16 @@ async def register_vault_pledge(
     _require_status(pledge, "created", "vaulted")
     if pledge.get("payment_mode") != "VAULT":
         raise IllegalTransition(str(pledge.get("status")), "vaulted")
-    token_id = (setup_token_id or pledge.get("setup_token_id") or "").strip()
-    if not token_id:
+    stored_token = (pledge.get("setup_token_id") or "").strip()
+    if not stored_token:
         raise ValueError("setup_token_id is required")
+    supplied = (setup_token_id or "").strip()
+    if supplied and supplied != stored_token:
+        raise ValueError("setup_token_id does not match this pledge")
+    token_id = stored_token
+    shown = client.get_setup_token(token_id)
+    if str((shown or {}).get("status") or "").upper() != "APPROVED":
+        raise ValueError("setup token is not approved")
     payment_token = client.create_payment_token(token_id)
     vault_id = vault_id_from_token(payment_token)
     pledge["status"] = "vaulted"

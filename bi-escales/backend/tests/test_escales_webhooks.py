@@ -132,7 +132,9 @@ def test_signature_is_checked_before_the_duplicate(api):
     assert denied.status_code == 401
 
     set_paypal_client_factory(lambda: fake)
-    accepted = client.post("/api/escales/webhooks/paypal", headers=fresh, content=json.dumps(PAYLOAD))
+    retry = dict(PAYLOAD)
+    retry["id"] = "WH-TEST-EVENT-RETRY"
+    accepted = client.post("/api/escales/webhooks/paypal", headers=fresh, content=json.dumps(retry))
     assert accepted.status_code == 200
     assert accepted.json()["accepted"] is True
     assert accepted.json().get("duplicate") is not True
@@ -441,3 +443,126 @@ def test_malformed_signature_or_cert_is_not_a_502(api):
     )
     assert response.status_code == 400
     assert response.status_code != 502
+
+
+def _capture_event(event_id, event_type, order_id):
+    return {
+        "id": event_id,
+        "event_type": event_type,
+        "resource": {
+            "id": f"CAP-{event_id}",
+            "status": "COMPLETED" if event_type.endswith("COMPLETED") else "DENIED",
+            "supplementary_data": {"related_ids": {"order_id": order_id}},
+        },
+    }
+
+
+def test_pending_capture_follows_completed_and_denied(api):
+    """COMPLETED writes one pledge_captured. DENIED marks capture_failed. Authorized stays."""
+    import asyncio
+
+    from app.escales.ledger import get_ledger, list_finance_entries
+
+    async def seed():
+        ledger = get_ledger()
+        for pledge_id, order_id, status in (
+            ("p-pending", "ORDER-PENDING", "pending"),
+            ("p-denied", "ORDER-DENIED", "pending"),
+            ("p-held", "ORDER-HELD", "authorized"),
+            ("p-done", "ORDER-DONE", "captured"),
+        ):
+            await ledger.insert_pledge_once({
+                "_id": pledge_id,
+                "status": status,
+                "intent": "AUTHORIZE",
+                "payment_mode": "AUTHORIZE",
+                "currency": "EUR",
+                "amount_eur": "20.00",
+                "description": "miles",
+                "milestone_id": "dep-mayotte",
+                "kind": "mile",
+                "target_id": "mayotte",
+                "order_id": order_id,
+                "history": [status],
+            })
+
+    asyncio.run(seed())
+    client, _fake = api
+
+    def post(event_id, event_type, order_id, transmission):
+        headers = dict(HEADERS)
+        headers["PAYPAL-TRANSMISSION-ID"] = transmission
+        payload = _capture_event(event_id, event_type, order_id)
+        response = client.post(
+            "/api/escales/webhooks/paypal", headers=headers, content=json.dumps(payload),
+        )
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    first = post("WH-CAP-OK", "PAYMENT.CAPTURE.COMPLETED", "ORDER-PENDING", "T-CAP-OK")
+    assert first["accepted"] is True
+    again = post("WH-CAP-OK", "PAYMENT.CAPTURE.COMPLETED", "ORDER-PENDING", "T-CAP-OK-2")
+    assert again["duplicate"] is True
+    post("WH-CAP-NO", "PAYMENT.CAPTURE.DENIED", "ORDER-DENIED", "T-CAP-NO")
+    post("WH-CAP-HELD", "PAYMENT.CAPTURE.COMPLETED", "ORDER-HELD", "T-CAP-HELD")
+    post("WH-CAP-DONE", "PAYMENT.CAPTURE.COMPLETED", "ORDER-DONE", "T-CAP-DONE")
+
+    async def statuses():
+        ledger = get_ledger()
+        entries = await list_finance_entries()
+        rows = {
+            name: (await ledger.get_pledge(name))["status"]
+            for name in ("p-pending", "p-denied", "p-held", "p-done")
+        }
+        captured = [
+            row for row in entries
+            if row["kind"] == "pledge_captured" and row.get("pledge_id") == "p-pending"
+        ]
+        return rows, captured
+
+    rows, captured = asyncio.run(statuses())
+    assert rows == {
+        "p-pending": "captured",
+        "p-denied": "capture_failed",
+        "p-held": "authorized",
+        "p-done": "captured",
+    }
+    assert len(captured) == 1
+    assert captured[0]["milestone_id"] == "dep-mayotte"
+    assert captured[0]["amount_eur"] == "20.00"
+
+
+def test_event_id_is_claimed_only_after_the_ledger_write(api, monkeypatch):
+    import asyncio
+
+    import app.escales.webhooks as webhooks
+    from app.escales.ledger import get_ledger
+
+    client, _fake = api
+    calls = {"n": 0}
+    real = webhooks._apply_event
+
+    async def fail_once(event):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("ledger down")
+        return await real(event)
+
+    monkeypatch.setattr(webhooks, "_apply_event", fail_once)
+    headers = dict(HEADERS)
+    headers["PAYPAL-TRANSMISSION-ID"] = "T-CLAIM"
+    payload = _capture_event("WH-CLAIM", "PAYMENT.CAPTURE.COMPLETED", "ORDER-NONE")
+    with pytest.raises(RuntimeError, match="ledger down"):
+        client.post("/api/escales/webhooks/paypal", headers=headers, content=json.dumps(payload))
+
+    async def unclaimed():
+        return await get_ledger().has_webhook("WH-CLAIM")
+
+    assert asyncio.run(unclaimed()) is False
+    monkeypatch.setattr(webhooks, "_apply_event", real)
+    accepted = client.post(
+        "/api/escales/webhooks/paypal", headers=headers, content=json.dumps(payload),
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json().get("duplicate") is not True
+    assert asyncio.run(unclaimed()) is True

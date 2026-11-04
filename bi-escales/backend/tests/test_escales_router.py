@@ -444,6 +444,64 @@ def test_void_with_admin_key(api):
     assert "capture" not in [call[0] for call in fake.calls]
 
 
+def test_declined_or_expired_capture_is_a_conflict(api, monkeypatch):
+    """DECLINED, FAILED, or an expired hold is 409, not an unhandled 500."""
+    import asyncio
+
+    import app.routers.escales as routes
+    from app.escales.ledger import get_ledger
+
+    client, fake = api
+    _created, authorized = _ready(client, "cap-expired")
+
+    async def expire():
+        doc = await get_ledger().get_pledge(authorized["id"])
+        doc["authorization_expires_at"] = "2020-01-01T00:00:00Z"
+        await get_ledger().save_pledge(doc)
+
+    asyncio.run(expire())
+    expired = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
+    assert expired.status_code == 409
+    assert "expired" in expired.json()["detail"].lower()
+
+    _created_d, declined_pledge = _ready(client, "cap-declined")
+
+    def declined_capture(authorization_id, final=True):
+        fake.calls.append(("capture", authorization_id))
+        return {"id": "CAP-D", "status": "DECLINED"}
+
+    fake.capture_authorization = declined_capture
+    declined = client.post(
+        f"/api/escales/pledges/{declined_pledge['id']}/capture", headers=ADMIN,
+    )
+    assert declined.status_code == 409
+    assert "DECLINED" in declined.json()["detail"]
+    stored = client.get(f"/api/escales/pledges/{declined_pledge['id']}")
+    assert stored.json()["status"] == "authorized"
+
+    def failed_capture(authorization_id, final=True):
+        fake.calls.append(("capture", authorization_id))
+        return {"id": "CAP-F", "status": "FAILED"}
+
+    _created_f, failed_pledge = _ready(client, "cap-failed")
+    fake.capture_authorization = failed_capture
+    failed = client.post(
+        f"/api/escales/pledges/{failed_pledge['id']}/capture", headers=ADMIN,
+    )
+    assert failed.status_code == 409
+    assert "FAILED" in failed.json()["detail"]
+
+    async def boom(*_args, **_kwargs):
+        raise ValueError("PayPal authorization has expired")
+
+    monkeypatch.setattr(routes, "void_pledge", boom)
+    voided = client.post(
+        f"/api/escales/pledges/{declined_pledge['id']}/void", headers=ADMIN,
+    )
+    assert voided.status_code == 409
+    assert "expired" in voided.json()["detail"].lower()
+
+
 def test_forbidden_transition_returns_409(api):
     client, fake = api
     created = _create(client, "forbid-1")
@@ -499,12 +557,13 @@ def test_captain_route_does_not_capture_or_void(api):
     assert review.status_code == 200
     body = review.json()
     assert body["proposal"] == "capture"
-    assert authorized["id"] in body["pledge_ids"]
+    assert "pledge_ids" not in body
     assert "pending_authorizations" not in body
     assert "authorization_id" not in review.text
     listed = client.get("/api/escales/milestones")
     stored = next(row for row in listed.json() if row["id"] == "dep-mayotte")
     assert "pending_authorizations" not in (stored.get("proposal") or {})
+    assert "pledge_ids" not in (stored.get("proposal") or {})
     assert "authorization_id" not in listed.text
     wrong = client.post(
         "/api/escales/captain/review/dep-mayotte",

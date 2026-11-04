@@ -197,6 +197,18 @@ def _valid_admin_key(request: Request) -> bool:
     return True
 
 
+def _capture_conflict(exc: Exception) -> bool:
+    """DECLINED, FAILED, or an expired authorization is a conflict, not a 500."""
+    text = str(exc).upper()
+    return any(token in text for token in ("DECLINED", "FAILED", "EXPIRED"))
+
+
+def _money_http(exc: Exception) -> HTTPException:
+    if isinstance(exc, ValueError) and _capture_conflict(exc):
+        return HTTPException(status_code=409, detail=str(exc))
+    return _as_http(exc)
+
+
 def _as_http(exc: Exception) -> HTTPException:
     if isinstance(exc, PledgeNotFound):
         return HTTPException(status_code=404, detail="Pledge not found")
@@ -218,7 +230,11 @@ def _public_milestone(doc: dict) -> dict:
     shown = meta.get("display_name") or escale_display_name(milestone_id)
     proposal = doc.get("proposal")
     if isinstance(proposal, dict):
-        proposal = {key: value for key, value in proposal.items() if key != "pending_authorizations"}
+        proposal = {
+            key: value
+            for key, value in proposal.items()
+            if key not in {"pending_authorizations", "pledge_ids"}
+        }
     return {
         "id": doc.get("_id"),
         "display_name": shown,
@@ -372,7 +388,7 @@ async def post_authorize(pledge_id: str):
     try:
         doc = await authorize_pledge(pledge_id, _paypal())
     except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
-        raise _as_http(exc) from exc
+        raise _money_http(exc) from exc
     return await _public_pledge_with_fund(doc)
 
 
@@ -381,8 +397,8 @@ async def post_capture(pledge_id: str, request: Request):
     _require_treasurer(request)
     try:
         doc = await capture_pledge(pledge_id, _paypal())
-    except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
-        raise _as_http(exc) from exc
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
+        raise _money_http(exc) from exc
     return await _public_pledge_with_fund(doc)
 
 
@@ -391,8 +407,8 @@ async def post_void(pledge_id: str, request: Request):
     _require_treasurer(request)
     try:
         doc = await void_pledge(pledge_id, _paypal())
-    except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
-        raise _as_http(exc) from exc
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
+        raise _money_http(exc) from exc
     return await _public_pledge_with_fund(doc)
 
 
@@ -488,7 +504,9 @@ async def post_review(milestone_id: str, request: Request):
         raise _as_http(exc) from exc
     if not _valid_admin_key(request):
         proposal = {
-            key: value for key, value in proposal.items() if key != "pending_authorizations"
+            key: value
+            for key, value in proposal.items()
+            if key not in {"pending_authorizations", "pledge_ids"}
         }
     return proposal
 

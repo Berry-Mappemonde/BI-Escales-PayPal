@@ -227,12 +227,14 @@ class PayPalClient:
         json: Any = None,
         idempotency_key: Optional[str] = None,
         content: Optional[bytes] = None,
+        *,
+        paypal_idempotent: bool = True,
     ) -> Any:
         headers = {
             "Authorization": f"Bearer {self._access_token()}",
             "Content-Type": "application/json",
         }
-        if method in ("POST", "PATCH"):
+        if method in ("POST", "PATCH") and paypal_idempotent:
             headers["PayPal-Request-Id"] = (idempotency_key or str(uuid.uuid4()))[:127]
             # Sandbox create/authorize omit intent and purchase_units unless asked.
             headers["Prefer"] = "return=representation"
@@ -775,12 +777,15 @@ class PayPalClient:
         if raw_event is None:
             meta["webhook_event"] = webhook_event
             return self._req("POST", "/v1/notifications/verify-webhook-signature", meta)
+        if raw_event.startswith(b"\xef\xbb\xbf"):
+            raw_event = raw_event[3:]
         encoded = raw_event.decode("utf-8")
         _json.loads(encoded)
-        prefix = _json.dumps(meta, separators=(",", ":"))
+        prefix = _json.dumps(meta, separators=(",", ":"), ensure_ascii=False)
         body = prefix[:-1] + ',"webhook_event":' + encoded + "}"
         return self._req(
             "POST",
             "/v1/notifications/verify-webhook-signature",
             content=body.encode("utf-8"),
+            paypal_idempotent=False,
         )

@@ -1115,9 +1115,12 @@ async def capture_pledge(
     effective_at: Optional[dt.datetime] = None,
 ) -> dict:
     pledge = await require_pledge(pledge_id)
+    from .departure_clock import refuse_early_capture
+
     mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
     if mode == "VAULT":
         _require_status(pledge, "vaulted", "captured")
+        await refuse_early_capture(pledge, now=effective_at)
         vault_id = pledge.get("vault_id")
         if not vault_id:
             raise IllegalTransition("vaulted", "captured")
@@ -1150,6 +1153,7 @@ async def capture_pledge(
     _require_status(pledge, "authorized", "captured")
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "captured")
+    await refuse_early_capture(pledge, now=effective_at)
     if _prepare_authorization_capture(pledge, client):
         pledge = await get_ledger().save_pledge(pledge)
     payload = client.capture_authorization(pledge["authorization_id"], pledge_id=pledge_id)

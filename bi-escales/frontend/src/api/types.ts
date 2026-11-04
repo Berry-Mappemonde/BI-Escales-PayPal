@@ -133,6 +133,7 @@ export interface CartPledge {
   milestone_id: string;
   kind?: string;
   target_id?: string;
+  lang?: string;
 }
 
 export interface CartLine {

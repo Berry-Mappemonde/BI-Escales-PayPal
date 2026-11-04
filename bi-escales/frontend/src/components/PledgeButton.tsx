@@ -12,6 +12,7 @@ export interface PledgeFormValues {
   contributor?: string;
   kind?: string;
   target_id?: string;
+  lang?: string;
 }
 
 export interface PledgeButtonProps {
@@ -21,7 +22,8 @@ export interface PledgeButtonProps {
 }
 
 export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const appLang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const [created, setCreated] = useState<PublicPledge | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +88,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
           contributor: values.contributor?.trim() || undefined,
           kind: values.kind,
           target_id: values.target_id,
+          lang: values.lang || appLang,
         },
         crypto.randomUUID(),
       );

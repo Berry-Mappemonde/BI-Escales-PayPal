@@ -420,13 +420,22 @@ def test_cabin_leg_authorizes_and_waits_for_departure(monkeypatch):
         assert _names(spy) == ["create"]
         from_stop = await create_pledge(
             amount_eur="80.00",
-            description="cabine depuis Mayotte",
-            milestone_id="dep-mayotte",
+            description="cabine depuis La Rochelle",
+            milestone_id="dep-la-rochelle",
             client=spy,
             kind="cabin_leg",
         )
-        assert from_stop["milestone_id"].startswith("leg-")
-        assert "dzaoudzi-mayotte" in from_stop["milestone_id"]
+        assert from_stop["milestone_id"] == "leg-la-rochelle-to-ajaccio-corse"
+        before_far = list(spy.calls)
+        with pytest.raises(ValueError, match="29"):
+            await create_pledge(
+                amount_eur="80.00",
+                description="cabine depuis Mayotte",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="cabin_leg",
+            )
+        assert spy.calls == before_far
         with pytest.raises(ValueError):
             await create_pledge(
                 amount_eur="80.00",

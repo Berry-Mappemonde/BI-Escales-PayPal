@@ -851,19 +851,20 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
         return response.json()["status"]
 
     monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-10-21T08:00:00Z")
+    from app.escales.naviguide_bridge import resolve_milestone
+
+    sailing = resolve_milestone("dep-la-rochelle")
+    assert sailing
+    asyncio.run(stamp(sailing))
+    creates = [call for call in fake.calls if call[0] == "create"]
     early = _create(client, "dep-early", {
         **PLEDGE,
         "milestone_id": "dep-la-rochelle",
         "description": "trop tot",
     })
-    assert early.status_code == 200, early.text
-    sailing = early.json()["milestone_id"]
-    asyncio.run(stamp(sailing))
-    refused = _authorize(client, early.json()["id"])
-    assert refused.status_code == 422
-    assert "29" in refused.text
-    assert all(call[0] != "authorize" for call in fake.calls)
-    assert status(early.json()["id"]) == "created"
+    assert early.status_code == 422
+    assert "29" in early.text
+    assert [call for call in fake.calls if call[0] == "create"] == creates
 
     monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-19T08:00:00Z")
     held_body, held = _ready(client, "dep-held", {

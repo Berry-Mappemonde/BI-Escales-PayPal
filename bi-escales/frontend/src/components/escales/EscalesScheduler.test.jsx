@@ -4,7 +4,12 @@ import EscalesScheduler from "./EscalesScheduler.jsx";
 
 vi.mock("../PledgeButton", () => ({
   PledgeButton: ({ values }) => (
-    <button type="button" data-kind={values.kind} data-milestone={values.milestone_id}>
+    <button
+      type="button"
+      data-kind={values.kind}
+      data-milestone={values.milestone_id}
+      data-amount={values.amount_eur}
+    >
       {values.kind}
     </button>
   ),
@@ -34,5 +39,7 @@ describe("EscalesScheduler", () => {
     const cabin = screen.getByRole("button", { name: "cabin_leg" });
     expect(cabin.getAttribute("data-kind")).toBe("cabin_leg");
     expect(cabin.getAttribute("data-milestone")).toBe("leg-la-rochelle-to-ajaccio-corse");
+    expect(cabin.getAttribute("data-amount")).toBe("80.00");
+    expect(screen.getByTestId("cabin-price")).toHaveTextContent("80.00 EUR");
   });
 });

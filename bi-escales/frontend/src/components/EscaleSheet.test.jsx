@@ -54,4 +54,34 @@ describe("EscaleSheet", () => {
     expect(sent.target_id).toBe("dep-la-rochelle");
     expect(sent.milestone_id).toBe("dep-la-rochelle");
   });
+
+  it("une nuit affiche 60.00 en lecture seule et l'envoie", async () => {
+    await i18n.changeLanguage("fr");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EscaleSheet
+          stop={stop}
+          fiche={null}
+          pledge={{
+            amount: "20.00",
+            description: "nuit",
+            milestoneId: "dep-la-rochelle",
+            contributor: "",
+            kind: "night",
+            onAmount: () => {},
+            onDescription: () => {},
+            onMilestoneId: () => {},
+            onContributor: () => {},
+            onKind: () => {},
+          }}
+        />
+      </I18nextProvider>,
+    );
+    const field = screen.getByTestId("pledge-amount");
+    expect(field).toHaveProperty("readOnly", true);
+    expect(field).toHaveValue("60.00");
+    const sent = JSON.parse(screen.getByTestId("pledge-values").textContent || "{}");
+    expect(sent.kind).toBe("night");
+    expect(sent.amount_eur).toBe("60.00");
+  });
 });

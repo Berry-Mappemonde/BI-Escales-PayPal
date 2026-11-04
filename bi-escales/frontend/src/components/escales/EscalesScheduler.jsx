@@ -86,6 +86,8 @@ function LegList({ legs, amount, onAuthorized }) {
         <li key={leg.id} data-testid="schedule-leg" data-leg={leg.id}>
           <span>
             {leg.from_name} → {leg.to_name}
+            {" "}
+            <span data-testid="cabin-price">{amount} EUR</span>
           </span>
           <PledgeButton
             values={{

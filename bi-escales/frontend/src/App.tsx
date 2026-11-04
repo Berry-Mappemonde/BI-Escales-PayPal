@@ -85,7 +85,7 @@ export default function App() {
   const [ficheLoading, setFicheLoading] = useState(false);
   const [ficheError, setFicheError] = useState<string | null>(null);
   const [flyTo, setFlyTo] = useState<FlyTarget | null>(null);
-  const [amount, setAmount] = useState("20.00");
+  const [amount, setAmount] = useState("1.00");
   const [description, setDescription] = useState("");
   const [contributor, setContributor] = useState("");
   const [kind, setKind] = useState("mile");
@@ -241,6 +241,7 @@ export default function App() {
     setKind(next);
     const priced = KIND_AMOUNT[next];
     if (priced) setAmount(priced);
+    else if (next === "mile") setAmount("1.00");
   };
 
   const onSpend = async () => {

@@ -10,6 +10,7 @@ import { HELLOASSO_MEMBERSHIP_URL } from "../config/helloasso.js";
 import { PledgeButton } from "./PledgeButton";
 
 const STOP_KINDS = ["mile", "night", "meal", "care", "common_fund"];
+const FIXED_AMOUNT = { night: "60.00", meal: "60.00", care: "40.00" };
 
 const LABELS = {
   fr: {
@@ -160,7 +161,14 @@ export const EscaleSheet = memo(function EscaleSheet({
           </label>
           <label>
             {t("pledge.amount")}
-            <input value={pledge.amount} onChange={(event) => pledge.onAmount(event.target.value)} />
+            <input
+              data-testid="pledge-amount"
+              value={FIXED_AMOUNT[pledge.kind] || pledge.amount}
+              readOnly={Boolean(FIXED_AMOUNT[pledge.kind])}
+              onChange={(event) => {
+                if (!FIXED_AMOUNT[pledge.kind]) pledge.onAmount(event.target.value);
+              }}
+            />
           </label>
           <label>
             {t("pledge.description")}
@@ -176,7 +184,7 @@ export const EscaleSheet = memo(function EscaleSheet({
           </label>
           <PledgeButton
             values={{
-              amount_eur: pledge.amount,
+              amount_eur: FIXED_AMOUNT[pledge.kind] || pledge.amount,
               description: pledge.description,
               milestone_id: pledge.milestoneId,
               contributor: pledge.contributor.trim() || undefined,

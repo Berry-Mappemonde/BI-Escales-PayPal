@@ -2442,7 +2442,17 @@ def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
         local = await chat("Quel est le solde du fonds commun à Mayotte ?")
         assert local["fund"] == mayotte_fund
         assert "20,00" in local["reply"]
+        assert "la caisse de Dzaoudzi (Mayotte)" in local["reply"]
+        assert "fonds commun" not in local["reply"].casefold()
         assert local["model_source"]["provider"] == "rules"
+        project = await chat("How much money is in the project fund?")
+        assert project["suggested_pledge"] is None
+        assert project["cart"] is None
+        assert "Which escale" not in project["reply"]
+        assert project["fund"]["milestone_id"] == "projet"
+        assert "the project fund" in project["reply"].casefold()
+        assert "0.00 EUR" in project["reply"]
+        assert project["model_source"] == {"provider": "rules", "model": ""}
         english = await chat("What is the common fund balance?")
         assert "12.00 EUR" in english["reply"]
         assert english["fund"]["balance_eur"] == "12.00"

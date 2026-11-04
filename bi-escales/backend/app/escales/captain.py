@@ -1858,9 +1858,23 @@ async def review(
 
 
 def _is_fund_question(message: str) -> bool:
-    """A common-fund question, not a gift. A priced line stays a pledge."""
+    """A fund question, not a gift. A priced line stays a pledge.
+
+    ``How much money is in the project fund?`` names the project fund.
+    ``fonds commun`` and ``caisse`` stay the other fund questions.
+    """
     text = message or ""
-    if not _COMMON_FUND.search(text) and not re.search(r"\bcaisse\b", text, re.IGNORECASE):
+    money_in_a_fund = bool(
+        re.search(r"\bhow\s+much\s+money\b", text, re.IGNORECASE)
+        and re.search(r"\bfunds?\b", text, re.IGNORECASE)
+    )
+    topical = (
+        _COMMON_FUND.search(text)
+        or _PROJECT_FUND.search(text)
+        or re.search(r"\bcaisse\b", text, re.IGNORECASE)
+        or money_in_a_fund
+    )
+    if not topical:
         return False
     return not _message_prices_a_pledge(text)
 
@@ -1877,21 +1891,24 @@ def _fund_system(lang: str) -> str:
 
 
 def _fund_place_label(milestone_id: str, lang: str) -> str:
+    """Name the fund the figures come from. A stopover is its own caisse."""
     token = (milestone_id or "").strip().casefold()
+    if token in {"projet", "project", "project_pledge", "project-pledge"}:
+        return "the project fund" if lang == "en" else "la caisse du projet"
     if token in {"fonds-commun", "fund", "common-fund", "common_fund", "caisse"}:
         return "the common fund" if lang == "en" else "le fonds commun"
     shown = display_name(milestone_id)
     if lang == "en":
-        return f"the common fund at {shown}" if shown else "the common fund"
-    return f"le fonds commun de {shown}" if shown else "le fonds commun"
+        return f"the fund at {shown}" if shown else "the fund"
+    return f"la caisse de {shown}" if shown else "la caisse"
 
 
 def _fund_rules_text(fund: dict, lang: str) -> str:
     """Rules sentence. Every figure comes from the fund route."""
     if fund.get("missing"):
         if lang == "en":
-            return "I have no common-fund figures for that stop."
-        return "Je n'ai pas les chiffres du fonds commun pour cette escale."
+            return "I have no figures for that fund."
+        return "Je n'ai pas les chiffres de cette caisse."
     label = _fund_place_label(str(fund.get("milestone_id") or ""), lang)
     income = format_amount(fund.get("income_eur") or "0.00", lang)
     spending = format_amount(fund.get("spending_eur") or "0.00", lang)
@@ -1915,10 +1932,14 @@ async def _fund_for_question(message: str) -> dict:
     from .ledger import fund_for_milestone
     from .naviguide_bridge import resolve_milestone
 
-    place = resolve_milestone(message or "")
-    if place and str(place).startswith("leg-"):
-        place = None
-    milestone_id = place or "fonds-commun"
+    text = message or ""
+    if _PROJECT_FUND.search(text):
+        milestone_id = "projet"
+    else:
+        place = resolve_milestone(text)
+        if place and str(place).startswith("leg-"):
+            place = None
+        milestone_id = place or "fonds-commun"
     try:
         return await fund_for_milestone(milestone_id)
     except LookupError:
@@ -2057,7 +2078,11 @@ _DINNER_COUNT = re.compile(
     re.IGNORECASE,
 )
 _COMMON_FUND = re.compile(
-    r"\bfonds?\s+commun\b|\bcommon\s+fund\b",
+    r"\bfonds?\s+commun\b|\bcommon\s+funds?\b",
+    re.IGNORECASE,
+)
+_PROJECT_FUND = re.compile(
+    r"\bproject\s+funds?\b|\bfonds?\s+(?:du|des|au)\s+projets?\b|\bcaisse\s+du\s+projet\b",
     re.IGNORECASE,
 )
 _EUR_AMOUNT = re.compile(

@@ -32,7 +32,7 @@ from app.escales.config import (
     vault_enabled,
     webhooks_enabled,
 )
-from app.escales.ledger import fund_for_milestone, list_webhook_outcomes, record_spending
+from app.escales.ledger import _unplaced_bucket, fund_for_milestone, list_webhook_outcomes, record_spending
 from app.escales_names import display_name as escale_display_name
 from app.escales.milestones import list_milestones, record_evidence
 from app.escales.naviguide_bridge import (
@@ -180,6 +180,15 @@ def _require_treasurer(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Admin key rejected")
 
 
+def _valid_admin_key(request: Request) -> bool:
+    """True when the treasurer key matches. No key stays public. A wrong key is 403."""
+    provided = request.headers.get("x-admin-key", "")
+    if not provided:
+        return False
+    _require_treasurer(request)
+    return True
+
+
 def _as_http(exc: Exception) -> HTTPException:
     if isinstance(exc, PledgeNotFound):
         return HTTPException(status_code=404, detail="Pledge not found")
@@ -199,11 +208,14 @@ def _public_milestone(doc: dict) -> dict:
     milestone_id = str(doc.get("_id") or "")
     meta = doc.get("meta") or {}
     shown = meta.get("display_name") or escale_display_name(milestone_id)
+    proposal = doc.get("proposal")
+    if isinstance(proposal, dict):
+        proposal = {key: value for key, value in proposal.items() if key != "pending_authorizations"}
     return {
         "id": doc.get("_id"),
         "display_name": shown,
         "evidence": doc.get("evidence") or [],
-        "proposal": doc.get("proposal"),
+        "proposal": proposal,
         "meta": doc.get("meta"),
         "updated_at": doc.get("updated_at"),
     }
@@ -359,7 +371,10 @@ async def get_pledge(pledge_id: str):
 
 
 @router.get("/milestones/{milestone_id}/fund")
-async def get_fund(milestone_id: str):
+async def get_fund(milestone_id: str, request: Request):
+    """Stopover funds are public. Project and common-fund totals need the treasurer key."""
+    if _unplaced_bucket(milestone_id):
+        _require_treasurer(request)
     try:
         return await fund_for_milestone(milestone_id)
     except LookupError as exc:
@@ -415,9 +430,14 @@ async def post_review(milestone_id: str, request: Request):
     _enforce_captain_rate(request)
     lang = lang_for(request.headers.get("accept-language", ""))
     try:
-        return await captain_review(milestone_id, reader=_reader(), lang=lang)
+        proposal = await captain_review(milestone_id, reader=_reader(), lang=lang)
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
+    if not _valid_admin_key(request):
+        proposal = {
+            key: value for key, value in proposal.items() if key != "pending_authorizations"
+        }
+    return proposal
 
 
 @router.post("/captain/chat")

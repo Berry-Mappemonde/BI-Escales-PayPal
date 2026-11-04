@@ -153,7 +153,8 @@ export default function App() {
       return undefined;
     }
     let cancelled = false;
-    void fetchFund(milestoneId)
+    const treasurerKey = hash === "#tresorier" ? adminKey : "";
+    void fetchFund(milestoneId, treasurerKey)
       .then((row) => {
         if (!cancelled) {
           setFund(row);
@@ -169,7 +170,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [milestoneId, pledges]);
+  }, [milestoneId, pledges, hash, adminKey]);
 
   const chooseStop = (next: VoyageStop) => {
     setStop(next);
@@ -189,14 +190,14 @@ export default function App() {
   useEffect(() => {
     if (hash !== "#tresorier") return undefined;
     let cancelled = false;
-    void fetchFund("project")
+    void fetchFund("project", adminKey)
       .then((row) => {
         if (!cancelled) setProjectFund(row);
       })
       .catch(() => {
         if (!cancelled) setProjectFund(null);
       });
-    void fetchFund("fund")
+    void fetchFund("fund", adminKey)
       .then((row) => {
         if (!cancelled) setBoatFund(row);
       })
@@ -206,7 +207,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [hash, pledges]);
+  }, [hash, pledges, adminKey]);
 
   useEffect(() => {
     const onHash = () => setHash(window.location.hash);

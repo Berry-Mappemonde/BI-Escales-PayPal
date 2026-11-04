@@ -152,8 +152,11 @@ export async function recordSpending(
   return res.json();
 }
 
-export async function fetchFund(milestoneId: string): Promise<FundView> {
-  const res = await fetch(url(`/api/escales/milestones/${encodeURIComponent(milestoneId)}/fund`));
+export async function fetchFund(milestoneId: string, adminKey?: string): Promise<FundView> {
+  const headers: Record<string, string> = {};
+  const key = (adminKey || "").trim();
+  if (key) headers["x-admin-key"] = key;
+  const res = await fetch(url(`/api/escales/milestones/${encodeURIComponent(milestoneId)}/fund`), { headers });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }

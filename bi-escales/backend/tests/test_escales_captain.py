@@ -2177,6 +2177,35 @@ def test_cabin_price_is_eighty_euros_per_leg_in_the_question_language(monkeypatc
     asyncio.run(body())
 
 
+def test_a_cabin_is_suggested_instead_of_one_mile():
+    bare = captain.suggest_pledge("How much is a cabin?", "en")
+    assert bare["kind"] == "cabin_leg"
+    assert bare["amount_eur"] == "80.00"
+    assert bare["item"] == "cabin_leg"
+    french = captain.suggest_pledge("une cabine")
+    assert french["kind"] == "cabin_leg"
+    assert french["amount_eur"] == "80.00"
+    assert french["description"].startswith("1 cabine")
+    near = captain.suggest_pledge("I want a cabin near La Rochelle", "en")
+    assert near["kind"] == "cabin_leg"
+    assert near["amount_eur"] == "80.00"
+    assert near["milestone_id"].startswith("leg-")
+    miles = captain.suggest_pledge("près de Dakar")
+    assert miles["kind"] == "mile"
+    assert miles["amount_eur"] == "1.00"
+
+    async def body():
+        price = await chat("How much is a cabin?")
+        assert price["suggested_pledge"]["kind"] == "cabin_leg"
+        assert price["suggested_pledge"]["amount_eur"] == "80.00"
+        wanted = await chat("I want a cabin near La Rochelle")
+        assert wanted["suggested_pledge"]["kind"] == "cabin_leg"
+        assert wanted["suggested_pledge"]["amount_eur"] == "80.00"
+        assert "1.00" not in wanted["suggested_pledge"]["amount_eur"]
+
+    asyncio.run(body())
+
+
 def test_cabin_cart_line_is_the_leg_and_stays_authorize():
     cabin = captain.suggest_pledge("1 cabine près de Fort-de-France")
     assert cabin["kind"] == "cabin_leg"

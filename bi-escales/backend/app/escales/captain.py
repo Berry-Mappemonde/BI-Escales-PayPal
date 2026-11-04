@@ -3033,13 +3033,31 @@ def _fund_pledge_alone(message: str, lang: str) -> Optional[dict]:
     )
 
 
+def _cabin_only(message: str) -> bool:
+    """A cabin, and not also miles, a dinner, or another catalogue line."""
+    text = message or ""
+    if _sum_quantity(_CABIN_COUNT, text) <= 0:
+        return False
+    if _explicit_miles(text) > 0 or _explicit_dinners(text) > 0:
+        return False
+    if _night_quantity(text) > 0:
+        return False
+    if any(_sum_quantity(pattern, text) > 0 for pattern in (_BERTH_COUNT, _CARE_COUNT)):
+        return False
+    if _amount_near(text, _PROJECT_PLEDGE) is not None:
+        return False
+    if _amount_near(text, _COMMON_FUND) is not None:
+        return False
+    return True
+
+
 def _cabin_pledge_alone(message: str, lang: str) -> Optional[dict]:
-    """A cabin named by direction, with no ``près de`` port."""
+    """A cabin, with its leg when the sentence names one. Never one mile."""
     if _sum_quantity(_CABIN_COUNT, message or "") <= 0:
         return None
-    milestone = _cabin_milestone(message, "")
-    if not milestone.startswith("leg-"):
-        return None
+    milestone = _cabin_milestone(message, _place(message) or "")
+    if not str(milestone).startswith("leg-"):
+        milestone = ""
     quantity = _sum_quantity(_CABIN_COUNT, message or "")
     amount = (quantity * _SIMULATED_EUR["cabin_leg"]).quantize(Decimal("0.01"))
     description = _kind_description("cabin_leg", quantity, lang)
@@ -3058,7 +3076,15 @@ def _cabin_pledge_alone(message: str, lang: str) -> Optional[dict]:
 
 
 def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
-    """Mile and dinner pledge, plus the other catalogue lines in the same total."""
+    """Mile and dinner pledge, plus the other catalogue lines in the same total.
+
+    A cabin is not the one-mile default. The cabin line wins when the
+    message names a cabin and no other catalogue amount.
+    """
+    if _cabin_only(message):
+        cabin = _cabin_pledge_alone(message, lang)
+        if cabin:
+            return cabin
     base = _suggest_pledge_miles(message, lang)
     if not base:
         return (

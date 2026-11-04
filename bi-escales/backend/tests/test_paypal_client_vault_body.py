@@ -53,6 +53,7 @@ def test_setup_token_includes_usage_pattern_and_customer():
     assert paypal["permit_multiple_payment_tokens"] is False
     assert paypal["experience_context"]["brand_name"] == VAULT_BRAND_NAME
     assert paypal["experience_context"]["shipping_preference"] == "NO_SHIPPING"
+    assert paypal["experience_context"]["locale"] == "fr-FR"
 
 
 def test_authorize_order_includes_custom_id_and_descriptor():

@@ -18,6 +18,7 @@ from .paypal_idempotency import paypal_request_id
 
 SOFT_DESCRIPTOR = "BERRYMAPPEMONDE"
 VAULT_BRAND_NAME = "Berry-Mappemonde"
+PAYPAL_EXPERIENCE_LOCALE = "fr-FR"
 
 log = logging.getLogger("escales.paypal")
 
@@ -156,6 +157,18 @@ class PayPalClient:
         self._http = httpx.Client(base_url=cfg.base_url, transport=transport, timeout=30)
         self._token: Optional[str] = None
         self._token_exp = 0.0
+        self.mock_response: Optional[str] = None
+
+    def _experience_context(self, return_url: str, cancel_url: str) -> dict:
+        """Checkout experience_context shared by orders and vault setup."""
+        return {
+            "brand_name": VAULT_BRAND_NAME,
+            "locale": PAYPAL_EXPERIENCE_LOCALE,
+            "return_url": return_url,
+            "cancel_url": cancel_url,
+            "user_action": "CONTINUE",
+            "shipping_preference": "NO_SHIPPING",
+        }
 
     def _purchase_unit(self, reference_id: str, description: str, amount_eur: str) -> dict:
         ref = str(reference_id or "")[:256]
@@ -199,6 +212,8 @@ class PayPalClient:
             headers["PayPal-Request-Id"] = (idempotency_key or str(uuid.uuid4()))[:127]
             # Sandbox create/authorize omit intent and purchase_units unless asked.
             headers["Prefer"] = "return=representation"
+        if self.mock_response:
+            headers["PayPal-Mock-Response"] = self.mock_response
         if content is None:
             response = self._http.request(method, path, json=json, headers=headers)
         else:
@@ -223,12 +238,7 @@ class PayPalClient:
             "intent": "AUTHORIZE",
             "payment_source": {
                 "paypal": {
-                    "experience_context": {
-                        "return_url": back,
-                        "cancel_url": cancel,
-                        "user_action": "CONTINUE",
-                        "shipping_preference": "NO_SHIPPING",
-                    },
+                    "experience_context": self._experience_context(back, cancel),
                 },
             },
             "purchase_units": [self._purchase_unit(reference_id, description, amount_eur)],
@@ -256,7 +266,7 @@ class PayPalClient:
             "payment_source": {
                 "paypal": {
                     "attributes": {"vault": {"store_in_vault": "ON_SUCCESS", "usage_type": "MERCHANT"}},
-                    "experience_context": {"return_url": return_url, "cancel_url": cancel_url},
+                    "experience_context": self._experience_context(return_url, cancel_url),
                 },
             },
             "purchase_units": [self._purchase_unit(reference_id, description, amount_eur)],
@@ -328,12 +338,7 @@ class PayPalClient:
                     "usage_type": "MERCHANT",
                     "usage_pattern": "UNSCHEDULED_POSTPAID",
                     "permit_multiple_payment_tokens": False,
-                    "experience_context": {
-                        "return_url": return_url,
-                        "cancel_url": cancel_url,
-                        "brand_name": VAULT_BRAND_NAME,
-                        "shipping_preference": "NO_SHIPPING",
-                    },
+                    "experience_context": self._experience_context(return_url, cancel_url),
                 },
             },
         }
@@ -365,9 +370,17 @@ class PayPalClient:
     ) -> dict:
         """Charge a saved payment token. ``source`` is ``paypal`` or ``card``."""
         kind = "card" if source == "card" else "paypal"
+        source_body: dict = {"vault_id": vault_id}
+        if kind == "card":
+            source_body["stored_credential"] = {
+                "payment_initiator": "MERCHANT",
+                "payment_type": "UNSCHEDULED",
+                "usage": "SUBSEQUENT",
+            }
+            source_body["attributes"] = {"verification": {"method": "SCA_WHEN_REQUIRED"}}
         body = {
             "intent": "CAPTURE",
-            "payment_source": {kind: {"vault_id": vault_id}},
+            "payment_source": {kind: source_body},
             "purchase_units": [self._purchase_unit(reference_id, description or "Escales pledge", amount_eur)],
         }
         return self._req(
@@ -382,6 +395,61 @@ class PayPalClient:
         if start_time:
             path = f"{path}?start_time={start_time}"
         return self._req("GET", path)
+
+    def refund_capture(
+        self,
+        capture_id: str,
+        *,
+        amount_eur: Optional[str] = None,
+        pledge_id: Optional[str] = None,
+    ) -> dict:
+        """Refund a captured payment (full or partial).
+
+        Captures API: https://developer.paypal.com/docs/api/payments/v2/#captures_refund
+        """
+        ref = pledge_id or capture_id
+        body: dict = {}
+        if amount_eur:
+            body["amount"] = {"currency_code": self.cfg.currency, "value": amount_eur}
+        return self._req(
+            "POST",
+            f"/v2/payments/captures/{capture_id}/refund",
+            body or None,
+            idempotency_key=paypal_request_id(ref, "refund"),
+        )
+
+    def create_payout(
+        self,
+        *,
+        batch_id: str,
+        receiver_email: str,
+        amount_eur: str,
+        note: str,
+        item_id: str,
+    ) -> dict:
+        """Send one sandbox payout after explicit human approval.
+
+        Payouts API: https://developer.paypal.com/docs/api/payments.payouts-batch/v1/
+        """
+        body = {
+            "sender_batch_header": {
+                "sender_batch_id": batch_id[:127],
+                "email_subject": "Berry-Mappemonde project payout",
+            },
+            "items": [{
+                "recipient_type": "EMAIL",
+                "amount": {"value": amount_eur, "currency_code": self.cfg.currency},
+                "receiver": receiver_email,
+                "note": (note or "")[:165],
+                "sender_item_id": item_id[:127],
+            }],
+        }
+        return self._req(
+            "POST",
+            "/v1/payments/payouts",
+            body,
+            idempotency_key=batch_id[:127],
+        )
 
     def search_transactions(self, *, start_date: str, end_date: str) -> dict:
         body = {

@@ -77,6 +77,17 @@ class Spy:
         self.calls.append(("void", authorization_id))
         return {}
 
+    def reauthorize(self, authorization_id, **kwargs):
+        self.calls.append(("reauthorize", authorization_id))
+        return {
+            "id": f"REAUTH-{authorization_id}",
+            "expiration_time": "2027-01-01T00:00:00Z",
+        }
+
+    def refund_capture(self, capture_id, **kwargs):
+        self.calls.append(("refund", capture_id, kwargs.get("amount_eur")))
+        return {"id": "REF1", "status": "COMPLETED"}
+
     def get_order(self, order_id):
         self.calls.append(("orders.get", order_id))
         return {"id": order_id, "status": "APPROVED"}
@@ -125,6 +136,9 @@ def test_create_authorize_order_is_eur_and_idempotent(monkeypatch):
             assert context["return_url"] == "https://bi-escales-api.onrender.com/?paypal=return"
             assert context["cancel_url"] == "https://bi-escales-api.onrender.com/?paypal=cancel"
             assert context["user_action"] == "CONTINUE"
+            assert context["shipping_preference"] == "NO_SHIPPING"
+            assert context["brand_name"] == "Berry-Mappemonde"
+            assert context["locale"] == "fr-FR"
             return httpx.Response(201, json={
                 "id": "ORDER1",
                 "status": "CREATED",
@@ -190,7 +204,10 @@ def test_charge_vaulted_sends_the_matching_payment_source():
     client.charge_vaulted("WALLET1", "1.00", "ref-wallet")
     client.charge_vaulted("CARD1", "1.00", "ref-card", source="card")
     assert bodies[0]["payment_source"] == {"paypal": {"vault_id": "WALLET1"}}
-    assert bodies[1]["payment_source"] == {"card": {"vault_id": "CARD1"}}
+    card = bodies[1]["payment_source"]["card"]
+    assert card["vault_id"] == "CARD1"
+    assert card["stored_credential"]["usage"] == "SUBSEQUENT"
+    assert card["attributes"]["verification"]["method"] == "SCA_WHEN_REQUIRED"
 
 
 def test_non_sandbox_env_is_refused(monkeypatch):

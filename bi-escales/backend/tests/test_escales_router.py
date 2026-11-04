@@ -866,6 +866,52 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     assert any(call[0] == "capture" for call in fake.calls)
 
 
+def test_declined_capture_does_not_stop_the_clock(api, monkeypatch):
+    """One DECLINED capture is recorded and the next pledge still settles."""
+    import asyncio
+
+    from app.escales.ledger import get_ledger
+
+    client, fake = api
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-20T08:00:00Z")
+
+    async def stamp(milestone_id: str) -> None:
+        await get_ledger().ensure_milestone(milestone_id, meta={
+            "capture_on": "departure",
+            "departure_iso": "2026-11-20T08:00:00+00:00",
+        })
+
+    first_body = _create(client, "clock-declined", {
+        **PLEDGE, "milestone_id": "dep-la-rochelle", "description": "refusee",
+    })
+    assert first_body.status_code == 200, first_body.text
+    asyncio.run(stamp(first_body.json()["milestone_id"]))
+    first = _authorize(client, first_body.json()["id"])
+    assert first.status_code == 200, first.text
+    second = _ready(client, "clock-next", {
+        **PLEDGE,
+        "milestone_id": first_body.json()["milestone_id"],
+        "description": "la suivante",
+    })[1]
+
+    def capture_authorization(authorization_id, final=True):
+        fake.calls.append(("capture", authorization_id))
+        if authorization_id == first.json()["authorization_id"]:
+            return {"id": "CAP-D", "status": "DECLINED"}
+        return {"id": "CAP-OK", "status": "COMPLETED"}
+
+    fake.capture_authorization = capture_authorization
+    clock = client.get("/api/escales/clock")
+    assert clock.status_code == 200, clock.text
+    actions = {row["pledge_id"]: row for row in clock.json()["settled"]["actions"]}
+    assert actions[first.json()["id"]]["action"] == "error"
+    assert "DECLINED" in actions[first.json()["id"]]["detail"]
+    assert actions[second["id"]]["action"] == "capture"
+    again = client.get("/api/escales/clock")
+    assert again.status_code == 200, again.text
+    assert client.get(f"/api/escales/pledges/{second['id']}").json()["status"] == "captured"
+
+
 def test_clock_start_is_configurable_outside_production(monkeypatch):
     from app.escales.config import clock_start
 

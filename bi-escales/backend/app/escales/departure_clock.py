@@ -95,16 +95,19 @@ async def run_departure_clock(client: Any, *, now: Optional[dt.datetime] = None)
         if not doc:
             continue
         pledge_id = str(pledge.get("_id") or "")
-        if _cancelled(doc):
-            saved = await void_pledge(pledge_id, client)
-            actions.append({"pledge_id": saved["_id"], "action": "void"})
-            continue
-        departure = _parse_moment((doc.get("meta") or {}).get("departure_iso"))
-        if departure is None or moment.date() < departure.date():
-            actions.append({"pledge_id": pledge_id, "action": "wait"})
-            continue
-        saved = await capture_pledge(pledge_id, client)
-        actions.append({"pledge_id": saved["_id"], "action": "capture"})
+        try:
+            if _cancelled(doc):
+                saved = await void_pledge(pledge_id, client)
+                actions.append({"pledge_id": saved["_id"], "action": "void"})
+                continue
+            departure = _parse_moment((doc.get("meta") or {}).get("departure_iso"))
+            if departure is None or moment.date() < departure.date():
+                actions.append({"pledge_id": pledge_id, "action": "wait"})
+                continue
+            saved = await capture_pledge(pledge_id, client)
+            actions.append({"pledge_id": saved["_id"], "action": "capture"})
+        except Exception as exc:
+            actions.append({"pledge_id": pledge_id, "action": "error", "detail": str(exc)})
     return {
         "now": moment.replace(microsecond=0).isoformat(),
         "actions": actions,

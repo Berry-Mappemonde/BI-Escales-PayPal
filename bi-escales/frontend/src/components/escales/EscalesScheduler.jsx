@@ -67,7 +67,8 @@ function BryntumSchedule({ events, onSelect }) {
 
   React.useEffect(() => {
     let cancelled = false;
-    import("@bryntum/scheduler")
+    const bryntumModule = ["@bryntum", "scheduler"].join("/");
+    import(/* @vite-ignore */ bryntumModule)
       .then((mod) => {
         if (!cancelled) setScheduler(() => mod.default || mod.Scheduler);
       })

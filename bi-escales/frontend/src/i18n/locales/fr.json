@@ -1,0 +1,111 @@
+{
+  "app": {
+    "title": "BI Escales — Pay Only If We Sail",
+    "tagline": "Autorisation PayPal sandbox ; encaissement seulement après validation humaine.",
+    "langFr": "Français",
+    "langEn": "English",
+    "healthOk": "Backend disponible",
+    "healthFail": "Backend indisponible",
+    "escalesOff": "ESCALES_ENABLED est désactivé : l’API /api/escales renvoie 404."
+  },
+  "tabs": {
+    "voyage": "Carte du voyage",
+    "marinas": "Marinas"
+  },
+  "clock": {
+    "waiting": "départ dans {{hours}} h",
+    "devT0": "Départ de développement (ISO)"
+  },
+  "sheet": {
+    "title": "Fiche d’escale",
+    "close": "Fermer",
+    "loading": "Chargement de la fiche…",
+    "empty": "Pas de liste pour cette escale.",
+    "pick": "Choisissez une escale sur la carte pour la fiche et le bouton PayPal."
+  },
+  "projects": {
+    "heading": "Projets Blue Intelligence",
+    "empty": "Aucun projet dans l’instantané.",
+    "open": "Page"
+  },
+  "marinas": {
+    "heading": "Marinas",
+    "search": "Chercher une marina",
+    "empty": "Choisissez une escale pour voir les marinas.",
+    "truncated": "{{shown}} sur {{total}}",
+    "unnamed": "Sans nom",
+    "odbl": "© contributeurs OpenStreetMap",
+    "pick": "Escale",
+    "reservePrice": "Réserver — 30,00 EUR / nuit (simulation)",
+    "reserveDescription": "Amarrage (simulation) — {{name}}"
+  },
+  "fund": {
+    "line": "Caisse commune — adhésion de l’association :",
+    "helloasso": "HelloAsso"
+  },
+  "escales": {
+    "heading": "Escales & capitaine",
+    "milestoneId": "Identifiant de jalon",
+    "loadMilestones": "Actualiser les jalons",
+    "evidenceMet": "Preuve satisfaite (simulation NAVIGUIDE)",
+    "postEvidence": "Enregistrer une preuve",
+    "captainChat": "Message au capitaine IA",
+    "sendChat": "Demander une formulation",
+    "cartHeading": "Panier",
+    "chatReply": "Réponse du capitaine",
+    "suggestedPledge": "Promesse suggérée",
+    "milestonesEmpty": "Aucun jalon enregistré pour l’instant."
+  },
+  "pledge": {
+    "amount": "Montant (EUR)",
+    "description": "Description",
+    "milestone": "Jalon",
+    "contributor": "Contributeur (optionnel)",
+    "intent": "Intent AUTHORIZE — sandbox PayPal",
+    "create": "Créer l’ordre PayPal",
+    "approve": "Approuver sur la page PayPal",
+    "authorize": "J’ai approuvé — autoriser",
+    "creating": "Création de la promesse…",
+    "authorizing": "Autorisation côté serveur…",
+    "authorized": "Promesse autorisée",
+    "vaultHint": "Vault : approuvez le moyen de paiement sur PayPal, puis confirmez. Rien n’est encaissé.",
+    "vaultApprove": "Approuver le moyen de paiement",
+    "vaultConfirm": "J’ai approuvé — enregistrer",
+    "vaulting": "Enregistrement du moyen de paiement…",
+    "vaulted": "Moyen de paiement enregistré",
+    "error": "Erreur promesse"
+  },
+  "treasurer": {
+    "heading": "File trésorier",
+    "adminKey": "Clé trésorier (x-admin-key)",
+    "adminKeyHint": "Saisie en mémoire uniquement — jamais enregistrée.",
+    "refresh": "Actualiser la file",
+    "capture": "Encaisser",
+    "void": "Annuler l’autorisation",
+    "queueEmpty": "Aucune promesse autorisée, vaultée ou en attente sur le serveur.",
+    "queueNeedsKey": "Saisissez la clé trésorier pour afficher les promesses suivies dans cette session.",
+    "loadError": "La file n’a pas pu être actualisée. Les lignes déjà chargées sont conservées.",
+    "status": "Statut",
+    "amount": "Montant",
+    "description": "Description",
+    "milestone": "Jalon",
+    "actions": "Actions"
+  },
+  "grid": {
+    "heading": "Vue trésorier — jauges",
+    "agGridOff": "AG Grid community est désactivé (VITE_ENABLE_AG_GRID=0) : tableau HTML. Ce n’est pas AG Studio.",
+    "milestone": "Jalon",
+    "authorized": "Autorisées",
+    "captured": "Encaissées",
+    "voided": "Annulées",
+    "captainProposal": "Proposition du Capitaine IA",
+    "requestReview": "Demander l’avis du capitaine",
+    "proposalCapture": "Proposition : encaisser les promesses listées",
+    "proposalVoid": "Proposition : annuler les promesses listées",
+    "proposalWait": "Proposition : attendre",
+    "humanValidation": "Validation humaine requise — le capitaine ne débite jamais seul.",
+    "applyCapture": "Encaisser (selon proposition)",
+    "applyVoid": "Annuler (selon proposition)",
+    "noProposal": "Aucune proposition enregistrée pour ce jalon."
+  }
+}

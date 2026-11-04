@@ -263,21 +263,24 @@ def _is_capture_rule_question(message: str) -> bool:
     return bool(_CAPTURE_RULE_Q.search(text))
 
 
-def _capture_rule_reply(lang: str) -> str:
-    """The public rule. It does not send the reader only to the treasurer."""
+def _public_rule(lang: str) -> str:
+    """Authorize near departure, capture that day, void if the stopover is cancelled."""
     if lang == "en":
-        prose = (
+        return (
             "A pledge is authorized as close to departure as possible. "
             "The money is captured on the departure day. "
             "If the stopover is cancelled, the authorization is voided."
         )
-    else:
-        prose = (
-            "Une promesse est autorisée au plus près du départ. "
-            "L'argent est capturé le jour du départ. "
-            "Si l'escale est annulée, l'autorisation est annulée."
-        )
-    return _fit_words("", [prose, _signature(lang)])
+    return (
+        "Une promesse est autorisée au plus près du départ. "
+        "L'argent est capturé le jour du départ. "
+        "Si l'escale est annulée, l'autorisation est annulée."
+    )
+
+
+def _capture_rule_reply(lang: str) -> str:
+    """The public rule. It does not send the reader only to the treasurer."""
+    return _fit_words("", [_public_rule(lang), _signature(lang)])
 
 
 def _is_treasurer_question(message: str) -> bool:
@@ -473,7 +476,10 @@ def _chat_system(lang: str) -> str:
         "State only facts present in the JSON: the stopover, its dates, the fund, and the computed pledge. "
         "Do not invent a date. Copy only schedule.arrival_iso and schedule.departure_iso. "
         "If a fact is absent, say you do not know. Do not describe the place. "
-        "If the message asks whether money will be taken or released, say that only the treasurer review decides. "
+        "A pledge is authorized as close to departure as possible. "
+        "The money is captured on the departure day. "
+        "If the stopover is cancelled, the authorization is voided. "
+        "Do not send the reader to the treasurer for that rule. "
         "Mention membership only by repeating the HelloAsso URL you were given. "
         "If no URL was given, do not mention membership and do not write any URL. "
         "Write complete sentences and never stop mid-sentence. "
@@ -714,6 +720,14 @@ def _covered_miles_sentence(evidence: dict, lang: str = "fr") -> str:
 
 _TREASURER_DECIDES = "Seul le trésorier décide si l'argent est prélevé ou libéré."
 _TREASURER_RULES_EN = "Only the treasurer decides whether the money is captured or released."
+# The model still writes this. Ordinary replies use the public capture rule instead.
+_TREASURER_ONLY = re.compile(
+    r"only the treasurer decides"
+    r"|the treasurer (?:will |must )?decides?"
+    r"|seul le tr[ée]sorier d[ée]cide"
+    r"|(?:le\s+)?tr[ée]sorier\s+(?:doit\s+|va\s+)?(?:d[ée]cid|tranch)",
+    re.IGNORECASE,
+)
 # A model claim that money will move. The rules text replaces that reply.
 _CHARGE_CLAIM = re.compile(
     r"s(?:era(?:it|s|ient)?|erez|erons|eront)\s+d[ée]bit"
@@ -1121,7 +1135,6 @@ def _fix_french_vocabulary(text: str) -> str:
     """One treasurer sentence. Refunds and the feminine title do not stay."""
     cleaned = re.sub(r"€\s*en\s+euros\b", "€", text or "", flags=re.IGNORECASE)
     kept: list[str] = []
-    said = False
     for sentence in _split_sentences(cleaned):
         if re.search(r"remboursement|trésorière", sentence, re.IGNORECASE):
             continue
@@ -1131,9 +1144,6 @@ def _fix_french_vocabulary(text: str) -> str:
             re.IGNORECASE,
         )
         if decides:
-            if not said:
-                kept.append(_TREASURER_DECIDES)
-                said = True
             continue
         kept.append(sentence)
     return " ".join(kept).strip()
@@ -1371,7 +1381,8 @@ def _compose_chat_reply(
 ) -> str:
     """Pledge repeated exactly, one signature, at most 80 words.
 
-    French replies always end with the treasurer sentence from this module.
+    Ordinary replies end with the public capture rule.
+    A question about one authorization still belongs to the treasurer review.
     A charge claim is dropped and the rules text is used instead.
     """
     if not suggested:
@@ -1380,6 +1391,7 @@ def _compose_chat_reply(
                 prose = "This question belongs to the treasurer review. The captain does not decide it."
             else:
                 prose = "Cette question relève de la revue du trésorier. Le capitaine ne la tranche pas."
+            return _fit_words("", [prose, _signature(lang)])
         elif ask_escale:
             if lang == "en":
                 prose = "Which escale? Name the stop and I will compute the pledge."
@@ -1389,8 +1401,7 @@ def _compose_chat_reply(
             prose = "This question is about status. The captain does not suggest a pledge."
         else:
             prose = "Cette question porte sur le statut. Le capitaine ne propose pas de promesse."
-        rules = _TREASURER_RULES_EN if lang == "en" else _TREASURER_DECIDES
-        return _fit_words("", [prose, rules, _signature(lang)])
+        return _fit_words("", [prose, _public_rule(lang), _signature(lang)])
     charged = bool(_CHARGE_CLAIM.search(model_text or ""))
     if charged:
         prose = ""
@@ -1402,6 +1413,7 @@ def _compose_chat_reply(
     prose = _period_after_link(prose, url)
     prose = _drop_sentences(prose, _CHAT_DECIDE_RE)
     prose = _drop_sentences(prose, _REFUSAL_RE)
+    prose = _drop_sentences(prose, _TREASURER_ONLY)
     prose = _trim_cutoff(_normalize_dots(prose))
     if lang == "fr":
         prose = _standardise_french(_french_labels(prose))
@@ -1412,7 +1424,7 @@ def _compose_chat_reply(
     prose = _drop_milestone_intent_labels(prose, suggested)
     prose = _drop_standalone_intent(prose)
     required: list[str] = [_pledge_line(suggested, lang)]
-    rules = _TREASURER_RULES_EN if lang == "en" else _TREASURER_DECIDES
+    rules = _public_rule(lang)
     if rules.casefold() not in (prose or "").casefold():
         required.append(rules)
     joined = " ".join(required)
@@ -2425,7 +2437,7 @@ async def _fund_for_question(message: str) -> dict:
 
 
 def _compose_fund_reply(prose: str, lang: str) -> str:
-    rules = _TREASURER_RULES_EN if lang == "en" else _TREASURER_DECIDES
+    rules = _public_rule(lang)
     reply = _fit_words(_strip_signatures(prose or ""), [rules, _signature(lang)])
     if lang == "fr":
         reply = _standardise_french(reply)

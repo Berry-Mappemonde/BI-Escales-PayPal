@@ -2080,7 +2080,8 @@ def test_french_vocabulary_and_the_pledge_line(monkeypatch):
         assert "trésorière" not in reply.casefold()
         assert "en euros" not in reply.casefold()
         assert "10,00 €" in reply
-        assert "Seul le trésorier décide si l'argent est prélevé ou libéré." in reply
+        assert "au plus près du départ" in reply
+        assert "Seul le trésorier décide" not in reply
         assert reply.count("Promesse calculée") == 1
 
     asyncio.run(body())
@@ -2289,6 +2290,9 @@ def test_euros_for_the_project_is_a_project_pledge_line():
 def test_code_enforces_the_fixed_treasurer_sentence(monkeypatch):
     import app.core.llm as llm
 
+    assert "as close to departure as possible" in captain._chat_system("en")
+    assert "only the treasurer decides" not in captain._chat_system("en").lower()
+
     async def fake_ask_text(*_args, **_kwargs):
         return "The treasurer will decide. Le trésorier doit trancher."
 
@@ -2298,8 +2302,10 @@ def test_code_enforces_the_fixed_treasurer_sentence(monkeypatch):
     async def body():
         result = await chat("Je parraine 10 milles près de Dakar")
         reply = result["reply"]
-        sentence = "Seul le trésorier décide si l'argent est prélevé ou libéré."
-        assert reply.count(sentence) == 1
+        assert reply.count("au plus près du départ") == 1
+        assert "jour du départ" in reply
+        assert "annulée" in reply
+        assert "Seul le trésorier décide" not in reply
         assert "will decide" not in reply.casefold()
         assert "trancher" not in reply.casefold()
         assert "The treasurer" not in reply
@@ -2337,8 +2343,9 @@ def test_treasurer_sentence_is_added_when_the_model_omits_it(monkeypatch):
     async def body():
         result = await chat("Je parraine 10 milles près de Dakar")
         reply = result["reply"]
-        sentence = "Seul le trésorier décide si l'argent est prélevé ou libéré."
-        assert reply.count(sentence) == 1
+        assert "au plus près du départ" in reply
+        assert "jour du départ" in reply
+        assert "Seul le trésorier décide" not in reply
         assert "La mer est calme" in reply
         assert len(reply.split()) <= 80
 
@@ -2365,14 +2372,17 @@ def test_charge_claim_falls_back_to_the_rules_text(monkeypatch):
         assert "sera débit" not in reply.casefold()
         assert "Votre carte" not in reply
         assert "La mer est calme" not in reply
-        assert "Seul le trésorier décide si l'argent est prélevé ou libéré." in reply
+        assert "au plus près du départ" in reply
+        assert "Seul le trésorier décide" not in reply
         assert "10,00 €" in reply
         assert "10 milles parrainés" in reply
         english = await chat("I'd like to sponsor 10 nautical miles near Lorient")
         english_reply = english["reply"]
         assert "charged" not in english_reply.casefold()
         assert "The sea is calm" not in english_reply
-        assert "Only the treasurer decides whether the money is captured or released." in english_reply
+        assert "as close to departure as possible" in english_reply
+        assert "captured on the departure day" in english_reply
+        assert "Only the treasurer decides" not in english_reply
         assert "10.00 EUR" in english_reply
         assert "10 sponsored miles" in english_reply
 
@@ -2632,9 +2642,10 @@ def test_nim_reply_does_not_repeat_the_treasurer_sentence(monkeypatch):
 
     async def body():
         result = await chat("Je parraine 10 milles près de Dakar")
-        sentence = "Seul le trésorier décide si l'argent est prélevé ou libéré."
-        assert result["reply"].count(sentence) == 1
-        assert result["reply"].count("Promesse calculée") == 1
+        reply = result["reply"]
+        assert "Seul le trésorier décide" not in reply
+        assert reply.count("au plus près du départ") == 1
+        assert reply.count("Promesse calculée") == 1
 
     asyncio.run(body())
 

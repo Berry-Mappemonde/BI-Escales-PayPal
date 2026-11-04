@@ -11,12 +11,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.escales.ledger import COLLECTIONS, FINANCE_COLLECTION, list_finance_entries
 from app.escales.pledges import authorize_pledge, capture_pledge, create_pledge, reset_ledger, void_pledge
+from tests.near_horizon import seed_near
 
 
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     reset_ledger()
+    asyncio.run(seed_near())
     yield
     reset_ledger()
 

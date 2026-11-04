@@ -12,7 +12,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 from .config import membership_url
-from .milestones import decision_for, filter_numbers, get_milestone, latest_evidence
+from .milestones import decision_for, filter_numbers, get_milestone, latest_trusted_evidence
 from .pledges import get_ledger, now_iso, pledges_for_milestone
 from .toolkit_tools import ReadOnlyTools
 
@@ -154,7 +154,7 @@ def _read(reader: Optional[ReadOnlyTools], pledge: dict) -> None:
 async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> dict:
     """Propose capture or void from evidence. Does not execute either."""
     milestone = await get_milestone(milestone_id)
-    evidence = latest_evidence(milestone)
+    evidence = latest_trusted_evidence(milestone)
     decision = decision_for(evidence.get("met") if evidence else None)
     related = await pledges_for_milestone(milestone_id)
     concerned = [

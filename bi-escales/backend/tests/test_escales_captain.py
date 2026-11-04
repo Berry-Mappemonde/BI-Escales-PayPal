@@ -14,6 +14,7 @@ from app.escales import captain
 from app.escales.captain import chat, review
 from app.escales.milestones import filter_numbers, record_evidence
 from app.escales.pledges import authorize_pledge, create_pledge, require_pledge, reset_ledger
+from tests.near_horizon import seed_near
 from app.escales.toolkit_tools import (
     ALLOWED_TOOLS,
     TOOLKIT_ORDER_ACTIONS,
@@ -31,6 +32,7 @@ def isolated(monkeypatch):
     monkeypatch.delenv("HELLOASSO_MEMBERSHIP_URL", raising=False)
     monkeypatch.delenv("ESCALES_TOOLKIT_ENABLED", raising=False)
     reset_ledger()
+    asyncio.run(seed_near())
     import app.core.llm as llm
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: False)
     yield

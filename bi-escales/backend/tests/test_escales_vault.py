@@ -50,6 +50,10 @@ class VaultPayPal:
             "links": [{"rel": "approve", "href": f"https://sandbox.paypal.com/agreements/approve?token={token}"}],
         }
 
+    def get_setup_token(self, setup_token_id):
+        self.calls.append(("get_setup_token", setup_token_id))
+        return {"id": setup_token_id, "status": "APPROVED"}
+
     def create_payment_token(self, setup_token_id):
         self.calls.append(("payment_token", setup_token_id))
         return {"id": f"VAULT-{setup_token_id}"}
@@ -127,6 +131,75 @@ def test_vault_pledge_lifecycle():
         voided = await void_pledge(other["_id"], other_client)
         assert voided["status"] == "voided"
         assert ("delete_token", "VAULT-SETUP1") in other_client.calls
+
+    asyncio.run(body())
+
+
+def test_vault_rejects_a_foreign_or_unapproved_setup_token():
+    async def body():
+        await _seed_far_milestone()
+        client = VaultPayPal()
+        created = await create_pledge(
+            amount_eur="1.00",
+            description="x",
+            milestone_id="dep-long-haul",
+            client=client,
+            client_key="vault-token",
+        )
+        with pytest.raises(ValueError, match="does not match"):
+            await register_vault_pledge(created["_id"], client, setup_token_id="OTHER-TOKEN")
+        assert all(call[0] != "get_setup_token" for call in client.calls)
+
+        client.get_setup_token = lambda setup_token_id: {"id": setup_token_id, "status": "PAYER_ACTION_REQUIRED"}
+        with pytest.raises(ValueError, match="not approved"):
+            await register_vault_pledge(created["_id"], client)
+        assert all(call[0] != "payment_token" for call in client.calls)
+
+    asyncio.run(body())
+
+
+def test_vault_created_order_is_not_captured_and_can_be_retried():
+    async def body():
+        await _seed_far_milestone()
+        client = VaultPayPal()
+        created = await create_pledge(
+            amount_eur="5.00",
+            description="x",
+            milestone_id="dep-long-haul",
+            client=client,
+            client_key="vault-created",
+        )
+        await register_vault_pledge(created["_id"], client)
+
+        def created_order(vault_id, amount_eur, reference_id):
+            client.calls.append(("charge_vaulted", vault_id, amount_eur, reference_id))
+            return {"id": "ORD-V", "status": "CREATED", "intent": "CAPTURE", "purchase_units": []}
+
+        client.charge_vaulted = created_order
+        with pytest.raises(ValueError, match="CREATED"):
+            await capture_pledge(created["_id"], client)
+        stored = await get_ledger().get_pledge(created["_id"])
+        assert stored["status"] == "vaulted"
+        assert stored["paypal_status"] == "CREATED"
+        assert stored["order_id"] == "ORD-V"
+
+        def completed(vault_id, amount_eur, reference_id):
+            client.calls.append(("charge_vaulted", vault_id, amount_eur, reference_id))
+            return {
+                "id": "ORD-V2",
+                "status": "COMPLETED",
+                "intent": "CAPTURE",
+                "purchase_units": [{
+                    "payments": {"captures": [{"id": "CAP-REAL", "status": "COMPLETED"}]},
+                }],
+            }
+
+        client.charge_vaulted = completed
+        captured = await capture_pledge(created["_id"], client)
+        assert captured["status"] == "captured"
+        assert captured["paypal_status"] == "COMPLETED"
+        assert captured["capture_id"] == "CAP-REAL"
+        assert captured["order_id"] == "ORD-V2"
 
     asyncio.run(body())
 

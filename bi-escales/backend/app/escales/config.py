@@ -57,7 +57,12 @@ def naviguide_json_path() -> str:
 
 
 def naviguide_api_base() -> str:
-    return (os.environ.get("NAVIGUIDE_API_URL") or "http://127.0.0.1:8010").strip().rstrip("/")
+    """NAVIGUIDE base URL. Empty unless ``NAVIGUIDE_API_URL`` is set.
+
+    No localhost default: a Render process must keep the bridge off, or point
+    ``ESCALES_NAVIGUIDE_JSON`` at a bundled export.
+    """
+    return (os.environ.get("NAVIGUIDE_API_URL") or "").strip().rstrip("/")
 
 
 def vault_enabled() -> bool:
@@ -85,6 +90,22 @@ def zapiper_enabled() -> bool:
 
 def paypal_webhook_id() -> str:
     return (os.environ.get("PAYPAL_WEBHOOK_ID") or "").strip()
+
+
+def cors_origins() -> list[str]:
+    """Origins allowed to call the API, from ``ESCALES_CORS_ORIGINS`` (comma-separated).
+
+    Empty by default. Same-origin deploys and the Vite ``/api`` proxy need no
+    entry. A front on another origin (``VITE_API_BASE``) lists that origin here.
+    ``*`` is ignored.
+    """
+    raw = os.environ.get("ESCALES_CORS_ORIGINS") or ""
+    origins: list[str] = []
+    for part in raw.split(","):
+        item = part.strip()
+        if item and item != "*":
+            origins.append(item)
+    return origins
 
 
 def load_config() -> EscalesConfig:

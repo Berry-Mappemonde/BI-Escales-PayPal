@@ -33,5 +33,23 @@ services:
         sync: false
       - key: ESCALES_ZAPIER_ENABLED
         sync: false
+      - key: ESCALES_CORS_ORIGINS
+        sync: false
+      - key: MONGO_DB
+        sync: false
+      # Vault is the primary model on the deployed demo. Partner modules stay off.
+      # ESCALES_ADMIN_KEY is entered in the dashboard, not copied from the local demo script.
+      - key: ESCALES_VAULT_ENABLED
+        value: "true"
+      - key: ESCALES_NAVIGUIDE_ENABLED
+        value: "false"
+      - key: ESCALES_ELASTIC_ENABLED
+        value: "false"
+      - key: ESCALES_KERNEL_ENABLED
+        value: "false"
+      - key: ESCALES_CHANNEL3_ENABLED
+        value: "false"
+      - key: ESCALES_BRYNTUM_ENABLED
+        value: "false"
       - key: HELLOASSO_MEMBERSHIP_URL
         sync: false

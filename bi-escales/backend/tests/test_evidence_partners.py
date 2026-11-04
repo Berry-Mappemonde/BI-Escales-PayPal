@@ -36,14 +36,18 @@ def test_record_evidence_defaults_to_simulation():
     asyncio.run(run())
 
 
-def test_kernel_evidence_when_enabled(monkeypatch):
+def test_kernel_evidence_when_enabled_is_simulated_and_untrusted(monkeypatch):
     monkeypatch.setenv("ESCALES_KERNEL_ENABLED", "1")
+    monkeypatch.delenv("ESCALES_KERNEL_URL", raising=False)
 
     async def run():
         direct = await kernel_evidence("dep-mayotte", True, {"boats": 1})
-        assert direct["provider"] == "KERNEL"
+        assert direct["provider"] == "KERNEL-simulated"
+        assert direct["trusted"] is False
         stored = await record_evidence("dep-mayotte", True, {"boats": 1})
-        assert stored["provider"] == "KERNEL"
+        assert stored["provider"] == "KERNEL-simulated"
+        proposal = await review("dep-mayotte", reader=None)
+        assert proposal["proposal"] == "wait"
 
     asyncio.run(run())
 

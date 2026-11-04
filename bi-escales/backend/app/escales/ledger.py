@@ -89,6 +89,17 @@ class MemoryLedger:
                     return copy.deepcopy(doc)
             return None
 
+    async def find_pledge_by_authorization_id(self, authorization_id: str) -> Optional[dict]:
+        with self._lock:
+            for doc in self._pledges.values():
+                if doc.get("authorization_id") == authorization_id:
+                    return copy.deepcopy(doc)
+            return None
+
+    async def list_pledges(self) -> list[dict]:
+        with self._lock:
+            return [copy.deepcopy(doc) for doc in self._pledges.values()]
+
     async def list_pledges_for_milestone(self, milestone_id: str) -> list[dict]:
         with self._lock:
             return [
@@ -240,6 +251,15 @@ class MongoLedger:
     async def find_pledge_by_order_id(self, order_id: str) -> Optional[dict]:
         await self._ensure()
         return await self._pledges.find_one({"order_id": order_id})
+
+    async def find_pledge_by_authorization_id(self, authorization_id: str) -> Optional[dict]:
+        await self._ensure()
+        return await self._pledges.find_one({"authorization_id": authorization_id})
+
+    async def list_pledges(self) -> list[dict]:
+        await self._ensure()
+        cursor = self._pledges.find({})
+        return [doc async for doc in cursor]
 
     async def list_pledges_for_milestone(self, milestone_id: str) -> list[dict]:
         await self._ensure()

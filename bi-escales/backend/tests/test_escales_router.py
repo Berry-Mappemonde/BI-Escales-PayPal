@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.escales.audit import AUDIT_COLLECTION, list_entries
 from app.escales.pledges import reset_ledger
 from app.routers.escales import router, set_paypal_client_factory
+from tests.near_horizon import seed_near
 
 PLEDGE = {
     "amount_eur": "20.00",
@@ -80,6 +81,7 @@ def api(monkeypatch):
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
     monkeypatch.delenv("ESCALES_TOOLKIT_ENABLED", raising=False)
     reset_ledger()
+    asyncio.run(seed_near())
     fake = FakePayPal()
     set_paypal_client_factory(lambda: fake)
     app = FastAPI()

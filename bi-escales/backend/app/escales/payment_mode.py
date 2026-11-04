@@ -9,6 +9,10 @@ from .config import AUTH_MAX_DAYS, vault_enabled
 PaymentMode = Literal["AUTHORIZE", "VAULT"]
 
 
+class PaymentDeferred(ValueError):
+    """AUTHORIZE cannot cover this milestone. The caller should not create a pledge."""
+
+
 def _parse_arrival(raw: Optional[str]) -> Optional[dt.datetime]:
     text = (raw or "").strip()
     if not text:
@@ -39,12 +43,19 @@ def select_payment_mode(
     *,
     now: Optional[dt.datetime] = None,
 ) -> PaymentMode:
-    """Demo rule: AUTHORIZE when the jalon is under 29 days away; else VAULT if enabled."""
-    if not vault_enabled():
-        return "AUTHORIZE"
+    """AUTHORIZE under 29 days. Farther milestones use VAULT, or they are refused.
+
+    A missing arrival date is refused as well: it used to fall through to
+    AUTHORIZE, whose hold expires long before a May 2027 stopover.
+    """
     days = days_until_arrival(arrival_iso, now=now)
     if days is None:
-        return "AUTHORIZE"
+        raise PaymentDeferred("a valid milestone arrival date is required")
     if days >= AUTH_MAX_DAYS:
+        if not vault_enabled():
+            raise PaymentDeferred(
+                "milestone is outside the 29-day authorization window; "
+                "enable ESCALES_VAULT_ENABLED to save a payment method instead"
+            )
         return "VAULT"
     return "AUTHORIZE"

@@ -23,12 +23,14 @@ from app.escales.pledges import (
     reset_ledger,
     void_pledge,
 )
+from tests.near_horizon import seed_near
 
 
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     reset_ledger()
+    asyncio.run(seed_near())
     yield
     reset_ledger()
 

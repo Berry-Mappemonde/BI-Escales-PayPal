@@ -105,3 +105,18 @@ def latest_evidence(milestone: Optional[dict]) -> dict:
     if not evidence:
         return {}
     return evidence[-1]
+
+
+def latest_trusted_evidence(milestone: Optional[dict]) -> dict:
+    """Newest evidence the Captain may use. Simulated KERNEL rows are skipped."""
+    if not milestone:
+        return {}
+    for item in reversed(milestone.get("evidence") or []):
+        if not isinstance(item, dict):
+            continue
+        if item.get("trusted") is False:
+            continue
+        if str(item.get("provider") or "").endswith("-simulated"):
+            continue
+        return item
+    return {}

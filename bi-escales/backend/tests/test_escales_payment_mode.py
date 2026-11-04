@@ -10,7 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.escales.config import AUTH_MAX_DAYS
-from app.escales.payment_mode import days_until_arrival, select_payment_mode
+from app.escales.payment_mode import PaymentDeferred, days_until_arrival, select_payment_mode
 
 
 def test_days_until_arrival():
@@ -20,10 +20,26 @@ def test_days_until_arrival():
     assert days_until_arrival(None, now=now) is None
 
 
-def test_select_authorize_when_vault_disabled(monkeypatch):
+def test_long_horizon_is_refused_when_vault_disabled(monkeypatch):
     monkeypatch.delenv("ESCALES_VAULT_ENABLED", raising=False)
     far = "2027-05-15T08:00:00+00:00"
-    assert select_payment_mode(far) == "AUTHORIZE"
+    with pytest.raises(PaymentDeferred):
+        select_payment_mode(far)
+
+
+def test_missing_date_is_refused(monkeypatch):
+    monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+    with pytest.raises(PaymentDeferred):
+        select_payment_mode(None)
+    with pytest.raises(PaymentDeferred):
+        select_payment_mode("not-a-date")
+
+
+def test_near_horizon_authorizes_even_when_vault_disabled(monkeypatch):
+    monkeypatch.delenv("ESCALES_VAULT_ENABLED", raising=False)
+    now = dt.datetime(2026, 11, 4, tzinfo=dt.timezone.utc)
+    near = (now + dt.timedelta(days=5)).isoformat()
+    assert select_payment_mode(near, now=now) == "AUTHORIZE"
 
 
 def test_select_vault_when_horizon_at_least_29_days(monkeypatch):

@@ -11,11 +11,13 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.escales.ledger import get_ledger
 from app.escales.naviguide_bridge import (
     escales_to_milestones,
     fetch_naviguide_export,
     local_schedule_export,
     load_export_from_path,
+    reset_export_cache,
     sync_milestone_shells,
 )
 from app.escales.pledges import reset_ledger
@@ -27,8 +29,10 @@ def memory_store(monkeypatch):
     monkeypatch.delenv("ESCALES_NAVIGUIDE_ENABLED", raising=False)
     monkeypatch.delenv("ESCALES_NAVIGUIDE_JSON", raising=False)
     reset_ledger()
+    reset_export_cache()
     yield
     reset_ledger()
+    reset_export_cache()
 
 
 def test_escales_to_milestones_maps_ids():
@@ -94,7 +98,7 @@ def test_fetch_naviguide_http_mock(monkeypatch):
 
 def test_sync_milestone_shells_creates_docs():
     async def run():
-        docs = await sync_milestone_shells(local_schedule_export())
+        docs = await sync_milestone_shells(local_schedule_export(explicit_demo=True))
         assert len(docs) == 2
         assert docs[0]["meta"]["title"]
 
@@ -105,3 +109,42 @@ def test_load_export_from_path(tmp_path):
     path = tmp_path / "x.json"
     path.write_text(json.dumps({"escales": []}), encoding="utf-8")
     assert load_export_from_path(str(path))["escales"] == []
+
+
+def test_http_failure_keeps_real_dates_and_last_good_export(monkeypatch):
+    monkeypatch.setenv("ESCALES_NAVIGUIDE_ENABLED", "1")
+    monkeypatch.setenv("NAVIGUIDE_API_URL", "http://sim.test")
+    calls = {"n": 0}
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(200, json={
+                "provider": "NAVIGUIDE",
+                "escales": [{
+                    "milestone_id": "dep-mayotte",
+                    "name": "Mayotte",
+                    "arrival_iso": "2027-05-15T08:00:00+00:00",
+                }],
+            })
+        return httpx.Response(503)
+
+    async def run():
+        await get_ledger().ensure_milestone(
+            "dep-mayotte",
+            meta={"arrival_iso": "2027-05-15T08:00:00+00:00", "title": "Mayotte"},
+        )
+        transport = httpx.MockTransport(handle)
+        async with httpx.AsyncClient(transport=transport) as client:
+            first = await fetch_naviguide_export(client=client)
+            second = await fetch_naviguide_export(client=client)
+        assert first["escales"][0]["arrival_iso"].startswith("2027-05-15")
+        assert second.get("stale") is True
+        assert second["escales"][0]["arrival_iso"].startswith("2027-05-15")
+        assert "2026-09-01" not in json.dumps(second)
+        await sync_milestone_shells(second)
+        await sync_milestone_shells(local_schedule_export())
+        saved = await get_ledger().get_milestone("dep-mayotte")
+        assert saved["meta"]["arrival_iso"].startswith("2027-05-15")
+
+    asyncio.run(run())

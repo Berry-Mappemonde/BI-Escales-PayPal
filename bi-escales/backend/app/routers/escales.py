@@ -28,6 +28,7 @@ from app.escales.config import (
     vault_enabled,
     webhooks_enabled,
 )
+from app.escales.ledger import get_ledger, list_finance_entries
 from app.escales.milestones import list_milestones, record_evidence
 from app.escales.naviguide_bridge import (
     escales_to_milestones,
@@ -227,11 +228,25 @@ async def post_register_vault(pledge_id: str, body: VaultRegisterIn):
     return public
 
 
+@router.get("/pledges")
+async def get_pledges(request: Request):
+    """Treasurer queue. Not the browser's local id list."""
+    _require_treasurer(request)
+    docs = await get_ledger().list_pledges()
+    return [to_public(doc) for doc in docs]
+
+
+@router.get("/finance")
+async def get_finance(request: Request):
+    _require_treasurer(request)
+    return await list_finance_entries()
+
+
 @router.post("/pledges/{pledge_id}/authorize")
 async def post_authorize(pledge_id: str):
     try:
         doc = await authorize_pledge(pledge_id, _paypal())
-    except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
     return to_public(doc)
 
@@ -241,7 +256,7 @@ async def post_capture(pledge_id: str, request: Request):
     _require_treasurer(request)
     try:
         doc = await capture_pledge(pledge_id, _paypal())
-    except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
     return to_public(doc)
 

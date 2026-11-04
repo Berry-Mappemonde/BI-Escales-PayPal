@@ -526,6 +526,21 @@ def _euros_text(amount: Decimal) -> str:
     return f"{amount.quantize(Decimal('0.01')):.2f}"
 
 
+def to_public_fund(fund: dict) -> dict:
+    """Aggregated totals. No journal lines and no pledge ids."""
+    captured = str(fund.get("income_eur") or "0.00")
+    return {
+        "milestone_id": fund.get("milestone_id"),
+        "currency": fund.get("currency") or "EUR",
+        "income_eur": captured,
+        "captured_eur": str(fund.get("captured_eur") or captured),
+        "authorized_eur": str(fund.get("authorized_eur") or "0.00"),
+        "spending_eur": str(fund.get("spending_eur") or "0.00"),
+        "balance_eur": str(fund.get("balance_eur") or "0.00"),
+        "overdrawn": bool(fund.get("overdrawn")),
+    }
+
+
 def _public_finance(entry: dict) -> dict:
     return {
         "id": entry.get("_id"),

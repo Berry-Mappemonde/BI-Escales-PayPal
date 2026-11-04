@@ -148,7 +148,7 @@ def test_authorize_stores_id_and_expiration(api):
     assert authorized["status"] == "authorized"
     assert authorized["authorization_id"] == "AUTH-ORDER1"
     assert authorized["authorization_expires_at"] == "2026-12-01T00:00:00Z"
-    fetched = client.get(f"/api/escales/pledges/{created['id']}")
+    fetched = client.get(f"/api/escales/pledges/{created['id']}", headers=ADMIN)
     assert fetched.status_code == 200
     assert fetched.json()["authorization_id"] == "AUTH-ORDER1"
     assert fetched.json()["status"] == "authorized"
@@ -301,14 +301,18 @@ def test_fund_counts_captured_income_and_treasurer_spending(api):
     empty = client.get("/api/escales/milestones/dep-mayotte/fund")
     assert empty.status_code == 200
     assert empty.json()["income_eur"] == "0.00"
+    assert empty.json()["captured_eur"] == "0.00"
+    assert empty.json()["authorized_eur"] == "0.00"
     assert empty.json()["spending_eur"] == "0.00"
     assert empty.json()["balance_eur"] == "0.00"
-    assert empty.json()["income"] == []
+    assert "income" not in empty.json()
+    assert "pledge_id" not in empty.text
 
     _created, authorized = _ready(client, "fund-auth")
     held = client.get("/api/escales/milestones/dep-mayotte/fund").json()
     assert held["income_eur"] == "0.00"
-    assert held["income"] == []
+    assert held["authorized_eur"] == "20.00"
+    assert "income" not in held
 
     captured = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
     assert captured.status_code == 200
@@ -343,13 +347,11 @@ def test_fund_counts_captured_income_and_treasurer_spending(api):
     assert fund["spending_eur"] == "5.00"
     assert fund["balance_eur"] == "15.00"
     assert fund["overdrawn"] is False
-    assert fund["income"][0]["kind"] == "pledge_captured"
-    assert fund["income"][0]["pledge_id"] == authorized["id"]
-    assert fund["income"][0]["description"] == "20 milles Mayotte"
-    assert fund["income"][0]["pledge_kind"] == "mile"
-    assert fund["income"][0]["target_id"] == "dzaoudzi-mayotte"
-    assert fund["spending"][0]["description"] == "gasoil"
-    assert fund["spending"][0]["amount_eur"] == "5.00"
+    assert fund["captured_eur"] == "20.00"
+    assert "income" not in fund
+    assert "spending" not in fund
+    assert "pledge_id" not in fund
+    assert authorized["id"] not in str(fund)
     same = client.get("/api/escales/milestones/mayotte/fund").json()
     assert same["income_eur"] == "20.00"
     assert same["spending_eur"] == "5.00"
@@ -777,6 +779,35 @@ def test_schedule_local_fallback(api, monkeypatch):
     assert body["prices"]["simulated"] is True
 
 
+def test_public_fund_and_pledge_share_the_aggregate(api):
+    """A stopover fund is public totals. Pledge reads use that same object."""
+    client, _fake = api
+    created = _create(client, "pub-fund").json()
+    listed = client.get(f"/api/escales/pledges/{created['id']}")
+    assert listed.status_code == 200
+    body = listed.json()
+    assert set(body) == {"status", "amount_eur", "fund"}
+    assert body["status"] == "created"
+    assert body["amount_eur"] == "20.00"
+    fund = client.get("/api/escales/milestones/dep-mayotte/fund")
+    assert fund.status_code == 200
+    assert fund.json() == body["fund"] == created["fund"]
+    assert "income" not in fund.json()
+    assert "pledge_id" not in fund.text
+    assert "pledge_ids" not in fund.text
+    assert "pledge_ids" not in created
+    refused = client.post(
+        "/api/escales/milestones/dep-mayotte/fund/spending",
+        json={"amount_eur": "1.00", "description": "sans clé"},
+    )
+    assert refused.status_code == 401
+    wrong = client.get(
+        f"/api/escales/pledges/{created['id']}",
+        headers={"x-admin-key": "nope"},
+    )
+    assert wrong.status_code == 403
+
+
 def test_unplaced_project_and_fund_totals_are_readable(api):
     """Project and common-fund totals need the treasurer key. A stopover stays public."""
     client, _fake = api
@@ -792,7 +823,8 @@ def test_unplaced_project_and_fund_totals_are_readable(api):
     assert empty_project.json()["income_eur"] == "0.00"
     assert empty_project.json()["spending_eur"] == "0.00"
     assert empty_project.json()["balance_eur"] == "0.00"
-    assert empty_project.json()["income"] == []
+    assert "income" not in empty_project.json()
+    assert "pledge_id" not in empty_project.text
     empty_fund = client.get("/api/escales/milestones/fund/fund", headers=ADMIN)
     assert empty_fund.status_code == 200
     assert empty_fund.json()["milestone_id"] == "fonds-commun"
@@ -814,10 +846,12 @@ def test_unplaced_project_and_fund_totals_are_readable(api):
     })
     shown = client.get("/api/escales/milestones/projet/fund", headers=ADMIN).json()
     assert shown["income_eur"] == "15.00"
+    assert shown["captured_eur"] == "15.00"
+    assert shown["authorized_eur"] == "7.00"
     assert shown["balance_eur"] == "15.00"
-    assert shown["income"][0]["pledge_id"] == project["id"]
-    assert shown["income"][0]["pledge_kind"] == "project_pledge"
-    assert shown["income"][0]["description"] == "promesse projet"
+    assert "income" not in shown
+    assert "pledge_ids" not in shown
+    assert project["id"] not in str(shown)
 
     _created_f, boat = _ready(client, "tot-fund", {
         "amount_eur": "12.00",

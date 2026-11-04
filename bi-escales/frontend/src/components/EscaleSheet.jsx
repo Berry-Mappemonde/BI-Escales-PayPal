@@ -159,7 +159,9 @@ export const EscaleSheet = memo(function EscaleSheet({
         ) : null}
         {fund?.overdrawn ? <p className="notice warn">{t("fund.overdrawn")}</p> : null}
         {fundError ? <p className="hint">{t("fund.missing")}</p> : null}
-        {fund && !fund.income?.length && !fund.spending?.length ? <p className="hint">{t("fund.empty")}</p> : null}
+        {fund && Array.isArray(fund.income) && Array.isArray(fund.spending) && !fund.income.length && !fund.spending.length ? (
+          <p className="hint">{t("fund.empty")}</p>
+        ) : null}
         <FundLines title={t("fund.income")} rows={fund?.income} />
         <FundLines title={t("fund.spending")} rows={fund?.spending} />
         <p className="fund-line">

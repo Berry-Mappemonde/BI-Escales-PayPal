@@ -32,7 +32,14 @@ from app.escales.config import (
     vault_enabled,
     webhooks_enabled,
 )
-from app.escales.ledger import _unplaced_bucket, fund_for_milestone, get_ledger, list_webhook_outcomes, record_spending
+from app.escales.ledger import (
+    _unplaced_bucket,
+    fund_for_milestone,
+    get_ledger,
+    list_webhook_outcomes,
+    record_spending,
+    to_public_fund,
+)
 from app.escales_names import display_name as escale_display_name
 from app.escales.milestones import list_milestones, record_evidence
 from app.escales.naviguide_bridge import (
@@ -236,14 +243,29 @@ def _public_pledge(doc: dict) -> dict:
     return public
 
 
-async def _public_pledge_with_fund(doc: dict) -> dict:
-    """Public pledge, with the same fund object the fund route returns."""
-    public = _public_pledge(doc)
+async def _fund_aggregate(milestone_id: str) -> Optional[dict]:
+    """Same public totals as GET /milestones/{id}/fund. No pledge list."""
     try:
-        public["fund"] = await fund_for_milestone(str(doc.get("milestone_id") or ""))
+        return to_public_fund(await fund_for_milestone(milestone_id))
     except LookupError:
-        public["fund"] = None
+        return None
+
+
+async def _public_pledge_with_fund(doc: dict) -> dict:
+    """Pledge the buyer needs, with the public fund aggregate and no pledge list."""
+    public = _public_pledge(doc)
+    public["fund"] = await _fund_aggregate(str(doc.get("milestone_id") or ""))
     return public
+
+
+def _public_pledge_summary(doc: dict, fund: Optional[dict]) -> dict:
+    """Status, amount, and the fund aggregate. Nothing that lists pledges."""
+    row = doc
+    return {
+        "status": row.get("status"),
+        "amount_eur": row.get("amount_eur"),
+        "fund": fund,
+    }
 
 
 @router.get("/features")
@@ -370,21 +392,30 @@ async def get_pledges(request: Request):
 
 
 @router.get("/pledges/{pledge_id}")
-async def get_pledge(pledge_id: str):
+async def get_pledge(pledge_id: str, request: Request):
+    """Public read is status, amount, and the fund aggregate. The key sees the pledge."""
     try:
         doc = await require_pledge(pledge_id)
     except PledgeNotFound as exc:
         raise _as_http(exc) from exc
-    return await _public_pledge_with_fund(doc)
+    fund = await _fund_aggregate(str(doc.get("milestone_id") or ""))
+    if not _valid_admin_key(request):
+        return _public_pledge_summary(doc, fund)
+    full = await _public_pledge_with_fund(doc)
+    full["fund"] = fund
+    return full
 
 
 @router.get("/milestones/{milestone_id}/fund")
 async def get_fund(milestone_id: str, request: Request):
-    """Stopover funds are public. Project and common-fund totals need the treasurer key."""
+    """A stopover or cabin-leg fund is public totals. Project and common fund need the key.
+
+    The body is aggregated money only: no journal lines and no pledge ids.
+    """
     if _unplaced_bucket(milestone_id):
         _require_treasurer(request)
     try:
-        return await fund_for_milestone(milestone_id)
+        return to_public_fund(await fund_for_milestone(milestone_id))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Milestone not found") from exc
 
@@ -394,7 +425,7 @@ async def post_spending(milestone_id: str, body: SpendingIn, request: Request):
     _require_treasurer(request)
     try:
         entry = await record_spending(milestone_id, body.amount_eur, body.description)
-        fund = await fund_for_milestone(milestone_id)
+        fund = to_public_fund(await fund_for_milestone(milestone_id))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Milestone not found") from exc
     except ValueError as exc:

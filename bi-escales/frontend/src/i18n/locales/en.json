@@ -94,7 +94,13 @@
   "grid": {
     "heading": "Treasurer view — gauges",
     "agGridOff": "AG Grid community is off (VITE_ENABLE_AG_GRID=0). HTML table. This is not AG Studio.",
-    "blindSpot": "These gauges count only authorized, captured, and voided. Created, vaulted, pending, failed, and settled are omitted.",
+    "blindSpot": "Counts include created, authorized, vaulted, pending, captured, settled, failed, voided, and refunded.",
+    "created": "Created",
+    "vaulted": "Vaulted",
+    "pending": "Pending",
+    "settled": "Settled",
+    "failed": "Failed",
+    "refunded": "Refunded",
     "modelSource": "Wording source",
     "milestone": "Milestone",
     "authorized": "Authorized",
@@ -109,5 +115,14 @@
     "applyCapture": "Capture (per proposal)",
     "applyVoid": "Void (per proposal)",
     "noProposal": "No proposal stored for this milestone."
+  },
+  "studio": {
+    "heading": "AG Studio dashboard",
+    "loading": "Loading AG Studio…",
+    "scoreTitle": "Human validation",
+    "scoreHint": "The captain proposes. Only the treasurer captures or voids. The trial watermark stays on for the hackathon.",
+    "authorized": "Authorized",
+    "captured": "Captured",
+    "voided": "Voided"
   }
 }

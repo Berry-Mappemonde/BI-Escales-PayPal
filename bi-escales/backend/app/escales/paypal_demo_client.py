@@ -5,7 +5,13 @@ from typing import Any, Optional
 
 
 class DemoPayPalClient:
-    """Combines AUTHORIZE, Vault v3, and webhook verification for visual review runs."""
+    """In-memory stand-in for local tests and Playwright. Not used in production.
+
+    ``webhook_signature_mock`` keeps verify-webhook-signature off the network.
+    A deploy with real credentials and ``PAYPAL_WEBHOOK_ID`` uses ``PayPalClient``.
+    """
+
+    webhook_signature_mock = True
 
     def __init__(self) -> None:
         self.calls: list[tuple] = []

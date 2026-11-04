@@ -1,0 +1,287 @@
+"""Captain rate limit and LLM daily cap. Both are off unless production is on."""
+from __future__ import annotations
+
+import asyncio
+import datetime as dt
+import sys
+from pathlib import Path
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from app.core import llm
+from app.escales.config import limits_enabled
+from app.escales.pledges import reset_ledger
+from near_horizon import seed_near
+from app.escales.rate_limit import RateLimited, hit, per_day, per_minute, reset
+from app.escales.captain import chat
+from app.routers.escales import router, set_paypal_client_factory
+from test_llm_cascade import _openai, _transport
+
+ROOT = Path(__file__).resolve().parents[2]
+FR = "Je parraine 5 milles près de Brest"
+EN = "I'd like to sponsor 5 nautical miles near Brest"
+
+
+@pytest.fixture
+def api(monkeypatch):
+    monkeypatch.setenv("ESCALES_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.delenv("ESCALES_ENV", raising=False)
+    monkeypatch.delenv("ESCALES_RATE_LIMIT_ENABLED", raising=False)
+    monkeypatch.delenv("HELLOASSO_MEMBERSHIP_URL", raising=False)
+    monkeypatch.delenv("ESCALES_LLM_ENABLED", raising=False)
+    reset()
+    reset_ledger()
+    asyncio.run(seed_near())
+    llm.reset_llm_budget()
+    app = FastAPI()
+    app.include_router(router)
+    with TestClient(app) as client:
+        yield client
+    set_paypal_client_factory(None)
+    reset()
+    reset_ledger()
+    llm.reset_llm_budget()
+
+
+def _chat(client, message, ip="203.0.113.10", accept_language=""):
+    headers = {"x-forwarded-for": ip}
+    if accept_language:
+        headers["accept-language"] = accept_language
+    return client.post("/api/escales/captain/chat", json={"message": message}, headers=headers)
+
+
+def _review(client, ip="203.0.113.10", accept_language=""):
+    headers = {"x-forwarded-for": ip}
+    if accept_language:
+        headers["accept-language"] = accept_language
+    return client.post("/api/escales/captain/review/dep-mayotte", headers=headers)
+
+
+def test_limits_follow_production_unless_overridden(monkeypatch):
+    monkeypatch.delenv("ESCALES_ENV", raising=False)
+    monkeypatch.delenv("ESCALES_RATE_LIMIT_ENABLED", raising=False)
+    assert limits_enabled() is False
+    monkeypatch.setenv("ESCALES_ENV", "development")
+    assert limits_enabled() is False
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    assert limits_enabled() is True
+    monkeypatch.setenv("ESCALES_RATE_LIMIT_ENABLED", "false")
+    assert limits_enabled() is False
+    monkeypatch.setenv("ESCALES_ENV", "development")
+    monkeypatch.setenv("ESCALES_RATE_LIMIT_ENABLED", "true")
+    assert limits_enabled() is True
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", raising=False)
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_DAY", raising=False)
+    monkeypatch.delenv("ESCALES_LLM_DAILY_CAP", raising=False)
+    assert per_minute() == 10
+    assert per_day() == 100
+    assert llm.llm_daily_cap() == 100
+
+
+def test_development_does_not_limit_captain_routes(api, monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "development")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "1")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY", "1")
+    for _ in range(4):
+        response = _chat(api, FR)
+        assert response.status_code == 200, response.text
+    review = _review(api)
+    assert review.status_code == 200, review.text
+
+
+def test_development_calls_are_not_counted_when_production_turns_on(monkeypatch):
+    monkeypatch.delenv("ESCALES_ENV", raising=False)
+    monkeypatch.delenv("ESCALES_RATE_LIMIT_ENABLED", raising=False)
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "1")
+    reset()
+    hit("203.0.113.8")
+    hit("203.0.113.8")
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    hit("203.0.113.8")
+    with pytest.raises(RateLimited) as raised:
+        hit("203.0.113.8")
+    assert raised.value.kind == "minute"
+
+
+def test_production_minute_cap_is_localized(api, monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "2")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY", "100")
+    assert _chat(api, FR).status_code == 200
+    assert _review(api).status_code == 200
+    blocked = _chat(api, FR, accept_language="en")
+    assert blocked.status_code == 429
+    assert blocked.json()["detail"] == "Trop de requêtes. Le capitaine accepte 2 par minute."
+    english = _review(api, ip="203.0.113.11", accept_language="en-GB,en;q=0.8")
+    assert english.status_code == 200
+    assert _review(api, ip="203.0.113.11", accept_language="en-GB").status_code == 200
+    again = _review(api, ip="203.0.113.11", accept_language="en-GB,en;q=0.8")
+    assert again.status_code == 429
+    assert again.json()["detail"] == "Too many requests. The captain accepts 2 per minute."
+    chat_en = _chat(api, EN, ip="203.0.113.12")
+    assert chat_en.status_code == 200
+    assert _chat(api, EN, ip="203.0.113.12").status_code == 200
+    third = _chat(api, EN, ip="203.0.113.12", accept_language="fr")
+    assert third.status_code == 429
+    assert third.json()["detail"] == "Too many requests. The captain accepts 2 per minute."
+
+
+def test_production_day_cap_is_localized(api, monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "10")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY", "2")
+    assert _chat(api, FR, ip="203.0.113.20").status_code == 200
+    assert _chat(api, FR, ip="203.0.113.20").status_code == 200
+    blocked = _chat(api, FR, ip="203.0.113.20")
+    assert blocked.status_code == 429
+    assert blocked.json()["detail"] == "Trop de requêtes. Le capitaine accepte 2 par jour."
+    other = _chat(api, EN, ip="198.51.100.4")
+    assert other.status_code == 200
+
+
+def test_explicit_override_switches_either_mode(api, monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "development")
+    monkeypatch.setenv("ESCALES_RATE_LIMIT_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "1")
+    assert _chat(api, FR, ip="203.0.113.30").status_code == 200
+    blocked = _chat(api, FR, ip="203.0.113.30")
+    assert blocked.status_code == 429
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_RATE_LIMIT_ENABLED", "off")
+    for _ in range(3):
+        response = _chat(api, FR, ip="203.0.113.31")
+        assert response.status_code == 200, response.text
+
+
+def test_minute_window_opens_again(monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "1")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY", "100")
+    reset()
+    base = dt.datetime(2026, 11, 4, 12, 0, tzinfo=dt.timezone.utc)
+    hit("203.0.113.40", now=base)
+    with pytest.raises(RateLimited):
+        hit("203.0.113.40", now=base + dt.timedelta(seconds=30))
+    hit("203.0.113.40", now=base + dt.timedelta(seconds=61))
+
+
+def test_pledges_stay_open_when_the_captain_is_limited(api, monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "1")
+
+    class FakePayPal:
+        def create_authorize_order(self, amount_eur, description, reference_id, idempotency_key=None):
+            return {
+                "id": "ORDER1",
+                "status": "CREATED",
+                "intent": "AUTHORIZE",
+                "links": [{"rel": "approve", "href": "https://www.sandbox.paypal.com/checkoutnow?token=ORDER1"}],
+            }
+
+    set_paypal_client_factory(lambda: FakePayPal())
+    assert _chat(api, FR, ip="203.0.113.50").status_code == 200
+    assert _chat(api, FR, ip="203.0.113.50").status_code == 429
+    created = api.post(
+        "/api/escales/pledges",
+        json={"amount_eur": "20.00", "description": "20 milles", "milestone_id": "dep-mayotte"},
+        headers={"x-forwarded-for": "203.0.113.50", "PayPal-Request-Id": "rate-pledge"},
+    )
+    assert created.status_code == 200, created.text
+
+
+def test_render_and_readme_document_the_production_gate():
+    blueprint = (ROOT / "render.yaml").read_text(encoding="utf-8")
+    assert "key: ESCALES_ENV" in blueprint
+    assert "value: production" in blueprint
+    readme = (ROOT.parent / "README.md").read_text(encoding="utf-8")
+    assert "ESCALES_ENV" in readme
+    assert "development" in readme
+    assert "ESCALES_RATE_LIMIT_ENABLED" in readme
+
+
+def test_development_does_not_cap_llm_usage(monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "development")
+    monkeypatch.delenv("ESCALES_RATE_LIMIT_ENABLED", raising=False)
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "1")
+    llm.reset_llm_budget()
+    assert llm.consume_llm_call() is True
+    assert llm.consume_llm_call() is True
+    assert llm.llm_calls_today() == 0
+    monkeypatch.setenv("ESCALES_LLM_ENABLED", "1")
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-nvidia-key")
+    monkeypatch.delenv("ESCALES_LLM_NEBIUS_ENABLED", raising=False)
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [
+            _openai("Noted.", llm.NIM_MODEL),
+            _openai("Still noted.", llm.NIM_MODEL),
+        ],
+    })
+
+    async def stay_open():
+        return None
+
+    client.aclose = stay_open
+    monkeypatch.setattr(llm, "_client", lambda: client)
+
+    async def body():
+        first = await chat("Je parraine 20 milles près de Mayotte")
+        second = await chat("Je parraine 10 milles près de Brest")
+        assert first["model_source"]["provider"] == "nim"
+        assert second["model_source"]["provider"] == "nim"
+        assert len(seen) == 2
+
+    asyncio.run(body())
+
+
+def test_production_llm_cap_falls_back_to_the_rules(monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.delenv("ESCALES_RATE_LIMIT_ENABLED", raising=False)
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "1")
+    llm.reset_llm_budget()
+    morning = dt.datetime(2026, 11, 4, 12, 0, tzinfo=dt.timezone.utc)
+    assert llm.consume_llm_call(morning) is True
+    assert llm.consume_llm_call(morning) is False
+    assert llm.consume_llm_call(morning + dt.timedelta(days=1)) is True
+    llm.reset_llm_budget()
+    monkeypatch.setenv("ESCALES_LLM_ENABLED", "1")
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-nvidia-key")
+    monkeypatch.delenv("ESCALES_LLM_NEBIUS_ENABLED", raising=False)
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [
+            _openai("Noted.", llm.NIM_MODEL),
+            _openai("should not be sent", llm.NIM_MODEL),
+        ],
+    })
+
+    async def stay_open():
+        return None
+
+    client.aclose = stay_open
+    monkeypatch.setattr(llm, "_client", lambda: client)
+
+    async def body():
+        first = await chat("Je parraine 20 milles près de Mayotte")
+        assert first["model_source"]["provider"] == "nim"
+        second = await chat("Je parraine 10 milles près de Brest")
+        assert second["model_source"] == {"provider": "rules", "model": ""}
+        assert "10,00 €" in second["reply"]
+        assert "10 milles parrainés" in second["reply"]
+        assert len(seen) == 1
+
+    asyncio.run(body())
+
+
+def test_override_false_removes_the_llm_cap_in_production(monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_RATE_LIMIT_ENABLED", "0")
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "1")
+    llm.reset_llm_budget()
+    assert llm.consume_llm_call() is True
+    assert llm.consume_llm_call() is True
+    assert llm.llm_calls_today() == 0

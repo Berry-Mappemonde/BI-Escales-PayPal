@@ -131,7 +131,9 @@ async def create_pledge(
 ) -> dict:
     amount = normalize_amount(amount_eur)
     description = _require_text(description, "description")
-    milestone_id = _require_text(milestone_id, "milestone_id")
+    from .milestones import canonical_milestone_id
+
+    milestone_id = canonical_milestone_id(_require_text(milestone_id, "milestone_id"))
     mode = payment_mode or await resolve_payment_mode(milestone_id)
     if mode == "VAULT":
         return await _create_vault_pledge(
@@ -497,9 +499,11 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
             payment_mode="VAULT",
         )
         return saved
-    _require_status(pledge, "authorized", "voided")
+    current = str(pledge.get("status") or "")
+    if current not in {"authorized", "pending"}:
+        raise IllegalTransition(current or "unknown", "voided")
     if not pledge.get("authorization_id"):
-        raise IllegalTransition("authorized", "voided")
+        raise IllegalTransition(current or "unknown", "voided")
     client.void_authorization(pledge["authorization_id"])
     pledge["status"] = "voided"
     pledge["history"] = list(pledge.get("history") or []) + ["voided"]

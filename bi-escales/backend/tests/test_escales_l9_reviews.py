@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.core.llm import llm_enabled, nebius_enabled
 from app.escales.config import (
     EscalesConfig,
     bryntum_scheduler_enabled,
@@ -21,12 +22,14 @@ from app.escales.config import (
     elastic_evidence_enabled,
     escales_enabled,
     kernel_evidence_enabled,
+    limits_enabled,
     naviguide_bridge_enabled,
     toolkit_enabled,
     vault_enabled,
     webhooks_enabled,
     zapiper_enabled,
 )
+from app.escales.ledger import postgres_enabled
 from app.escales.ledger import MongoLedger, get_ledger, reset_ledger
 from app.escales.paypal_client import PayPalClient, read_capture_result
 from app.escales.pledges import authorize_pledge, capture_pledge, create_pledge
@@ -48,6 +51,10 @@ FLAG_GETTERS = {
     "ESCALES_VAULT_ENABLED": vault_enabled,
     "ESCALES_WEBHOOKS_ENABLED": webhooks_enabled,
     "ESCALES_ZAPIER_ENABLED": zapiper_enabled,
+    "ESCALES_LLM_ENABLED": llm_enabled,
+    "ESCALES_LLM_NEBIUS_ENABLED": nebius_enabled,
+    "ESCALES_POSTGRES_ENABLED": postgres_enabled,
+    "ESCALES_RATE_LIMIT_ENABLED": limits_enabled,
 }
 
 
@@ -251,7 +258,10 @@ def test_every_escales_enabled_flag_is_off_by_default(monkeypatch):
         assert getter() is False, name
     example = (ROOT / ".env.example").read_text(encoding="utf-8")
     for name in FLAG_GETTERS:
-        assert any(line.strip() == f"{name}=" for line in example.splitlines())
+        assert any(
+            line.strip() in {f"{name}=", f"{name}=false"}
+            for line in example.splitlines()
+        ), name
     render = (ROOT / "render.yaml").read_text(encoding="utf-8")
     assert "demo-admin-key" not in render
     assert 'ESCALES_VAULT_ENABLED' in render

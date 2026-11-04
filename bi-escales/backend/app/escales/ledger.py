@@ -31,7 +31,26 @@ def now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
 
 
+def _truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def postgres_enabled() -> bool:
+    """Render Postgres. Off unless ``ESCALES_POSTGRES_ENABLED`` is truthy.
+
+    A file on the free web service disk (SQLite or a JSON snapshot) is wiped
+    when the instance spins down. Postgres is the store that survives that.
+    """
+    return _truthy("ESCALES_POSTGRES_ENABLED")
+
+
+def database_url() -> str:
+    return (os.environ.get("DATABASE_URL") or "").strip()
+
+
 def _mongo_wanted() -> bool:
+    if postgres_enabled():
+        return False
     mode = os.environ.get("ESCALES_STORE", "").strip().lower()
     if mode == "memory":
         return False
@@ -367,13 +386,23 @@ _ledger: Any = None
 
 def reset_ledger() -> None:
     global _ledger
+    close = getattr(_ledger, "close", None)
+    if close is not None:
+        close()
     _ledger = None
 
 
 def get_ledger() -> Any:
     global _ledger
     if _ledger is None:
-        if _mongo_wanted():
+        if postgres_enabled():
+            dsn = database_url()
+            if not dsn:
+                raise RuntimeError("ESCALES_POSTGRES_ENABLED requires DATABASE_URL")
+            from .postgres_ledger import PostgresLedger
+
+            _ledger = PostgresLedger(dsn)
+        elif _mongo_wanted():
             from app.db import db
             _ledger = MongoLedger(db)
         else:

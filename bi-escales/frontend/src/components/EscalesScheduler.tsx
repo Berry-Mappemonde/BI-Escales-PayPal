@@ -3,10 +3,7 @@ import { useTranslation } from "react-i18next";
 import { fetchFeatures, fetchSchedule, listMilestones } from "../api/escales";
 import type { Milestone, ScheduleEscale } from "../api/types";
 
-const LOCAL_PREVIEW: ScheduleEscale[] = [
-  { milestone_id: "dep-mayotte", name: "Mayotte", arrival_iso: "2026-09-01T08:00:00Z" },
-  { milestone_id: "dep-fort-de-france", name: "Fort-de-France", arrival_iso: "2026-08-15T08:00:00Z" },
-];
+const LOCAL_PREVIEW: ScheduleEscale[] = [];
 
 function rowsFromSchedule(body: Awaited<ReturnType<typeof fetchSchedule>>): ScheduleEscale[] {
   const fromExport = body.export?.escales;
@@ -46,6 +43,11 @@ export function EscalesScheduler() {
           setLedgerById(map);
           setRows((current) => {
             const known = new Set(current.map((row) => row.milestone_id || row.name));
+            const withLedger = current.map((row) => {
+              const id = row.milestone_id || row.name || "";
+              const arrival = map[id];
+              return arrival ? { ...row, arrival_iso: arrival } : row;
+            });
             const extra = milestones
               .filter((milestone) => !known.has(milestone.id))
               .map((milestone) => ({
@@ -53,7 +55,7 @@ export function EscalesScheduler() {
                 name: milestone.meta?.title || milestone.id,
                 arrival_iso: milestone.meta?.arrival_iso,
               }));
-            return extra.length > 0 ? [...current, ...extra] : current;
+            return extra.length > 0 ? [...withLedger, ...extra] : withLedger;
           });
         }
       } catch {
@@ -81,10 +83,10 @@ export function EscalesScheduler() {
       <ul className="escales-scheduler-list">
         {rows.map((row) => {
           const id = row.milestone_id || row.name || "escale";
-          const when = (row.arrival_iso || "").slice(0, 10);
           const ledger = (ledgerById[id] || "").slice(0, 10);
-          const past = Boolean(row.arrival_iso) && Date.parse(row.arrival_iso || "") < Date.now();
-          const mismatch = Boolean(ledger) && ledger !== when;
+          const when = ledger || (row.arrival_iso || "").slice(0, 10);
+          const past = !ledger && Boolean(when) && Date.parse(when) < Date.now();
+          const mismatch = false;
           return (
             <li key={id}>
               <strong>{row.name || row.title || id}</strong>

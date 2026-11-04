@@ -94,7 +94,13 @@
   "grid": {
     "heading": "Vue trésorier — jauges",
     "agGridOff": "AG Grid community est désactivé (VITE_ENABLE_AG_GRID=0) : tableau HTML. Ce n’est pas AG Studio.",
-    "blindSpot": "Ces jauges ne comptent que les promesses autorisées, encaissées et annulées. Created, vaulted, pending, failed et settled sont omis.",
+    "blindSpot": "Les comptes incluent created, authorized, vaulted, pending, captured, settled, failed, voided et refunded.",
+    "created": "Créées",
+    "vaulted": "Vault",
+    "pending": "En attente",
+    "settled": "Réglées",
+    "failed": "Échouées",
+    "refunded": "Remboursées",
     "modelSource": "Source du texte",
     "milestone": "Jalon",
     "authorized": "Autorisées",
@@ -109,5 +115,14 @@
     "applyCapture": "Encaisser (selon proposition)",
     "applyVoid": "Annuler (selon proposition)",
     "noProposal": "Aucune proposition enregistrée pour ce jalon."
+  },
+  "studio": {
+    "heading": "Tableau de bord AG Studio",
+    "loading": "Chargement d’AG Studio…",
+    "scoreTitle": "Validation humaine",
+    "scoreHint": "Le capitaine propose. Seul le trésorier encaisse ou annule. Le filigrane d’essai reste pour le hackathon.",
+    "authorized": "Autorisées",
+    "captured": "Encaissées",
+    "voided": "Annulées"
   }
 }

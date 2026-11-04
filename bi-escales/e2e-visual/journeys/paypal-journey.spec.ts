@@ -113,8 +113,8 @@ test("authorize, vault, capture, void, webhooks, ledger", async ({ page }) => {
   expect(created.status).toBe(200);
   await page.getByRole("button", { name: "Refresh queue" }).click();
   await expect(page.locator("[data-status='created']")).toBeVisible();
-  await expect(page.getByTestId("queue-empty")).toBeVisible();
-  await snap(page, J, "03-created-hidden-from-queue", watch);
+  await expect(page.getByTestId("queue-empty")).toHaveCount(0);
+  await snap(page, J, "03-created-in-queue", watch);
 
   await fillPledge(page, "state-keep-authorized", "dep-mayotte");
   await page.getByTestId("paypal-demo-approve").click();
@@ -182,20 +182,29 @@ test("authorize, vault, capture, void, webhooks, ledger", async ({ page }) => {
   await expect(page.locator("[data-status='refunded']")).toHaveCount(0);
   await snap(page, J, "11-webhooks-pending-denied-settled", watch);
 
+  await postWebhook(
+    page,
+    "EVT-REFUNDED",
+    "PAYMENT.CAPTURE.REFUNDED",
+    byDescription("state-settled").authorization_id as string,
+  );
+  await page.getByRole("button", { name: "Refresh queue" }).click();
+  await expect(page.locator("[data-status='refunded']")).toBeVisible();
+  await snap(page, J, "12-refunded", watch);
+
   await queueRow(page, "state-pending").getByRole("button", { name: "Void authorization" }).click();
-  await expect(page.getByTestId("queue-action-error")).toBeVisible();
-  await expect(page.locator("[data-status='pending']")).toBeVisible();
-  await snap(page, J, "12-pending-void-rejected", watch);
+  await expect(page.locator("[data-status='voided']").filter({ hasText: "state-pending" })).toBeVisible();
+  await snap(page, J, "13-pending-voided", watch);
 
   await page.evaluate(() => localStorage.clear());
   await page.getByRole("button", { name: "Refresh queue" }).click();
   await expect(page.locator("[data-status='created']")).toBeVisible();
-  await snap(page, J, "13-queue-survives-without-localstorage", watch);
+  await snap(page, J, "14-queue-survives-without-localstorage", watch);
 
   await page.getByRole("button", { name: "Load ledger" }).click();
   await expect(page.locator(".finance-ledger tbody tr").filter({ hasText: "webhook_received" }).first()).toBeVisible();
   await expect(page.locator(".finance-ledger")).toContainText("pledge_captured");
-  await snap(page, J, "14-finance-ledger", watch);
+  await snap(page, J, "15-finance-ledger", watch);
 
   const a11y = await watch.collectA11y(page);
   writeJourneyReport(J, watch, a11y);

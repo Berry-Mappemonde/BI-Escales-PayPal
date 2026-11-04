@@ -19,12 +19,13 @@ test("supporter, captain, treasurer, ledger", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("demo-mode-banner")).toBeVisible();
   await expect(page.getByTestId("health-status")).toHaveText(/disponible/i);
-  await expect(page.getByTestId("scheduler-past").first()).toBeVisible();
+  await expect(page.getByText("2027-05-15")).toBeVisible();
+  await expect(page.getByText("2026-09-01")).toHaveCount(0);
   await snap(page, J, "01-home-fr", watch);
 
   await page.getByRole("button", { name: "English" }).click();
   await expect(page.getByTestId("health-status")).toHaveText("Backend reachable");
-  await expect(page.getByTestId("date-mismatch").first()).toBeVisible();
+  await expect(page.getByText("2027-05-15")).toBeVisible();
   await snap(page, J, "02-language-en", watch);
   const a11yEarly = await watch.collectA11y(page);
 
@@ -67,11 +68,7 @@ test("supporter, captain, treasurer, ledger", async ({ page }) => {
   await expect(page.getByTestId("captain-model-source")).toBeVisible();
   await snap(page, J, "10-captain-review", watch);
 
-  await page.getByTestId("paypal-demo-approve").click();
-  await expect(page.locator(".pledge-button .notice.error")).toBeVisible();
-  await snap(page, J, "11-pledge-rejected-unknown-milestone", watch);
-
-  await page.locator(".pledge-form input").nth(2).fill("dep-mayotte");
+  await expect(page.locator(".pledge-form input").nth(2)).toHaveValue("dep-mayotte");
   await page.getByTestId("paypal-demo-approve").click();
   await expect(page.getByTestId("pledge-status")).toHaveText("Pledge authorized");
   await snap(page, J, "12-pledge-authorized", watch);

@@ -36,6 +36,13 @@ from app.escales.naviguide_bridge import (
     sync_milestone_shells,
 )
 from app.escales.paypal_client import PayPalClient, PayPalError
+from app.escales.rate_limit import (
+    RateLimited,
+    client_ip,
+    hit as hit_captain_rate,
+    lang_for,
+    limit_message,
+)
 from app.escales.pledges import (
     IllegalTransition,
     PledgeNotFound,
@@ -316,8 +323,22 @@ async def post_evidence(milestone_id: str, body: EvidenceIn):
     return {"milestone_id": milestone_id, **evidence}
 
 
+def _enforce_captain_rate(request: Request, text: str = "") -> None:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    host = request.client.host if request.client else ""
+    try:
+        hit_captain_rate(client_ip(forwarded, host))
+    except RateLimited as exc:
+        lang = lang_for(request.headers.get("accept-language", ""), text)
+        raise HTTPException(
+            status_code=429,
+            detail=limit_message(exc.kind, lang, exc.limit),
+        ) from exc
+
+
 @router.post("/captain/review/{milestone_id}")
-async def post_review(milestone_id: str):
+async def post_review(milestone_id: str, request: Request):
+    _enforce_captain_rate(request)
     try:
         return await captain_review(milestone_id, reader=_reader())
     except (PayPalError, ValueError) as exc:
@@ -325,7 +346,8 @@ async def post_review(milestone_id: str):
 
 
 @router.post("/captain/chat")
-async def post_chat(body: ChatIn):
+async def post_chat(body: ChatIn, request: Request):
+    _enforce_captain_rate(request, body.message)
     try:
         return await captain_chat(body.message)
     except ValueError as exc:

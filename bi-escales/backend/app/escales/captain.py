@@ -10,6 +10,7 @@ import datetime as dt
 import json
 import logging
 import re
+import time
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
@@ -37,7 +38,8 @@ _MILES = re.compile(
 )
 _DINNER = re.compile(r"\bd[iî]ners?\b|\bdinners?\b", re.IGNORECASE)
 _PLACE = re.compile(
-    r"(?:près de|pres de|près d'|pres d'|near)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ-]{1,40})",
+    r"(?:près de|pres de|près d['’]|pres d['’]|near)\s+"
+    r"([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’ \-]{0,60})",
     re.IGNORECASE,
 )
 
@@ -184,7 +186,8 @@ _EN_REPORT = re.compile(
 _FR_REPORT = re.compile(
     r"\b(?:le|la|les|un|une|des|du|est|sont|cette|avec|pour|dans|"
     r"atteinte?|jalon|preuve|proposition|tr[ée]sorier|escale|arriv[ée]e|"
-    r"enregistr\w*|marqu[ée]e|consultatif|bateau|fonds|lib[ée]r\w*)\b",
+    r"enregistr\w*|marqu[ée]e|consultatif|bateau|fonds|lib[ée]r\w*|"
+    r"parcourue|distance|source|vers|pr[ée]vus|navire|route)\b",
     re.IGNORECASE,
 )
 _ECHO_RE = re.compile(
@@ -198,6 +201,9 @@ _ECHO_RE = re.compile(
     r"|est consultatif"
     r"|these instructions"
     r"|ces instructions"
+    r"|mention membership only"
+    r"|you were given"
+    r"|on vous a donn"
     r"|^\s*decision\s*:"
     r"|^\s*d[ée]cision\s*:",
     re.IGNORECASE,
@@ -225,15 +231,68 @@ def _no_pledge_suggestion(message: str) -> bool:
     return _is_treasurer_question(message) or _is_status_question(message)
 
 
+# Accent fold shared with the schedule slug. Spaces and dashes collapse later.
+_ACCENT_FOLD = str.maketrans(
+    "àâäáéèêëíìîïóòôöúùûüçñ",
+    "aaaaeeeeiiiioooouuuucn",
+)
+# Canonical spelling. The schedule names overlay this table, so every escale
+# id is shown as its name and never as a title-cased ``dep-`` slug.
+_CANONICAL_DISPLAY = {
+    "lorient": "Lorient",
+    "dakar": "Dakar",
+    "brest": "Brest",
+    "mayotte": "Mayotte",
+    "fort-de-france": "Fort-de-France",
+    "pointe-a-pitre": "Pointe-à-Pitre",
+}
+
+
+def _fold_token(text: str) -> str:
+    return (text or "").casefold().translate(_ACCENT_FOLD)
+
+
+def _escale_slug(token: str) -> str:
+    """``dep-fort-de-france`` and ``Pointe-à-Pitre`` share one hyphenated key."""
+    slug = re.sub(r"[^a-z0-9]+", "-", _fold_token(token)).strip("-")
+    if slug.startswith("dep-"):
+        slug = slug[4:]
+    return slug
+
+
+def _compact(text: str) -> str:
+    """Accents, dashes, and spaces removed, for chat matching."""
+    return re.sub(r"[^a-z0-9]+", "", _fold_token(text))
+
+
+def _display_names() -> dict[str, str]:
+    """Slug → reader name. Schedule rows cover every exported escale id."""
+    table = dict(_CANONICAL_DISPLAY)
+    from .naviguide_bridge import local_schedule_export
+
+    for item in local_schedule_export().get("escales") or []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        for raw in (item.get("slug"), item.get("milestone_id"), item.get("name")):
+            slug = _escale_slug(str(raw or ""))
+            if slug:
+                table[slug] = name
+    return table
+
+
 def display_name(milestone_id: str) -> str:
-    """Port slug as shown to a reader: lorient -> Lorient, dakar -> Dakar."""
+    """Reader name for an escale id. The ``dep-`` prefix is never shown."""
     raw = (milestone_id or "").strip()
     if not raw:
         return raw
-    return "-".join(
-        (part[:1].upper() + part[1:]) if part else part
-        for part in raw.split("-")
-    )
+    slug = _escale_slug(raw)
+    shown = _display_names().get(slug)
+    if shown:
+        return shown
+    return slug or raw
 
 
 def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -> str:
@@ -300,8 +359,7 @@ def _chat_system(lang: str) -> str:
     )
 
 
-# Ports the captain already names. A distorted spelling maps onto one of these.
-_KNOWN_PORTS = ("lorient", "dakar", "brest", "mayotte", "fort-de-france")
+# A distorted spelling maps onto a slug from the display table.
 
 
 def _edit_distance(left: str, right: str) -> int:
@@ -354,15 +412,15 @@ def _matches_port(token: str, canonical: str) -> bool:
 
 
 def _canonical_slug(token: str, extra: str = "") -> Optional[str]:
-    folded = re.sub(r"[^a-z0-9-]+", "", (token or "").casefold())
+    folded = _escale_slug(token)
     if not folded:
         return None
     pool: list[str] = []
-    for name in (*_KNOWN_PORTS, (extra or "").casefold()):
+    for name in (*_display_names(), _escale_slug(extra)):
         if name and name not in pool:
             pool.append(name)
     for name in pool:
-        if folded == name:
+        if folded == name or _compact(folded) == _compact(name):
             return name
     best: Optional[str] = None
     best_distance = 99
@@ -382,14 +440,32 @@ def _canonical_slug(token: str, extra: str = "") -> Optional[str]:
     return best
 
 
-def _place(message: str) -> str:
+def _resolve_escale(token: str) -> Optional[str]:
+    """Known escale inside a phrase, then a close spelling such as lorain."""
+    compact = _compact(token)
+    if compact:
+        best: Optional[str] = None
+        best_len = 0
+        for slug, shown in _display_names().items():
+            for key in (_compact(slug), _compact(shown)):
+                if key and key in compact and len(key) > best_len:
+                    best = slug
+                    best_len = len(key)
+        if best:
+            return best
+    return _canonical_slug(token)
+
+
+def _place(message: str) -> Optional[str]:
+    """Escale named in the message. None when none of the schedule matches.
+
+    Accents, dashes, spaces, and case do not matter: Pointe-à-Pitre,
+    pointe a pitre, and POINTEAPITRE are the same stop.
+    """
     match = _PLACE.search(message or "")
-    if not match:
-        return "unspecified"
-    slug = re.sub(r"[^a-z0-9]+", "-", match.group(1).lower()).strip("-")
-    if not slug:
-        return "unspecified"
-    return _canonical_slug(slug) or slug
+    if match:
+        return _resolve_escale(match.group(1))
+    return _resolve_escale(message or "")
 
 
 def _format_count(count: Decimal) -> str:
@@ -443,6 +519,8 @@ def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
         return None
     text = message or ""
     place = _place(text)
+    if not place:
+        return None
     counts: list[Decimal] = []
     for match in _MILES.finditer(text):
         try:
@@ -565,18 +643,47 @@ def _dedupe_sentences(text: str) -> str:
     return " ".join(kept).strip()
 
 
-def _prepare_model_narrative(text: str) -> str:
+def _plain_distance_tokens(text: str, lang: str) -> str:
+    """Lightning copies the JSON keys. Readers see plain words."""
+    if lang == "en":
+        covered, planned = "distance covered", "planned distance"
+    else:
+        covered, planned = "distance parcourue", "distance prévue"
+    cleaned = re.sub(r"\bdistance_nm\b", covered, text or "", flags=re.IGNORECASE)
+    return re.sub(r"\bplanned_nm\b", planned, cleaned, flags=re.IGNORECASE)
+
+
+def _fix_sentence_starts(text: str) -> str:
+    """Capitalize after a sentence stop. Dots inside a URL stay as they are.
+
+    ``tracée.en route`` is split because the word before the stop carries an
+    accent. ``www.helloasso.com`` does not.
+    """
+    cleaned = re.sub(
+        r"([A-Za-zÀ-ÿ]*[À-ÿ][.!?…])(?=[A-Za-zÀ-ÿ])",
+        r"\1 ",
+        text or "",
+    )
+
+    def upper(match: re.Match) -> str:
+        return match.group(1) + match.group(2).upper()
+
+    return re.sub(r"(^|[.!?…]\s+)([a-zà-ÿ])", upper, cleaned)
+
+
+def _prepare_model_narrative(text: str, lang: str = "fr") -> str:
     """Drop echoed instructions, a repeated Decision line, and a cut-off tail."""
-    cleaned = _strip_signatures(text or "")
+    cleaned = _plain_distance_tokens(text or "", lang)
+    cleaned = _strip_signatures(cleaned)
     cleaned = _drop_verbless_signatures(cleaned)
     cleaned = _normalize_dots(cleaned)
     cleaned = _drop_sentences(cleaned, _ECHO_RE)
     cleaned = _drop_sentences(cleaned, _POLICY_RE)
-    return _trim_cutoff(cleaned)
+    return _fix_sentence_starts(_trim_cutoff(cleaned))
 
 
 def _finish_text(text: str) -> str:
-    return _dedupe_sentences(_normalize_dots(text or ""))
+    return _fix_sentence_starts(_dedupe_sentences(_normalize_dots(text or "")))
 
 
 def _signature(lang: str) -> str:
@@ -965,6 +1072,7 @@ def _compose_chat_reply(
     lang: str,
     *,
     treasurer: bool,
+    ask_escale: bool = False,
 ) -> str:
     """Pledge repeated exactly, one signature, at most 80 words."""
     if treasurer or not suggested:
@@ -973,12 +1081,17 @@ def _compose_chat_reply(
                 prose = "This question belongs to the treasurer review. The captain does not decide it."
             else:
                 prose = "Cette question relève de la revue du trésorier. Le capitaine ne la tranche pas."
+        elif ask_escale:
+            if lang == "en":
+                prose = "Which escale? Name the stop and I will compute the pledge."
+            else:
+                prose = "Quelle escale ? Indiquez son nom pour que je calcule la promesse."
         elif lang == "en":
             prose = "This question is about status. The captain does not suggest a pledge."
         else:
             prose = "Cette question porte sur le statut. Le capitaine ne propose pas de promesse."
         return _fit_words("", [prose, _signature(lang)])
-    prose = _prepare_model_narrative(model_text)
+    prose = _prepare_model_narrative(model_text, lang)
     port_id = str(suggested.get("milestone_id") or "")
     prose = _fix_port_typos(prose, port_id)
     prose = _clean_model_urls(prose, url)
@@ -1106,11 +1219,20 @@ async def _llm_text(
             return None, _rules_source()
     except Exception:
         return None, _rules_source()
+    started = time.monotonic()
     try:
         raw = await llm.ask_text(
             prompt, system=system, max_tokens=max_tokens, temperature=temperature,
         )
-    except Exception:
+    except Exception as exc:
+        from app.core.llm import safe_error_message
+
+        log.warning(
+            "captain llm failed in %.3fs (%s): %s",
+            time.monotonic() - started,
+            type(exc).__name__,
+            safe_error_message(exc),
+        )
         return None, _rules_source()
     text = _text_of(raw)
     if not text:
@@ -1299,7 +1421,7 @@ async def _narrative_for_language(
             temperature=_REPORT_TEMPERATURE,
         )
         raw = narrative or ""
-        usable = _prepare_model_narrative(raw) if raw else ""
+        usable = _prepare_model_narrative(raw, prompt_lang) if raw else ""
         return raw, usable, source
 
     raw, usable, source = await once(system)
@@ -1441,6 +1563,7 @@ async def chat(message: str) -> dict:
     lang = message_lang(text)
     treasurer = _is_treasurer_question(text)
     suggested = suggest_pledge(text, lang)
+    ask_escale = suggested is None and not treasurer and not _is_status_question(text)
     allowed = {"message": text, "suggested": suggested, "membership_url": url}
     if treasurer or suggested is None:
         # Do not send this question to a model: the horizon rule stays in code.
@@ -1456,7 +1579,9 @@ async def chat(message: str) -> dict:
             raw = filter_numbers(raw, allowed, lang=lang)
         else:
             raw, source = "", _rules_source()
-    reply = _compose_chat_reply(raw or "", suggested, url, lang, treasurer=treasurer)
+    reply = _compose_chat_reply(
+        raw or "", suggested, url, lang, treasurer=treasurer, ask_escale=ask_escale,
+    )
     return {
         "reply": reply,
         "membership_url": url,

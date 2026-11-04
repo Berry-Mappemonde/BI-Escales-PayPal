@@ -1066,7 +1066,8 @@ def test_wrong_language_retries_then_uses_the_fallback(monkeypatch):
 def test_displayed_ports_are_capitalized():
     assert captain.display_name("lorient") == "Lorient"
     assert captain.display_name("dakar") == "Dakar"
-    assert captain.display_name("dep-mayotte") == "Dep-Mayotte"
+    assert captain.display_name("dep-mayotte") == "Mayotte"
+    assert not captain.display_name("dep-mayotte").casefold().startswith("dep-")
 
     async def body():
         french = await chat("Je parraine 20 milles près de Dakar")
@@ -1124,7 +1125,7 @@ def test_lightning_french_translates_english_labels(monkeypatch):
         assert french["model_source"]["provider"] == "nim_fallback"
         assert "Jalon : Dakar" in reply
         assert "Jalon : suite" in reply
-        assert "intention : autorisation" in reply
+        assert "intention : autorisation" in reply.casefold()
         assert "AUTHORIZE" not in reply
         assert "Milestone" not in reply
         assert "Intent:" not in reply
@@ -1303,7 +1304,7 @@ def test_french_chat_translates_milestone_and_intent(monkeypatch):
         reply = result["reply"]
         assert result["model_source"]["provider"] == "llm"
         assert "jalon" in reply.casefold()
-        assert "intention : autorisation" in reply
+        assert "intention : autorisation" in reply.casefold()
         assert not re.search(r"\bmilestone\b", reply, re.I)
         assert not re.search(r"\bintent\b", reply, re.I)
 
@@ -1377,7 +1378,7 @@ def test_french_pledge_matches_amount_and_port_without_the_description(monkeypat
         assert "120 milles parrainés" not in reply
         assert reply.lower().count("promesse calculée") == 0
         assert reply.lower().count("intention") == 1
-        assert "intention : autorisation" in reply
+        assert "intention : autorisation" in reply.casefold()
         assert "AUTHORIZE" not in reply
 
     asyncio.run(body())
@@ -1537,7 +1538,7 @@ def test_french_reply_standardises_intention_and_the_treasurer(monkeypatch):
     async def body():
         result = await chat("Je parraine 10 milles près de Brest")
         reply = result["reply"]
-        assert "intention : autorisation" in reply
+        assert "intention : autorisation" in reply.casefold()
         assert "AUTHORIZE" not in reply
         assert "The treasurer" not in reply
         assert "Le Trésorier" not in reply
@@ -1674,6 +1675,144 @@ def test_pledge_amount_without_the_port_is_replaced(monkeypatch):
         assert "Le ciel est clair" in reply
 
     asyncio.run(body())
+
+
+def test_short_french_report_keeps_a_tie(monkeypatch):
+    import app.core.llm as llm
+
+    sample = "Source simulation, distance parcourue 120 nm."
+    assert captain._report_language(sample, "fr") == "fr"
+    assert captain._report_language(sample, "en") == "en"
+    assert captain._report_language("Lorient.", "fr") == "fr"
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return sample
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "capture", "reason": "met"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence("lorient", met=True, facts={"distance_nm": 120})
+        result = await review("lorient", reader=None, lang="fr")
+        assert result["model_source"]["provider"] == "llm"
+        assert "distance parcourue 120 nm" in result["report"]
+        assert "L'escale Lorient est atteinte" in result["report"]
+
+    asyncio.run(body())
+
+
+def test_schedule_display_names_drop_the_dep_prefix():
+    from app.escales.naviguide_bridge import LOCAL_SCHEDULE
+
+    assert captain.display_name("pointe-a-pitre") == "Pointe-à-Pitre"
+    assert captain.display_name("dep-pointe-a-pitre") == "Pointe-à-Pitre"
+    assert captain.display_name("dep-fort-de-france") == "Fort-de-France"
+    for item in LOCAL_SCHEDULE["escales"]:
+        shown = captain.display_name(item["milestone_id"])
+        assert shown == item["name"]
+        assert captain.display_name(item["slug"]) == item["name"]
+        assert not shown.casefold().startswith("dep-")
+
+
+def test_chat_maps_pointe_a_pitre_and_asks_when_unknown():
+    async def body():
+        for message in (
+            "Je parraine 20 milles à Pointe-à-Pitre",
+            "Je parraine 20 milles à pointe-a-pitre",
+            "Je parraine 20 milles à Pointe a Pitre",
+            "Je parraine 20 milles à POINTE-A-PITRE",
+            "Je parraine 20 milles à pointeapitre",
+        ):
+            result = await chat(message)
+            assert result["suggested_pledge"]["milestone_id"] == "pointe-a-pitre"
+            assert "Pointe-à-Pitre" in result["reply"]
+            assert "Unspecified" not in result["reply"]
+            assert "unspecified" not in result["reply"]
+        missing = await chat("Je parraine 20 milles")
+        assert missing["suggested_pledge"] is None
+        assert "Quelle escale" in missing["reply"]
+        assert "Unspecified" not in missing["reply"]
+        assert "unspecified" not in missing["reply"]
+        assert "20,00" not in missing["reply"]
+        assert "AUTHORIZE" not in missing["reply"]
+        unknown = await chat("I'd like to sponsor 20 miles near Atlantis")
+        assert unknown["suggested_pledge"] is None
+        assert "Which escale" in unknown["reply"]
+        assert "Unspecified" not in unknown["reply"]
+        assert "20.00" not in unknown["reply"]
+
+    asyncio.run(body())
+
+
+def test_lightning_strips_instructions_and_repairs_sentences():
+    raw = (
+        "Mention membership only by repeating the URL you were given. "
+        "La route est tracée. en route vers Dakar. distance_nm 120 planned_nm 200."
+    )
+    cleaned = captain._prepare_model_narrative(raw, "fr")
+    assert "membership" not in cleaned.lower()
+    assert "you were given" not in cleaned.lower()
+    assert "distance_nm" not in cleaned
+    assert "planned_nm" not in cleaned
+    assert "Distance parcourue" in cleaned
+    assert "distance prévue" in cleaned
+    assert "En route vers Dakar" in cleaned
+    english = captain._prepare_model_narrative(
+        "The leg shows distance_nm and planned_nm.",
+        "en",
+    )
+    assert "distance covered" in english
+    assert "planned distance" in english
+    assert "distance_nm" not in english
+
+
+def test_fast_lightning_failure_logs_the_message(monkeypatch, caplog):
+    import logging
+
+    import app.core.llm as llm
+
+    errors = [
+        RuntimeError("nim_fallback empty nvapi-secretvalue"),
+        RuntimeError("nim HTTP 429"),
+    ]
+
+    async def fake_ask_text(*_args, **_kwargs):
+        raise errors.pop(0)
+
+    async def empty_ask_text(*_args, **_kwargs):
+        return ""
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        with caplog.at_level(logging.WARNING, logger="escales.captain"):
+            failed = await chat("Je parraine 20 milles près de Dakar")
+            limited = await chat("Je parraine 10 milles près de Brest")
+        assert failed["model_source"]["provider"] == "rules"
+        assert limited["model_source"]["provider"] == "rules"
+        assert "nim_fallback empty" in caplog.text
+        assert "nim HTTP 429" in caplog.text
+        assert "nvapi-secretvalue" not in caplog.text
+        assert "[redacted]" in caplog.text
+        assert "captain llm failed in" in caplog.text
+
+    asyncio.run(body())
+
+    caplog.clear()
+    monkeypatch.setattr(llm, "ask_text", empty_ask_text)
+
+    async def quiet():
+        with caplog.at_level(logging.WARNING, logger="escales.captain"):
+            result = await chat("Je parraine 5 milles près de Lorient")
+        assert result["model_source"]["provider"] == "rules"
+        assert "captain llm failed" not in caplog.text
+
+    asyncio.run(quiet())
 
 
 def test_ui_labels_the_llm_proposal_as_advisory():

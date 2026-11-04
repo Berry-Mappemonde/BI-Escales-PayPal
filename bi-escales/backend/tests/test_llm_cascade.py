@@ -466,7 +466,8 @@ def test_captain_review_exposes_nim_and_never_captures(monkeypatch):
         assert result["proposal"] == "capture"
         assert result["model_source"] == {"provider": "nim", "model": llm.NIM_MODEL_DEFAULT}
         assert "annuler" in result["report"]
-        assert "Dep-Mayotte" in result["report"]
+        assert "Mayotte" in result["report"]
+        assert "Dep-Mayotte" not in result["report"]
         narrative = seen_box["narrative"]
         assert narrative[0]["body"]["temperature"] == 0.2
         sentences = [part for part in result["report"].replace("!", ".").replace("?", ".").split(".") if part.strip()]
@@ -569,7 +570,7 @@ def test_captain_uses_rules_when_every_provider_fails(monkeypatch):
         result = await review("dep-mayotte", reader=None)
         assert result["model_source"] == {"provider": "rules", "model": ""}
         assert result["proposal"] == "capture"
-        assert result["report"].startswith("L'escale Dep-Mayotte est atteinte")
+        assert result["report"].startswith("L'escale Mayotte est atteinte")
         assert [item["host"] for item in seen_box["seen"]] == [
             "integrate.api.nvidia.com",
             "integrate.api.nvidia.com",
@@ -763,7 +764,8 @@ def test_report_temperature_is_about_0_2_unless_nim_env_overrides(monkeypatch):
         await record_evidence("dep-mayotte", met=True, facts={"port": "Mayotte"})
         result = await review("dep-mayotte", reader=None)
         assert seen[0]["body"]["temperature"] == 0.33
-        assert "Dep-Mayotte" in result["report"]
+        assert "Mayotte" in result["report"]
+        assert "Dep-Mayotte" not in result["report"]
         assert result["proposal"] == "capture"
 
     asyncio.run(body())

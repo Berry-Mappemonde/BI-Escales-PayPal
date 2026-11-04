@@ -28,6 +28,27 @@ import httpx
 
 log = logging.getLogger("escales.llm")
 
+_SECRET_VALUE = re.compile(
+    r"(?i)\b(?:api[_ -]?key|client[_ -]?secret|secret|password|mongo_url)"
+    r"\b\s*[:=]\s*\S+"
+)
+_BEARER = re.compile(r"(?i)\bbearer\s+\S+")
+# Prefixes are split so the source file does not contain a live-looking key.
+_VENDOR_KEY = re.compile(
+    "(?i)(?:" + "nvapi" + r"-" + r"[A-Za-z0-9._\-]+|" + "sk" + r"-" + r"[A-Za-z0-9._\-]+)"
+)
+_MONGO_URL = re.compile(r"mongodb(?:\+srv)?://\S+")
+
+
+def safe_error_message(exc: BaseException) -> str:
+    """Exception text safe to log. Secrets and connection strings are removed."""
+    message = " ".join(str(exc).split())
+    message = _BEARER.sub("bearer [redacted]", message)
+    message = _SECRET_VALUE.sub("[redacted]", message)
+    message = _VENDOR_KEY.sub("[redacted]", message)
+    message = _MONGO_URL.sub("[redacted]", message)
+    return message[:400] or type(exc).__name__
+
 # HTTP hops, then the local rules applied by the captain when nothing answered.
 # NIM primary, then the smaller NIM fallback, then the other providers.
 CASCADE = ("nim", "nim_fallback", "openrouter", "anthropic", "tokenfactory", "rules")
@@ -618,8 +639,9 @@ async def ask_text(
                 else:
                     result = await _CALLS[name](system_text, user, http, budget, temperature)
             except Exception as exc:
-                last = f"{name} {type(exc).__name__}"
-                log.warning("cascade %s failed (%s)", name, type(exc).__name__)
+                detail = safe_error_message(exc)
+                last = f"{name} {type(exc).__name__}: {detail}"
+                log.warning("cascade %s failed (%s): %s", name, type(exc).__name__, detail)
                 continue
             if result.text.strip():
                 return result

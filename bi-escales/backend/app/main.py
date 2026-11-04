@@ -16,3 +16,4 @@ if _escales_on:
     from app.routers import escales
 
     app.include_router(escales.router)
+    app.include_router(escales.webhooks_router)

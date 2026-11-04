@@ -162,3 +162,25 @@ class PayPalClient:
 
     def delete_payment_token(self, vault_id: str) -> dict:
         return self._req("DELETE", f"/v3/vault/payment-tokens/{vault_id}")
+
+    def verify_webhook_signature(
+        self,
+        *,
+        auth_algo: str,
+        cert_url: str,
+        transmission_id: str,
+        transmission_sig: str,
+        transmission_time: str,
+        webhook_id: str,
+        webhook_event: dict,
+    ) -> dict:
+        body = {
+            "auth_algo": auth_algo,
+            "cert_url": cert_url,
+            "transmission_id": transmission_id,
+            "transmission_sig": transmission_sig,
+            "transmission_time": transmission_time,
+            "webhook_id": webhook_id,
+            "webhook_event": webhook_event,
+        }
+        return self._req("POST", "/v1/notifications/verify-webhook-signature", body)

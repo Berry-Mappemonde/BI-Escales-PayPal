@@ -1,0 +1,124 @@
+{
+  "info": {
+    "_postman_id": "escales-sandbox-scenario",
+    "name": "BI Escales — Pay Only If We Sail (sandbox)",
+    "description": "Optional Postman scenario for the PayPal sandbox. Import only when testing against a running API; the backend does not require Postman.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "baseUrl", "value": "http://127.0.0.1:8000"},
+    {"key": "adminKey", "value": "change-me"},
+    {"key": "milestoneId", "value": "dep-mayotte"},
+    {"key": "pledgeIdCapture", "value": ""},
+    {"key": "pledgeIdVoid", "value": ""}
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/health"
+      }
+    },
+    {
+      "name": "1 — Create pledge (capture path)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('pledgeIdCapture', body.id);",
+              "pm.test('created', () => pm.expect(body.status).to.eql('created'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"},
+          {"key": "PayPal-Request-Id", "value": "postman-pledge-capture"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount_eur\": \"20.00\",\n  \"description\": \"20 milles Mayotte\",\n  \"milestone_id\": \"{{milestoneId}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/escales/pledges"
+      }
+    },
+    {
+      "name": "2 — Authorize pledge (capture path)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/api/escales/pledges/{{pledgeIdCapture}}/authorize"
+      }
+    },
+    {
+      "name": "3 — Create pledge (void path)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('pledgeIdVoid', body.id);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"},
+          {"key": "PayPal-Request-Id", "value": "postman-pledge-void"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"amount_eur\": \"60.00\",\n  \"description\": \"Dîner escale\",\n  \"milestone_id\": \"{{milestoneId}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/escales/pledges"
+      }
+    },
+    {
+      "name": "4 — Authorize pledge (void path)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/api/escales/pledges/{{pledgeIdVoid}}/authorize"
+      }
+    },
+    {
+      "name": "5 — Capture (treasurer)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "x-admin-key", "value": "{{adminKey}}"}
+        ],
+        "url": "{{baseUrl}}/api/escales/pledges/{{pledgeIdCapture}}/capture"
+      }
+    },
+    {
+      "name": "6 — Void other pledge (treasurer)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "x-admin-key", "value": "{{adminKey}}"}
+        ],
+        "url": "{{baseUrl}}/api/escales/pledges/{{pledgeIdVoid}}/void"
+      }
+    },
+    {
+      "name": "7 — Milestones (evidence snapshot)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/escales/milestones"
+      }
+    }
+  ]
+}

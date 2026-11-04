@@ -324,6 +324,7 @@ def test_main_registers_escales_only_when_enabled():
         if line.startswith("from app.routers import") and "escales" in line:
             raise AssertionError("escales must be imported only inside the ESCALES_ENABLED branch")
     assert "\n    from app.routers import escales\n" in text
+    assert "webhooks_router" in text
 
 
 def test_schedule_local_fallback(api):
@@ -340,4 +341,3 @@ def test_features_flags_off_by_default(api):
     flags = client.get("/api/escales/features").json()
     assert flags["naviguide_bridge"] is False
     assert flags["bryntum"] is False
-

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { authorizePledge, fetchFund, fetchFeatures, fetchHealthRetrying, fetchSchedule, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
 import { nextStopover } from "./voyage/nextStopover.js";
 import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
@@ -253,6 +254,9 @@ export default function App() {
       window.history.replaceState({}, "", `${next.pathname}${next.search}${next.hash}`);
       if (vaultParsed.action === "cancel") {
         setPaypalNote("vaultRetry");
+        if (vaultParsed.pledgeId) {
+          emitPledgeReturn({ pledgeId: vaultParsed.pledgeId, outcome: "cancel" });
+        }
         return undefined;
       }
       if (!vaultParsed.pledgeId) return undefined;
@@ -263,9 +267,11 @@ export default function App() {
           void pledgeQueueRef.current.refresh();
           setPaypalNote("vaultSaved");
           setHealthOk(true);
+          emitPledgeReturn({ pledgeId: vaultParsed.pledgeId, outcome: "authorized" });
         })
         .catch(() => {
           setPaypalNote("vaultFailed");
+          emitPledgeReturn({ pledgeId: vaultParsed.pledgeId, outcome: "error" });
         });
       return undefined;
     }
@@ -280,6 +286,9 @@ export default function App() {
     window.history.replaceState({}, "", `${next.pathname}${next.search}${next.hash}`);
     if (parsed.action === "cancel") {
       setPaypalNote("cancel");
+      if (parsed.pledgeId) {
+        emitPledgeReturn({ pledgeId: parsed.pledgeId, outcome: "cancel" });
+      }
       return undefined;
     }
     if (!parsed.pledgeId) return;
@@ -290,9 +299,12 @@ export default function App() {
         void pledgeQueueRef.current.refresh();
         setPaypalNote("authorized");
         setHealthOk(true);
+        emitPledgeReturn({ pledgeId: parsed.pledgeId, outcome: "authorized" });
       })
       .catch((err: unknown) => {
-        setPaypalNote(err instanceof Error ? err.message : String(err));
+        const message = err instanceof Error ? err.message : String(err);
+        setPaypalNote(message);
+        emitPledgeReturn({ pledgeId: parsed.pledgeId, outcome: "error", message });
       });
   }, []);
 

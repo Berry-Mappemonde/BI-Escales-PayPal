@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { createPledge, registerVault, isVaultPledge } from "../api/escales";
 import type { PublicPledge } from "../api/types";
 import { loadPayPalSdk, payLaterEligible } from "../paypal/paypalSdk";
+import { subscribePledgeReturn } from "../paypal/pledgeReturnEvents";
 
 export interface PledgeFormValues {
   amount_eur: string;
@@ -27,6 +28,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
   const [busy, setBusy] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const sdkHost = useRef<HTMLDivElement | null>(null);
+  const activePledgeIdRef = useRef<string | null>(null);
   const vault = created ? isVaultPledge(created) : false;
 
   useEffect(() => {
@@ -55,6 +57,22 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
     window.location.assign(created.approve_link);
   }, [created, vault]);
 
+  useEffect(() => {
+    return subscribePledgeReturn((detail) => {
+      const activeId = activePledgeIdRef.current || created?.id;
+      if (activeId && detail.pledgeId !== activeId) return;
+      setBusy(false);
+      setStatus(null);
+      setCreated(null);
+      activePledgeIdRef.current = null;
+      if (detail.outcome === "error") {
+        setError(detail.message || t("pledge.error"));
+      } else {
+        setError(null);
+      }
+    });
+  }, [created?.id, t]);
+
   const createOrder = async () => {
     setBusy(true);
     setError(null);
@@ -72,6 +90,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
         crypto.randomUUID(),
       );
       if (!pledge.approve_link) throw new Error("approve_link missing");
+      activePledgeIdRef.current = pledge.id;
       setCreated(pledge);
       if (isVaultPledge(pledge)) {
         setStatus(t("pledge.vaultRedirect"));
@@ -79,6 +98,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
         setStatus(t("pledge.returnPending"));
       }
     } catch (e) {
+      activePledgeIdRef.current = null;
       setCreated(null);
       setError(e instanceof Error ? e.message : String(e));
     } finally {

@@ -86,6 +86,17 @@ def test_filter_numbers_drops_figures_absent_from_evidence():
     assert "[?]" in out
 
 
+def test_filter_numbers_accepts_equivalent_amount_spellings():
+    facts = {"amount_eur": "120.00"}
+    out = filter_numbers("Montants 120, 120.00 et 120,00.", facts)
+    assert "[?]" not in out
+    assert "120" in out
+    assert "120.00" in out
+    assert "120,00" in out
+    assert filter_numbers("12", facts) == "[?]"
+    assert filter_numbers("999", {"distance_nm": 120}) == "[?]"
+
+
 def test_captain_source_has_no_capture_or_void():
     source = inspect.getsource(captain)
     assert "capture_authorization" not in source
@@ -133,6 +144,7 @@ def test_captain_review_never_captures_or_voids():
         assert result["proposal"] == "capture"
         assert result["pledge_ids"] == [pledge["_id"]]
         assert "simulation" in (result["report"] + result["justification"])
+        assert result["model_source"] == {"provider": "rules", "model": ""}
         names = [call[0] for call in spy.calls]
         assert "capture" not in names
         assert "void" not in names
@@ -176,6 +188,7 @@ def test_review_strips_numbers_not_in_the_evidence(monkeypatch):
         assert "999" not in text
         assert "[?]" in text
         assert result["proposal"] == "capture"
+        assert result["model_source"] == {"provider": "llm", "model": ""}
 
     asyncio.run(body())
 
@@ -197,6 +210,7 @@ def test_chat_offers_membership_url_and_does_not_order(monkeypatch):
         assert pledge["milestone_id"] == "mayotte"
         assert "order_id" not in result
         assert "999" not in result["reply"]
+        assert result["model_source"] == {"provider": "rules", "model": ""}
 
     asyncio.run(body())
 
@@ -217,5 +231,85 @@ def test_chat_strips_an_invented_price(monkeypatch):
         assert "[?]" in result["reply"]
         assert result["membership_url"] in result["reply"]
         assert result["suggested_pledge"]["amount_eur"] == "20.00"
+        assert result["model_source"] == {"provider": "llm", "model": ""}
+
+    asyncio.run(body())
+
+
+def test_chat_repeats_the_pledge_in_the_message_language(monkeypatch):
+    import app.core.llm as llm
+
+    seen = {}
+
+    async def fake_ask_text(prompt, system=None, **_kwargs):
+        seen["system"] = system
+        return "Of course, that leg can be sponsored."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setenv(
+        "HELLOASSO_MEMBERSHIP_URL",
+        "https://www.helloasso.com/associations/blue-intelligence/adhesions/membre",
+    )
+
+    async def body():
+        result = await chat("I'd like to sponsor 120 nautical miles near Lorient")
+        assert "Reply in English" in seen["system"]
+        assert "French" not in seen["system"]
+        reply = result["reply"]
+        assert "120.00" in reply
+        assert "120 milles parrainés" in reply
+        assert "lorient" in reply
+        assert "AUTHORIZE" in reply
+        assert result["membership_url"] in reply
+        assert reply.count("— The captain") == 1
+        assert "— Le capitaine" not in reply
+        assert len(reply.split()) <= 80
+        assert "[?]" not in reply
+
+    asyncio.run(body())
+
+
+def test_treasurer_questions_skip_the_model(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        raise AssertionError("the model must not answer a treasurer question")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat(
+            "Mon autorisation date d'il y a 28 jours, est-ce que vous allez l'encaisser ou l'annuler ?"
+        )
+        reply = result["reply"].lower()
+        assert "trésorier" in reply
+        assert "29" not in result["reply"]
+        assert "capture" not in reply
+        assert "void" not in reply
+        assert result["reply"].count("— Le capitaine") == 1
+        assert result["model_source"] == {"provider": "rules", "model": ""}
+        assert len(result["reply"].split()) <= 80
+
+    asyncio.run(body())
+
+
+def test_chat_keeps_one_signature_and_at_most_80_words(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return ("mot " * 200) + "— Le capitaine — Le capitaine"
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Brest")
+        reply = result["reply"]
+        assert reply.count("— Le capitaine") == 1
+        assert len(reply.split()) <= 80
+        assert "10.00" in reply
+        assert "brest" in reply
 
     asyncio.run(body())

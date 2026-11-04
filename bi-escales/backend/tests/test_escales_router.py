@@ -80,6 +80,7 @@ def api(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
     monkeypatch.delenv("ESCALES_TOOLKIT_ENABLED", raising=False)
+    monkeypatch.delenv("ESCALES_LLM_ENABLED", raising=False)
     reset_ledger()
     asyncio.run(seed_near())
     fake = FakePayPal()

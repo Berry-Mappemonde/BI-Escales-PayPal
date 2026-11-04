@@ -7,6 +7,7 @@ only writes the sentence; ``filter_numbers`` drops any figure it was not given.
 from __future__ import annotations
 
 import re
+from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
@@ -44,10 +45,33 @@ def allowed_numbers(facts: Any) -> set[str]:
     return found
 
 
+def _as_decimal(token: str) -> Optional[Decimal]:
+    """``120``, ``120.00`` and ``120,00`` are the same amount."""
+    try:
+        return Decimal(token.replace(",", "."))
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def filter_numbers(text: str, facts: Any) -> str:
-    """Replace any figure that is not already present in ``facts``."""
+    """Replace any figure that is not already present in ``facts``.
+
+    An amount already in the facts is kept in any of the spellings ``120``,
+    ``120.00`` and ``120,00``.
+    """
     allowed = allowed_numbers(facts)
-    return _NUMBER.sub(lambda match: match.group(0) if match.group(0) in allowed else "[?]", text or "")
+    values = {item for item in (_as_decimal(token) for token in allowed) if item is not None}
+
+    def replace(match: re.Match) -> str:
+        token = match.group(0)
+        if token in allowed:
+            return token
+        value = _as_decimal(token)
+        if value is not None and value in values:
+            return token
+        return "[?]"
+
+    return _NUMBER.sub(replace, text or "")
 
 
 def decision_for(met: Optional[bool]) -> str:

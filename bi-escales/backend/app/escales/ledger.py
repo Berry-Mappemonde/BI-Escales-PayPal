@@ -10,6 +10,7 @@ import datetime as dt
 import os
 import threading
 import uuid
+from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 PLEDGES_COLLECTION = "escales_pledges"
@@ -29,6 +30,26 @@ COLLECTIONS = (
 
 def now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+
+
+def pledge_defaults(doc: Optional[dict]) -> Optional[dict]:
+    """Promesse mille déjà stockée : ``kind`` manque, la cible est le jalon.
+
+    Copie le document. Ne réécrit pas la ligne d'origine, pour qu'une lecture
+    d'un vieux document mémoire ou Mongo reste compatible.
+    """
+    if not doc:
+        return None
+    out = copy.deepcopy(doc)
+    kind = str(out.get("kind") or "").strip().lower()
+    out["kind"] = kind or "mile"
+    target = str(out.get("target_id") or "").strip()
+    if target:
+        out["target_id"] = target
+    else:
+        milestone = str(out.get("milestone_id") or "").strip()
+        out["target_id"] = milestone or None
+    return out
 
 
 def _mongo_wanted() -> bool:
@@ -54,8 +75,8 @@ class MemoryLedger:
         with self._lock:
             key = doc.get("client_key")
             if key and key in self._by_key:
-                return copy.deepcopy(self._pledges[self._by_key[key]])
-            stored = copy.deepcopy(doc)
+                return pledge_defaults(self._pledges[self._by_key[key]])
+            stored = pledge_defaults(doc)
             self._pledges[stored["_id"]] = stored
             if key:
                 self._by_key[key] = stored["_id"]
@@ -63,7 +84,7 @@ class MemoryLedger:
 
     async def save_pledge(self, doc: dict) -> dict:
         with self._lock:
-            stored = copy.deepcopy(doc)
+            stored = pledge_defaults(doc)
             self._pledges[stored["_id"]] = stored
             key = stored.get("client_key")
             if key:
@@ -72,27 +93,26 @@ class MemoryLedger:
 
     async def get_pledge(self, pledge_id: str) -> Optional[dict]:
         with self._lock:
-            doc = self._pledges.get(pledge_id)
-            return copy.deepcopy(doc) if doc else None
+            return pledge_defaults(self._pledges.get(pledge_id))
 
     async def find_by_client_key(self, client_key: str) -> Optional[dict]:
         with self._lock:
             pledge_id = self._by_key.get(client_key)
             if not pledge_id:
                 return None
-            return copy.deepcopy(self._pledges[pledge_id])
+            return pledge_defaults(self._pledges[pledge_id])
 
     async def find_pledge_by_order_id(self, order_id: str) -> Optional[dict]:
         with self._lock:
             for doc in self._pledges.values():
                 if doc.get("order_id") == order_id:
-                    return copy.deepcopy(doc)
+                    return pledge_defaults(doc)
             return None
 
     async def list_pledges_for_milestone(self, milestone_id: str) -> list[dict]:
         with self._lock:
             return [
-                copy.deepcopy(doc)
+                pledge_defaults(doc)
                 for doc in self._pledges.values()
                 if doc.get("milestone_id") == milestone_id
             ]
@@ -212,39 +232,40 @@ class MongoLedger:
         if key:
             existing = await self._pledges.find_one({"client_key": key})
             if existing:
-                return existing
+                return pledge_defaults(existing)
+        stored = pledge_defaults(doc)
         try:
-            await self._pledges.insert_one(copy.deepcopy(doc))
+            await self._pledges.insert_one(copy.deepcopy(stored))
         except Exception as exc:
             if key and exc.__class__.__name__ == "DuplicateKeyError":
                 existing = await self._pledges.find_one({"client_key": key})
                 if existing:
-                    return existing
+                    return pledge_defaults(existing)
             raise
-        return doc
+        return stored
 
     async def save_pledge(self, doc: dict) -> dict:
         await self._ensure()
-        stored = copy.deepcopy(doc)
-        await self._pledges.replace_one({"_id": stored["_id"]}, stored, upsert=True)
+        stored = pledge_defaults(doc)
+        await self._pledges.replace_one({"_id": stored["_id"]}, copy.deepcopy(stored), upsert=True)
         return stored
 
     async def get_pledge(self, pledge_id: str) -> Optional[dict]:
         await self._ensure()
-        return await self._pledges.find_one({"_id": pledge_id})
+        return pledge_defaults(await self._pledges.find_one({"_id": pledge_id}))
 
     async def find_by_client_key(self, client_key: str) -> Optional[dict]:
         await self._ensure()
-        return await self._pledges.find_one({"client_key": client_key})
+        return pledge_defaults(await self._pledges.find_one({"client_key": client_key}))
 
     async def find_pledge_by_order_id(self, order_id: str) -> Optional[dict]:
         await self._ensure()
-        return await self._pledges.find_one({"order_id": order_id})
+        return pledge_defaults(await self._pledges.find_one({"order_id": order_id}))
 
     async def list_pledges_for_milestone(self, milestone_id: str) -> list[dict]:
         await self._ensure()
         cursor = self._pledges.find({"milestone_id": milestone_id})
-        return [doc async for doc in cursor]
+        return [pledge_defaults(doc) async for doc in cursor]
 
     async def append_evidence(self, milestone_id: str, evidence: dict) -> dict:
         await self._ensure()
@@ -374,3 +395,131 @@ async def record_finance(kind: str, **fields) -> dict:
 
 async def list_finance_entries() -> list[dict]:
     return await get_ledger().list_finance()
+
+
+_SPENDING_CAP = Decimal("10000.00")
+
+
+def _euros(value: Any) -> Decimal:
+    """Stored journal amount. NaN and Infinity count as zero, never 500."""
+    try:
+        amount = Decimal(str(value if value is not None else "0"))
+        if not amount.is_finite():
+            return Decimal("0.00")
+        return amount.quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        return Decimal("0.00")
+
+
+def _stopover_slug(value: str) -> str:
+    from ..escales_names import _slug
+
+    return _slug(str(value or ""))
+
+
+async def _require_stopover(milestone_id: str) -> str:
+    from .pledges import _known_stopover
+
+    slug = _stopover_slug(milestone_id)
+    if not slug or not await _known_stopover(slug):
+        raise LookupError("milestone not found")
+    return slug
+
+
+def _euros_text(amount: Decimal) -> str:
+    return f"{amount.quantize(Decimal('0.01')):.2f}"
+
+
+def _public_finance(entry: dict) -> dict:
+    return {
+        "id": entry.get("_id"),
+        "at": entry.get("at"),
+        "kind": entry.get("kind"),
+        "amount_eur": _euros_text(_euros(entry.get("amount_eur"))),
+        "currency": entry.get("currency") or "EUR",
+        "description": entry.get("description"),
+        "pledge_id": entry.get("pledge_id"),
+        "pledge_kind": entry.get("pledge_kind"),
+        "target_id": entry.get("target_id"),
+    }
+
+
+async def _income_line(entry: dict) -> dict:
+    """Captured line, with the pledge wording and the kind that was promised."""
+    public = _public_finance(entry)
+    pledge_id = entry.get("pledge_id")
+    pledge = await get_ledger().get_pledge(pledge_id) if pledge_id else None
+    if not pledge:
+        return public
+    row = pledge_defaults(pledge) or pledge
+    public["description"] = row.get("description") or public.get("description")
+    public["pledge_kind"] = row.get("kind")
+    public["target_id"] = row.get("target_id")
+    return public
+
+
+async def fund_for_milestone(milestone_id: str) -> dict:
+    """Income is captured pledges. Spending is what the treasurer entered.
+
+    ``dep-lorient`` and ``lorient`` are the same stopover. Unknown slugs raise
+    ``LookupError``. ``overdrawn`` is true when spending is above income.
+    """
+    slug = await _require_stopover(milestone_id)
+    income: list[dict] = []
+    spending: list[dict] = []
+    for entry in await list_finance_entries():
+        if _stopover_slug(str(entry.get("milestone_id") or "")) != slug:
+            continue
+        if entry.get("kind") == "pledge_captured":
+            income.append(entry)
+        elif entry.get("kind") == "spending":
+            spending.append(entry)
+    income_total = sum((_euros(entry.get("amount_eur")) for entry in income), Decimal("0.00"))
+    spending_total = sum((_euros(entry.get("amount_eur")) for entry in spending), Decimal("0.00"))
+    return {
+        "milestone_id": slug,
+        "currency": "EUR",
+        "income_eur": _euros_text(income_total),
+        "spending_eur": _euros_text(spending_total),
+        "balance_eur": _euros_text(income_total - spending_total),
+        "overdrawn": spending_total > income_total,
+        "income": [await _income_line(entry) for entry in income],
+        "spending": [_public_finance(entry) for entry in spending],
+    }
+
+
+async def record_spending(milestone_id: str, amount_eur: str, description: str) -> dict:
+    """Treasurer spending for one stopover. It does not call PayPal.
+
+    The amount uses the same two-decimal check as a pledge, and stays at or
+    under 10 000.00 EUR. It cannot push the stopover balance below zero.
+    """
+    from .pledges import normalize_amount
+
+    amount_text = normalize_amount(amount_eur)
+    amount = Decimal(amount_text)
+    if amount > _SPENDING_CAP:
+        raise ValueError("amount_eur must be at most 10000.00 EUR")
+    text = (description or "").strip()
+    if not text:
+        raise ValueError("description is required")
+    slug = await _require_stopover(milestone_id)
+    income_total = Decimal("0.00")
+    spending_total = Decimal("0.00")
+    for entry in await list_finance_entries():
+        if _stopover_slug(str(entry.get("milestone_id") or "")) != slug:
+            continue
+        if entry.get("kind") == "pledge_captured":
+            income_total += _euros(entry.get("amount_eur"))
+        elif entry.get("kind") == "spending":
+            spending_total += _euros(entry.get("amount_eur"))
+    if spending_total + amount > income_total:
+        raise ValueError("spending must not make the balance negative")
+    return await record_finance(
+        "spending",
+        milestone_id=slug,
+        amount_eur=amount_text,
+        currency="EUR",
+        description=text,
+        actor="treasurer",
+    )

@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 import httpx
 
+from ..escales_names import display_name
 from .config import naviguide_api_base, naviguide_bridge_enabled, naviguide_json_path
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
@@ -65,10 +66,12 @@ def escales_to_milestones(export: dict[str, Any]) -> list[dict[str, Any]]:
             if not name:
                 continue
             milestone_id = f"dep-{_slug(name)}"
+        shown = display_name(str(item.get("slug") or milestone_id))
         rows.append(
             {
                 "_id": milestone_id,
-                "title": item.get("name") or milestone_id,
+                "title": item.get("name") or shown,
+                "display_name": shown,
                 "arrival_iso": item.get("arrival_iso"),
                 "lat": item.get("lat"),
                 "lon": item.get("lon"),
@@ -126,6 +129,7 @@ async def sync_milestone_shells(export: Optional[dict[str, Any]] = None) -> list
             row["_id"],
             meta={
                 "title": row.get("title"),
+                "display_name": row.get("display_name"),
                 "arrival_iso": row.get("arrival_iso"),
                 "lat": row.get("lat"),
                 "lon": row.get("lon"),

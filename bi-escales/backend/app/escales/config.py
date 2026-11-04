@@ -1,11 +1,16 @@
 """Configuration from the environment. Sandbox is the only allowed PayPal environment."""
 from __future__ import annotations
 
+import datetime as dt
+import logging
 import os
 from dataclasses import dataclass
+from zoneinfo import ZoneInfo
 
 SANDBOX_BASE = "https://api-m.sandbox.paypal.com"
 AUTH_MAX_DAYS = 29
+log = logging.getLogger("escales.config")
+_TORONTO = ZoneInfo("America/Toronto")
 
 _TRUTHY = {"1", "true", "yes", "on"}
 _FALSY = {"0", "false", "no", "off"}
@@ -32,6 +37,51 @@ def escales_env() -> str:
     """``development`` unless ``ESCALES_ENV`` says otherwise."""
     raw = (os.environ.get("ESCALES_ENV") or "development").strip().lower()
     return raw or "development"
+
+
+# Départ d'horloge du mini-mix quand ESCALES_CLOCK_START est absent.
+PRODUCTION_CLOCK_START = "2026-11-12"
+
+
+def _clock_date(raw: str) -> str:
+    """Civil date in America/Toronto. A bare ``YYYY-MM-DD`` is kept as written.
+
+    A bad value does not raise: the voyage falls back to 12 November 2026.
+    """
+    text = raw.strip()
+    if len(text) == 10 and "T" not in text:
+        try:
+            return dt.date.fromisoformat(text).isoformat()
+        except ValueError:
+            log.warning("ESCALES_CLOCK_START is not a date; using %s", PRODUCTION_CLOCK_START)
+            return PRODUCTION_CLOCK_START
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        moment = dt.datetime.fromisoformat(text)
+    except ValueError:
+        log.warning("ESCALES_CLOCK_START is not a date; using %s", PRODUCTION_CLOCK_START)
+        return PRODUCTION_CLOCK_START
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=_TORONTO)
+    else:
+        moment = moment.astimezone(_TORONTO)
+    return moment.date().isoformat()
+
+
+def clock_start() -> str:
+    """Origine de l'horloge de voyage (``YYYY-MM-DD``).
+
+    ``ESCALES_CLOCK_START`` la fixe en développement et dans les tests.
+    Sans variable, et en production (``ESCALES_ENV=production``), le départ
+    est le 12 novembre 2026. Sans variable hors production, même date.
+    """
+    raw = (os.environ.get("ESCALES_CLOCK_START") or "").strip()
+    if raw:
+        return _clock_date(raw)
+    # ``ESCALES_ENV=production`` sans variable : 2026-11-12.
+    # Développement et tests : la même date, déplaçable avec ESCALES_CLOCK_START.
+    return PRODUCTION_CLOCK_START
 
 
 def limits_enabled() -> bool:
@@ -106,6 +156,43 @@ def zapiper_enabled() -> bool:
 
 def paypal_webhook_id() -> str:
     return (os.environ.get("PAYPAL_WEBHOOK_ID") or "").strip()
+
+
+PUBLIC_API_ORIGIN = "https://bi-escales-api.onrender.com"
+PAYPAL_WEBHOOK_PATH = "/api/escales/webhooks/paypal"
+# Vite dev server from the mini-mix frontend, plus the other Render host.
+_DEFAULT_CORS_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://bi-escales.onrender.com",
+    PUBLIC_API_ORIGIN,
+)
+
+
+def public_base_url() -> str:
+    """Origin PayPal and the browser use to reach this API. No trailing slash."""
+    raw = (os.environ.get("ESCALES_PUBLIC_URL") or PUBLIC_API_ORIGIN).strip().rstrip("/")
+    return raw or PUBLIC_API_ORIGIN
+
+
+def paypal_webhook_url() -> str:
+    """URL to register in the PayPal sandbox webhook dashboard."""
+    return f"{public_base_url()}{PAYPAL_WEBHOOK_PATH}"
+
+
+def cors_origins() -> list[str]:
+    """Browser origins allowed to call the API.
+
+    ``ESCALES_CORS_ORIGINS`` is a comma-separated extra list. The mini-mix
+    Vite origin is always included.
+    """
+    origins = list(_DEFAULT_CORS_ORIGINS)
+    extra = os.environ.get("ESCALES_CORS_ORIGINS") or ""
+    for part in extra.split(","):
+        origin = part.strip().rstrip("/")
+        if origin and origin not in origins:
+            origins.append(origin)
+    return origins
 
 
 def load_config() -> EscalesConfig:

@@ -24,11 +24,17 @@ services:
       - key: PAYPAL_CLIENT_SECRET
         sync: false
       - key: PAYPAL_ENV
-        sync: false
+        value: sandbox
       - key: PAYPAL_WEBHOOK_ID
         sync: false
       - key: ESCALES_WEBHOOKS_ENABLED
         sync: false
+      - key: ESCALES_PUBLIC_URL
+        value: https://bi-escales-api.onrender.com
+      - key: ESCALES_CORS_ORIGINS
+        value: http://localhost:5173,http://127.0.0.1:5173,https://bi-escales.onrender.com
+      - key: DB_NAME
+        value: bi_escales
       - key: ESCALES_TOOLKIT_ENABLED
         sync: false
       - key: ESCALES_ZAPIER_ENABLED

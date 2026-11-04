@@ -123,5 +123,27 @@ def test_mongo_store_round_trip(mongo_store):
 
         saved = await mongo_store["bi_escales_test"]["escales_pledges"].find_one({"_id": created["_id"]})
         assert saved["client_key"] == "mongo-1"
+        assert saved["kind"] == "mile"
+        assert saved["target_id"] == "dep-mayotte"
+
+    asyncio.run(body())
+
+
+def test_mongo_legacy_mile_row_defaults_on_read(mongo_store):
+    async def body():
+        ledger = get_ledger()
+        collection = mongo_store["bi_escales_test"]["escales_pledges"]
+        await collection.insert_one({
+            "_id": "legacy",
+            "milestone_id": "dep-mayotte",
+            "status": "created",
+            "amount_eur": "20.00",
+        })
+        got = await ledger.get_pledge("legacy")
+        assert got["kind"] == "mile"
+        assert got["target_id"] == "dep-mayotte"
+        raw = await collection.find_one({"_id": "legacy"})
+        assert "kind" not in raw
+        assert "target_id" not in raw
 
     asyncio.run(body())

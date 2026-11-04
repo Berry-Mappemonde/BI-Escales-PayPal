@@ -230,6 +230,9 @@ def test_chat_offers_membership_url_and_does_not_order(monkeypatch):
         assert pledge["currency"] == "EUR"
         assert pledge["intent"] == "AUTHORIZE"
         assert pledge["milestone_id"] == "mayotte"
+        assert pledge["kind"] == "mile"
+        assert pledge["simulated"] is True
+        assert pledge["price_label"] == "simulated price"
         assert "order_id" not in result
         assert "999" not in result["reply"]
         assert result["model_source"] == {"provider": "rules", "model": ""}
@@ -347,7 +350,7 @@ def test_a_complete_model_answer_is_not_followed_by_the_french_template(monkeypa
 
     async def body():
         result = await chat("Je voudrais parrainer 120 milles près de Lorient")
-        assert "Promesse calculée" not in result["reply"]
+        assert result["reply"].count("Promesse calculée") == 1
         assert "120,00 €" in result["reply"]
         assert "120.00" not in result["reply"]
         assert result["reply"].count("— Le capitaine") == 1
@@ -410,14 +413,14 @@ def test_number_guard_rewrites_amounts_into_the_reply_language(monkeypatch):
         assert "120,00 €" in french["reply"]
         assert "120.00" not in french["reply"]
         assert "120 milles parrainés" in french["reply"]
-        assert "Promesse calculée" not in french["reply"]
+        assert french["reply"].count("Promesse calculée") == 1
         english = await chat("I'd like to sponsor 120 nautical miles near Lorient")
         assert "120.00 EUR" in english["reply"]
         assert "120,00" not in english["reply"]
         assert "€" not in english["reply"]
         assert "120 sponsored miles" in english["reply"]
         assert "milles parrainés" not in english["reply"]
-        assert "Computed pledge" not in english["reply"]
+        assert english["reply"].count("Computed pledge") == 1
 
     asyncio.run(body())
 
@@ -1068,6 +1071,9 @@ def test_displayed_ports_are_capitalized():
     assert captain.display_name("dakar") == "Dakar"
     assert captain.display_name("dep-mayotte") == "Mayotte"
     assert not captain.display_name("dep-mayotte").casefold().startswith("dep-")
+    assert captain.display_name("dep-fort-de-france") == "Fort-de-France"
+    assert captain.display_name("pointe-a-pitre") == "Pointe-à-Pitre"
+    assert "dep-" not in captain.display_name("dep-fort-de-france").lower()
 
     async def body():
         french = await chat("Je parraine 20 milles près de Dakar")
@@ -1094,7 +1100,7 @@ def test_a_port_dinner_counts_as_the_computed_pledge(monkeypatch):
         result = await chat("I'd like to sponsor 250 mi + dinner near Dakar")
         reply = result["reply"]
         assert result["suggested_pledge"]["description"] == "250 sponsored miles and port dinner"
-        assert "Computed pledge" not in reply
+        assert reply.count("Computed pledge") == 1
         assert "310.00 EUR" in reply
         assert "a port dinner" in reply
 
@@ -1123,15 +1129,16 @@ def test_lightning_french_translates_english_labels(monkeypatch):
         french = await chat("Je parraine 10 milles près de Dakar")
         reply = french["reply"]
         assert french["model_source"]["provider"] == "nim_fallback"
-        assert "Jalon : Dakar" in reply
+        assert "Jalon : Dakar" not in reply
         assert "Jalon : suite" in reply
-        assert "intention : autorisation" in reply.casefold()
+        assert "Promesse calculée" in reply
         assert "AUTHORIZE" not in reply
         assert "Milestone" not in reply
         assert "Intent:" not in reply
         monkeypatch.setattr(llm, "ask_text", english_answer)
         english = await chat("I'd like to sponsor 10 nautical miles near Lorient")
-        assert "Milestone:" in english["reply"]
+        assert "Noted for the pledge" in english["reply"]
+        assert "Milestone:" not in english["reply"]
         assert "Jalon" not in english["reply"]
 
     asyncio.run(body())
@@ -1375,8 +1382,9 @@ def test_french_pledge_matches_amount_and_port_without_the_description(monkeypat
     async def body():
         result = await chat("Je parraine 120 milles près de Lorient")
         reply = result["reply"]
-        assert "120 milles parrainés" not in reply
-        assert reply.lower().count("promesse calculée") == 0
+        assert "Pour Lorient le total est" in reply
+        assert reply.lower().count("promesse calculée") == 1
+        assert reply.lower().count("120 milles parrainés") == 1
         assert reply.lower().count("intention") == 1
         assert "intention : autorisation" in reply.casefold()
         assert "AUTHORIZE" not in reply
@@ -1543,7 +1551,7 @@ def test_french_reply_standardises_intention_and_the_treasurer(monkeypatch):
         assert "The treasurer" not in reply
         assert "Le Trésorier" not in reply
         assert "le trésorier" in reply
-        assert reply.lower().count("promesse calculée") == 0
+        assert reply.lower().count("promesse calculée") == 1
 
     asyncio.run(body())
 
@@ -1596,7 +1604,8 @@ def test_reached_leg_keeps_miles_covered_from_the_port(monkeypatch):
     async def body():
         await record_evidence("lorient", met=True, facts={"distance_nm": 120})
         result = await review("lorient", reader=None, lang="en")
-        assert "120 nautical miles from Lorient" in result["report"]
+        assert "120 nautical miles to Lorient" in result["report"]
+        assert "miles from" not in result["report"].lower()
         assert "Milestone Lorient was reached" in result["report"]
         assert result["model_source"]["provider"] == "llm"
 
@@ -1815,6 +1824,178 @@ def test_fast_lightning_failure_logs_the_message(monkeypatch, caplog):
     asyncio.run(quiet())
 
 
+def test_invented_captain_sentences_are_dropped(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return (
+            "Voici le calcul. Je suis le capitaine des Escales. "
+            "Escales Bleue. Escales Bleues. Je m'appelle Marin."
+        )
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Brest")
+        reply = result["reply"]
+        assert "Voici le calcul" in reply
+        assert "Je suis le capitaine" not in reply
+        assert "Escales Bleue" not in reply
+        assert "Je m'appelle" not in reply
+        assert reply.count("— Le capitaine") == 1
+
+    asyncio.run(body())
+
+
+def test_pledge_line_drops_milestone_and_intent_labels(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "La mer est calme. Jalon : Dakar. Intention : autorisation."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Dakar")
+        reply = result["reply"]
+        assert "La mer est calme" in reply
+        assert reply.count("Promesse calculée") == 1
+        assert "Jalon :" not in reply
+        assert "Intention :" not in reply
+
+    asyncio.run(body())
+
+
+def test_chat_capitalizes_the_treasurer_after_a_period(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "La mer est calme. le trésorier reste consultatif."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Brest")
+        assert ". Le trésorier" in result["reply"]
+
+    asyncio.run(body())
+
+
+def test_thin_french_report_gains_the_covered_miles_sentence(monkeypatch):
+    import app.core.llm as llm
+
+    prompt = captain._report_system("lorient", reached=False, lang="fr")
+    assert "contient un verbe" in prompt
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "The treasurer alone decides."
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "wait", "reason": "open"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence("lorient", met=False, facts={"distance_nm": 120})
+        result = await review("lorient", reader=None, lang="fr")
+        assert result["model_source"]["provider"] == "rules"
+        assert "La preuve NAVIGUIDE (simulation) indique 120 milles parcourus." in result["report"]
+
+    asyncio.run(body())
+
+
+def test_glued_period_is_split_and_duplicate_sentences_drop():
+    raw = (
+        "The boat sailed 250 nm.The boat is heading toward Dakar. "
+        "The boat is heading toward Dakar."
+    )
+    text = captain._finish_text(raw)
+    assert "250 nm. The boat" in text
+    assert text.lower().count("heading toward dakar") == 1
+    url = captain._finish_text("See www.helloasso.com today.")
+    assert "www.helloasso.com" in url
+    assert "www. Hello" not in url
+
+
+def test_bare_distance_numbers_are_rejected(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return (
+            "The distance covered is 40 and the planned distance is 110. "
+            "The boat sailed 80 nautical miles."
+        )
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "wait", "reason": "open"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence("dakar", met=False, facts={"distance_nm": 80, "planned_nm": 110})
+        result = await review("dakar", reader=None, lang="en")
+        report = result["report"]
+        assert "80 nautical miles" in report
+        assert " 40" not in report
+        assert "110" not in report
+        assert "nautical miles or nm" in captain._report_system("dakar", reached=False, lang="en")
+
+    asyncio.run(body())
+
+
+def test_standalone_intent_authorize_is_dropped_when_the_pledge_states_it(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "The sea is calm. Intent AUTHORIZE."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("I'd like to sponsor 10 nautical miles near Lorient")
+        reply = result["reply"]
+        sentences = re.split(r"(?<=[.!?])\s+", reply.strip())
+        assert not any(re.fullmatch(r"intent\s*:?\s*authorize\.?", sentence.strip(), re.I) for sentence in sentences)
+        assert reply.count("Computed pledge") == 1
+        assert "The sea is calm" in reply
+
+    asyncio.run(body())
+
+
+def test_french_vocabulary_and_the_pledge_line(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return (
+            "La trésorière parle de remboursement. "
+            "Le prix est 10,00 € en euros pour Brest. "
+            "Le trésorier décide si l'argent est prélevé."
+        )
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Brest")
+        reply = result["reply"]
+        assert "remboursement" not in reply.casefold()
+        assert "trésorière" not in reply.casefold()
+        assert "en euros" not in reply.casefold()
+        assert "10,00 €" in reply
+        assert "Seul le trésorier décide si l'argent est prélevé ou libéré." in reply
+        assert reply.count("Promesse calculée") == 1
+
+    asyncio.run(body())
+
+
 def test_ui_labels_the_llm_proposal_as_advisory():
     root = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "escales"
     badge = (root / "advisoryLabel.js").read_text(encoding="utf-8")
@@ -1823,3 +2004,107 @@ def test_ui_labels_the_llm_proposal_as_advisory():
     assert 'label: "Advisory"' in badge
     assert "data-advisory" in screen
     assert "Advisory" in screen
+
+
+def test_miles_and_dinner_stay_one_pledge_and_list_two_cart_lines():
+    pledge = captain.suggest_pledge("250 mi + dinner 60 € près de Dakar")
+    assert pledge["amount_eur"] == "310.00"
+    assert pledge["description"] == "250 milles parrainés et dîner d'escale"
+    assert pledge["intent"] == "AUTHORIZE"
+    assert "kind" not in pledge
+    cart = captain.pledge_cart("250 mi + dinner 60 € près de Dakar", "fr", pledge)
+    assert cart["amount_eur"] == "310.00"
+    assert cart["intent"] == "AUTHORIZE"
+    assert [line["kind"] for line in cart["lines"]] == ["mile", "meal"]
+    assert [line["amount_eur"] for line in cart["lines"]] == ["250.00", "60.00"]
+    assert cart["lines"][0]["price_label"] == "simulated price"
+    assert cart["lines"][0]["target_id"] == "dakar"
+    assert cart["available"] is False
+    assert cart["eta"] is None
+    assert "order_id" not in cart
+
+
+def test_other_kinds_use_the_simulated_catalogue():
+    night = captain.suggest_pledge("2 nuits près de Mayotte")
+    assert night["amount_eur"] == "120.00"
+    assert night["kind"] == "night"
+    assert night["description"] == "2 nuits"
+    assert "mille" not in night["description"]
+    berth = captain.suggest_pledge("1 poste près de Fort-de-France")
+    assert berth["amount_eur"] == "30.00"
+    assert berth["kind"] == "berth"
+    care = captain.suggest_pledge("un soin près de Mayotte")
+    assert care["amount_eur"] == "40.00"
+    assert care["kind"] == "care"
+    cabin = captain.suggest_pledge("1 cabine près de Mayotte")
+    assert cabin["amount_eur"] == "80.00"
+    assert cabin["kind"] == "cabin_leg"
+    both = captain.suggest_pledge("10 milles et 1 nuit près de Mayotte")
+    assert both["amount_eur"] == "70.00"
+    assert both["item"] == "mixed"
+    assert "kind" not in both
+    assert "milles parrainés" in both["description"]
+    assert "1 nuit" in both["description"]
+    fund = captain.suggest_pledge("fonds commun 25 euros près de Mayotte")
+    assert fund["amount_eur"] == "25.00"
+    assert fund["kind"] == "common_fund"
+    assert "mille" not in fund["description"]
+    project = captain.suggest_pledge("promesse projet 15 EUR près de Dakar")
+    assert project["amount_eur"] == "15.00"
+    assert project["kind"] == "project_pledge"
+    english = captain.suggest_pledge("2 nights near Mayotte", lang="en")
+    assert english["description"] == "2 nights"
+    assert english["amount_eur"] == "120.00"
+
+
+def test_chat_cart_keeps_authorize_and_reads_clock_and_schedule(monkeypatch):
+    monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
+
+    async def body():
+        mayotte = await chat("2 nuits près de Mayotte")
+        cart = mayotte["cart"]
+        assert cart["clock_start"] == "2026-11-12"
+        assert cart["eta"] == "2026-09-01T08:00:00+00:00"
+        assert cart["available"] is True
+        assert cart["intent"] == "AUTHORIZE"
+        assert cart["lines"][0]["kind"] == "night"
+        assert cart["lines"][0]["quantity"] == "2"
+        assert cart["amount_eur"] == mayotte["suggested_pledge"]["amount_eur"] == "120.00"
+        assert "120,00 €" in mayotte["reply"]
+        assert "order_id" not in mayotte
+        assert mayotte["model_source"] == {"provider": "rules", "model": ""}
+        english = await chat("I would like 2 nights near Mayotte")
+        assert english["suggested_pledge"]["description"] == "2 nights"
+        assert "120.00 EUR" in english["reply"]
+        assert english["cart"]["available"] is True
+        status = await chat("Quel est le statut ?")
+        assert status["suggested_pledge"] is None
+        assert status["cart"] is None
+        mixed = await chat("250 mi + dinner 60 € près de Dakar")
+        assert mixed["suggested_pledge"]["amount_eur"] == "310.00"
+        assert mixed["cart"]["lines"][1]["kind"] == "meal"
+        assert "310,00 €" in mixed["reply"]
+        assert "250,00" not in mixed["reply"]
+
+    asyncio.run(body())
+
+
+def test_cart_lines_use_the_existing_authorize_pledge():
+    async def body():
+        result = await chat("250 mi + dinner 60 € près de Dakar")
+        assert "order_id" not in result
+        spy = Spy()
+        saved = []
+        for line in result["cart"]["lines"]:
+            saved.append(await create_pledge(client=spy, **line["pledge"]))
+        assert [doc["intent"] for doc in saved] == ["AUTHORIZE", "AUTHORIZE"]
+        assert [doc["payment_mode"] for doc in saved] == ["AUTHORIZE", "AUTHORIZE"]
+        assert [doc["status"] for doc in saved] == ["created", "created"]
+        assert [doc["amount_eur"] for doc in saved] == ["250.00", "60.00"]
+        assert [doc["kind"] for doc in saved] == ["mile", "meal"]
+        assert [doc["target_id"] for doc in saved] == ["dakar", "dakar"]
+        authorized = await authorize_pledge(saved[0]["_id"], spy)
+        assert authorized["status"] == "authorized"
+        assert [call[0] for call in spy.calls] == ["create", "create", "authorize"]
+
+    asyncio.run(body())

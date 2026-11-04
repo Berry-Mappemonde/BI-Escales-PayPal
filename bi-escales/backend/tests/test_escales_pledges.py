@@ -17,10 +17,13 @@ from app.escales.paypal_client import PayPalClient, approve_link
 from app.escales.pledges import (
     COLLECTIONS,
     IllegalTransition,
+    PLEDGE_KINDS,
     authorize_pledge,
     capture_pledge,
     create_pledge,
+    get_ledger,
     reset_ledger,
+    to_public,
     void_pledge,
 )
 
@@ -265,6 +268,134 @@ def test_state_machine_and_forbidden_transitions():
         assert _names(spy).count("capture") == 1
         assert _names(spy).count("void") == 1
         assert "orders.get" not in _names(spy)
+
+    asyncio.run(body())
+
+
+def test_omitted_kind_stays_a_mile_and_targets_the_milestone():
+    async def body():
+        spy = Spy()
+        created = await create_pledge(
+            amount_eur="20.00",
+            description="20 milles",
+            milestone_id="dep-mayotte",
+            client=spy,
+        )
+        assert created["kind"] == "mile"
+        assert created["target_id"] == "dep-mayotte"
+        assert created["intent"] == "AUTHORIZE"
+        assert created["status"] == "created"
+        assert _names(spy) == ["create"]
+
+    asyncio.run(body())
+
+
+def test_kind_and_target_are_stored_and_unknown_kind_is_rejected():
+    async def body():
+        spy = Spy()
+        created = await create_pledge(
+            amount_eur="60.00",
+            description="diner",
+            milestone_id="dep-mayotte",
+            client=spy,
+            kind="meal",
+            target_id="mayotte",
+        )
+        assert created["kind"] == "meal"
+        assert created["target_id"] == "mayotte"
+        assert created["milestone_id"] == "dep-mayotte"
+        stored = await get_ledger().get_pledge(created["_id"])
+        assert stored["kind"] == "meal"
+        assert stored["target_id"] == "mayotte"
+        project = await create_pledge(
+            amount_eur="15.00",
+            description="don",
+            milestone_id="dep-mayotte",
+            client=spy,
+            kind="project_pledge",
+            target_id="projet-ecole",
+        )
+        assert project["target_id"] == "projet-ecole"
+        fund = await create_pledge(
+            amount_eur="8.00",
+            description="caisse",
+            milestone_id="dep-mayotte",
+            client=spy,
+            kind="common_fund",
+            target_id="mayotte",
+        )
+        assert fund["target_id"] == "mayotte"
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="8.00",
+                description="caisse",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="common_fund",
+                target_id="projet-ecole",
+            )
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="1.00",
+                description="autre escale",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="mile",
+                target_id="dakar",
+            )
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="30.00",
+                description="poste",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="berth",
+                target_id="nulle-part",
+            )
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="30.00",
+                description="poste",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="berth",
+                target_id="Projet Ecole",
+            )
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="1.00",
+                description="inconnu",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="yacht",
+            )
+        assert set(PLEDGE_KINDS) == {
+            "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "common_fund",
+        }
+
+    asyncio.run(body())
+
+
+def test_legacy_memory_row_reads_as_a_mile():
+    async def body():
+        ledger = get_ledger()
+        ledger._pledges["old"] = {
+            "_id": "old",
+            "milestone_id": "dep-mayotte",
+            "status": "authorized",
+            "intent": "AUTHORIZE",
+            "amount_eur": "20.00",
+        }
+        got = await ledger.get_pledge("old")
+        assert got["kind"] == "mile"
+        assert got["target_id"] == "dep-mayotte"
+        assert "kind" not in ledger._pledges["old"]
+        public = to_public(got)
+        assert public["kind"] == "mile"
+        assert public["target_id"] == "dep-mayotte"
+        assert public["id"] == "old"
+        listed = await ledger.list_pledges_for_milestone("dep-mayotte")
+        assert listed[0]["kind"] == "mile"
 
     asyncio.run(body())
 

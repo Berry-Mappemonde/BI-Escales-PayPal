@@ -26,13 +26,23 @@ function toDate(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function withoutStoragePrefix(value) {
+  return String(value || "").replace(/^dep-/i, "");
+}
+
+function shownEscaleName(row) {
+  const named = row.display_name || row.name || row.title || "";
+  if (named && !/^dep-/i.test(String(named))) return named;
+  return withoutStoragePrefix(row.milestone_id || named);
+}
+
 function buildEvents(escales) {
   return (escales || []).map((row, index) => {
     const start = toDate(row.arrival_iso) || new Date();
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
     return {
       id: row.milestone_id || row.slug || `escale-${index}`,
-      name: row.name || row.title || row.milestone_id,
+      name: shownEscaleName(row),
       startDate: start,
       endDate: end,
       milestoneId: row.milestone_id,
@@ -40,6 +50,26 @@ function buildEvents(escales) {
       lon: row.lon,
     };
   });
+}
+
+function SimulatedPrices({ prices }) {
+  const rows = prices?.prices || [];
+  if (!prices?.simulated || !rows.length) return null;
+  const label = prices.label || "simulated price";
+  return (
+    <section className="escales-simulated-prices" data-simulated="true" aria-label={label}>
+      <h3>{label}</h3>
+      <ul>
+        {rows.map((row) => (
+          <li key={row.kind} data-kind={row.kind}>
+            <span>{row.kind}</span>
+            {row.amount_eur ? <span>{row.amount_eur} {row.currency || "EUR"}</span> : null}
+            <em>{row.label || label}</em>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 function LocalScheduleList({ events, onSelect }) {
@@ -53,7 +83,7 @@ function LocalScheduleList({ events, onSelect }) {
           <button type="button" onClick={() => onSelect?.(event)}>
             <strong>{event.name}</strong>
             <span>{event.startDate.toISOString().slice(0, 10)}</span>
-            {event.milestoneId ? <code>{event.milestoneId}</code> : null}
+            {event.milestoneId ? <code>{withoutStoragePrefix(event.milestoneId)}</code> : null}
           </button>
         </li>
       ))}
@@ -133,7 +163,13 @@ export default function EscalesScheduler({ schedule, features, onSelectEscale, c
       <header>
         <h2>Calendrier des escales</h2>
         <p>Mode {useBryntum ? "Bryntum" : "local"} — Pay Only If We Sail</p>
+        {schedule?.clock?.start ? (
+          <p className="escales-clock" data-clock-start={schedule.clock.start}>
+            Horloge du voyage : {schedule.clock.start}
+          </p>
+        ) : null}
       </header>
+      <SimulatedPrices prices={schedule?.prices} />
       <AdvisoryBadge llmProposal={captainReview?.llm_proposal} />
       {useBryntum ? (
         <BryntumSchedule events={events} onSelect={onSelectEscale} />
@@ -159,4 +195,4 @@ export function localFallbackEscales() {
   ];
 }
 
-export { buildEvents, LocalScheduleList };
+export { buildEvents, LocalScheduleList, shownEscaleName, withoutStoragePrefix };

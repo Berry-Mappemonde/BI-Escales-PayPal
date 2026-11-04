@@ -37,6 +37,10 @@ def test_escales_to_milestones_maps_ids():
     ids = {row["_id"] for row in rows}
     assert ids == {"dep-mayotte", "dep-fort-de-france"}
     assert rows[0]["source"] == "local"
+    by_id = {row["_id"]: row for row in rows}
+    assert by_id["dep-fort-de-france"]["display_name"] == "Fort-de-France"
+    assert "dep-" not in by_id["dep-fort-de-france"]["display_name"].lower()
+    assert by_id["dep-mayotte"]["display_name"] == "Mayotte"
 
 
 def test_fetch_naviguide_uses_local_when_flag_off():

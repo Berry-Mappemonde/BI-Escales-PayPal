@@ -23,14 +23,26 @@ from .milestones import (
     get_milestone,
     latest_evidence,
 )
-from .pledges import get_ledger, now_iso, pledges_for_milestone
+from .pledges import PLEDGE_KINDS, get_ledger, now_iso, pledges_for_milestone
 from .toolkit_tools import ReadOnlyTools
 
 log = logging.getLogger("escales.captain")
 
 # Bureau prices. The model is not allowed to invent another tariff.
+# mile and meal keep these two figures. The other fixed lines are the
+# labelled simulation (berth 30, night 60, care 40, cabin leg 80).
+# A project pledge and the common fund have no unit: the visitor chooses.
 MILE_EUR = Decimal("1.00")
 DINNER_EUR = Decimal("60.00")
+SIMULATED_PRICE_LABEL = "simulated price"
+_SIMULATED_EUR = {
+    "mile": MILE_EUR,
+    "berth": Decimal("30.00"),
+    "night": Decimal("60.00"),
+    "meal": DINNER_EUR,
+    "care": Decimal("40.00"),
+    "cabin_leg": Decimal("80.00"),
+}
 
 _MILES = re.compile(
     r"(\d+(?:[.,]\d+)?)\s*(?:nautical\s+|nautiques?\s+)?(?:milles?|miles?|nm|mi)\b",
@@ -145,6 +157,14 @@ _INVENTED_SIGNATURE = re.compile(
     r"|je m['’]appelle\s+blue\s+intelligence(?:\s+escales)?"
     r"|\bsignés?\s*,\s*\.?"
     r"|\bsigned\s*,\s*\.?",
+    re.IGNORECASE,
+)
+# Whole sentences. The code adds its own signature afterwards.
+_INVENTED_SENTENCE = re.compile(
+    r"capitaine\s+des?\s+escales"
+    r"|escales\s+bleues?"
+    r"|je suis le capitaine"
+    r"|je m['’]appelle",
     re.IGNORECASE,
 )
 # Horizon and re-issue policy stay in code. Drop them if a model writes them anyway.
@@ -295,6 +315,41 @@ def display_name(milestone_id: str) -> str:
     return slug or raw
 
 
+def simulated_unit(kind: str) -> dict:
+    """One catalogue line. The figure is indicative, never the charged amount.
+
+    ``project_pledge`` and ``common_fund`` have no unit price: the visitor's
+    amount stays as written. The other kinds show a simulated price the
+    pledge does not have to copy.
+    """
+    row = {
+        "kind": kind,
+        "currency": "EUR",
+        "label": SIMULATED_PRICE_LABEL,
+        "simulated": True,
+        "indicative": True,
+    }
+    amount = _SIMULATED_EUR.get(kind)
+    if amount is None:
+        row["free_amount"] = True
+    else:
+        row["amount_eur"] = f"{amount:.2f}"
+        row["free_amount"] = False
+    return row
+
+
+def simulated_prices() -> dict:
+    """One row per pledge kind. Prices are indicative; the visitor's amount stays."""
+    return {
+        "simulated": True,
+        "indicative": True,
+        "label": SIMULATED_PRICE_LABEL,
+        "note": "Prices are indicative. The visitor's amount is what PayPal authorizes.",
+        "currency": "EUR",
+        "prices": [simulated_unit(kind) for kind in PLEDGE_KINDS],
+    }
+
+
 def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -> str:
     """Full instructions written in the report language. Code writes the reached sentence."""
     port = display_name(milestone_id)
@@ -305,11 +360,13 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
             "Write in English only. "
             f"Write {count}. "
             "End each sentence with one period. Never stop mid-sentence. "
+            "Each sentence is complete and contains a verb. "
             "No title, no heading, no list. "
             f"Keep this port name verbatim: {port}. "
             "Use only numbers present in the evidence JSON. Do not invent a figure. "
             "Do not write any date or time. "
             "distance_nm is the distance covered and planned_nm the planned distance. "
+            "Write nautical miles or nm immediately after every distance number. "
             "Do not repeat these instructions and do not write a Decision line."
         )
         if not reached:
@@ -318,7 +375,8 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
             text += (
                 " The code already writes the sentence saying this leg is reached, with its arrival date. "
                 "Do not say it is reached, and do not mention any distance left or remaining. "
-                "Describe only the evidence (source, distance covered)."
+                "Describe only the evidence (source, distance covered). "
+                "Say nautical miles to the port, never miles from the port."
             )
         return text
     count = "exactement 1 phrase courte et complète" if reached else "exactement 2 phrases courtes et complètes"
@@ -327,11 +385,13 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
         "Réponds uniquement en français, même si les données JSON sont en anglais. "
         f"Écris {count}. "
         "Termine chaque phrase par un seul point. Ne t'arrête jamais au milieu d'une phrase. "
+        "Chaque phrase est complète et contient un verbe. "
         "Pas de titre, pas d'intertitre, pas de liste. "
         f"Garde ce nom de port tel quel : {port}. "
         "Utilise seulement les nombres présents dans le JSON de preuve. N'invente aucun chiffre. "
         "N'écris aucune date ni heure. "
         "distance_nm est la distance parcourue et planned_nm la distance prévue. "
+        "Écris milles ou nm juste après chaque nombre de distance. "
         "Ne répète pas ces consignes et n'écris pas de ligne Décision."
     )
     if not reached:
@@ -540,14 +600,44 @@ def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
         item = "dinner"
     else:
         item = "mile"
-    return {
+    suggested = {
         "amount_eur": f"{amount:.2f}",
         "currency": "EUR",
         "description": _pledge_description(total_miles, dinners, lang),
         "milestone_id": place,
         "intent": "AUTHORIZE",
         "item": item,
+        "simulated": True,
+        "price_label": SIMULATED_PRICE_LABEL,
     }
+    if item == "mile":
+        suggested["kind"] = "mile"
+    elif item == "dinner":
+        suggested["kind"] = "meal"
+    return suggested
+
+
+def _covered_miles_sentence(evidence: dict, lang: str = "fr") -> str:
+    """One code sentence when Lightning's only line was rejected or empty."""
+    if not isinstance(evidence, dict):
+        return ""
+    facts = evidence.get("facts") if isinstance(evidence.get("facts"), dict) else {}
+    raw = facts.get("distance_nm")
+    if raw is None:
+        return ""
+    try:
+        number = Decimal(str(raw))
+    except InvalidOperation:
+        return ""
+    if number == number.to_integral_value():
+        shown = str(int(number))
+    else:
+        shown = f"{number.quantize(Decimal('0.01'))}"
+    provider = str(evidence.get("provider") or "NAVIGUIDE")
+    flag = str(evidence.get("flag") or evidence.get("source") or "simulation")
+    if lang == "en":
+        return f"The {provider} evidence ({flag}) shows {shown} nautical miles covered."
+    return f"La preuve {provider} ({flag}) indique {shown} milles parcourus."
 
 
 def _fallback_report(milestone_id: str, decision: str, evidence: dict, lang: str = "fr") -> str:
@@ -564,13 +654,33 @@ def _fallback_report(milestone_id: str, decision: str, evidence: dict, lang: str
     return (
         f"Jalon {port} : preuve {provider} marquée {flag} "
         f"(source {source}). Proposition : {decision}. "
-        "Le capitaine ne capture ni n'annule ; seul le trésorier peut le faire."
+        "Seul le trésorier décide si l'argent est prélevé ou libéré."
     )
+
+
+_TREASURER_DECIDES = "Seul le trésorier décide si l'argent est prélevé ou libéré."
+_BARE_DISTANCE = re.compile(
+    r"\b\d+(?:[.,]\d+)?\b(?!\s*(?:nautical\s+miles?|nm|milles?(?:\s+nautiques?)?)\b)",
+    re.IGNORECASE,
+)
+_DISTANCE_TALK = re.compile(
+    r"\b(?:distance|covered|planned|sailed|parcourue|pr[ée]vue|milles?|miles?|nm)\b",
+    re.IGNORECASE,
+)
+_MODEL_PLEDGE_LINE = re.compile(r"promesse calculée|computed pledge", re.IGNORECASE)
+_STANDALONE_INTENT = re.compile(r"^intent\s*:?\s*authorize\.?$", re.IGNORECASE)
 
 
 def _split_sentences(text: str) -> list[str]:
     parts = re.split(r"(?<=[.!?…])\s+", (text or "").strip())
     return [part.strip() for part in parts if part.strip()]
+
+
+def _distance_without_unit(sentence: str) -> bool:
+    """A distance figure with no nautical miles, nm, or milles after it."""
+    if not _DISTANCE_TALK.search(sentence or ""):
+        return False
+    return bool(_BARE_DISTANCE.search(sentence or ""))
 
 
 def _drop_sentences(text: str, pattern: re.Pattern) -> str:
@@ -598,10 +708,22 @@ def _report_language(text: str, requested: Optional[str] = None) -> str:
 
 
 def _normalize_dots(text: str) -> str:
-    """One period where the model left '..' or a space before the stop."""
+    """One period, then a space when the next sentence is glued on.
+
+    ``250 nm.The boat`` becomes two sentences. ``www.helloasso.com`` stays,
+    because the letter after that dot is lowercase.
+    """
     cleaned = re.sub(r"\.{2,}", ".", text or "")
     cleaned = re.sub(r"\s+([.!?…])", r"\1", cleaned)
     cleaned = re.sub(r"([.!?…])(?:\s*[.!?…])+", r"\1", cleaned)
+
+    def split_glued(match: re.Match) -> str:
+        nxt = match.group(2)
+        if nxt.isupper():
+            return f"{match.group(1)} {nxt}"
+        return match.group(0)
+
+    cleaned = re.sub(r"([.!?…])([A-Za-zÀ-ÿ])", split_glued, cleaned)
     return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
 
 
@@ -679,7 +801,7 @@ def _prepare_model_narrative(text: str, lang: str = "fr") -> str:
     cleaned = _normalize_dots(cleaned)
     cleaned = _drop_sentences(cleaned, _ECHO_RE)
     cleaned = _drop_sentences(cleaned, _POLICY_RE)
-    return _fix_sentence_starts(_trim_cutoff(cleaned))
+    return _fix_sentence_starts(_dedupe_sentences(_trim_cutoff(cleaned)))
 
 
 def _finish_text(text: str) -> str:
@@ -692,7 +814,8 @@ def _signature(lang: str) -> str:
 
 def _strip_signatures(text: str) -> str:
     """Drop every model sign-off so the reply can add exactly one."""
-    cleaned = _LONG_SIGNATURE.sub(" ", text or "")
+    cleaned = _drop_sentences(text or "", _INVENTED_SENTENCE)
+    cleaned = _LONG_SIGNATURE.sub(" ", cleaned)
     cleaned = _INVENTED_SIGNATURE.sub(" ", cleaned)
     cleaned = re.sub(
         r"[—–\-]+\s*(?:le capitaine|the captain)\b",
@@ -752,6 +875,38 @@ def _drop_amount_without_port(text: str, suggested: dict) -> str:
         if amount_in_text(sentence, amount) and not _port_present(sentence, port):
             continue
         kept.append(sentence)
+    return " ".join(kept).strip()
+
+
+def _restates_milestone_or_intent(sentence: str, suggested: dict) -> bool:
+    """A label such as ``Jalon : Dakar.`` or ``Intention : autorisation.``"""
+    body = re.sub(r"[.!?…]+$", "", (sentence or "").strip()).strip()
+    match = re.match(
+        r"^(?:jalons?|milestones?|intentions?|intents?|escale|port)\s*:\s*(.*)$",
+        body,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return False
+    rest = match.group(1)
+    rest = re.sub(
+        r"\b(?:autorisation|authorize|authorise)\b",
+        " ",
+        rest,
+        flags=re.IGNORECASE,
+    )
+    port = str(suggested.get("milestone_id") or "")
+    for token in (display_name(port), port, _escale_slug(port)):
+        if token:
+            rest = re.sub(re.escape(token), " ", rest, flags=re.IGNORECASE)
+    return re.sub(r"[^A-Za-zÀ-ÿ0-9]+", "", rest) == ""
+
+
+def _drop_milestone_intent_labels(text: str, suggested: dict) -> str:
+    kept = [
+        sentence for sentence in _split_sentences(text)
+        if not _restates_milestone_or_intent(sentence, suggested)
+    ]
     return " ".join(kept).strip()
 
 
@@ -873,7 +1028,61 @@ def _standardise_french(text: str) -> str:
     cleaned = re.sub(r"\b(?:le\s+)+trésorier\b", "le trésorier", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bde\s+le\s+trésorier\b", "du trésorier", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(du|au|ce|un|son|mon)\s+le\s+trésorier\b", r"\1 trésorier", cleaned, flags=re.IGNORECASE)
-    return cleaned
+    return _fix_french_vocabulary(cleaned)
+
+
+def _fix_french_vocabulary(text: str) -> str:
+    """One treasurer sentence. Refunds and the feminine title do not stay."""
+    cleaned = re.sub(r"€\s*en\s+euros\b", "€", text or "", flags=re.IGNORECASE)
+    kept: list[str] = []
+    said = False
+    for sentence in _split_sentences(cleaned):
+        if re.search(r"remboursement|trésorière", sentence, re.IGNORECASE):
+            continue
+        decides = re.search(r"trésorier", sentence, re.IGNORECASE) and re.search(
+            r"décide|décider|prélev|libér|capture|annul|encaiss|argent",
+            sentence,
+            re.IGNORECASE,
+        )
+        if decides:
+            if not said:
+                kept.append(_TREASURER_DECIDES)
+                said = True
+            continue
+        kept.append(sentence)
+    return " ".join(kept).strip()
+
+
+def _drop_model_pledge(text: str) -> str:
+    return _drop_sentences(text, _MODEL_PLEDGE_LINE)
+
+
+def _drop_standalone_intent(text: str) -> str:
+    """``Intent AUTHORIZE.`` alone repeats the pledge line."""
+    kept = [
+        sentence for sentence in _split_sentences(text)
+        if not _STANDALONE_INTENT.match(sentence.strip())
+    ]
+    return " ".join(kept).strip()
+
+
+def _miles_to_reached(text: str, milestone_id: str) -> str:
+    """On a reached escale, Lightning's ``miles from`` the port becomes ``to``."""
+    shown = display_name(milestone_id)
+    slug = _escale_slug(milestone_id)
+
+    def repl(match: re.Match) -> str:
+        port = match.group(2)
+        if _escale_slug(port) == slug or port.casefold() == shown.casefold():
+            return f"{match.group(1)} to {port}"
+        return match.group(0)
+
+    return re.sub(
+        r"((?:nautical\s+)?miles?)\s+from\s+([A-Za-zÀ-ÿ][\wÀ-ÿ-]*)",
+        repl,
+        text or "",
+        flags=re.IGNORECASE,
+    )
 
 
 def _period_after_link(text: str, url: str) -> str:
@@ -1103,9 +1312,10 @@ def _compose_chat_reply(
     elif lang == "en":
         prose = _heading_toward(prose)
     prose = _drop_amount_without_port(prose, suggested)
-    required: list[str] = []
-    if not _has_exact_pledge(prose, suggested):
-        required.append(_pledge_line(suggested, lang))
+    prose = _drop_model_pledge(prose)
+    prose = _drop_milestone_intent_labels(prose, suggested)
+    prose = _drop_standalone_intent(prose)
+    required: list[str] = [_pledge_line(suggested, lang)]
     joined = " ".join(required)
     if lang == "en" and not re.search(r"\bintent\s+authorize\b", f"{prose} {joined}", re.I):
         required.append("intent AUTHORIZE.")
@@ -1118,7 +1328,7 @@ def _compose_chat_reply(
     reply = _period_after_link(reply, url)
     if lang == "fr":
         reply = _standardise_french(reply)
-    return reply
+    return _fix_sentence_starts(reply)
 
 
 def _without_jalon(text: str, lang: str) -> str:
@@ -1158,12 +1368,15 @@ def _shape_report(
     ]
     if lang == "en":
         sentences = [_heading_toward(_without_jalon(sentence, "en")) for sentence in sentences]
+        if not drop_distance_left:
+            sentences = [_miles_to_reached(sentence, milestone_id) for sentence in sentences]
     sentences = [
         sentence for sentence in sentences
         if not _AWAY_CLAIM.search(sentence)
         and not _MILES_AWAY.search(sentence)
         and not _HAS_DATE.search(sentence)
         and not (drop_distance_left and _MILES_FROM.search(sentence))
+        and not _distance_without_unit(sentence)
     ]
     shown = display_name(milestone_id)
     blob = " ".join(sentences).casefold()
@@ -1487,6 +1700,7 @@ async def review(
     usable, source, report_lang = await _narrative_for_language(
         prompt, milestone_id, _forced_lang(lang), reached,
     )
+    model_lost = not usable
     if not usable:
         narrative = _fallback_report(milestone_id, decision, evidence, lang=report_lang)
         source = _rules_source()
@@ -1508,6 +1722,7 @@ async def review(
             )
             narrative = _fallback_report(milestone_id, decision, evidence, lang=report_lang)
             source = _rules_source()
+            model_lost = True
     narrative = _finish_text(narrative)
     narrative = _without_jalon(filter_numbers(narrative, allowed, lang=report_lang), report_lang)
     if reached:
@@ -1517,6 +1732,10 @@ async def review(
             report_lang,
             arrival_phrase(evidence, report_lang),
         )
+    if model_lost and report_lang == "fr":
+        factual = _covered_miles_sentence(evidence, "fr")
+        if factual and factual not in narrative:
+            narrative = _finish_text(f"{narrative} {factual}")
     narrative = _capitalize_ports(_finish_text(narrative), milestone_id)
     decision_line = (
         f" Decision: {decision}." if report_lang == "en" else f" Décision : {decision}."
@@ -1563,6 +1782,7 @@ async def chat(message: str) -> dict:
     lang = message_lang(text)
     treasurer = _is_treasurer_question(text)
     suggested = suggest_pledge(text, lang)
+    cart = pledge_cart(text, lang, suggested)
     ask_escale = suggested is None and not treasurer and not _is_status_question(text)
     allowed = {"message": text, "suggested": suggested, "membership_url": url}
     if treasurer or suggested is None:
@@ -1586,5 +1806,305 @@ async def chat(message: str) -> dict:
         "reply": reply,
         "membership_url": url,
         "suggested_pledge": suggested,
+        "cart": cart,
         "model_source": source,
     }
+
+
+# Kinds other than mile and meal. Same catalogue as ``_SIMULATED_EUR`` /
+# ``simulated_unit``. A project pledge and the common fund stay free-amount:
+# the line exists only when the visitor writes the euros.
+_BERTH_COUNT = re.compile(
+    r"\b(?:(\d+(?:[.,]\d+)?)\s+)?(?:berths?|postes?|mouillages?)\b",
+    re.IGNORECASE,
+)
+_NIGHT_COUNT = re.compile(
+    r"\b(?:(\d+(?:[.,]\d+)?)\s+)?(?:nights?|nuits?)\b",
+    re.IGNORECASE,
+)
+_CARE_COUNT = re.compile(
+    r"\b(?:(\d+(?:[.,]\d+)?)\s+)?(?:cares?|soins?|elsa)\b",
+    re.IGNORECASE,
+)
+_CABIN_COUNT = re.compile(
+    r"\b(?:(\d+(?:[.,]\d+)?)\s+)?(?:cabines?|cabins?|cabin\s+legs?|boat-stops?)\b",
+    re.IGNORECASE,
+)
+_PROJECT_PLEDGE = re.compile(
+    r"\b(?:promesse\s+)?projets?\b|\bproject\s+pledges?\b",
+    re.IGNORECASE,
+)
+_COMMON_FUND = re.compile(
+    r"\bfonds?\s+commun\b|\bcommon\s+fund\b",
+    re.IGNORECASE,
+)
+_EUR_AMOUNT = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*(?:€|eur|euros?)\b",
+    re.IGNORECASE,
+)
+_KIND_WORDS = {
+    "berth": (("poste", "postes"), ("berth", "berths")),
+    "night": (("nuit", "nuits"), ("night", "nights")),
+    "care": (("soin", "soins"), ("care", "cares")),
+    "cabin_leg": (("cabine", "cabines"), ("cabin leg", "cabin legs")),
+    "project_pledge": (("promesse projet", "promesse projet"), ("project pledge", "project pledge")),
+    "common_fund": (("fonds commun", "fonds commun"), ("common fund", "common fund")),
+}
+
+
+def _explicit_miles(text: str) -> Decimal:
+    total = Decimal("0")
+    for match in _MILES.finditer(text or ""):
+        try:
+            count = Decimal(match.group(1).replace(",", "."))
+        except InvalidOperation:
+            continue
+        if count > 0:
+            total += count
+    return total
+
+
+def _explicit_dinners(text: str) -> int:
+    return len(_DINNER.findall(text or ""))
+
+
+def _sum_quantity(pattern: re.Pattern, text: str) -> Decimal:
+    total = Decimal("0")
+    for match in pattern.finditer(text or ""):
+        raw = match.group(1)
+        if not raw:
+            total += 1
+            continue
+        try:
+            qty = Decimal(raw.replace(",", "."))
+        except InvalidOperation:
+            continue
+        if qty > 0:
+            total += qty
+    return total
+
+
+def _amount_near(text: str, pattern: re.Pattern) -> Optional[Decimal]:
+    match = pattern.search(text or "")
+    if not match:
+        return None
+    start = max(0, match.start() - 48)
+    end = min(len(text), match.end() + 48)
+    found = _EUR_AMOUNT.search(text[start:end])
+    if not found:
+        return None
+    try:
+        amount = Decimal(found.group(1).replace(",", "."))
+    except InvalidOperation:
+        return None
+    if amount <= 0:
+        return None
+    return amount.quantize(Decimal("0.01"))
+
+
+def _kind_description(kind: str, quantity: Decimal, lang: str) -> str:
+    french, english = _KIND_WORDS[kind]
+    pair = english if lang == "en" else french
+    noun = pair[0] if quantity == 1 else pair[1]
+    if kind in {"project_pledge", "common_fund"}:
+        return noun
+    return f"{_format_count(quantity)} {noun}"
+
+
+def _join_desc(lines: list[dict], lang: str) -> str:
+    parts = [str(line.get("description") or "") for line in lines if line.get("description")]
+    if not parts:
+        return ""
+    if lang == "en":
+        return " and ".join(parts)
+    return " et ".join(parts)
+
+
+def _cart_line(
+    kind: str,
+    quantity: Decimal,
+    place: str,
+    lang: str,
+    amount: Optional[Decimal],
+    description: str,
+) -> dict:
+    """One cart row. Copies ``simulated_unit`` and keeps AUTHORIZE."""
+    row = simulated_unit(kind)
+    row.update(
+        {
+            "quantity": _format_count(quantity),
+            "description": description,
+            "milestone_id": place,
+            "target_id": place,
+            "intent": "AUTHORIZE",
+            "price_label": SIMULATED_PRICE_LABEL,
+        }
+    )
+    if amount is not None:
+        shown = f"{amount.quantize(Decimal('0.01')):.2f}"
+        row["amount_eur"] = shown
+        # Same body as POST /api/escales/pledges, which creates the AUTHORIZE order.
+        row["pledge"] = {
+            "amount_eur": shown,
+            "description": description,
+            "milestone_id": place,
+            "kind": kind,
+            "target_id": place,
+        }
+    return row
+
+
+def _fixed_line(kind: str, quantity: Decimal, place: str, lang: str) -> dict:
+    unit = _SIMULATED_EUR[kind]
+    amount = (quantity * unit).quantize(Decimal("0.01"))
+    if kind == "mile":
+        description = _miles_description(quantity, lang)
+    elif kind == "meal":
+        description = _dinner_description(int(quantity), lang)
+    else:
+        description = _kind_description(kind, quantity, lang)
+    return _cart_line(kind, quantity, place, lang, amount, description)
+
+
+def _chosen_line(kind: str, place: str, lang: str, amount: Decimal) -> dict:
+    return _cart_line(
+        kind,
+        Decimal("1"),
+        place,
+        lang,
+        amount,
+        _kind_description(kind, Decimal("1"), lang),
+    )
+
+
+def _catalogue_lines(text: str, lang: str, place: str) -> list[dict]:
+    """Miles and meals first, then the other priced kinds, in catalogue order."""
+    lines: list[dict] = []
+    miles = _explicit_miles(text)
+    dinners = _explicit_dinners(text)
+    if miles > 0:
+        lines.append(_fixed_line("mile", miles, place, lang))
+    if dinners > 0:
+        lines.append(_fixed_line("meal", Decimal(dinners), place, lang))
+    for kind, pattern in (
+        ("berth", _BERTH_COUNT),
+        ("night", _NIGHT_COUNT),
+        ("care", _CARE_COUNT),
+        ("cabin_leg", _CABIN_COUNT),
+    ):
+        quantity = _sum_quantity(pattern, text)
+        if quantity > 0:
+            lines.append(_fixed_line(kind, quantity, place, lang))
+    for kind, pattern in (
+        ("project_pledge", _PROJECT_PLEDGE),
+        ("common_fund", _COMMON_FUND),
+    ):
+        amount = _amount_near(text, pattern)
+        if amount is not None:
+            lines.append(_chosen_line(kind, place, lang, amount))
+    if not lines:
+        lines.append(_fixed_line("mile", Decimal("1"), place, lang))
+    return lines
+
+
+def _schedule_stop(place: str) -> Optional[dict]:
+    """Arrival already stored on the local schedule. No partner call."""
+    from .naviguide_bridge import local_schedule_export
+
+    slug = _escale_slug(place)
+    if not slug:
+        return None
+    for item in local_schedule_export().get("escales") or []:
+        if not isinstance(item, dict):
+            continue
+        keys = {
+            _escale_slug(str(item.get("slug") or "")),
+            _escale_slug(str(item.get("milestone_id") or "")),
+            _escale_slug(str(item.get("name") or "")),
+        }
+        if slug in keys:
+            return item
+    return None
+
+
+def pledge_cart(message: str, lang: str, suggested: Optional[dict]) -> Optional[dict]:
+    """Multi-line cart for the same AUTHORIZE total. No PayPal order.
+
+    ``eta`` is the schedule ``arrival_iso``. ``clock_start`` is the voyage
+    clock. ``available`` is the schedule flag for that stopover.
+    """
+    if not suggested:
+        return None
+    from .config import clock_start
+
+    text = message or ""
+    place = str(suggested.get("milestone_id") or "")
+    lines = _catalogue_lines(text, lang, place)
+    had_named = _explicit_miles(text) > 0 or _explicit_dinners(text) > 0
+    extras = [line for line in lines if line["kind"] not in {"mile", "meal"}]
+    if extras and not had_named:
+        lines = extras
+    stop = _schedule_stop(place)
+    return {
+        "lines": lines,
+        "amount_eur": suggested.get("amount_eur"),
+        "currency": "EUR",
+        "description": suggested.get("description"),
+        "milestone_id": place,
+        "target_id": place,
+        "intent": "AUTHORIZE",
+        "clock_start": clock_start(),
+        "eta": stop.get("arrival_iso") if stop else None,
+        "available": bool(stop and stop.get("flag")),
+        "simulated": True,
+        "indicative": True,
+        "price_label": SIMULATED_PRICE_LABEL,
+    }
+
+
+def _extend_pledge(base: dict, message: str, lang: str) -> dict:
+    text = message or ""
+    place = str(base.get("milestone_id") or "")
+    lines = _catalogue_lines(text, lang, place)
+    extras = [line for line in lines if line["kind"] not in {"mile", "meal"}]
+    if not extras:
+        return base
+    had_named = _explicit_miles(text) > 0 or _explicit_dinners(text) > 0
+    if had_named:
+        priced = lines
+        description = base.get("description") or ""
+        extra = _join_desc(extras, lang)
+        if extra:
+            if lang == "en":
+                description = f"{description} and {extra}"
+            else:
+                description = f"{description} et {extra[0].lower() + extra[1:]}"
+        item = "mixed"
+    else:
+        priced = extras
+        description = _join_desc(extras, lang)
+        item = extras[0]["kind"] if len(extras) == 1 else "mixed"
+    total = sum(
+        (Decimal(str(line["amount_eur"])) for line in priced if line.get("amount_eur")),
+        Decimal("0"),
+    ).quantize(Decimal("0.01"))
+    result = dict(base)
+    result["amount_eur"] = f"{total:.2f}"
+    result["description"] = description
+    result["item"] = item
+    if item == "mixed":
+        result.pop("kind", None)
+    else:
+        result["kind"] = item
+    return result
+
+
+_suggest_pledge_miles = suggest_pledge
+
+
+def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
+    """Mile and dinner pledge, plus the other catalogue lines in the same total."""
+    base = _suggest_pledge_miles(message, lang)
+    if not base:
+        return None
+    return _extend_pledge(base, message, lang)

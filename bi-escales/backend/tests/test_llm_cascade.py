@@ -57,11 +57,14 @@ def isolated(monkeypatch):
     for name in LLM_ENV:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.setenv("ESCALES_NIM_GAP_S", "0")
     reset_ledger()
     llm.reset_llm_budget()
+    llm.reset_nim_pace()
     yield
     reset_ledger()
     llm.reset_llm_budget()
+    llm.reset_nim_pace()
 
 
 class Spy:
@@ -468,6 +471,7 @@ def test_captain_review_exposes_nim_and_never_captures(monkeypatch):
         assert "annuler" in result["report"]
         assert "Mayotte" in result["report"]
         assert "Dep-Mayotte" not in result["report"]
+        assert "dep-" not in result["report"].lower()
         narrative = seen_box["narrative"]
         assert narrative[0]["body"]["temperature"] == 0.2
         sentences = [part for part in result["report"].replace("!", ".").replace("?", ".").split(".") if part.strip()]
@@ -575,6 +579,92 @@ def test_captain_uses_rules_when_every_provider_fails(monkeypatch):
             "integrate.api.nvidia.com",
             "integrate.api.nvidia.com",
         ]
+
+    asyncio.run(body())
+
+
+def test_nim_http_429_retries_the_same_model_once(monkeypatch):
+    _enable("nim")
+    pauses = []
+
+    async def fake_sleep(seconds):
+        pauses.append(seconds)
+
+    monkeypatch.setattr(llm.asyncio, "sleep", fake_sleep)
+    assert 0.5 <= llm.nim_rate_limit_pause() <= 1
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [
+            _fail(429),
+            _openai("Rapport tenu.", llm.nim_model()),
+        ],
+    })
+
+    async def body():
+        result = await llm.ask_text("preuve", client=client)
+        assert result.text == "Rapport tenu."
+        assert result.provider == "nim"
+        assert [item["model"] for item in seen] == [llm.NIM_MODEL_DEFAULT, llm.NIM_MODEL_DEFAULT]
+        assert pauses == [llm.nim_rate_limit_pause()]
+        await client.aclose()
+
+    asyncio.run(body())
+
+    pauses.clear()
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [
+            _fail(429),
+            _fail(429),
+            _openai("Secours.", llm.nim_fallback_model()),
+        ],
+    })
+
+    async def fallback():
+        result = await llm.ask_text("preuve", client=client)
+        assert result.text == "Secours."
+        assert result.provider == "nim"
+        assert [item["model"] for item in seen] == [
+            llm.NIM_MODEL_DEFAULT,
+            llm.NIM_MODEL_DEFAULT,
+            llm.NIM_FALLBACK_MODEL_DEFAULT,
+        ]
+        assert pauses == [llm.nim_rate_limit_pause()]
+        await client.aclose()
+
+    asyncio.run(fallback())
+
+
+def test_nim_calls_are_spaced_by_more_than_one_second(monkeypatch):
+    _enable("nim")
+    monkeypatch.delenv("ESCALES_NIM_GAP_S", raising=False)
+    assert llm.nim_call_gap() > 1
+    clock = {"t": 1000.0}
+    pauses = []
+
+    def fake_mono():
+        return clock["t"]
+
+    async def fake_sleep(seconds):
+        pauses.append(seconds)
+        clock["t"] += seconds
+
+    monkeypatch.setattr(llm.time, "monotonic", fake_mono)
+    monkeypatch.setattr(llm.asyncio, "sleep", fake_sleep)
+    llm.reset_nim_pace()
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [
+            _openai("Un.", llm.nim_model()),
+            _openai("Deux.", llm.nim_model()),
+        ],
+    })
+
+    async def body():
+        first = await llm.ask_text("un", client=client)
+        second = await llm.ask_text("deux", client=client)
+        assert first.text == "Un."
+        assert second.text == "Deux."
+        assert [item["model"] for item in seen] == [llm.NIM_MODEL_DEFAULT, llm.NIM_MODEL_DEFAULT]
+        assert pauses == [llm.NIM_CALL_GAP_S]
+        await client.aclose()
 
     asyncio.run(body())
 
@@ -766,6 +856,7 @@ def test_report_temperature_is_about_0_2_unless_nim_env_overrides(monkeypatch):
         assert seen[0]["body"]["temperature"] == 0.33
         assert "Mayotte" in result["report"]
         assert "Dep-Mayotte" not in result["report"]
+        assert "dep-" not in result["report"].lower()
         assert result["proposal"] == "capture"
 
     asyncio.run(body())

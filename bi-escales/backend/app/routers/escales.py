@@ -15,26 +15,32 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 from starlette.responses import Response
 
+from app.escales.captain import SIMULATED_PRICE_LABEL
 from app.escales.captain import chat as captain_chat
 from app.escales.captain import review as captain_review
+from app.escales.captain import simulated_prices, simulated_unit
 from app.escales.config import (
     bryntum_scheduler_enabled,
     channel3_enabled,
+    clock_start,
     elastic_evidence_enabled,
     escales_enabled,
     kernel_evidence_enabled,
     load_config,
     naviguide_bridge_enabled,
+    paypal_webhook_url,
     vault_enabled,
     webhooks_enabled,
 )
+from app.escales.ledger import fund_for_milestone, record_spending
+from app.escales_names import display_name as escale_display_name
 from app.escales.milestones import list_milestones, record_evidence
 from app.escales.naviguide_bridge import (
     escales_to_milestones,
     fetch_naviguide_export,
     sync_milestone_shells,
 )
-from app.escales.paypal_client import PayPalClient, PayPalError
+from app.escales.paypal_client import PayPalClient, PayPalError, approve_link
 from app.escales.rate_limit import (
     RateLimited,
     client_ip,
@@ -99,6 +105,8 @@ class PledgeIn(BaseModel):
     description: str
     milestone_id: str
     contributor: Optional[str] = None
+    kind: Optional[str] = None
+    target_id: Optional[str] = None
 
 
 class EvidenceIn(BaseModel):
@@ -108,6 +116,11 @@ class EvidenceIn(BaseModel):
 
 class ChatIn(BaseModel):
     message: str
+
+
+class SpendingIn(BaseModel):
+    amount_eur: str
+    description: str
 
 
 class VaultRegisterIn(BaseModel):
@@ -158,13 +171,42 @@ def _as_http(exc: Exception) -> HTTPException:
 
 
 def _public_milestone(doc: dict) -> dict:
+    milestone_id = str(doc.get("_id") or "")
+    meta = doc.get("meta") or {}
+    shown = meta.get("display_name") or escale_display_name(milestone_id)
     return {
         "id": doc.get("_id"),
+        "display_name": shown,
         "evidence": doc.get("evidence") or [],
         "proposal": doc.get("proposal"),
         "meta": doc.get("meta"),
         "updated_at": doc.get("updated_at"),
     }
+
+
+def _public_pledge(doc: dict) -> dict:
+    """Same shape as ``to_public``, plus the simulated catalogue line.
+
+    ``approve_link`` is the buyer step. A stored order without one still
+    gets the sandbox checkout URL.
+    """
+    public = to_public(doc)
+    public["payment_mode"] = doc.get("payment_mode") or doc.get("intent")
+    public["simulated_price"] = simulated_unit(str(public.get("kind") or "mile"))
+    public["price_label"] = SIMULATED_PRICE_LABEL
+    if not public.get("approve_link") and public.get("order_id"):
+        public["approve_link"] = approve_link({"id": public["order_id"]})
+    return public
+
+
+async def _public_pledge_with_fund(doc: dict) -> dict:
+    """Public pledge, with the same fund object the fund route returns."""
+    public = _public_pledge(doc)
+    try:
+        public["fund"] = await fund_for_milestone(str(doc.get("milestone_id") or ""))
+    except LookupError:
+        public["fund"] = None
+    return public
 
 
 @router.get("/features")
@@ -176,7 +218,19 @@ async def get_features():
         "channel3": channel3_enabled(),
         "bryntum": bryntum_scheduler_enabled(),
         "vault": vault_enabled(),
+        "webhooks_enabled": webhooks_enabled(),
+        "webhook_url": paypal_webhook_url(),
     }
+
+
+@router.get("/prices")
+async def get_prices():
+    return simulated_prices()
+
+
+@router.get("/clock")
+async def get_clock():
+    return {"start": clock_start()}
 
 
 @router.get("/schedule")
@@ -186,6 +240,8 @@ async def get_schedule():
         "export": export,
         "milestones": escales_to_milestones(export),
         "source": "naviguide" if naviguide_bridge_enabled() else "local",
+        "clock": {"start": clock_start()},
+        "prices": simulated_prices(),
     }
 
 
@@ -208,12 +264,12 @@ async def post_pledge(body: PledgeIn, request: Request):
             client=_paypal(),
             client_key=client_key,
             payment_mode=mode,
+            kind=body.kind,
+            target_id=body.target_id,
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
-    public = to_public(doc)
-    public["payment_mode"] = doc.get("payment_mode") or doc.get("intent")
-    return public
+    return await _public_pledge_with_fund(doc)
 
 
 @router.post("/pledges/{pledge_id}/vault")
@@ -229,9 +285,7 @@ async def post_register_vault(pledge_id: str, body: VaultRegisterIn):
         )
     except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
-    public = to_public(doc)
-    public["payment_mode"] = doc.get("payment_mode") or "VAULT"
-    return public
+    return await _public_pledge_with_fund(doc)
 
 
 @router.post("/pledges/{pledge_id}/authorize")
@@ -240,7 +294,7 @@ async def post_authorize(pledge_id: str):
         doc = await authorize_pledge(pledge_id, _paypal())
     except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
         raise _as_http(exc) from exc
-    return to_public(doc)
+    return await _public_pledge_with_fund(doc)
 
 
 @router.post("/pledges/{pledge_id}/capture")
@@ -250,7 +304,7 @@ async def post_capture(pledge_id: str, request: Request):
         doc = await capture_pledge(pledge_id, _paypal())
     except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
         raise _as_http(exc) from exc
-    return to_public(doc)
+    return await _public_pledge_with_fund(doc)
 
 
 @router.post("/pledges/{pledge_id}/void")
@@ -260,7 +314,7 @@ async def post_void(pledge_id: str, request: Request):
         doc = await void_pledge(pledge_id, _paypal())
     except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
         raise _as_http(exc) from exc
-    return to_public(doc)
+    return await _public_pledge_with_fund(doc)
 
 
 @router.get("/pledges/{pledge_id}")
@@ -269,7 +323,29 @@ async def get_pledge(pledge_id: str):
         doc = await require_pledge(pledge_id)
     except PledgeNotFound as exc:
         raise _as_http(exc) from exc
-    return to_public(doc)
+    return await _public_pledge_with_fund(doc)
+
+
+@router.get("/milestones/{milestone_id}/fund")
+async def get_fund(milestone_id: str):
+    try:
+        return await fund_for_milestone(milestone_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Milestone not found") from exc
+
+
+@router.post("/milestones/{milestone_id}/fund/spending")
+async def post_spending(milestone_id: str, body: SpendingIn, request: Request):
+    _require_treasurer(request)
+    try:
+        entry = await record_spending(milestone_id, body.amount_eur, body.description)
+        fund = await fund_for_milestone(milestone_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Milestone not found") from exc
+    except ValueError as exc:
+        raise _as_http(exc) from exc
+    fund["entry_id"] = entry.get("id") or entry.get("_id")
+    return fund
 
 
 @router.get("/milestones")

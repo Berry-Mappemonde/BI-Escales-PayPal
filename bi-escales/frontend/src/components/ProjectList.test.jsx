@@ -23,14 +23,11 @@ const projects = {
   ],
 };
 
-const stops = [{ name: "La Rochelle", lat: 46.15, lon: -1.15, nm: 0, milestoneId: "dep-la-rochelle" }];
-
 function Harness() {
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   return (
     <ProjectList
       projects={projects}
-      routeStops={stops}
       selectedProjectId={selectedProjectId}
       onSelectProject={setSelectedProjectId}
       onFlyTo={() => {}}
@@ -51,5 +48,27 @@ describe("ProjectList", () => {
     expect(btn).toHaveAttribute("data-kind", "project_pledge");
     expect(btn).toHaveAttribute("data-target", "proj-1");
     expect(btn).toHaveTextContent("1.00");
+  });
+
+  it("affiche le minimum pour un montant vide", async () => {
+    await i18n.changeLanguage("en");
+    function OpenHarness() {
+      const [selectedProjectId, setSelectedProjectId] = useState("proj-1");
+      return (
+        <ProjectList
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          onSelectProject={setSelectedProjectId}
+          onFlyTo={() => {}}
+        />
+      );
+    }
+    render(
+      <I18nextProvider i18n={i18n}>
+        <OpenHarness />
+      </I18nextProvider>,
+    );
+    fireEvent.change(screen.getByTestId("project-pledge-amount"), { target: { value: "" } });
+    expect(screen.getByText(/Minimum 1.00 EUR/)).toBeInTheDocument();
   });
 });

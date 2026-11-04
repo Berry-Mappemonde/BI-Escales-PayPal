@@ -6,6 +6,10 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { filterProjectFeatures } from "../projects/filterProjectFeatures.js";
+import {
+  isBelowProjectPledgeMinimum,
+  normalizeEuroAmountForApi,
+} from "../projects/projectPledgeAmount.js";
 import { PledgeButton } from "./PledgeButton";
 
 /** Même plafond que ProjectList.js BI (slice 0, 100). */
@@ -19,7 +23,8 @@ function ProjectPledgeForm({ project, contributor, onAuthorized }) {
   const [who, setWho] = useState(contributor || "");
   const title = props.title || props.id || "";
   const description = t("projects.pledgeDescription", { title });
-  const tooLow = Number(amount) > 0 && Number(amount) < 1;
+  const belowMin = isBelowProjectPledgeMinimum(amount);
+  const apiAmount = normalizeEuroAmountForApi(amount) || MIN_EUR;
 
   return (
     <div className="project-pledge" data-testid="project-pledge" data-project-id={props.id}>
@@ -39,17 +44,17 @@ function ProjectPledgeForm({ project, contributor, onAuthorized }) {
           onChange={(event) => setWho(event.target.value)}
         />
       </label>
-      {tooLow ? <p className="notice warn">{t("projects.minAmount")}</p> : null}
+      {belowMin ? <p className="notice warn">{t("projects.minAmount")}</p> : null}
       <PledgeButton
         values={{
-          amount_eur: amount,
+          amount_eur: apiAmount,
           description,
           milestone_id: "",
           contributor: who.trim() || undefined,
           kind: "project_pledge",
           target_id: props.id,
         }}
-        disabled={tooLow || Number(amount) < 1}
+        disabled={belowMin}
         onAuthorized={onAuthorized}
       />
     </div>

@@ -402,6 +402,7 @@ export default function App() {
         showMarinas={tab === "marinas"}
         flyTo={flyTo}
         onSelectStop={chooseStop}
+        onFlyTo={onFlyTo}
         onSelectProject={(props: { id?: string }) => {
           if (props?.id) setSelectedProjectId(props.id);
         }}

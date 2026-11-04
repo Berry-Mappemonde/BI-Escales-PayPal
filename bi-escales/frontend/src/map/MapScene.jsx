@@ -66,6 +66,7 @@ export function MapScene({
   flyTo,
   onSelectStop,
   onSelectProject,
+  onFlyTo,
 }) {
   const { t } = useTranslation();
   const containerRef = useRef(null);
@@ -75,6 +76,8 @@ export function MapScene({
   onSelectRef.current = onSelectStop;
   const onProjectRef = useRef(onSelectProject);
   onProjectRef.current = onSelectProject;
+  const onFlyToRef = useRef(onFlyTo);
+  onFlyToRef.current = onFlyTo;
   const pledgeLabelRef = useRef(t("projects.pledge"));
   pledgeLabelRef.current = t("projects.pledge");
 
@@ -179,8 +182,10 @@ export function MapScene({
       if (feature.properties?.title) marker.bindTooltip(feature.properties.title, { direction: "top" });
       marker.on("click", (event) => {
         L.DomEvent.stopPropagation(event);
-        onProjectRef.current?.(feature.properties);
-        const title = feature.properties?.title || "";
+        const props = feature.properties || {};
+        const id = props.id;
+        onFlyToRef.current?.(id, lat, lon);
+        const title = props.title || "";
         const popup = document.createElement("div");
         popup.className = "project-map-popup";
         const heading = document.createElement("strong");
@@ -189,8 +194,11 @@ export function MapScene({
         const btn = document.createElement("button");
         btn.type = "button";
         btn.textContent = pledgeLabelRef.current;
-        btn.addEventListener("click", () => {
-          onProjectRef.current?.(feature.properties);
+        btn.dataset.testid = "project-map-pledge";
+        btn.addEventListener("click", (clickEvent) => {
+          clickEvent.stopPropagation();
+          onProjectRef.current?.(props);
+          map.closePopup();
         });
         popup.appendChild(btn);
         marker.bindPopup(popup).openPopup();

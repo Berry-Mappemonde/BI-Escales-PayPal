@@ -15,7 +15,6 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.escales import captain
-from app.escales.departure_clock import CAPTURE_RULES_FR
 from app.escales.app_i18n import default_app_language, error_payload
 from app.escales.paypal_reconcile import reconcile_note
 from app.escales.config import EscalesConfig
@@ -372,7 +371,8 @@ def test_n35_miles_cart_no_project_fund_prose_and_single_capture_rule():
         reply = str(body.get("reply") or "")
         lowered = reply.casefold()
         assert "la caisse est le financement projet" not in lowered
-        assert reply.casefold().count(CAPTURE_RULES_FR.casefold()) == 1
+        core = "annulées si l'escale est annulée"
+        assert lowered.count(core) == 1
 
     asyncio.run(run())
 

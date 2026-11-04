@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatSettleCaptureNote } from "./api/settleCaptureNote";
-import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchHealthRetrying, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchHealthRetrying, fetchPublicCommonFund, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { emitCrewSubscribeReturn } from "./paypal/crewSubscribeReturnEvents";
 import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
 import { nextStopover } from "./voyage/nextStopover.js";
@@ -79,6 +79,7 @@ export default function App() {
   const [settleAt, setSettleAt] = useState("");
   const [projectFund, setProjectFund] = useState<FundView | null | undefined>(undefined);
   const [boatFund, setBoatFund] = useState<FundView | null | undefined>(undefined);
+  const [publicCommonFund, setPublicCommonFund] = useState<FundView | null>(null);
   const [crewSubscribeNote, setCrewSubscribeNote] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [treasurerOpen, setTreasurerOpen] = useState(false);
@@ -238,6 +239,19 @@ export default function App() {
   }, [refresh, updatePledge]);
 
   useEffect(() => {
+    let cancelled = false;
+    void fetchPublicCommonFund().then((row) => {
+      if (!cancelled) {
+        setPublicCommonFund(row);
+        setBoatFund((prev) => (prev === undefined ? row : prev));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pledges.length]);
+
+  useEffect(() => {
     if (!treasurerOpen) return undefined;
     let cancelled = false;
     void fetchFund("project", adminKey)
@@ -247,7 +261,7 @@ export default function App() {
       .catch(() => {
         if (!cancelled) setProjectFund(null);
       });
-    void fetchFund("fund", adminKey)
+    void fetchPublicCommonFund()
       .then((row) => {
         if (!cancelled) setBoatFund(row);
       })
@@ -590,6 +604,14 @@ export default function App() {
         <section className="crew-supporter-public" data-testid="crew-supporter-public">
           <CrewSubscribeButton adminKey={adminKey.trim() || undefined} />
         </section>
+        {publicCommonFund ? (
+          <p className="hint" data-testid="public-common-fund">
+            {t("fund.publicCommon", {
+              balance: publicCommonFund.balance_eur,
+              currency: publicCommonFund.currency,
+            })}
+          </p>
+        ) : null}
         {tab === "voyage" ? (
           <>
             <ProjectList

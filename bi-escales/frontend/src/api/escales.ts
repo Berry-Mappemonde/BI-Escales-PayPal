@@ -268,6 +268,18 @@ export async function fetchPublicProjectFund(projectId: string): Promise<PublicP
   }
 }
 
+/** Public GET /common-fund/fund (N36). Boat common-fund totals only. */
+export async function fetchPublicCommonFund(): Promise<FundView | null> {
+  try {
+    const res = await fetch(url("/api/escales/common-fund/fund"));
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function listMilestones(): Promise<Milestone[]> {
   const res = await fetch(url("/api/escales/milestones"));
   if (!res.ok) throw new Error(await parseError(res));

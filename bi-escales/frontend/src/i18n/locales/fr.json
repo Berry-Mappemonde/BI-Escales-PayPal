@@ -80,7 +80,8 @@
     "spendSubmit": "Enregistrer la dépense",
     "openHeading": "Totaux hors escale",
     "projectTotals": "Promesses projet",
-    "boatTotals": "Fonds commun"
+    "boatTotals": "Fonds commun",
+    "publicCommon": "Solde du fonds commun : {{balance}} {{currency}} (public)"
   },
   "scheduler": {
     "heading": "Calendrier des escales",

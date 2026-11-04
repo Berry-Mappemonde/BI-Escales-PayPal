@@ -80,7 +80,8 @@
     "spendSubmit": "Record spending",
     "openHeading": "Totals with no stopover",
     "projectTotals": "Project pledges",
-    "boatTotals": "Common fund"
+    "boatTotals": "Common fund",
+    "publicCommon": "Common fund balance: {{balance}} {{currency}} (public)"
   },
   "scheduler": {
     "heading": "Stopover calendar",

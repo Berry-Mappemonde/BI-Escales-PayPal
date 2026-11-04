@@ -21,7 +21,7 @@ PayPal's void of an authorization usually returns no id (HTTP 204). `void_id` is
 
 A Super call waits 20 s (`ESCALES_LLM_TIMEOUT_NIM_S`). Lightning waits 10 s (`ESCALES_LLM_TIMEOUT_NIM_FALLBACK_S`). After HTTP 429 the same NIM model is tried once. The pause follows `Retry-After`, capped at 3 s, and is at least the gap between NIM calls. HTTP 404 or 403 logs `model unavailable for this key` and skips that hop for 10 minutes.
 
-Chat and the milestone report ask Super first. The JSON advisory asks Lightning first, then Super. The payload has no `reasoning_effort` and no `nvext`. `top_p` is sent only when the temperature is above 0. `guided_json` stays at the root of the NIM request. OpenRouter receives `response_format` with the same JSON schema.
+Chat and the milestone report ask Super first. The JSON advisory uses `JSON_HTTP_CASCADE` with Lightning (`nim_fallback`) before Super on purpose, to save credits. The payload has no `reasoning_effort` and no `nvext`. `top_p` is sent only when the temperature is above 0. `guided_json` stays at the root of the NIM request. OpenRouter receives `response_format` with the same JSON schema.
 
 ## Provider limits
 

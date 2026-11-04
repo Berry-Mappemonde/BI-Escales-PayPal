@@ -14,9 +14,22 @@ declare global {
 
 const PAY_LATER_MIN = 30;
 
-export function paypalSdkUrl(clientId: string): string {
-  const params = new URLSearchParams({
+export function paypalLocale(appLang?: string): string {
+  const raw = String(appLang || "fr").trim().toLowerCase();
+  if (raw.startsWith("en")) return "en_US";
+  return "fr_FR";
+}
+
+function sdkParams(clientId: string, locale: string, extra: Record<string, string>): URLSearchParams {
+  return new URLSearchParams({
     "client-id": clientId,
+    locale,
+    ...extra,
+  });
+}
+
+export function paypalSdkUrl(clientId: string, appLang?: string): string {
+  const params = sdkParams(clientId, paypalLocale(appLang), {
     components: "buttons,messages",
     intent: "authorize",
     currency: "EUR",
@@ -28,9 +41,8 @@ export function paypalSdkUrl(clientId: string): string {
 }
 
 /** Card Fields + wallet buttons when the matching ESCALES_* flags are on (paypalSdk.ts pattern). */
-export function paypalCardFieldsSdkUrl(clientId: string): string {
-  const params = new URLSearchParams({
-    "client-id": clientId,
+export function paypalCardFieldsSdkUrl(clientId: string, appLang?: string): string {
+  const params = sdkParams(clientId, paypalLocale(appLang), {
     components: "card-fields,buttons,messages",
     intent: "authorize",
     currency: "EUR",
@@ -40,9 +52,8 @@ export function paypalCardFieldsSdkUrl(clientId: string): string {
   return `https://www.paypal.com/sdk/js?${params.toString()}`;
 }
 
-export function paypalWalletPaySdkUrl(clientId: string): string {
-  const params = new URLSearchParams({
-    "client-id": clientId,
+export function paypalWalletPaySdkUrl(clientId: string, appLang?: string): string {
+  const params = sdkParams(clientId, paypalLocale(appLang), {
     components: "applepay,googlepay,buttons,messages",
     intent: "authorize",
     currency: "EUR",
@@ -52,9 +63,8 @@ export function paypalWalletPaySdkUrl(clientId: string): string {
   return `https://www.paypal.com/sdk/js?${params.toString()}`;
 }
 
-export function paypalSubscriptionSdkUrl(clientId: string): string {
-  const params = new URLSearchParams({
-    "client-id": clientId,
+export function paypalSubscriptionSdkUrl(clientId: string, appLang?: string): string {
+  const params = sdkParams(clientId, paypalLocale(appLang), {
     components: "buttons",
     intent: "subscription",
     vault: "true",
@@ -74,21 +84,44 @@ export function payLaterEligible(amountEur: string, kind?: string): boolean {
   return Number.isFinite(value) && value >= PAY_LATER_MIN;
 }
 
-export function loadPayPalSdk(clientId: string): Promise<void> {
-  const trimmed = clientId.trim();
-  if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
-  if (window.paypal?.Buttons) return Promise.resolve();
-  return loadScript(paypalSdkUrl(trimmed));
+let loadedLocale: string | null = null;
+
+function clearPayPalSdk(): void {
+  loadedLocale = null;
+  delete window.paypal;
+  for (const node of document.querySelectorAll("script[data-paypal-sdk-src]")) {
+    node.remove();
+  }
 }
 
-export function loadPayPalSubscriptionSdk(clientId: string): Promise<void> {
+export function loadPayPalSdk(clientId: string, appLang?: string): Promise<void> {
   const trimmed = clientId.trim();
   if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
-  const src = paypalSubscriptionSdkUrl(trimmed);
-  const loaded = findPayPalScript(src);
-  if (loaded?.dataset.loaded === "1") {
+  const locale = paypalLocale(appLang);
+  const src = paypalSdkUrl(trimmed, appLang);
+  if (loadedLocale && loadedLocale !== locale) {
+    clearPayPalSdk();
+  }
+  if (window.paypal?.Buttons && loadedLocale === locale) {
     return Promise.resolve();
   }
+  loadedLocale = locale;
+  return loadScript(src);
+}
+
+export function loadPayPalSubscriptionSdk(clientId: string, appLang?: string): Promise<void> {
+  const trimmed = clientId.trim();
+  if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
+  const locale = paypalLocale(appLang);
+  const src = paypalSubscriptionSdkUrl(trimmed, appLang);
+  if (loadedLocale && loadedLocale !== locale) {
+    clearPayPalSdk();
+  }
+  const loaded = findPayPalScript(src);
+  if (loaded?.dataset.loaded === "1" && loadedLocale === locale) {
+    return Promise.resolve();
+  }
+  loadedLocale = locale;
   return loadScript(src);
 }
 

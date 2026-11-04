@@ -43,7 +43,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
         cancelled = true;
       };
     }
-    void loadPayPalSdk(clientId)
+    void loadPayPalSdk(clientId, appLang)
       .then(() => {
         if (!cancelled) setSdkReady(true);
       })
@@ -53,7 +53,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [appLang]);
 
   useEffect(() => {
     if (!created?.approve_link || !vault) return;

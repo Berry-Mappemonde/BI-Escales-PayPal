@@ -28,6 +28,8 @@ from typing import Any, Awaitable, Callable, Optional
 
 import httpx
 
+from app.escales.app_i18n import normalize_app_lang
+
 log = logging.getLogger("escales.llm")
 
 _SECRET_VALUE = re.compile(
@@ -133,6 +135,22 @@ _DEFAULT_SYSTEM = (
     "You are the Blue Intelligence Escales captain. "
     "You propose only. You never capture, void, or move money."
 )
+_DEFAULT_SYSTEM_FR = (
+    "Tu es le capitaine Escales de Blue Intelligence. "
+    "Tu proposes seulement. Tu n'encaisses, n'annules ni ne déplaces d'argent."
+)
+
+
+def default_system(lang: Optional[str] = None) -> str:
+    if normalize_app_lang(lang) == "fr":
+        return _DEFAULT_SYSTEM_FR
+    return _DEFAULT_SYSTEM
+
+
+def default_json_system(lang: Optional[str] = None) -> str:
+    if normalize_app_lang(lang) == "fr":
+        return "Réponds par un seul objet JSON. Pas de fence markdown ni de commentaire."
+    return "Reply with one JSON object only. No markdown fence and no commentary."
 
 _Caller = Callable[..., Awaitable["LlmResult"]]
 
@@ -933,6 +951,7 @@ async def ask_text(
     temperature: Optional[float] = None,
     guided_json: Optional[dict[str, Any]] = None,
     order: Optional[tuple[str, ...]] = None,
+    lang: Optional[str] = None,
 ) -> LlmResult:
     """Run the cascade. Raises when no provider answers so the captain uses its rules.
 
@@ -946,7 +965,7 @@ async def ask_text(
         raise RuntimeError("No LLM configured")
     if not consume_llm_call():
         raise LlmBudgetExhausted("ESCALES_LLM_DAILY_CAP reached")
-    system_text = (system or "").strip() or _DEFAULT_SYSTEM
+    system_text = (system or "").strip() or default_system(lang)
     user = prompt or ""
     budget = max(1, int(max_tokens))
     own = client is None
@@ -1103,6 +1122,29 @@ def parse_json_object(text: str) -> dict[str, Any]:
     return data
 
 
+async def complete(
+    prompt: str,
+    *,
+    lang: str,
+    system: Optional[str] = None,
+    max_tokens: int = 500,
+    client: Optional[httpx.AsyncClient] = None,
+    temperature: Optional[float] = None,
+    guided_json: Optional[dict[str, Any]] = None,
+    order: Optional[tuple[str, ...]] = None,
+) -> LlmResult:
+    return await ask_text(
+        prompt,
+        system=system,
+        max_tokens=max_tokens,
+        client=client,
+        temperature=temperature,
+        guided_json=guided_json,
+        order=order,
+        lang=lang,
+    )
+
+
 async def ask_json(
     prompt: str,
     system: Optional[str] = None,
@@ -1110,9 +1152,10 @@ async def ask_json(
     client: Optional[httpx.AsyncClient] = None,
     temperature: Optional[float] = 0,
     schema: Optional[dict[str, Any]] = None,
+    lang: Optional[str] = None,
 ) -> LlmJson:
     """Ask for one JSON object. The schema is advisory and does not choose the payment."""
-    system_text = (system or "").strip() or _JSON_SYSTEM
+    system_text = (system or "").strip() or default_json_system(lang)
     use_schema = schema or ADVISORY_PROPOSAL_SCHEMA
     result = await ask_text(
         prompt,
@@ -1122,6 +1165,7 @@ async def ask_json(
         temperature=0 if temperature is None else temperature,
         guided_json=use_schema,
         order=JSON_HTTP_CASCADE,
+        lang=lang,
     )
     data = parse_json_object(result.text)
     if not advisory_matches_schema(data):
@@ -1129,6 +1173,27 @@ async def ask_json(
     parsed = LlmJson(data, result.provider, result.model, result.text)
     parsed.fallback_reason = result.fallback_reason
     return parsed
+
+
+async def complete_json(
+    prompt: str,
+    *,
+    lang: str,
+    system: Optional[str] = None,
+    max_tokens: int = 500,
+    client: Optional[httpx.AsyncClient] = None,
+    temperature: Optional[float] = 0,
+    schema: Optional[dict[str, Any]] = None,
+) -> LlmJson:
+    return await ask_json(
+        prompt,
+        system=system,
+        max_tokens=max_tokens,
+        client=client,
+        temperature=temperature,
+        schema=schema,
+        lang=lang,
+    )
 
 
 def llm_result_metadata(result: LlmResult) -> dict[str, Any]:
@@ -1169,6 +1234,7 @@ async def probe_cascade(client: Optional[httpx.AsyncClient] = None) -> dict[str,
             client=client,
             temperature=0.3,
             order=HTTP_CASCADE,
+            lang="en",
         )
         chat_meta = llm_result_metadata(chat_result)
     except Exception as exc:
@@ -1182,6 +1248,7 @@ async def probe_cascade(client: Optional[httpx.AsyncClient] = None) -> dict[str,
             client=client,
             temperature=0.2,
             order=HTTP_CASCADE,
+            lang="en",
         )
         report_meta = llm_result_metadata(report_result)
     except Exception as exc:
@@ -1190,10 +1257,11 @@ async def probe_cascade(client: Optional[httpx.AsyncClient] = None) -> dict[str,
     try:
         advisory = await ask_json(
             '{"decision":"wait","language":"en"}',
-            system=_JSON_SYSTEM,
+            system=default_json_system("en"),
             max_tokens=180,
             client=client,
             temperature=0,
+            lang="en",
         )
         ask_meta = {
             "provider": advisory.provider,

@@ -571,6 +571,7 @@ class PayPalClient:
         description: str,
         reference: str,
         invoice_number: Optional[str] = None,
+        lang: Optional[str] = None,
     ) -> dict:
         number = (invoice_number or reference)[:25]
         body = {
@@ -604,11 +605,17 @@ class PayPalClient:
             idempotency_key=paypal_request_id(invoice_id, "invoice-send"),
         )
 
-    def remind_invoice(self, invoice_id: str) -> dict:
+    def remind_invoice(
+        self,
+        invoice_id: str,
+        *,
+        subject: str,
+        note: str,
+    ) -> dict:
         return self._req(
             "POST",
             f"/v2/invoicing/invoices/{invoice_id}/remind",
-            {"subject": "Reminder: Escales invoice", "note": "Please complete payment."},
+            {"subject": subject[:127], "note": note[:2000]},
             idempotency_key=paypal_request_id(invoice_id, "invoice-remind"),
         )
 
@@ -706,11 +713,14 @@ class PayPalClient:
         return_url: str,
         cancel_url: str,
         idempotency_key: str,
+        locale: Optional[str] = None,
     ) -> dict:
+        checkout_locale = locale or DEFAULT_PAYPAL_LOCALE
         body = {
             "plan_id": plan_id,
             "application_context": {
-                "brand_name": "BI Escales",
+                "brand_name": VAULT_BRAND_NAME,
+                "locale": checkout_locale,
                 "shipping_preference": "NO_SHIPPING",
                 "user_action": "SUBSCRIBE_NOW",
                 "return_url": return_url,
@@ -754,22 +764,31 @@ class PayPalClient:
         amount_eur: str,
         note: str,
         item_id: str,
+        lang: Optional[str] = None,
     ) -> dict:
         """Send one sandbox payout after explicit human approval.
 
         Payouts API: https://developer.paypal.com/docs/api/payments.payouts-batch/v1/
         """
+        app_lang = (lang or "fr").strip().lower()
+        if app_lang.startswith("en"):
+            email_subject = "Berry-Mappemonde project payout"
+            default_note = "Berry-Mappemonde Escales project payout"
+        else:
+            email_subject = "Versement projet Berry-Mappemonde"
+            default_note = "Versement projet Escales Berry-Mappemonde"
+        payout_note = (note or "").strip() or default_note
         body = {
             "sender_batch_header": {
                 "sender_batch_id": batch_id[:127],
-                "email_subject": "Berry-Mappemonde project payout",
+                "email_subject": email_subject,
             },
             "items": [{
                 "recipient_type": "EMAIL",
                 "recipient_wallet": "PAYPAL",
                 "amount": {"value": str(amount_eur), "currency": self.cfg.currency or "EUR"},
                 "receiver": receiver_email,
-                "note": (note or "")[:165],
+                "note": payout_note[:165],
                 "sender_item_id": item_id[:127],
             }],
         }

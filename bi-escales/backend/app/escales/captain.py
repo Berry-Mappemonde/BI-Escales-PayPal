@@ -289,9 +289,14 @@ def _public_rule(lang: str) -> str:
         )
     return (
         f"{CAPTURE_RULES_FR} "
-        "Une promesse est autorisée au plus près du départ. "
-        "Quand le départ est à plus de 29 jours, la promesse utilise PayPal Vault."
+        "La promesse est autorisée au plus près du départ que possible. "
+        "Au-delà de 29 jours avant le départ, la promesse passe par PayPal Vault."
     )
+
+
+def _capture_rule_core_in(text: str, lang: str) -> bool:
+    core = CAPTURE_RULES_EN if lang == "en" else CAPTURE_RULES_FR
+    return core.casefold() in (text or "").casefold()
 
 
 def _capture_rule_reply(lang: str) -> str:
@@ -417,15 +422,20 @@ def simulated_unit(kind: str, lang: str = "en") -> dict:
     return row
 
 
-def simulated_prices() -> dict:
+def simulated_prices(lang: Optional[str] = None) -> dict:
     """One row per pledge kind. Prices are indicative; the visitor's amount stays."""
+    app_lang = normalize_app_lang(lang)
+    if app_lang == "fr":
+        note = "Les prix sont indicatifs. Le montant saisi par le visiteur est celui autorisé par PayPal."
+    else:
+        note = "Prices are indicative. The visitor's amount is what PayPal authorizes."
     return {
         "simulated": True,
         "indicative": True,
-        "label": SIMULATED_PRICE_LABEL,
-        "note": "Prices are indicative. The visitor's amount is what PayPal authorizes.",
+        "label": simulated_price_label(app_lang),
+        "note": note,
         "currency": "EUR",
-        "prices": [simulated_unit(kind, "en") for kind in PLEDGE_KINDS],
+        "prices": [simulated_unit(kind, app_lang) for kind in PLEDGE_KINDS],
     }
 
 
@@ -1487,6 +1497,9 @@ def _compose_chat_reply(
     prose = _drop_sentences(prose, _CHAT_DECIDE_RE)
     prose = _drop_sentences(prose, _REFUSAL_RE)
     prose = _drop_sentences(prose, _TREASURER_ONLY)
+    kind = str((suggested or {}).get("kind") or "")
+    if kind not in {"common_fund", "project_pledge"}:
+        prose = _drop_sentences(prose, _OFF_TOPIC_FUND_PROSE)
     prose = _trim_cutoff(_normalize_dots(prose))
     if lang == "fr":
         prose = _standardise_french(_french_labels(prose))
@@ -1503,7 +1516,8 @@ def _compose_chat_reply(
         if dates.casefold() not in (prose or "").casefold():
             required.append(dates)
     rules = _public_rule(lang)
-    if rules.casefold() not in (prose or "").casefold():
+    combined = f"{prose} {' '.join(required)}"
+    if not _capture_rule_core_in(combined, lang):
         required.append(rules)
     joined = " ".join(required)
     if lang == "en" and not re.search(r"\bintent\s+authorize\b", f"{prose} {joined}", re.I):
@@ -2052,6 +2066,7 @@ async def _llm_text(
     prompt: str,
     system: str,
     *,
+    lang: str,
     max_tokens: int = 220,
     temperature: Optional[float] = None,
 ) -> tuple[Optional[str], dict[str, str]]:
@@ -2072,6 +2087,7 @@ async def _llm_text(
             system=system,
             max_tokens=max_tokens,
             temperature=temperature,
+            lang=lang,
         )
     except Exception as exc:
         from app.core.llm import safe_error_message
@@ -2290,6 +2306,7 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
             max_tokens=180,
             temperature=0,
             schema=schema,
+            lang=verdict_lang,
         )
     except Exception:
         return None
@@ -2321,6 +2338,7 @@ async def _narrative_for_language(
     narrative, source = await _llm_text(
         prompt,
         system,
+        lang=app_lang,
         max_tokens=_REPORT_MAX_TOKENS,
         temperature=_REPORT_TEMPERATURE,
     )
@@ -2597,6 +2615,7 @@ async def _answer_fund(
         raw, source = await _llm_text(
             prompt,
             _fund_system(lang),
+            lang=lang,
             max_tokens=_CHAT_MAX_TOKENS,
             temperature=_CHAT_TEMPERATURE,
         )
@@ -2644,7 +2663,19 @@ def _cabin_price_reply(lang: str) -> str:
 
 
 _PAYPAL_READONLY = re.compile(
-    r"\b(?:list|show|search|check)\s+(?:paypal\s+)?(?:transactions?|disputes?|invoices?)\b",
+    r"\b(?:list|show|search|check)\s+(?:paypal\s+)?(?:transactions?|disputes?|invoices?|subscriptions?|refunds?|payouts?)\b",
+    re.IGNORECASE,
+)
+_PAYPAL_READONLY_FR = re.compile(
+    r"\b(?:liste|lister|r(?:é|e)pertori\w*|montre|affiche|donne)\b.{0,60}\b"
+    r"(?:transactions?|factures?|litiges?|abonnements?|remboursements?|versements?)\b",
+    re.IGNORECASE,
+)
+_OFF_TOPIC_FUND_PROSE = re.compile(
+    r"la caisse est le financement projet"
+    r"|la caisse du projet est"
+    r"|the (?:project )?fund is (?:the )?project financing"
+    r"|project fund financing",
     re.IGNORECASE,
 )
 
@@ -2652,6 +2683,20 @@ _PAYPAL_READONLY = re.compile(
 def _is_paypal_readonly_question(message: str) -> bool:
     text = message or ""
     if _PAYPAL_READONLY.search(text):
+        return True
+    if _PAYPAL_READONLY_FR.search(text):
+        return True
+    if re.search(
+        r"\b(?:transactions?|factures?|litiges?|abonnements?|remboursements?|versements?)\b.{0,40}\bpaypal\b",
+        text,
+        re.I,
+    ):
+        return True
+    if re.search(
+        r"\bpaypal\b.{0,40}\b(?:transactions?|factures?|litiges?|abonnements?)\b",
+        text,
+        re.I,
+    ):
         return True
     if re.search(
         r"\bshow\s+me\s+(?:the\s+)?paypal\s+transactions?\b",
@@ -2803,7 +2848,11 @@ async def chat(
     else:
         prompt = json.dumps(allowed, ensure_ascii=False, default=str)
         raw, source = await _llm_text(
-            prompt, _chat_system(lang), max_tokens=_CHAT_MAX_TOKENS, temperature=_CHAT_TEMPERATURE,
+            prompt,
+            _chat_system(lang),
+            lang=lang,
+            max_tokens=_CHAT_MAX_TOKENS,
+            temperature=_CHAT_TEMPERATURE,
         )
         if raw:
             if lang == "fr":

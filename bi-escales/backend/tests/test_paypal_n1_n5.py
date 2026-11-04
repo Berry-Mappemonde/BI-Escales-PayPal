@@ -118,6 +118,7 @@ def test_n1_subscription_webhook_keys_by_subscription_id_and_updates():
             _subscription_create_body_hash(
                 return_url="https://example.com/return",
                 cancel_url="https://example.com/cancel",
+                lang="en",
             ),
             {"subscription_id": "I-SUB-1", "plan_id": "P-CREW", "status": "APPROVAL_PENDING"},
         )
@@ -193,7 +194,7 @@ def test_n4_show_me_paypal_transactions_without_lang():
     client = TestClient(app)
     body = client.post(
         "/api/escales/captain/chat",
-        json={"message": "Show me the PayPal transactions for the treasurer"},
+        json={"message": "Show me the PayPal transactions for the treasurer", "lang": "en"},
         headers={"x-admin-key": "n-admin", "Accept-Language": "fr-FR,fr;q=0.9"},
     ).json()
     assert body["model_source"] == "paypal_readonly_tools"
@@ -214,7 +215,7 @@ def test_n4_english_treasurer_question_without_lang():
     client = TestClient(app)
     body = client.post(
         "/api/escales/captain/chat",
-        json={"message": "List PayPal disputes for the treasurer"},
+        json={"message": "List PayPal disputes for the treasurer", "lang": "en"},
         headers={"x-admin-key": "n-admin", "Accept-Language": "fr-FR,fr;q=0.9"},
     ).json()
     assert body["model_source"] == "paypal_readonly_tools"
@@ -316,7 +317,7 @@ def test_n7_treasurer_chat_compose_path_english_without_lang():
     client = TestClient(app)
     body = client.post(
         "/api/escales/captain/chat",
-        json={"message": "Should the treasurer void this PayPal authorization?"},
+        json={"message": "Should the treasurer void this PayPal authorization?", "lang": "en"},
         headers={"x-admin-key": "n-admin", "Accept-Language": "fr-FR,fr;q=0.9"},
     ).json()
     assert body.get("model_source") != "paypal_readonly_tools"

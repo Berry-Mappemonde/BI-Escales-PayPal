@@ -9,6 +9,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
+from .app_i18n import normalize_app_lang
 from .ledger import _euros, get_ledger, list_finance_entries, record_finance, update_finance_entry
 from .paypal_client import PayPalError, _paypal_api_error_fields
 
@@ -119,7 +120,20 @@ async def propose_project_payout(
     )
 
 
-async def approve_project_payout(payout_id: str, client: Any) -> dict:
+def _default_payout_note(project_id: str, lang: Optional[str] = None) -> str:
+    app_lang = normalize_app_lang(lang)
+    pid = str(project_id or "").strip() or "projet"
+    if app_lang == "en":
+        return f"Berry-Mappemonde Escales payout for project {pid}"
+    return f"Versement Escales Berry-Mappemonde pour le projet {pid}"
+
+
+async def approve_project_payout(
+    payout_id: str,
+    client: Any,
+    *,
+    lang: Optional[str] = None,
+) -> dict:
     """Send a previously proposed payout to PayPal. Requires a second human step."""
     proposal = await find_payout_proposal(payout_id)
     status = str(proposal.get("status") or "")
@@ -135,13 +149,15 @@ async def approve_project_payout(payout_id: str, client: Any) -> dict:
     if amount > available:
         raise ValueError(f"payout exceeds captured project funds ({available:.2f} EUR)")
     batch_id = f"payout-{payout_id}"
+    note = str(proposal.get("note") or "").strip() or _default_payout_note(project_id, lang)
     try:
         payload = client.create_payout(
             batch_id=batch_id,
             receiver_email=str(proposal.get("receiver_email") or ""),
             amount_eur=f"{amount:.2f}",
-            note=str(proposal.get("note") or ""),
+            note=note,
             item_id=payout_id,
+            lang=lang,
         )
     except PayPalError as exc:
         err = _paypal_api_error_fields(exc.body) or {}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from .app_i18n import normalize_app_lang
 from .ledger import record_finance
 
 
@@ -41,14 +42,17 @@ async def get_dispute(client: Any, dispute_id: str) -> dict:
     return payload
 
 
-async def dispute_evidence_notes(*, milestone_id: str) -> str:
+async def dispute_evidence_notes(*, milestone_id: str, lang: Optional[str] = None) -> str:
     """Leg facts from the Captain evidence kernel (schedule + sailed proof)."""
     from .milestones import get_milestone, latest_evidence
 
+    app_lang = normalize_app_lang(lang)
     milestone = await get_milestone(milestone_id)
     evidence = latest_evidence(milestone)
     if not evidence:
-        return "No milestone evidence on file for this leg."
+        if app_lang == "en":
+            return "No milestone evidence on file for this leg."
+        return "Aucune preuve de jalon enregistrée pour cette escale."
     parts: list[str] = []
     for key in ("summary", "departure_iso", "arrival_iso", "sailed_nm", "status", "source"):
         value = evidence.get(key)
@@ -59,7 +63,11 @@ async def dispute_evidence_notes(*, milestone_id: str) -> str:
         for key, value in facts.items():
             if value is not None and str(value).strip():
                 parts.append(f"{key}: {value}")
-    return "\n".join(parts) if parts else "Milestone evidence recorded (see escales audit)."
+    if parts:
+        return "\n".join(parts)
+    if app_lang == "en":
+        return "Milestone evidence recorded (see escales audit)."
+    return "Preuve de jalon enregistrée (voir l'audit Escales)."
 
 
 async def accept_dispute_claim(client: Any, dispute_id: str, *, note: str = "") -> dict:
@@ -74,8 +82,12 @@ async def provide_dispute_evidence(
     *,
     milestone_id: str,
     notes: Optional[str] = None,
+    lang: Optional[str] = None,
 ) -> dict:
-    text = (notes or "").strip() or await dispute_evidence_notes(milestone_id=milestone_id)
+    text = (notes or "").strip() or await dispute_evidence_notes(
+        milestone_id=milestone_id,
+        lang=lang,
+    )
     result = client.provide_dispute_evidence(
         dispute_id,
         notes=text,

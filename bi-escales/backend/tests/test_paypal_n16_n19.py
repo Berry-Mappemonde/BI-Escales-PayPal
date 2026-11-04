@@ -61,11 +61,11 @@ def test_n16_public_plan_route_hydrates_from_paypal_catalog_without_create():
         app = FastAPI()
         app.include_router(router)
         client = TestClient(app)
-        body = client.get("/api/escales/paypal/subscriptions/plan").json()
+        body = client.get("/api/escales/paypal/subscriptions/plan", params={"lang": "en"}).json()
         assert body.get("plan_id") == "PLAN-EXIST"
         assert spy.create_product_calls == 0
         assert spy.create_plan_calls == 0
-        again = client.get("/api/escales/paypal/subscriptions/plan").json()
+        again = client.get("/api/escales/paypal/subscriptions/plan", params={"lang": "en"}).json()
         assert again.get("plan_id") == "PLAN-EXIST"
 
     asyncio.run(run())

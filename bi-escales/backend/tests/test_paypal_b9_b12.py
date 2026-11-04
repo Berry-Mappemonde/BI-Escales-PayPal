@@ -171,6 +171,7 @@ def test_b11_reconcile_matches_on_capture_id():
                 "amount_eur": "12.50",
                 "at": "2026-11-04T10:00:00+00:00",
             }],
+            lang="en",
         )
         assert report["match_key"] == "capture_id"
         assert report["matched"][0]["capture_id"] == "CAP-RECON"
@@ -287,7 +288,7 @@ def test_reconcile_route_includes_lag_note():
     client = TestClient(app)
     response = client.get(
         "/api/escales/paypal/reconcile",
-        params={"start_date": "2026-01-01T00:00:00Z", "end_date": "2026-01-08T00:00:00Z"},
+        params={"start_date": "2026-01-01T00:00:00Z", "end_date": "2026-01-08T00:00:00Z", "lang": "en"},
         headers={"x-admin-key": "b9-admin"},
     )
     assert response.status_code == 200

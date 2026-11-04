@@ -37,6 +37,21 @@ SYSTEM = (
     "stale_hint : une phrase courte ou null, sans chiffre nouveau. "
     "Thinking OFF."
 )
+SYSTEM_EN = (
+    "You are a truth judge. Compare official record facts to the source page excerpt. "
+    "Do not introduce numbers that are not already in the facts or excerpt. "
+    'Reply with JSON only: {"supported": ["..."], "unsupported": ["..."], "stale_hint": null}. '
+    "supported and unsupported must quote the record verbatim. "
+    "stale_hint is one short sentence or null, with no new numbers. "
+    "Thinking OFF."
+)
+
+
+def _system_for(lang: str | None) -> str:
+    token = (lang or "fr").strip().lower()
+    if token.startswith("en"):
+        return SYSTEM_EN
+    return SYSTEM
 
 
 def _now_iso() -> str:
@@ -134,6 +149,7 @@ async def judge(
     extrait: str | None,
     *,
     client: httpx.AsyncClient | None = None,
+    lang: str = "fr",
 ) -> dict[str, Any]:
     """Ultra (tier judge) : {supported, unsupported, stale_hint}. Extrait vide → unverifiable."""
     extract = _clip_extract(extrait or "")
@@ -150,7 +166,8 @@ async def judge(
     )
     try:
         text, source = await cascade_text(
-            SYSTEM, user, client, tier="judge", fallback="{}", facts=None,
+            _system_for(lang), user, client, tier="judge", fallback="{}", facts=None,
+            lang=lang,
         )
     except Exception as exc:
         log.debug("juge Ultra : %s", exc)

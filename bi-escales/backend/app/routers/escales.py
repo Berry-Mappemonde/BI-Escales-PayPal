@@ -42,8 +42,10 @@ from app.escales.config import (
     webhooks_enabled,
 )
 from app.escales.ledger import (
+    _project_fund_target,
     _unplaced_bucket,
     fund_for_milestone,
+    fund_milestone_for_pledge,
     get_ledger,
     list_finance_entries,
     list_webhook_outcomes,
@@ -444,7 +446,7 @@ async def _fund_aggregate(milestone_id: str) -> Optional[dict]:
 async def _public_pledge_with_fund(doc: dict, *, lang: str = "en") -> dict:
     """Pledge the buyer needs, with the public fund aggregate and no pledge list."""
     public = _public_pledge(doc, lang=lang)
-    public["fund"] = await _fund_aggregate(str(doc.get("milestone_id") or ""))
+    public["fund"] = await _fund_aggregate(fund_milestone_for_pledge(doc))
     return public
 
 
@@ -918,7 +920,7 @@ async def get_pledge(pledge_id: str, request: Request):
         doc = await require_pledge(pledge_id)
     except PledgeNotFound as exc:
         raise _as_http(exc) from exc
-    fund = await _fund_aggregate(str(doc.get("milestone_id") or ""))
+    fund = await _fund_aggregate(fund_milestone_for_pledge(doc))
     if not _valid_admin_key(request):
         return _public_pledge_summary(doc, fund)
     full = await _public_pledge_with_fund(doc)
@@ -932,7 +934,7 @@ async def get_fund(milestone_id: str, request: Request):
 
     The body is aggregated money only: no journal lines and no pledge ids.
     """
-    if _unplaced_bucket(milestone_id):
+    if _unplaced_bucket(milestone_id) or await _project_fund_target(milestone_id):
         _require_treasurer(request)
     try:
         return to_public_fund(await fund_for_milestone(milestone_id))

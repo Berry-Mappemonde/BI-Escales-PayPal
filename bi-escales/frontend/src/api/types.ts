@@ -96,12 +96,27 @@ export interface Milestone {
   updated_at?: string;
 }
 
+export interface PendingAuthorization {
+  pledge_id: string;
+  authorization_id?: string | null;
+  status?: string;
+  amount_eur?: string;
+  currency?: string;
+  description?: string | null;
+  kind?: string | null;
+  target_id?: string | null;
+  milestone_id?: string;
+  authorization_expires_at?: string | null;
+  authorization_age_days?: number | null;
+}
+
 export interface CaptainProposal {
   milestone_id: string;
   proposal: "capture" | "void" | "wait" | string;
   report?: string;
   justification?: string;
   pledge_ids: string[];
+  pending_authorizations?: PendingAuthorization[];
   evidence_flag?: string;
   at?: string;
 }

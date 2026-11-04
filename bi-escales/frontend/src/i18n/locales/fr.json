@@ -51,7 +51,10 @@
     "overdrawn": "Le solde est négatif.",
     "spendAmount": "Dépense (EUR)",
     "spendDescription": "Libellé de la dépense",
-    "spendSubmit": "Enregistrer la dépense"
+    "spendSubmit": "Enregistrer la dépense",
+    "openHeading": "Totaux hors escale",
+    "projectTotals": "Promesses projet",
+    "boatTotals": "Fonds commun"
   },
   "escales": {
     "heading": "Escales & capitaine",

@@ -51,7 +51,10 @@
     "overdrawn": "The balance is negative.",
     "spendAmount": "Spending (EUR)",
     "spendDescription": "Spending note",
-    "spendSubmit": "Record spending"
+    "spendSubmit": "Record spending",
+    "openHeading": "Totals with no stopover",
+    "projectTotals": "Project pledges",
+    "boatTotals": "Common fund"
   },
   "escales": {
     "heading": "Stops & AI Captain",

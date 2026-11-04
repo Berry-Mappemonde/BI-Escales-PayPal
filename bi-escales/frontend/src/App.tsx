@@ -30,6 +30,34 @@ type VoyageStop = {
 
 type FlyTarget = { lat: number; lon: number; ts: number };
 
+function OpenFundTotals({
+  title,
+  fund,
+  testId,
+}: {
+  title: string;
+  fund: FundView | null | undefined;
+  testId: string;
+}) {
+  const { t } = useTranslation();
+  const figures = fund
+    ? t("fund.figures", {
+        balance: fund.balance_eur,
+        currency: fund.currency,
+        income: fund.income_eur,
+        spending: fund.spending_eur,
+      })
+    : fund === null
+      ? t("fund.missing")
+      : "";
+  return (
+    <p data-testid={testId}>
+      {title}
+      {figures ? ` — ${figures}` : ""}
+    </p>
+  );
+}
+
 const KIND_AMOUNT: Record<string, string | null> = {
   mile: null,
   night: "60.00",
@@ -68,6 +96,8 @@ export default function App() {
   const [spendAmount, setSpendAmount] = useState("10.00");
   const [spendNote, setSpendNote] = useState("");
   const [spendError, setSpendError] = useState<string | null>(null);
+  const [projectFund, setProjectFund] = useState<FundView | null | undefined>(undefined);
+  const [boatFund, setBoatFund] = useState<FundView | null | undefined>(undefined);
 
   const prod = Boolean(import.meta.env.PROD);
   const t0 = resolveDepartureT0(prod, devT0 || undefined);
@@ -157,6 +187,28 @@ export default function App() {
   }, [refresh, updatePledge]);
 
   useEffect(() => {
+    if (hash !== "#tresorier") return undefined;
+    let cancelled = false;
+    void fetchFund("project")
+      .then((row) => {
+        if (!cancelled) setProjectFund(row);
+      })
+      .catch(() => {
+        if (!cancelled) setProjectFund(null);
+      });
+    void fetchFund("fund")
+      .then((row) => {
+        if (!cancelled) setBoatFund(row);
+      })
+      .catch(() => {
+        if (!cancelled) setBoatFund(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hash, pledges]);
+
+  useEffect(() => {
     const onHash = () => setHash(window.location.hash);
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -239,6 +291,11 @@ export default function App() {
           {t("pledge.milestone")}
           <input value={milestoneId} onChange={(event) => setMilestoneId(event.target.value)} />
         </label>
+        <section className="panel" data-testid="treasurer-open-funds">
+          <h2>{t("fund.openHeading")}</h2>
+          <OpenFundTotals title={t("fund.projectTotals")} fund={projectFund} testId="project-fund-totals" />
+          <OpenFundTotals title={t("fund.boatTotals")} fund={boatFund} testId="common-fund-totals" />
+        </section>
         <TreasurerQueue
           pledges={pledges}
           loading={loading}

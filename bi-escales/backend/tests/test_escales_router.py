@@ -458,6 +458,12 @@ def test_captain_route_does_not_capture_or_void(api):
     body = review.json()
     assert body["proposal"] == "capture"
     assert authorized["id"] in body["pledge_ids"]
+    pending = body["pending_authorizations"]
+    assert [row["pledge_id"] for row in pending] == body["pledge_ids"]
+    assert pending[0]["authorization_id"] == authorized["authorization_id"]
+    assert pending[0]["status"] == "authorized"
+    assert pending[0]["amount_eur"] == "20.00"
+    assert pending[0]["currency"] == "EUR"
     assert body["justification"]
     names = [call[0] for call in fake.calls]
     assert "capture" not in names
@@ -710,6 +716,79 @@ def test_schedule_local_fallback(api, monkeypatch):
     assert "dep-la-rochelle" in listed_ids
     assert body["prices"]["label"] == "simulated price"
     assert body["prices"]["simulated"] is True
+
+
+def test_unplaced_project_and_fund_totals_are_readable(api):
+    """Pledges with an empty milestone used to 404 on /milestones/project/fund."""
+    client, _fake = api
+    empty_project = client.get("/api/escales/milestones/project/fund")
+    assert empty_project.status_code == 200
+    assert empty_project.json()["milestone_id"] == "projet"
+    assert empty_project.json()["income_eur"] == "0.00"
+    assert empty_project.json()["spending_eur"] == "0.00"
+    assert empty_project.json()["balance_eur"] == "0.00"
+    assert empty_project.json()["income"] == []
+    empty_fund = client.get("/api/escales/milestones/fund/fund")
+    assert empty_fund.status_code == 200
+    assert empty_fund.json()["milestone_id"] == "fonds-commun"
+
+    _created_p, project = _ready(client, "tot-project", {
+        "amount_eur": "15.00",
+        "description": "promesse projet",
+        "milestone_id": "",
+        "kind": "project_pledge",
+    })
+    assert client.post(
+        f"/api/escales/pledges/{project['id']}/capture", headers=ADMIN
+    ).status_code == 200
+    _ready(client, "tot-project-held", {
+        "amount_eur": "7.00",
+        "description": "projet encore autorisé",
+        "milestone_id": "",
+        "kind": "project_pledge",
+    })
+    shown = client.get("/api/escales/milestones/projet/fund").json()
+    assert shown["income_eur"] == "15.00"
+    assert shown["balance_eur"] == "15.00"
+    assert shown["income"][0]["pledge_id"] == project["id"]
+    assert shown["income"][0]["pledge_kind"] == "project_pledge"
+    assert shown["income"][0]["description"] == "promesse projet"
+
+    _created_f, boat = _ready(client, "tot-fund", {
+        "amount_eur": "12.00",
+        "description": "fonds commun",
+        "milestone_id": "",
+        "kind": "common_fund",
+    })
+    assert client.post(
+        f"/api/escales/pledges/{boat['id']}/capture", headers=ADMIN
+    ).status_code == 200
+    fund = client.get("/api/escales/milestones/fonds-commun/fund").json()
+    assert fund["income_eur"] == "12.00"
+    assert fund["spending_eur"] == "0.00"
+    assert fund["balance_eur"] == "12.00"
+    assert client.get("/api/escales/milestones/common-fund/fund").json()["income_eur"] == "12.00"
+    assert client.get("/api/escales/milestones/project/fund").json()["income_eur"] == "15.00"
+
+    _created_s, stop = _ready(client, "tot-stop-fund", {
+        **PLEDGE,
+        "kind": "common_fund",
+        "amount_eur": "9.00",
+        "description": "caisse de l'escale",
+    })
+    assert client.post(
+        f"/api/escales/pledges/{stop['id']}/capture", headers=ADMIN
+    ).status_code == 200
+    assert client.get("/api/escales/milestones/mayotte/fund").json()["income_eur"] == "9.00"
+    assert client.get("/api/escales/milestones/fund/fund").json()["income_eur"] == "12.00"
+
+    refused = client.post(
+        "/api/escales/milestones/project/fund/spending",
+        json={"amount_eur": "1.00", "description": "hors lecture"},
+        headers=ADMIN,
+    )
+    assert refused.status_code == 404
+    assert client.get("/api/escales/milestones/nulle-part/fund").status_code == 404
 
 
 def test_project_and_fund_accept_an_empty_milestone(api):

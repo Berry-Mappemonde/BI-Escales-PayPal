@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.escales import captain
 from app.escales.captain import chat, review
 from app.escales.milestones import filter_numbers, record_evidence
-from app.escales.pledges import authorize_pledge, create_pledge, get_ledger, require_pledge, reset_ledger
+from app.escales.pledges import authorize_pledge, capture_pledge, create_pledge, get_ledger, require_pledge, reset_ledger
 from app.escales.toolkit_tools import (
     ALLOWED_TOOLS,
     TOOLKIT_ORDER_ACTIONS,
@@ -2332,3 +2332,156 @@ def test_project_and_fund_without_a_port_keep_an_empty_milestone():
     assert fund["kind"] == "common_fund"
     assert fund["milestone_id"] == ""
     assert fund["target_id"] == "fonds-commun"
+
+
+def test_review_lists_pending_authorizations():
+    async def body():
+        spy = Spy()
+        first = await create_pledge(
+            amount_eur="20.00",
+            description="20 milles",
+            milestone_id="dep-mayotte",
+            client=spy,
+            client_key="rev-a",
+        )
+        await authorize_pledge(first["_id"], spy)
+        second = await create_pledge(
+            amount_eur="60.00",
+            description="diner",
+            milestone_id="dep-mayotte",
+            client=spy,
+            client_key="rev-b",
+        )
+        await authorize_pledge(second["_id"], spy)
+        waiting = await create_pledge(
+            amount_eur="10.00",
+            description="pas encore",
+            milestone_id="dep-mayotte",
+            client=spy,
+            client_key="rev-c",
+        )
+        other = await create_pledge(
+            amount_eur="20.00",
+            description="ailleurs",
+            milestone_id="dakar",
+            client=spy,
+            client_key="rev-d",
+        )
+        await authorize_pledge(other["_id"], spy)
+        await record_evidence("dep-mayotte", met=True, facts={"port": "Mayotte"})
+        result = await review("dep-mayotte", reader=ReadOnlyTools(spy))
+        pending = result["pending_authorizations"]
+        assert [row["pledge_id"] for row in pending] == result["pledge_ids"]
+        assert {row["pledge_id"] for row in pending} == {first["_id"], second["_id"]}
+        assert waiting["_id"] not in result["pledge_ids"]
+        assert other["_id"] not in result["pledge_ids"]
+        by_id = {row["pledge_id"]: row for row in pending}
+        assert by_id[first["_id"]]["authorization_id"] == f"AUTH-{first['order_id']}"
+        assert by_id[first["_id"]]["amount_eur"] == "20.00"
+        assert by_id[second["_id"]]["amount_eur"] == "60.00"
+        assert all(row["status"] == "authorized" for row in pending)
+        assert all(row["currency"] == "EUR" for row in pending)
+        assert isinstance(by_id[first["_id"]]["authorization_age_days"], int)
+        names = [call[0] for call in spy.calls]
+        assert "capture" not in names
+        assert "void" not in names
+        assert (await require_pledge(first["_id"]))["status"] == "authorized"
+
+    asyncio.run(body())
+
+
+async def _captured_common_fund(spy, amount, key):
+    pledge = await create_pledge(
+        amount_eur=amount,
+        description="fonds commun",
+        milestone_id="",
+        kind="common_fund",
+        client=spy,
+        client_key=key,
+    )
+    await authorize_pledge(pledge["_id"], spy)
+    await capture_pledge(pledge["_id"], spy)
+    return pledge
+
+
+def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
+    import app.core.llm as llm
+
+    def refuse_nim(*_args, **_kwargs):
+        raise AssertionError("NIM must stay behind the optional flag")
+
+    monkeypatch.setattr(llm, "ask_text", refuse_nim)
+
+    async def body():
+        spy = Spy()
+        await _captured_common_fund(spy, "12.00", "qa-boat")
+        stop = await create_pledge(
+            amount_eur="20.00",
+            description="20 milles",
+            milestone_id="dep-mayotte",
+            client=spy,
+            client_key="qa-stop",
+        )
+        await authorize_pledge(stop["_id"], spy)
+        await capture_pledge(stop["_id"], spy)
+        from app.escales.ledger import fund_for_milestone
+
+        boat_fund = await fund_for_milestone("fund")
+        mayotte_fund = await fund_for_milestone("mayotte")
+        asked = await chat("Quel est le solde du fonds commun ?")
+        assert asked["suggested_pledge"] is None
+        assert asked["cart"] is None
+        assert asked["fund"] == boat_fund
+        assert asked["fund"]["income_eur"] == "12.00"
+        assert "12,00" in asked["reply"]
+        assert "20,00" not in asked["reply"]
+        assert "999" not in asked["reply"]
+        assert asked["model_source"] == {"provider": "rules", "model": ""}
+        assert "Seul le trésorier" in asked["reply"]
+        assert "— Le capitaine" in asked["reply"]
+        local = await chat("Quel est le solde du fonds commun à Mayotte ?")
+        assert local["fund"] == mayotte_fund
+        assert "20,00" in local["reply"]
+        assert local["model_source"]["provider"] == "rules"
+        english = await chat("What is the common fund balance?")
+        assert "12.00 EUR" in english["reply"]
+        assert english["fund"]["balance_eur"] == "12.00"
+        assert english["model_source"] == {"provider": "rules", "model": ""}
+        gift = await chat("15 euros au fonds commun")
+        assert gift["suggested_pledge"]["kind"] == "common_fund"
+        assert "fund" not in gift
+
+    asyncio.run(body())
+
+
+def test_fund_question_filters_invented_numbers(monkeypatch):
+    import app.core.llm as llm
+
+    class Faithful:
+        text = "Income 12.00 EUR, spending 0.00 EUR, balance 12.00 EUR."
+        provider = "nim"
+        model = "nvidia/super"
+
+    answers = {"text": Faithful()}
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return answers["text"]
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        spy = Spy()
+        await _captured_common_fund(spy, "12.00", "qa-filter")
+        kept = await chat("What is the common fund balance?")
+        assert kept["model_source"] == {"provider": "nim", "model": "nvidia/super"}
+        assert "12.00 EUR" in kept["reply"]
+        assert "999" not in kept["reply"]
+        answers["text"] = "The balance is 999 EUR."
+        fallen = await chat("What is the common fund balance?")
+        assert "999" not in fallen["reply"]
+        assert "[?]" not in fallen["reply"]
+        assert "12.00 EUR" in fallen["reply"]
+        assert fallen["model_source"] == {"provider": "rules", "model": ""}
+
+    asyncio.run(body())

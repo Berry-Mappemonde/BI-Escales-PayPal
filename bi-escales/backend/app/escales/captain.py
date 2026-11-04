@@ -1511,6 +1511,23 @@ async def _llm_text(
     return text, _source_of(raw, text)
 
 
+def _pending_authorization(pledge: dict) -> dict:
+    """One authorized or vaulted pledge, as the treasurer review lists it."""
+    return {
+        "pledge_id": pledge.get("_id"),
+        "authorization_id": pledge.get("authorization_id"),
+        "status": pledge.get("status"),
+        "amount_eur": pledge.get("amount_eur"),
+        "currency": pledge.get("currency") or "EUR",
+        "description": pledge.get("description"),
+        "kind": pledge.get("kind"),
+        "target_id": pledge.get("target_id"),
+        "milestone_id": pledge.get("milestone_id") or "",
+        "authorization_expires_at": pledge.get("authorization_expires_at"),
+        "authorization_age_days": authorization_age_days(pledge),
+    }
+
+
 def _read(reader: Optional[ReadOnlyTools], pledge: dict) -> None:
     if reader is None:
         return
@@ -1811,12 +1828,14 @@ async def review(
     )
     age = _known_authorization_age(concerned)
     advisory = await _advisory_proposal(allowed, age)
+    pending = [_pending_authorization(pledge) for pledge in concerned]
     proposal = {
         "milestone_id": milestone_id,
         "proposal": decision,
         "report": narrative,
         "justification": justification,
-        "pledge_ids": [pledge["_id"] for pledge in concerned],
+        "pledge_ids": [row["pledge_id"] for row in pending],
+        "pending_authorizations": pending,
         "evidence_flag": evidence.get("flag"),
         "model_source": source,
         "llm_proposal": advisory,
@@ -1838,6 +1857,116 @@ async def review(
     return proposal
 
 
+def _is_fund_question(message: str) -> bool:
+    """A common-fund question, not a gift. A priced line stays a pledge."""
+    text = message or ""
+    if not _COMMON_FUND.search(text) and not re.search(r"\bcaisse\b", text, re.IGNORECASE):
+        return False
+    return not _message_prices_a_pledge(text)
+
+
+def _fund_system(lang: str) -> str:
+    language = "English" if lang == "en" else "French"
+    return (
+        f"You are the Blue Intelligence Escales captain. Reply in {language}. "
+        "Answer the common-fund question from the fund JSON only. "
+        "Repeat income_eur, spending_eur and balance_eur. Do not invent a figure. "
+        "Do not propose to take or release money. Do not create an order. "
+        "One or two complete sentences. At most 80 words."
+    )
+
+
+def _fund_place_label(milestone_id: str, lang: str) -> str:
+    token = (milestone_id or "").strip().casefold()
+    if token in {"fonds-commun", "fund", "common-fund", "common_fund", "caisse"}:
+        return "the common fund" if lang == "en" else "le fonds commun"
+    shown = display_name(milestone_id)
+    if lang == "en":
+        return f"the common fund at {shown}" if shown else "the common fund"
+    return f"le fonds commun de {shown}" if shown else "le fonds commun"
+
+
+def _fund_rules_text(fund: dict, lang: str) -> str:
+    """Rules sentence. Every figure comes from the fund route."""
+    if fund.get("missing"):
+        if lang == "en":
+            return "I have no common-fund figures for that stop."
+        return "Je n'ai pas les chiffres du fonds commun pour cette escale."
+    label = _fund_place_label(str(fund.get("milestone_id") or ""), lang)
+    income = format_amount(fund.get("income_eur") or "0.00", lang)
+    spending = format_amount(fund.get("spending_eur") or "0.00", lang)
+    balance = format_amount(fund.get("balance_eur") or "0.00", lang)
+    if lang == "en":
+        return f"For {label}, income is {income}, spending is {spending}, and the balance is {balance}."
+    return f"Pour {label}, les recettes sont {income}, les dépenses sont {spending}, et le solde est {balance}."
+
+
+def _keeps_fund_figures(text: str, fund: dict) -> bool:
+    if fund.get("missing"):
+        return bool((text or "").strip())
+    return all(
+        amount_in_text(text, str(fund.get(key) or "0.00"))
+        for key in ("income_eur", "spending_eur", "balance_eur")
+    )
+
+
+async def _fund_for_question(message: str) -> dict:
+    """The same payload as GET /milestones/{id}/fund."""
+    from .ledger import fund_for_milestone
+    from .naviguide_bridge import resolve_milestone
+
+    place = resolve_milestone(message or "")
+    if place and str(place).startswith("leg-"):
+        place = None
+    milestone_id = place or "fonds-commun"
+    try:
+        return await fund_for_milestone(milestone_id)
+    except LookupError:
+        return {"milestone_id": milestone_id, "missing": True, "currency": "EUR"}
+
+
+def _compose_fund_reply(prose: str, lang: str) -> str:
+    rules = _TREASURER_RULES_EN if lang == "en" else _TREASURER_DECIDES
+    reply = _fit_words(_strip_signatures(prose or ""), [rules, _signature(lang)])
+    if lang == "fr":
+        reply = _standardise_french(reply)
+    return reply
+
+
+async def _answer_fund(message: str, lang: str) -> tuple[str, dict[str, str], Optional[dict]]:
+    """NIM only when its flag is on. The rules sentence is the fallback."""
+    fund = await _fund_for_question(message)
+    public = None if fund.get("missing") else fund
+    allowed = {"fund": public or fund, "message": message}
+    rules = _fund_rules_text(fund, lang)
+    raw, source = "", _rules_source()
+    if public is not None:
+        prompt = json.dumps({"fund": public, "message": message}, ensure_ascii=False, default=str)
+        raw, source = await _llm_text(
+            prompt,
+            _fund_system(lang),
+            max_tokens=_CHAT_MAX_TOKENS,
+            temperature=_CHAT_TEMPERATURE,
+        )
+    prose = ""
+    if raw and not _CHARGE_CLAIM.search(raw):
+        if lang == "fr":
+            raw = _french_labels(raw)
+        filtered = filter_numbers(raw, allowed, lang=lang)
+        if "[?]" not in filtered and _keeps_fund_figures(filtered, fund):
+            prose = filtered
+        else:
+            source = _rules_source()
+    if not prose:
+        prose = filter_numbers(rules, allowed, lang=lang)
+        source = _rules_source()
+    reply = _compose_fund_reply(prose, lang)
+    if not _keeps_fund_figures(reply, fund):
+        reply = _compose_fund_reply(filter_numbers(rules, allowed, lang=lang), lang)
+        source = _rules_source()
+    return reply, source, public
+
+
 async def chat(message: str) -> dict:
     """Help a contributor phrase a pledge and offer the HelloAsso membership URL."""
     text = (message or "").strip()
@@ -1845,6 +1974,16 @@ async def chat(message: str) -> dict:
         raise ValueError("message is required")
     url = membership_url()
     lang = message_lang(text)
+    if _is_fund_question(text):
+        reply, source, fund = await _answer_fund(text, lang)
+        return {
+            "reply": reply,
+            "membership_url": url,
+            "suggested_pledge": None,
+            "cart": None,
+            "model_source": source,
+            "fund": fund,
+        }
     treasurer = _is_treasurer_question(text)
     suggested = suggest_pledge(text, lang)
     cart = pledge_cart(text, lang, suggested)

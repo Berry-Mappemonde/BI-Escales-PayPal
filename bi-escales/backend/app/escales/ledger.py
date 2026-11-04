@@ -529,26 +529,54 @@ async def _income_line(entry: dict) -> dict:
     return public
 
 
-async def fund_for_milestone(milestone_id: str) -> dict:
-    """Income is captured pledges. Spending is what the treasurer entered.
+# Pledges with an empty milestone. ``project`` and ``fund`` are not stopovers.
+_PROJECT_BUCKET = "projet"
+_FUND_BUCKET = "fonds-commun"
+_PROJECT_ALIASES = {"project", "projet", "project_pledge", "project-pledge"}
+_FUND_ALIASES = {"fund", "fonds-commun", "common-fund", "common_fund", "caisse"}
 
-    ``dep-lorient`` and ``lorient`` are the same stopover. Unknown slugs raise
-    ``LookupError``. ``overdrawn`` is true when spending is above income.
+
+def _unplaced_bucket(milestone_id: str) -> Optional[str]:
+    """``project`` and ``fund`` name the two totals that have no stopover."""
+    token = (milestone_id or "").strip().casefold()
+    if token in _PROJECT_ALIASES:
+        return _PROJECT_BUCKET
+    if token in _FUND_ALIASES:
+        return _FUND_BUCKET
+    return None
+
+
+def _entry_in_unplaced(entry: dict, bucket: str) -> bool:
+    """Captured project or common-fund lines whose milestone was left empty.
+
+    A common-fund pledge filed on a stopover stays on that stopover.
     """
-    slug = await _require_stopover(milestone_id)
-    income: list[dict] = []
-    spending: list[dict] = []
-    for entry in await list_finance_entries():
-        if _stopover_slug(str(entry.get("milestone_id") or "")) != slug:
-            continue
-        if entry.get("kind") == "pledge_captured":
-            income.append(entry)
-        elif entry.get("kind") == "spending":
-            spending.append(entry)
+    milestone = str(entry.get("milestone_id") or "").strip().casefold()
+    kind = str(entry.get("pledge_kind") or "").strip().casefold()
+    target = str(entry.get("target_id") or "").strip().casefold()
+    if bucket == _PROJECT_BUCKET:
+        aliases = _PROJECT_ALIASES
+        pledge_kind = "project_pledge"
+        target_id = _PROJECT_BUCKET
+    else:
+        aliases = _FUND_ALIASES
+        pledge_kind = "common_fund"
+        target_id = _FUND_BUCKET
+    if milestone and milestone not in aliases:
+        return False
+    if kind == pledge_kind or target == target_id:
+        return True
+    return entry.get("kind") == "spending" and milestone in aliases
+
+
+async def _assemble_fund(milestone_id: str, entries: list[dict]) -> dict:
+    """Same totals the stopover fund route already returns."""
+    income = [entry for entry in entries if entry.get("kind") == "pledge_captured"]
+    spending = [entry for entry in entries if entry.get("kind") == "spending"]
     income_total = sum((_euros(entry.get("amount_eur")) for entry in income), Decimal("0.00"))
     spending_total = sum((_euros(entry.get("amount_eur")) for entry in spending), Decimal("0.00"))
     return {
-        "milestone_id": slug,
+        "milestone_id": milestone_id,
         "currency": "EUR",
         "income_eur": _euros_text(income_total),
         "spending_eur": _euros_text(spending_total),
@@ -557,6 +585,30 @@ async def fund_for_milestone(milestone_id: str) -> dict:
         "income": [await _income_line(entry) for entry in income],
         "spending": [_public_finance(entry) for entry in spending],
     }
+
+
+async def fund_for_milestone(milestone_id: str) -> dict:
+    """Income is captured pledges. Spending is what the treasurer entered.
+
+    ``dep-lorient`` and ``lorient`` are the same stopover. Unknown slugs raise
+    ``LookupError``. ``overdrawn`` is true when spending is above income.
+
+    ``project`` and ``fund`` are the treasurer totals for pledges that left
+    ``milestone_id`` empty (a project pledge, or the boat's common fund).
+    """
+    bucket = _unplaced_bucket(milestone_id)
+    if bucket:
+        rows = [
+            entry for entry in await list_finance_entries() if _entry_in_unplaced(entry, bucket)
+        ]
+        return await _assemble_fund(bucket, rows)
+    slug = await _require_stopover(milestone_id)
+    rows = [
+        entry
+        for entry in await list_finance_entries()
+        if _stopover_slug(str(entry.get("milestone_id") or "")) == slug
+    ]
+    return await _assemble_fund(slug, rows)
 
 
 async def record_spending(milestone_id: str, amount_eur: str, description: str) -> dict:

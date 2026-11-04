@@ -1049,7 +1049,7 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     assert any(call[0] == "void" for call in fake.calls)
     assert all(call[0] != "capture" for call in fake.calls)
 
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-12T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", arrival_iso)
     public = client.get("/api/escales/clock")
     assert public.status_code == 200
     assert "settled" not in public.json()

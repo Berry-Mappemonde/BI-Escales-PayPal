@@ -568,6 +568,7 @@ def to_public_fund(fund: dict) -> dict:
         "captured_eur": str(fund.get("captured_eur") or captured),
         "authorized_eur": str(fund.get("authorized_eur") or "0.00"),
         "spending_eur": str(fund.get("spending_eur") or "0.00"),
+        "refunded_eur": str(fund.get("refunded_eur") or "0.00"),
         "balance_eur": str(fund.get("balance_eur") or "0.00"),
         "overdrawn": bool(fund.get("overdrawn")),
     }

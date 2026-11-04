@@ -28,7 +28,6 @@ from app.escales.config import (
     clock_now_pinned,
     parse_clock_moment,
     simulated_now,
-    escales_env,
     elastic_evidence_enabled,
     escales_enabled,
     escales_env,
@@ -218,6 +217,10 @@ class ReauthorizeIn(BaseModel):
     mock_response: Optional[str] = Field(
         None,
         description="Optional PayPal-Mock-Response JSON for sandbox negative testing.",
+    )
+    now: Optional[str] = Field(
+        None,
+        description="Optional simulated-clock moment (requires ESCALES_CLOCK_NOW).",
     )
 
 
@@ -648,11 +651,20 @@ async def post_admin_reauthorize(
     if escales_env() == "production":
         raise HTTPException(status_code=404, detail="Not Found")
     _require_treasurer(request)
+    effective_at = None
+    if (body.now or "").strip():
+        if not clock_now_pinned():
+            raise HTTPException(
+                status_code=422,
+                detail="reauthorize timestamp override requires ESCALES_CLOCK_NOW",
+            )
+        effective_at = parse_clock_moment(str(body.now))
     try:
         doc = await admin_reauthorize_pledge(
             pledge_id,
             _paypal(),
             mock_response=(body.mock_response or "").strip() or None,
+            effective_at=effective_at,
         )
     except (PledgeNotFound, PayPalError, ValueError) as exc:
         raise _money_http(exc) from exc

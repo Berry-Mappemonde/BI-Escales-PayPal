@@ -115,10 +115,15 @@ export default function App() {
     void fetchJson("/bi-projects.geojson").then(setProjects).catch(() => setProjects({ features: [] }));
     void fetchFeatures()
       .then((flags) => {
-        if (!cancelled) setBryntumEnabled(Boolean(flags.bryntum));
+        if (cancelled) return;
+        setBryntumEnabled(Boolean(flags.bryntum));
+        setClockPinned(Boolean(flags.clock_pinned));
       })
       .catch(() => {
-        if (!cancelled) setBryntumEnabled(false);
+        if (!cancelled) {
+          setBryntumEnabled(false);
+          setClockPinned(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -230,21 +235,6 @@ export default function App() {
     setPaypalNote("authorized");
     void refresh();
   }, [refresh, updatePledge]);
-
-  useEffect(() => {
-    if (!treasurerOpen) return undefined;
-    let cancelled = false;
-    void fetchFeatures()
-      .then((flags) => {
-        if (!cancelled) setClockPinned(Boolean(flags.clock_pinned));
-      })
-      .catch(() => {
-        if (!cancelled) setClockPinned(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [treasurerOpen]);
 
   useEffect(() => {
     if (!treasurerOpen) return undefined;

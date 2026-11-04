@@ -119,10 +119,12 @@ def test_admin_reauthorize_calls_paypal(monkeypatch):
             milestone_id="dep-mayotte",
             client=spy,
         )
+        from app.escales.config import simulated_now
+
         authorized = await authorize_pledge(created["_id"], spy)
         authorized["authorized_at"] = (
-            dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=5)
-        ).isoformat()
+            simulated_now() - dt.timedelta(days=5)
+        ).replace(microsecond=0).isoformat()
         from app.escales.ledger import get_ledger
 
         await get_ledger().save_pledge(authorized)

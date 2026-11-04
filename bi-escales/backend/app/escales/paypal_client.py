@@ -641,11 +641,24 @@ class PayPalClient:
         }
         return self._req("POST", "/v1/catalogs/products", body, idempotency_key=idempotency_key)
 
-    def list_billing_products(self, *, page_size: int = 20) -> dict:
+    def list_billing_products(self, *, page: int = 1, page_size: int = 20) -> dict:
+        page_num = max(1, int(page))
+        size = max(1, min(int(page_size), 100))
         return self._req(
             "GET",
-            f"/v1/catalogs/products?page_size={page_size}&total_required=true",
+            f"/v1/catalogs/products?page={page_num}&page_size={size}&total_required=true",
         )
+
+    def iter_billing_product_pages(self, *, page_size: int = 20, max_pages: int = 50):
+        """Yield each product list page until PayPal reports no further pages."""
+        size = max(1, min(int(page_size), 100))
+        cap = max(1, int(max_pages))
+        for page in range(1, cap + 1):
+            payload = self.list_billing_products(page=page, page_size=size)
+            yield payload
+            total_pages = int(payload.get("total_pages") or 1)
+            if page >= total_pages:
+                break
 
     def list_billing_plans(self, *, product_id: str, page_size: int = 20) -> dict:
         pid = str(product_id or "").strip()

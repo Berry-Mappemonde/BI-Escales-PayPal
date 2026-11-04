@@ -7,6 +7,7 @@ import type {
   FeatureFlags,
   FundView,
   PublicProjectDonationTotal,
+  ClockSettleResponse,
 } from "./types";
 
 function url(path: string): string {
@@ -196,7 +197,7 @@ export async function getPledge(pledgeId: string): Promise<PublicPledge> {
   return res.json();
 }
 
-export async function settleClock(adminKey: string, now?: string): Promise<{ settled?: unknown }> {
+export async function settleClock(adminKey: string, now?: string): Promise<ClockSettleResponse> {
   const key = adminKey.trim();
   if (!key) {
     throw new Error("treasurer key required");
@@ -259,6 +260,18 @@ export async function fetchPublicProjectFund(projectId: string): Promise<PublicP
   if (!id) return null;
   try {
     const res = await fetch(url(`/api/escales/projects/${encodeURIComponent(id)}/fund`));
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+/** Public GET /common-fund/fund (N36). Boat common-fund totals only. */
+export async function fetchPublicCommonFund(): Promise<FundView | null> {
+  try {
+    const res = await fetch(url("/api/escales/common-fund/fund"));
     if (res.status === 404) return null;
     if (!res.ok) return null;
     return res.json();

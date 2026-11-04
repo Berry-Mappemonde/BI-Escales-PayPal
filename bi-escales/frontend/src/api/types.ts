@@ -94,6 +94,26 @@ export interface FeatureFlags {
   crew_supporter_plan_id?: string | null;
 }
 
+export interface ClockSettleAction {
+  pledge_id: string;
+  action: string;
+  status?: string;
+  capture_id?: string;
+  paypal_status?: string;
+  detail?: string;
+}
+
+export interface ClockSettleResult {
+  now?: string;
+  actions: ClockSettleAction[];
+}
+
+export interface ClockSettleResponse {
+  start?: string;
+  now?: string;
+  settled?: ClockSettleResult;
+}
+
 export interface MilestoneEvidence {
   met?: boolean;
   facts?: Record<string, unknown>;

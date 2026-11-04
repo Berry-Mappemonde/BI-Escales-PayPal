@@ -70,7 +70,11 @@ def test_departure_clock_charges_vaulted_pledge_on_departure_day(monkeypatch):
         vaulted = await register_vault_pledge(created["_id"], fake)
         assert vaulted["status"] == "vaulted"
         result = await run_departure_clock(fake)
-        assert result["actions"] == [{"pledge_id": created["_id"], "action": "capture"}]
+        row = result["actions"][0]
+        assert row["pledge_id"] == created["_id"]
+        assert row["action"] == "capture"
+        assert row["status"] == "captured"
+        assert row["capture_id"] == "CAP1"
         stored = await get_ledger().get_pledge(created["_id"])
         assert stored["status"] == "captured"
         assert stored["captured_at"] == "2026-11-20T12:00:00+00:00"

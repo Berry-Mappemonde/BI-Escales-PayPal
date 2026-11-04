@@ -1058,7 +1058,12 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     assert locked.status_code == 401
     departed = client.post("/api/escales/clock/settle", headers=ADMIN)
     assert departed.status_code == 200
-    assert departed.json()["settled"]["actions"] == [{"pledge_id": held["id"], "action": "capture"}]
+    cap_row = next(
+        row for row in departed.json()["settled"]["actions"] if row["pledge_id"] == held["id"]
+    )
+    assert cap_row["action"] == "capture"
+    assert cap_row["status"] == "captured"
+    assert cap_row["capture_id"] == "CAP"
     assert status(held["id"]) == "captured"
     assert any(call[0] == "capture" for call in fake.calls)
 
@@ -1253,14 +1258,22 @@ def test_public_fund_and_pledge_share_the_aggregate(api, monkeypatch):
 
 
 def test_unplaced_project_and_fund_totals_are_readable(api, monkeypatch):
-    """Project and common-fund totals need the treasurer key. A stopover stays public."""
+    """Project totals need the treasurer key. Common fund and stopovers stay public."""
     client, _fake = api
     locked_project = client.get("/api/escales/milestones/project/fund")
     assert locked_project.status_code == 401
-    locked_fund = client.get("/api/escales/milestones/fund/fund")
-    assert locked_fund.status_code == 401
     assert "income_eur" not in locked_project.text
-    assert "income_eur" not in locked_fund.text
+    empty_common = client.get("/api/escales/milestones/common-fund/fund")
+    assert empty_common.status_code == 200
+    assert empty_common.json()["milestone_id"] == "fonds-commun"
+    assert empty_common.json()["income_eur"] == "0.00"
+    public_route = client.get("/api/escales/common-fund/fund")
+    assert public_route.status_code == 200
+    assert public_route.json()["milestone_id"] == "fonds-commun"
+    assert public_route.json()["balance_eur"] == "0.00"
+    alias_fund = client.get("/api/escales/milestones/fund/fund")
+    assert alias_fund.status_code == 200
+    assert alias_fund.json()["milestone_id"] == "fonds-commun"
     empty_project = client.get("/api/escales/milestones/project/fund", headers=ADMIN)
     assert empty_project.status_code == 200
     assert empty_project.json()["milestone_id"] == "projet"
@@ -1311,7 +1324,8 @@ def test_unplaced_project_and_fund_totals_are_readable(api, monkeypatch):
     assert fund["balance_eur"] == "12.00"
     assert client.get("/api/escales/milestones/common-fund/fund", headers=ADMIN).json()["income_eur"] == "12.00"
     assert client.get("/api/escales/milestones/project/fund", headers=ADMIN).json()["income_eur"] == "22.00"
-    assert client.get("/api/escales/milestones/common-fund/fund").status_code == 401
+    assert client.get("/api/escales/milestones/common-fund/fund").json()["income_eur"] == "12.00"
+    assert client.get("/api/escales/common-fund/fund").json()["income_eur"] == "12.00"
     assert client.get("/api/escales/milestones/projet/fund").status_code == 401
 
     _created_s, stop = _ready_mayotte(client, "tot-stop-fund", monkeypatch, {
@@ -1365,7 +1379,7 @@ def _capture_open_and_stopover(client, monkeypatch):
 
 
 def test_public_chat_withholds_project_and_common_fund_totals(api, monkeypatch):
-    """The chat must not repeat the totals the fund route already locks."""
+    """The chat must not repeat project totals; the boat common fund is public."""
     client, _fake = api
     _capture_open_and_stopover(client, monkeypatch)
     project = client.post(
@@ -1374,7 +1388,7 @@ def test_public_chat_withholds_project_and_common_fund_totals(api, monkeypatch):
     )
     assert project.status_code == 200, project.text
     assert project.json()["fund"] is None
-    assert "Only the treasurer can see this fund's totals." in project.json()["reply"]
+    assert "Only the treasurer can see the project fund totals." in project.json()["reply"]
     assert "15.00" not in project.text
     assert "15,00" not in project.text
     assert "income_eur" not in project.text
@@ -1383,10 +1397,10 @@ def test_public_chat_withholds_project_and_common_fund_totals(api, monkeypatch):
         json={"message": "Quel est le solde du fonds commun ?", "lang": "fr"},
     )
     assert boat.status_code == 200, boat.text
-    assert boat.json()["fund"] is None
-    assert "Seul le trésorier peut voir les totaux de cette caisse." in boat.json()["reply"]
-    assert "12.00" not in boat.text
-    assert "12,00" not in boat.text
+    assert boat.json()["fund"]["milestone_id"] == "fonds-commun"
+    assert boat.json()["fund"]["balance_eur"] == "12.00"
+    assert "12,00" in boat.json()["reply"]
+    assert "Seul le trésorier peut voir les totaux de la caisse projet." not in boat.json()["reply"]
     wrong = client.post(
         "/api/escales/captain/chat",
         json={"message": "How much money is in the project fund?"},

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchHealthRetrying, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { formatSettleCaptureNote } from "./api/settleCaptureNote";
+import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchHealthRetrying, fetchPublicCommonFund, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { emitCrewSubscribeReturn } from "./paypal/crewSubscribeReturnEvents";
 import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
 import { nextStopover } from "./voyage/nextStopover.js";
@@ -78,6 +79,7 @@ export default function App() {
   const [settleAt, setSettleAt] = useState("");
   const [projectFund, setProjectFund] = useState<FundView | null | undefined>(undefined);
   const [boatFund, setBoatFund] = useState<FundView | null | undefined>(undefined);
+  const [publicCommonFund, setPublicCommonFund] = useState<FundView | null>(null);
   const [crewSubscribeNote, setCrewSubscribeNote] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [treasurerOpen, setTreasurerOpen] = useState(false);
@@ -237,6 +239,19 @@ export default function App() {
   }, [refresh, updatePledge]);
 
   useEffect(() => {
+    let cancelled = false;
+    void fetchPublicCommonFund().then((row) => {
+      if (!cancelled) {
+        setPublicCommonFund(row);
+        setBoatFund((prev) => (prev === undefined ? row : prev));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pledges.length]);
+
+  useEffect(() => {
     if (!treasurerOpen) return undefined;
     let cancelled = false;
     void fetchFund("project", adminKey)
@@ -246,7 +261,7 @@ export default function App() {
       .catch(() => {
         if (!cancelled) setProjectFund(null);
       });
-    void fetchFund("fund", adminKey)
+    void fetchPublicCommonFund()
       .then((row) => {
         if (!cancelled) setBoatFund(row);
       })
@@ -379,14 +394,17 @@ export default function App() {
     else if (next === "mile") setAmount("1.00");
   };
 
-  const onSettle = async () => {
+  const runSettle = async (atIso?: string) => {
     const key = adminKey.trim();
     if (!key) return;
     setSettleBusy(true);
     setSettleNote(null);
     try {
-      await settleClock(key);
-      setSettleNote(t("treasurer.settleDone"));
+      const body = atIso?.trim()
+        ? await settleClock(key, atIso)
+        : await settleClock(key);
+      await refresh();
+      setSettleNote(formatSettleCaptureNote(t, body.settled));
     } catch (err: unknown) {
       setSettleNote(err instanceof Error ? err.message : String(err));
     } finally {
@@ -394,25 +412,20 @@ export default function App() {
     }
   };
 
+  const onSettle = async () => {
+    await runSettle();
+  };
+
   const onSettleAt = async () => {
-    const key = adminKey.trim();
     const raw = settleAt.trim();
-    if (!key || !raw) return;
-    setSettleBusy(true);
-    setSettleNote(null);
-    try {
-      const parsed = new Date(raw);
-      if (Number.isNaN(parsed.getTime())) {
-        throw new Error(t("treasurer.settleAtInvalid"));
-      }
-      const iso = parsed.toISOString().replace(/\.\d{3}Z$/, "Z");
-      await settleClock(key, iso);
-      setSettleNote(t("treasurer.settleDone"));
-    } catch (err: unknown) {
-      setSettleNote(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSettleBusy(false);
+    if (!raw) return;
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) {
+      setSettleNote(t("treasurer.settleAtInvalid"));
+      return;
     }
+    const iso = parsed.toISOString().replace(/\.\d{3}Z$/, "Z");
+    await runSettle(iso);
   };
 
   const onSpend = async () => {
@@ -591,6 +604,14 @@ export default function App() {
         <section className="crew-supporter-public" data-testid="crew-supporter-public">
           <CrewSubscribeButton adminKey={adminKey.trim() || undefined} />
         </section>
+        {publicCommonFund ? (
+          <p className="hint" data-testid="public-common-fund">
+            {t("fund.publicCommon", {
+              balance: publicCommonFund.balance_eur,
+              currency: publicCommonFund.currency,
+            })}
+          </p>
+        ) : null}
         {tab === "voyage" ? (
           <>
             <ProjectList

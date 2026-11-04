@@ -956,6 +956,15 @@ async def get_public_project_fund(project_id: str):
     return to_public_project_donation_total(fund)
 
 
+@router.get("/common-fund/fund")
+async def get_public_common_fund():
+    """Public boat common-fund totals (pattern: ``GET /projects/{id}/fund`` from N33)."""
+    try:
+        return to_public_fund(await fund_for_milestone("fonds-commun"))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Common fund not found") from exc
+
+
 @router.post("/projects/{project_id}/payouts")
 async def post_project_payout(project_id: str, body: PayoutProposeIn, request: Request):
     """Propose a project payout. PayPal is not called until approve."""
@@ -1014,11 +1023,12 @@ async def get_pledge(pledge_id: str, request: Request):
 
 @router.get("/milestones/{milestone_id}/fund")
 async def get_fund(milestone_id: str, request: Request):
-    """A stopover or cabin-leg fund is public totals. Project and common fund need the key.
+    """A stopover, cabin-leg, or common fund total is public. The project fund needs the key.
 
     The body is aggregated money only: no journal lines and no pledge ids.
     """
-    if _unplaced_bucket(milestone_id) or await _project_fund_target(milestone_id):
+    bucket = _unplaced_bucket(milestone_id)
+    if bucket == "projet" or await _project_fund_target(milestone_id):
         _require_treasurer(request)
     try:
         return to_public_fund(await fund_for_milestone(milestone_id))

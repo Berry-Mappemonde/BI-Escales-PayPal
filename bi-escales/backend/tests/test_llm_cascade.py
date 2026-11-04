@@ -312,7 +312,7 @@ def test_nim_answers_first_with_the_benchmarked_model(monkeypatch):
         assert "thinking" not in call["body"]["chat_template_kwargs"]
         assert "guided_json" not in call["body"]
         assert "nvext" not in call["body"]
-        assert call["body"]["max_tokens"] == 400
+        assert call["body"]["max_tokens"] == 500
         assert call["body"]["messages"][0] == {"role": "system", "content": "systeme"}
         await client.aclose()
 

@@ -80,7 +80,8 @@
     "spendSubmit": "Record spending",
     "openHeading": "Totals with no stopover",
     "projectTotals": "Project pledges",
-    "boatTotals": "Common fund"
+    "boatTotals": "Common fund",
+    "publicCommon": "Common fund balance: {{balance}} {{currency}} (public)"
   },
   "scheduler": {
     "heading": "Stopover calendar",
@@ -168,6 +169,12 @@
     "screen": "Treasurer screen",
     "settle": "Run departure-day settle",
     "settleDone": "Departure-day settle finished.",
+    "settleDoneEmpty": "Settle finished. No PayPal capture at this date.",
+    "settleDoneWait": "Settle finished. {{count}} pledge(s) still waiting for their capture date.",
+    "settleDoneErrors": "Settle finished with errors: {{detail}}",
+    "settleDoneCaptures": "PayPal sandbox capture completed ({{count}}).",
+    "settleCaptureRow": "Pledge {{pledgeId}} — status {{status}}, capture ID {{captureId}}",
+    "captureId": "Capture ID",
     "settleAtLabel": "Settle at chosen date and time",
     "settleAtButton": "Settle at this date",
     "settleAtInvalid": "Enter a valid date and time.",

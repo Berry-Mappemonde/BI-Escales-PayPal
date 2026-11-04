@@ -89,7 +89,7 @@ describe("NAVIGUIDE shell wiring", () => {
   });
 
   it("treasurer hash keeps settle control wired", async () => {
-    vi.mocked(escalesApi.settleClock).mockResolvedValue({ settled: [] });
+    vi.mocked(escalesApi.settleClock).mockResolvedValue({ settled: { actions: [] } });
     vi.stubGlobal("location", {
       ...window.location,
       hash: "#tresorier",

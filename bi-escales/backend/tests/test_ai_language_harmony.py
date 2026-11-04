@@ -66,14 +66,14 @@ def test_chat_llm_prompt_and_reply_match_app_lang(
             "Write in English only",
             "Write reason in English",
             "The boat is heading toward Lorient.",
-            "Evidence pending.",
+            "Authorization is 0 days old.",
         ),
         (
             "fr",
             "uniquement en français",
             "reason en français",
             "Le bateau se dirige vers Lorient.",
-            "Preuve en attente.",
+            "Autorisation : 0 jour.",
         ),
     ],
 )

@@ -345,6 +345,8 @@ def nim_max_tokens(requested: int) -> int:
             return max(1, int(raw))
         except ValueError:
             pass
+    if requested and int(requested) > 0:
+        return int(requested)
     return NIM_MAX_TOKENS_DEFAULT
 
 

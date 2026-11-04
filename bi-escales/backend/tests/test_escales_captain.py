@@ -2002,8 +2002,8 @@ def test_ui_labels_the_llm_proposal_as_advisory():
     screen = (root / "EscalesScheduler.jsx").read_text(encoding="utf-8")
     assert "Advisory" in badge
     assert 'label: "Advisory"' in badge
-    assert "data-advisory" in screen
-    assert "Advisory" in screen
+    assert "advisoryView" not in screen
+    assert "AdvisoryBadge" not in screen
 
 
 def test_miles_and_dinner_stay_one_pledge_and_list_two_cart_lines():

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, fetchFund, fetchHealth, fetchSchedule, listMilestones, readPaypalReturn, recordSpending } from "./api/escales";
+import { authorizePledge, fetchFund, fetchHealth, fetchSchedule, readPaypalReturn, recordSpending } from "./api/escales";
+import { nextStopover } from "./voyage/nextStopover.js";
 import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
@@ -70,7 +71,6 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<TabId>("voyage");
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
-  const [escalesOk, setEscalesOk] = useState<boolean | null>(null);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
   const [hash, setHash] = useState(() => window.location.hash);
   const [adminKey, setAdminKey] = useState("");
@@ -86,12 +86,12 @@ export default function App() {
   const [ficheError, setFicheError] = useState<string | null>(null);
   const [flyTo, setFlyTo] = useState<FlyTarget | null>(null);
   const [amount, setAmount] = useState("1.00");
-  const [description, setDescription] = useState("");
   const [contributor, setContributor] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const prevTabRef = useRef<TabId>("voyage");
   const [kind, setKind] = useState("mile");
   const [milestoneId, setMilestoneId] = useState("");
   const [fund, setFund] = useState<FundView | null>(null);
-  const [fundError, setFundError] = useState(false);
   const [paypalNote, setPaypalNote] = useState<string | null>(null);
   const [spendAmount, setSpendAmount] = useState("10.00");
   const [spendNote, setSpendNote] = useState("");
@@ -110,10 +110,10 @@ export default function App() {
     () => (voyage ? sampleAt(voyage.clock, now) : null),
     [voyage, now],
   );
+  const cumNm = Number(sample?.sailNm ?? sample?.cumNm ?? 0);
 
   useEffect(() => {
     void fetchHealth().then(() => setHealthOk(true)).catch(() => setHealthOk(false));
-    void listMilestones().then(() => setEscalesOk(true)).catch(() => setEscalesOk(false));
     void fetchSchedule().then(setSchedule).catch(() => setSchedule(null));
     void fetchJson("/route.geojson").then(setRouteFc).catch(() => setRouteFc(null));
     void fetchJson("/bi-projects.geojson").then(setProjects).catch(() => setProjects({ features: [] }));
@@ -148,24 +148,17 @@ export default function App() {
   }, [stop, lang]);
 
   useEffect(() => {
-    if (!milestoneId) {
-      setFund(null);
+    if (hash !== "#tresorier" || !milestoneId) {
+      if (hash !== "#tresorier") setFund(null);
       return undefined;
     }
     let cancelled = false;
-    const treasurerKey = hash === "#tresorier" ? adminKey : "";
-    void fetchFund(milestoneId, treasurerKey)
+    void fetchFund(milestoneId, adminKey)
       .then((row) => {
-        if (!cancelled) {
-          setFund(row);
-          setFundError(false);
-        }
+        if (!cancelled) setFund(row);
       })
       .catch(() => {
-        if (!cancelled) {
-          setFund(null);
-          setFundError(true);
-        }
+        if (!cancelled) setFund(null);
       });
     return () => {
       cancelled = true;
@@ -175,7 +168,6 @@ export default function App() {
   const chooseStop = (next: VoyageStop) => {
     setStop(next);
     setMilestoneId(next.milestoneId);
-    setDescription((prev) => prev || next.name);
     if (Number.isFinite(next.lat) && Number.isFinite(next.lon)) {
       setFlyTo({ lat: next.lat, lon: next.lon, ts: Date.now() });
     }
@@ -254,7 +246,6 @@ export default function App() {
         adminKey.trim(),
       );
       setFund(row);
-      setFundError(false);
       setSpendNote("");
     } catch (err: unknown) {
       setSpendError(err instanceof Error ? err.message : String(err));
@@ -264,10 +255,17 @@ export default function App() {
   const onSuggested = (pledge: CaptainChatResponse["suggested_pledge"]) => {
     if (!pledge) return;
     setAmount(pledge.amount_eur);
-    setDescription(pledge.description);
     setMilestoneId(pledge.milestone_id);
     if (pledge.kind) setKind(pledge.kind);
   };
+
+  useEffect(() => {
+    if (tab === "marinas" && prevTabRef.current !== "marinas" && voyage?.stops?.length) {
+      const next = nextStopover(voyage.stops, cumNm);
+      if (next) chooseStop(next);
+    }
+    prevTabRef.current = tab;
+  }, [tab, voyage?.stops, cumNm]);
 
   if (hash === "#tresorier") {
     return (
@@ -343,7 +341,6 @@ export default function App() {
   }
 
   const marinaFeatures = ficheMarinas(fiche);
-  const cumNm = Number(sample?.sailNm ?? sample?.cumNm ?? 0);
   const onFlyTo = (_id: string, lat: number, lon: number) => {
     setFlyTo({ lat, lon, ts: Date.now() });
   };
@@ -374,10 +371,7 @@ export default function App() {
         </button>
       </div>
 
-      <p className={`health ${healthOk ? "ok" : "bad"}`}>
-        {healthOk ? t("app.healthOk") : t("app.healthFail")}
-      </p>
-      {escalesOk === false ? <p className="notice warn">{t("app.escalesOff")}</p> : null}
+      {healthOk === false ? <p className="notice error">{t("app.healthFail")}</p> : null}
       {paypalNote === "cancel" ? <p className="notice warn">{t("pledge.cancelled")}</p> : null}
       {paypalNote === "authorizing" ? <p className="status">{t("pledge.authorizing")}</p> : null}
       {paypalNote === "authorized" ? <p className="status">{t("pledge.authorized")}</p> : null}
@@ -395,12 +389,17 @@ export default function App() {
         showMarinas={tab === "marinas"}
         flyTo={flyTo}
         onSelectStop={chooseStop}
+        onSelectProject={(props: { id?: string }) => {
+          if (props?.id) setSelectedProjectId(props.id);
+        }}
       />
 
       <p className="voyage-clock" data-testid="voyage-clock">
         {formatCivilDate(sample?.iso, lang)}
-        {" · cumNm "}
-        {Number.isFinite(cumNm) ? cumNm.toFixed(1) : "—"}
+        {" · "}
+        {t("clock.sailed", { nm: Number.isFinite(cumNm) ? cumNm.toFixed(1) : "—" })}
+        {" "}
+        {t("clock.simulated")}
         {sample?.status === "waiting" && sample.countdownHours != null
           ? ` · ${t("clock.waiting", { hours: Math.round(Number(sample.countdownHours)) })}`
           : ""}
@@ -420,7 +419,15 @@ export default function App() {
       {tab === "voyage" ? (
         <div className="layout">
           <div>
-            <ProjectList projects={projects} onFlyTo={onFlyTo} />
+            <ProjectList
+              projects={projects}
+              routeStops={voyage?.stops || []}
+              selectedProjectId={selectedProjectId}
+              onSelectProject={setSelectedProjectId}
+              contributor={contributor}
+              onFlyTo={onFlyTo}
+              onAuthorized={onAuthorized}
+            />
             <EscalesScheduler
               schedule={schedule}
               onAuthorized={onAuthorized}
@@ -447,20 +454,15 @@ export default function App() {
                 onClose={() => setStop(null)}
                 pledge={{
                   amount,
-                  description,
                   milestoneId,
                   contributor,
                   kind,
                   onAmount: setAmount,
-                  onDescription: setDescription,
                   onMilestoneId: setMilestoneId,
                   onContributor: setContributor,
                   onKind,
                 }}
                 onPledgeAuthorized={onAuthorized}
-                fund={fund}
-                fundError={fundError}
-                adminKey={adminKey}
               />
             ) : <p className="hint">{t("sheet.pick")}</p>}
           </div>

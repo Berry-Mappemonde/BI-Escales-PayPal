@@ -4,9 +4,8 @@
  * Le bouton PayPal (PledgeButton, PR #2) est hébergé ici.
  * googleMapsUrl est la fonction du même nom dans engine/briefingLinks.js.
  */
-import { memo, useState } from "react";
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
-import { captainReview } from "../api/escales";
 import { HELLOASSO_MEMBERSHIP_URL } from "../config/helloasso.js";
 import { PledgeButton } from "./PledgeButton";
 
@@ -46,23 +45,6 @@ function label(key, lang) {
   return LABELS[lang]?.[key] || key;
 }
 
-function FundLines({ title, rows }) {
-  if (!rows?.length) return null;
-  return (
-    <div>
-      <div className="hint">{title}</div>
-      <ul className="escale-items">
-        {rows.map((row, index) => (
-          <li key={row.id || `${row.kind}-${index}`}>
-            <span>{row.amount_eur} {row.currency || "EUR"}</span>
-            {row.description ? <span> — {row.description}</span> : null}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 export const EscaleSheet = memo(function EscaleSheet({
   stop,
   fiche,
@@ -71,36 +53,15 @@ export const EscaleSheet = memo(function EscaleSheet({
   onClose,
   pledge,
   onPledgeAuthorized,
-  fund,
-  fundError,
-  adminKey,
 }) {
   const { t, i18n } = useTranslation();
-  const [review, setReview] = useState(null);
-  const [reviewError, setReviewError] = useState(null);
-  const [reviewBusy, setReviewBusy] = useState(false);
   if (!stop) return null;
   const lang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const sections = visibleSections(fiche?.sections);
   const keys = Object.keys(sections);
-  const reviewMilestone = stop.milestoneId || pledge?.milestoneId || "";
-  const treasurerKey = (adminKey || "").trim();
-
-  const onCaptainReview = async () => {
-    if (!reviewMilestone) return;
-    setReviewBusy(true);
-    setReviewError(null);
-    try {
-      const row = await captainReview(reviewMilestone, treasurerKey || undefined);
-      const stored = treasurerKey ? row : { ...row, pending_authorizations: undefined };
-      setReview(stored);
-    } catch (err) {
-      setReview(null);
-      setReviewError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setReviewBusy(false);
-    }
-  };
+  const pledgeDescription = pledge
+    ? `${stop.name} — ${t(`pledge.kinds.${pledge.kind}`)}`
+    : "";
 
   return (
     <div data-testid="escale-sheet" className="escale-sheet">
@@ -145,57 +106,12 @@ export const EscaleSheet = memo(function EscaleSheet({
           ))}
         </div>
       ))}
-      <section className="fund-panel" data-testid="common-fund">
-        <div className="escale-kicker">{t("fund.heading")}</div>
-        {fund ? (
-          <p>
-            {t("fund.figures", {
-              balance: fund.balance_eur,
-              currency: fund.currency,
-              income: fund.income_eur,
-              spending: fund.spending_eur,
-            })}
-          </p>
-        ) : null}
-        {fund?.overdrawn ? <p className="notice warn">{t("fund.overdrawn")}</p> : null}
-        {fundError ? <p className="hint">{t("fund.missing")}</p> : null}
-        {fund && Array.isArray(fund.income) && Array.isArray(fund.spending) && !fund.income.length && !fund.spending.length ? (
-          <p className="hint">{t("fund.empty")}</p>
-        ) : null}
-        <FundLines title={t("fund.income")} rows={fund?.income} />
-        <FundLines title={t("fund.spending")} rows={fund?.spending} />
-        <p className="fund-line">
-          {t("fund.line")}{" "}
-          <a href={HELLOASSO_MEMBERSHIP_URL} target="_blank" rel="noreferrer">{t("fund.helloasso")}</a>
-        </p>
-      </section>
-      <button
-        type="button"
-        data-testid="captain-review"
-        onClick={() => void onCaptainReview()}
-        disabled={reviewBusy || !reviewMilestone}
-      >
-        {t("sheet.captainReview")}
-      </button>
-      {reviewError ? <p className="notice error">{reviewError}</p> : null}
-      {review ? (
-        <div data-testid="captain-review-result">
-          <p>{review.proposal}</p>
-          {review.justification ? <p>{review.justification}</p> : null}
-          {review.pending_authorizations?.length ? (
-            <ul data-testid="pending-authorizations">
-              {review.pending_authorizations.map((row) => (
-                <li key={row.authorization_id || row.pledge_id}>
-                  {row.authorization_id} {row.amount_eur} {row.currency}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
+      <p className="fund-line">
+        {t("fund.line")}{" "}
+        <a href={HELLOASSO_MEMBERSHIP_URL} target="_blank" rel="noreferrer">{t("fund.helloasso")}</a>
+      </p>
       {pledge ? (
         <div className="pledge-form">
-          <p className="hint">{t("pledge.intent")}</p>
           <label>
             {t("pledge.kind")}
             <select
@@ -220,21 +136,13 @@ export const EscaleSheet = memo(function EscaleSheet({
             />
           </label>
           <label>
-            {t("pledge.description")}
-            <input value={pledge.description} onChange={(event) => pledge.onDescription(event.target.value)} />
-          </label>
-          <label>
-            {t("pledge.milestone")}
-            <input value={pledge.milestoneId} onChange={(event) => pledge.onMilestoneId(event.target.value)} />
-          </label>
-          <label>
             {t("pledge.contributor")}
             <input value={pledge.contributor} onChange={(event) => pledge.onContributor(event.target.value)} />
           </label>
           <PledgeButton
             values={{
               amount_eur: FIXED_AMOUNT[pledge.kind] || pledge.amount,
-              description: pledge.description,
+              description: pledgeDescription,
               milestone_id: pledge.milestoneId,
               contributor: pledge.contributor.trim() || undefined,
               kind: pledge.kind,

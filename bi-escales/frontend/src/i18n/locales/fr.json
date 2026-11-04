@@ -14,7 +14,9 @@
   },
   "clock": {
     "waiting": "départ dans {{hours}} h",
-    "devT0": "Départ de développement (ISO)"
+    "devT0": "Départ de développement (ISO)",
+    "sailed": "{{nm}} milles parcourus",
+    "simulated": "(horloge simulée)"
   },
   "sheet": {
     "title": "Fiche d’escale",
@@ -27,7 +29,12 @@
   "projects": {
     "heading": "Projets Blue Intelligence",
     "empty": "Aucun projet dans l’instantané.",
-    "open": "Page"
+    "open": "Page",
+    "pledge": "Promettre",
+    "search": "Chercher un projet",
+    "nearRoute": "Projets à ~200 km de la route (max 50).",
+    "minAmount": "Minimum 1,00 EUR.",
+    "pledgeDescription": "Promesse projet — {{title}}"
   },
   "marinas": {
     "heading": "Marinas",
@@ -59,9 +66,6 @@
   },
   "escales": {
     "heading": "Escales & capitaine",
-    "milestoneId": "Identifiant de jalon",
-    "evidenceMet": "Preuve satisfaite (simulation NAVIGUIDE)",
-    "postEvidence": "Enregistrer une preuve",
     "captainChat": "Message au capitaine IA",
     "sendChat": "Demander une formulation",
     "cartHeading": "Panier",
@@ -77,7 +81,7 @@
       "mile": "Milles parrainés (simulation)",
       "night": "Nuit à bord (simulation)",
       "meal": "Repas (simulation)",
-      "care": "Soin avec Elsa (simulation)",
+      "care": "Programme bien-être (simulation)",
       "common_fund": "Caisse commune"
     },
     "milestone": "Jalon",
@@ -91,11 +95,6 @@
     "authorize": "J’ai approuvé — autoriser",
     "creating": "Création de la promesse…",
     "authorized": "Promesse autorisée",
-    "vaultHint": "Vault : approuvez le moyen de paiement sur PayPal, puis confirmez. Rien n’est encaissé.",
-    "vaultApprove": "Approuver le moyen de paiement",
-    "vaultConfirm": "J’ai approuvé — enregistrer",
-    "vaulting": "Enregistrement du moyen de paiement…",
-    "vaulted": "Moyen de paiement enregistré",
     "error": "Erreur promesse"
   },
   "treasurer": {

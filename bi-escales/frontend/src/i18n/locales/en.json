@@ -14,7 +14,9 @@
   },
   "clock": {
     "waiting": "departure in {{hours}} h",
-    "devT0": "Development departure (ISO)"
+    "devT0": "Development departure (ISO)",
+    "sailed": "{{nm}} nm sailed",
+    "simulated": "(simulated clock)"
   },
   "sheet": {
     "title": "Port of call sheet",
@@ -27,7 +29,12 @@
   "projects": {
     "heading": "Blue Intelligence projects",
     "empty": "No project in the snapshot.",
-    "open": "Page"
+    "open": "Page",
+    "pledge": "Pledge",
+    "search": "Search a project",
+    "nearRoute": "Projects within ~200 km of the route (max 50).",
+    "minAmount": "Minimum 1.00 EUR.",
+    "pledgeDescription": "Project pledge — {{title}}"
   },
   "marinas": {
     "heading": "Marinas",
@@ -59,9 +66,6 @@
   },
   "escales": {
     "heading": "Stops & AI Captain",
-    "milestoneId": "Milestone id",
-    "evidenceMet": "Evidence met (NAVIGUIDE simulation)",
-    "postEvidence": "Record evidence",
     "captainChat": "Message to AI Captain",
     "sendChat": "Ask for wording",
     "cartHeading": "Cart",
@@ -77,7 +81,7 @@
       "mile": "Sponsored miles (simulation)",
       "night": "Night aboard (simulation)",
       "meal": "Meal (simulation)",
-      "care": "Care with Elsa (simulation)",
+      "care": "Wellness programme (simulation)",
       "common_fund": "Common fund"
     },
     "milestone": "Milestone",
@@ -91,11 +95,6 @@
     "creating": "Creating pledge…",
     "authorizing": "Authorizing on server…",
     "authorized": "Pledge authorized",
-    "vaultHint": "Vault: approve the saved payment method on PayPal, then confirm. Nothing is captured yet.",
-    "vaultApprove": "Approve the payment method",
-    "vaultConfirm": "I approved — save it",
-    "vaulting": "Saving the payment method…",
-    "vaulted": "Payment method saved",
     "error": "Pledge error"
   },
   "treasurer": {

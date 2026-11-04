@@ -7,8 +7,6 @@ import { PledgeButton } from "./PledgeButton";
 
 vi.mock("../api/escales", () => ({
   createPledge: vi.fn(),
-  registerVault: vi.fn(),
-  isVaultPledge: (pledge: { payment_mode?: string }) => pledge.payment_mode === "VAULT",
 }));
 
 const values = {

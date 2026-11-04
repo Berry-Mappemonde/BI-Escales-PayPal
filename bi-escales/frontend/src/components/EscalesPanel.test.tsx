@@ -7,11 +7,8 @@ import { EscalesPanel } from "./EscalesPanel";
 
 vi.mock("../api/escales", () => ({
   captainChat: vi.fn(),
-  postEvidence: vi.fn(),
   createPledge: vi.fn(),
   authorizePledge: vi.fn(),
-  registerVault: vi.fn(),
-  isVaultPledge: () => false,
 }));
 
 describe("EscalesPanel cart", () => {

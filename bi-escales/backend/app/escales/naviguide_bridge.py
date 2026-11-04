@@ -327,6 +327,18 @@ _TO_CUE = re.compile(
 _RETURN_WORD = re.compile(r"\b(?:retour|return)\b", re.IGNORECASE)
 
 
+def _last_stop_in(fragment: str) -> Optional[str]:
+    """Last stopover named in a fragment, ignoring cabin legs."""
+    words = re.findall(r"[A-Za-zÀ-ÿ0-9'’\-]+", fragment or "")
+    found: Optional[str] = None
+    for size in (4, 3, 2, 1):
+        for index in range(0, max(0, len(words) - size + 1)):
+            place = resolve_milestone(" ".join(words[index:index + size]))
+            if place and not str(place).startswith("leg-"):
+                found = place
+    return found
+
+
 def leg_for_message(message: str) -> Optional[dict[str, Any]]:
     """Pick a cabin leg from direction, not from the first port named.
 
@@ -339,6 +351,8 @@ def leg_for_message(message: str) -> Optional[dict[str, Any]]:
     origin = _place_fragment(origin_match.group(1)) if origin_match else None
     dest_match = _TO_CUE.search(text)
     dest = _place_fragment(dest_match.group(1)) if dest_match else None
+    if dest and not origin and dest_match:
+        origin = _last_stop_in(text[:dest_match.start()])
     if origin and dest:
         for leg in clock_legs():
             if _leg_links(leg, origin, dest):

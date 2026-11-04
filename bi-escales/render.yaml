@@ -55,3 +55,9 @@ services:
         value: "100"
       - key: ESCALES_LLM_DAILY_CAP
         value: "100"
+      - key: ESCALES_LLM_ENABLED
+        sync: false
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: NIM_MODEL
+        sync: false

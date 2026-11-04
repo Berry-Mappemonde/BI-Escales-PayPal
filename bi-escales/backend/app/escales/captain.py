@@ -263,7 +263,11 @@ def _no_pledge_suggestion(message: str) -> bool:
     """
     if _message_prices_a_pledge(message):
         return False
-    return _is_treasurer_question(message) or _is_status_question(message)
+    return (
+        _is_treasurer_question(message)
+        or _is_status_question(message)
+        or _is_fund_question(message)
+    )
 
 
 # Accent fold shared with the schedule slug. Spaces and dashes collapse later.
@@ -697,8 +701,8 @@ def _fallback_report(milestone_id: str, decision: str, evidence: dict, lang: str
             f"{_TREASURER_RULES_EN}"
         )
     return (
-        f"Jalon {port} : preuve {provider} marquée {flag} "
-        f"(source {source}). Proposition : {decision}. "
+        f"Pour {port}, la preuve {provider} porte la marque {flag} (source {source}). "
+        f"La proposition est {decision}. "
         f"{_TREASURER_DECIDES}"
     )
 
@@ -1370,10 +1374,9 @@ def _compose_chat_reply(
     prose = _drop_milestone_intent_labels(prose, suggested)
     prose = _drop_standalone_intent(prose)
     required: list[str] = [_pledge_line(suggested, lang)]
-    if lang == "fr":
-        required.append(_TREASURER_DECIDES)
-    else:
-        required.append(_TREASURER_RULES_EN)
+    rules = _TREASURER_RULES_EN if lang == "en" else _TREASURER_DECIDES
+    if rules.casefold() not in (prose or "").casefold():
+        required.append(rules)
     joined = " ".join(required)
     if lang == "en" and not re.search(r"\bintent\s+authorize\b", f"{prose} {joined}", re.I):
         required.append("intent AUTHORIZE.")
@@ -1387,6 +1390,12 @@ def _compose_chat_reply(
     if lang == "fr":
         reply = _standardise_french(reply)
     return _fix_sentence_starts(reply)
+
+
+def _without_unknown_marks(text: str) -> str:
+    """Drop a sentence whose figure was replaced by ``[?]``."""
+    kept = [sentence for sentence in _split_sentences(text) if "[?]" not in sentence]
+    return " ".join(kept).strip()
 
 
 def _without_jalon(text: str, lang: str) -> str:
@@ -1649,6 +1658,21 @@ def validate_advisory_proposal(
     }
 
 
+def _verdict_system(lang: str) -> str:
+    """JSON verdict instructions in the report language."""
+    if lang == "en":
+        return (
+            "Reply with one JSON object only. No markdown fence and no commentary. "
+            "Write reason in English. proposal is capture, void, wait or reauthorize. "
+            "Do not invent a figure."
+        )
+    return (
+        "Réponds par un seul objet JSON. Pas de balise markdown et pas de commentaire. "
+        "Écris reason en français. proposal vaut capture, void, wait ou reauthorize. "
+        "N'invente aucun chiffre."
+    )
+
+
 async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict]:
     """ask_json opinion, validated. Failure leaves the code decision alone."""
     try:
@@ -1663,8 +1687,14 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
     payload = dict(allowed)
     payload["authorization_age_days"] = age
     prompt = json.dumps(payload, ensure_ascii=False, default=str)
+    verdict_lang = "en" if str(allowed.get("language") or "") == "en" else "fr"
     try:
-        parsed = await llm.ask_json(prompt, max_tokens=180, temperature=0)
+        parsed = await llm.ask_json(
+            prompt,
+            system=_verdict_system(verdict_lang),
+            max_tokens=180,
+            temperature=0,
+        )
     except Exception:
         return None
     data = parsed.data if isinstance(getattr(parsed, "data", None), dict) else {}
@@ -1806,7 +1836,11 @@ async def review(
             source = _rules_source()
             model_lost = True
     narrative = _finish_text(narrative)
-    narrative = _without_jalon(filter_numbers(narrative, allowed, lang=report_lang), report_lang)
+    narrative = _without_unknown_marks(
+        _without_jalon(filter_numbers(narrative, allowed, lang=report_lang), report_lang)
+    )
+    if report_lang == "fr":
+        narrative = _standardise_french(narrative)
     if reached:
         narrative = _assert_reached(
             narrative,
@@ -1862,17 +1896,26 @@ def _is_fund_question(message: str) -> bool:
 
     ``How much money is in the project fund?`` names the project fund.
     ``fonds commun`` and ``caisse`` stay the other fund questions.
+    ``Combien … escale``, ``promis`` with a stop, and ``pledged`` ask what
+    was promised. They are not a one-mile pledge.
     """
     text = message or ""
     money_in_a_fund = bool(
         re.search(r"\bhow\s+much\s+money\b", text, re.IGNORECASE)
         and re.search(r"\bfunds?\b", text, re.IGNORECASE)
     )
+    names_stop = bool(re.search(r"\bescales?\b", text, re.IGNORECASE)) or _place(text) is not None
+    combien_escale = bool(re.search(r"\bcombien\b", text, re.IGNORECASE)) and names_stop
+    promised_escale = bool(re.search(r"\bpromis\b", text, re.IGNORECASE)) and names_stop
+    pledged = bool(re.search(r"\bpledged\b", text, re.IGNORECASE))
     topical = (
         _COMMON_FUND.search(text)
         or _PROJECT_FUND.search(text)
         or re.search(r"\bcaisse\b", text, re.IGNORECASE)
         or money_in_a_fund
+        or combien_escale
+        or promised_escale
+        or pledged
     )
     if not topical:
         return False
@@ -2062,7 +2105,7 @@ async def chat(message: str, *, treasurer: bool = False) -> dict:
 # ``simulated_unit``. A project pledge and the common fund stay free-amount:
 # the line exists only when the visitor writes the euros.
 _BERTH_COUNT = re.compile(
-    r"\b(?:(\d+(?:[.,]\d+)?)\s+)?(?:berths?|postes?|mouillages?)\b",
+    r"\b(?:(\d+(?:[.,]\d+)?)\s+)?(?:berths?|postes?|mouillages?|places?\s+de\s+port)\b",
     re.IGNORECASE,
 )
 _NIGHT_COUNT = re.compile(

@@ -2500,3 +2500,87 @@ def test_fund_question_filters_invented_numbers(monkeypatch):
         assert fallen["model_source"] == {"provider": "rules", "model": ""}
 
     asyncio.run(body())
+
+
+def test_render_declares_llm_keys_without_values():
+    text = (Path(__file__).resolve().parents[2] / "render.yaml").read_text(encoding="utf-8")
+    for key in ("ESCALES_LLM_ENABLED", "NVIDIA_API_KEY", "NIM_MODEL"):
+        start = text.index(f"key: {key}")
+        window = text[start:start + 80]
+        assert "sync: false" in window
+        assert "value:" not in window
+
+
+def test_promised_escale_questions_are_not_one_mile_pledges():
+    phrases = (
+        "Combien a été promis pour l'escale de La Rochelle ?",
+        "How much was pledged for La Rochelle?",
+        "combien pour l'escale de Dzaoudzi ?",
+    )
+    for phrase in phrases:
+        assert captain._is_fund_question(phrase), phrase
+        assert captain.suggest_pledge(phrase) is None, phrase
+
+
+def test_place_de_port_is_a_berth_at_the_floor_price():
+    french = captain.suggest_pledge("une place de port près de Fort-de-France")
+    assert french["kind"] == "berth"
+    assert french["amount_eur"] == "30.00"
+    english = captain.suggest_pledge("1 berth near Dakar", lang="en")
+    assert english["kind"] == "berth"
+    assert english["amount_eur"] == "30.00"
+
+
+def test_nim_reply_does_not_repeat_the_treasurer_sentence(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "La mer est calme. Seul le trésorier décide si l'argent est prélevé ou libéré."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Dakar")
+        sentence = "Seul le trésorier décide si l'argent est prélevé ou libéré."
+        assert result["reply"].count(sentence) == 1
+        assert result["reply"].count("Promesse calculée") == 1
+
+    asyncio.run(body())
+
+
+def test_french_review_instructs_in_french_and_drops_unknown_marks(monkeypatch):
+    import app.core.llm as llm
+
+    seen = {}
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "Le bateau a vu 40 milles. La preuve indique 80 milles parcourus."
+
+    async def fake_ask_json(prompt, system=None, **_kwargs):
+        seen["system"] = system or ""
+        seen["prompt"] = prompt
+        return llm.LlmJson({"proposal": "wait", "reason": "ouvert"}, "nim", "m", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence("dakar", met=False, facts={"distance_nm": 80})
+        result = await review("dakar", reader=None, lang="fr")
+        assert "[?]" not in result["report"]
+        assert "40" not in result["report"]
+        assert "80" in result["report"]
+        assert "français" in seen["system"].casefold()
+        assert '"language": "fr"' in seen["prompt"]
+        assert "Pour " in captain._fallback_report("dakar", "wait", {"flag": "simulation"}, "fr")
+
+    asyncio.run(body())
+
+
+def test_cabin_saint_maur_toward_la_rochelle_is_the_land_leg():
+    pledge = captain.suggest_pledge("cabine Saint-Maur vers La Rochelle")
+    assert pledge["kind"] == "cabin_leg"
+    assert pledge["milestone_id"] == "leg-saint-maur-berry-indre-to-la-rochelle"
+    assert pledge["amount_eur"] == "80.00"

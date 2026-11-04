@@ -152,7 +152,13 @@ def test_non_sandbox_env_is_refused(monkeypatch):
 
 
 def test_collections_are_namespaced():
-    assert COLLECTIONS == ("escales_pledges", "escales_milestones", "escales_audit")
+    assert COLLECTIONS == (
+        "escales_pledges",
+        "escales_milestones",
+        "escales_audit",
+        "escales_finance",
+        "escales_webhooks",
+    )
 
 
 def test_same_client_key_reuses_pledge_without_a_second_order():

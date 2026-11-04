@@ -17,7 +17,7 @@ from starlette.responses import Response
 
 from app.escales.captain import chat as captain_chat
 from app.escales.captain import review as captain_review
-from app.escales.config import escales_enabled, load_config
+from app.escales.config import escales_enabled, load_config, webhooks_enabled
 from app.escales.milestones import list_milestones, record_evidence
 from app.escales.paypal_client import PayPalClient, PayPalError
 from app.escales.pledges import (
@@ -31,6 +31,7 @@ from app.escales.pledges import (
     void_pledge,
 )
 from app.escales.toolkit_tools import ReadOnlyTools
+from app.escales.webhooks import WebhookDuplicate, WebhookRejected, verify_and_process
 
 _client_factory: Optional[Callable[[], Any]] = None
 
@@ -53,7 +54,20 @@ class _EnabledRoute(APIRoute):
         return guard
 
 
+class _WebhooksRoute(APIRoute):
+    def get_route_handler(self):
+        inner = super().get_route_handler()
+
+        async def guard(request: Request) -> Response:
+            if not escales_enabled() or not webhooks_enabled():
+                raise HTTPException(status_code=404, detail="Not Found")
+            return await inner(request)
+
+        return guard
+
+
 router = APIRouter(prefix="/api/escales", route_class=_EnabledRoute, tags=["escales"])
+webhooks_router = APIRouter(prefix="/api/escales", route_class=_WebhooksRoute, tags=["escales-webhooks"])
 
 
 class PledgeIn(BaseModel):
@@ -208,3 +222,18 @@ async def post_chat(body: ChatIn):
         return await captain_chat(body.message)
     except ValueError as exc:
         raise _as_http(exc) from exc
+
+
+@webhooks_router.post("/webhooks/paypal")
+async def post_paypal_webhook(request: Request):
+    raw = await request.body()
+    try:
+        client = _paypal()
+    except HTTPException as exc:
+        raise exc
+    try:
+        return await verify_and_process(raw_body=raw, headers=request.headers, client=client)
+    except WebhookDuplicate as exc:
+        return {"accepted": True, "duplicate": True, "transmission_id": exc.transmission_id}
+    except WebhookRejected as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import uuid
 
-from .pledges import get_ledger, now_iso
+from .ledger import get_ledger, now_iso
 
 AUDIT_COLLECTION = "escales_audit"
 

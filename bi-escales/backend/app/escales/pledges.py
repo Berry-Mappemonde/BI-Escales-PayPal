@@ -6,22 +6,24 @@ Storage is ``escales_pledges`` when Mongo is configured, otherwise memory.
 """
 from __future__ import annotations
 
-import copy
-import datetime as dt
-import os
 import re
-import threading
 import uuid
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 from .config import AUTH_MAX_DAYS
+from .ledger import (
+    COLLECTIONS,
+    get_ledger,
+    now_iso,
+    record_finance,
+    reset_ledger,
+)
 from .paypal_client import PayPalError, approve_link, authorization_from
 
 PLEDGES_COLLECTION = "escales_pledges"
 MILESTONES_COLLECTION = "escales_milestones"
 AUDIT_COLLECTION = "escales_audit"
-COLLECTIONS = (PLEDGES_COLLECTION, MILESTONES_COLLECTION, AUDIT_COLLECTION)
 
 _AMOUNT = re.compile(r"^\d+(?:\.\d{1,2})?$")
 
@@ -39,11 +41,8 @@ class PledgeNotFound(Exception):
         super().__init__(f"pledge {pledge_id} not found")
 
 
-def now_iso() -> str:
-    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
-
-
 def default_expiration() -> str:
+    import datetime as dt
     moment = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=AUTH_MAX_DAYS)
     return moment.replace(microsecond=0).isoformat()
 
@@ -66,230 +65,6 @@ def to_public(doc: dict) -> dict:
     out = {key: value for key, value in doc.items() if key not in hidden}
     out["id"] = doc["_id"]
     return out
-
-
-def _mongo_wanted() -> bool:
-    # ESCALES_STORE=memory forces the in-memory ledger (tests). Otherwise Mongo
-    # is used when MONGO_URL is set, so pledges land in escales_* collections.
-    mode = os.environ.get("ESCALES_STORE", "").strip().lower()
-    if mode == "memory":
-        return False
-    if mode == "mongo":
-        return True
-    return bool((os.environ.get("MONGO_URL") or "").strip())
-
-
-class MemoryLedger:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._pledges: dict[str, dict] = {}
-        self._by_key: dict[str, str] = {}
-        self._milestones: dict[str, dict] = {}
-        self._audit: list[dict] = []
-
-    async def insert_pledge_once(self, doc: dict) -> dict:
-        with self._lock:
-            key = doc.get("client_key")
-            if key and key in self._by_key:
-                return copy.deepcopy(self._pledges[self._by_key[key]])
-            stored = copy.deepcopy(doc)
-            self._pledges[stored["_id"]] = stored
-            if key:
-                self._by_key[key] = stored["_id"]
-            return copy.deepcopy(stored)
-
-    async def save_pledge(self, doc: dict) -> dict:
-        with self._lock:
-            stored = copy.deepcopy(doc)
-            self._pledges[stored["_id"]] = stored
-            key = stored.get("client_key")
-            if key:
-                self._by_key[key] = stored["_id"]
-            return copy.deepcopy(stored)
-
-    async def get_pledge(self, pledge_id: str) -> Optional[dict]:
-        with self._lock:
-            doc = self._pledges.get(pledge_id)
-            return copy.deepcopy(doc) if doc else None
-
-    async def find_by_client_key(self, client_key: str) -> Optional[dict]:
-        with self._lock:
-            pledge_id = self._by_key.get(client_key)
-            if not pledge_id:
-                return None
-            return copy.deepcopy(self._pledges[pledge_id])
-
-    async def list_pledges_for_milestone(self, milestone_id: str) -> list[dict]:
-        with self._lock:
-            return [
-                copy.deepcopy(doc)
-                for doc in self._pledges.values()
-                if doc.get("milestone_id") == milestone_id
-            ]
-
-    async def append_evidence(self, milestone_id: str, evidence: dict) -> dict:
-        with self._lock:
-            doc = self._milestones.get(milestone_id)
-            if doc is None:
-                doc = {
-                    "_id": milestone_id,
-                    "evidence": [],
-                    "proposal": None,
-                    "updated_at": evidence.get("recorded_at"),
-                }
-                self._milestones[milestone_id] = doc
-            doc["evidence"].append(copy.deepcopy(evidence))
-            doc["updated_at"] = evidence.get("recorded_at")
-            return copy.deepcopy(evidence)
-
-    async def get_milestone(self, milestone_id: str) -> Optional[dict]:
-        with self._lock:
-            doc = self._milestones.get(milestone_id)
-            return copy.deepcopy(doc) if doc else None
-
-    async def list_milestones(self) -> list[dict]:
-        with self._lock:
-            return [copy.deepcopy(doc) for doc in self._milestones.values()]
-
-    async def set_proposal(self, milestone_id: str, proposal: dict) -> dict:
-        with self._lock:
-            doc = self._milestones.get(milestone_id)
-            if doc is None:
-                doc = {"_id": milestone_id, "evidence": [], "proposal": None, "updated_at": now_iso()}
-                self._milestones[milestone_id] = doc
-            doc["proposal"] = copy.deepcopy(proposal)
-            doc["updated_at"] = proposal.get("at") or now_iso()
-            return copy.deepcopy(doc)
-
-    async def append_audit(self, entry: dict) -> dict:
-        with self._lock:
-            stored = copy.deepcopy(entry)
-            self._audit.append(stored)
-            return copy.deepcopy(stored)
-
-    async def list_audit(self) -> list[dict]:
-        with self._lock:
-            return [copy.deepcopy(entry) for entry in self._audit]
-
-
-class MongoLedger:
-    """Motor-backed escales_* collections. Not used by the default test run."""
-
-    def __init__(self, db: Any) -> None:
-        self._pledges = db[PLEDGES_COLLECTION]
-        self._milestones = db[MILESTONES_COLLECTION]
-        self._audit = db[AUDIT_COLLECTION]
-        self._ready = False
-
-    async def _ensure(self) -> None:
-        if self._ready:
-            return
-        await self._pledges.create_index(
-            "client_key", unique=True, sparse=True, name="escales_pledges_client_key",
-        )
-        await self._audit.create_index("at", name="escales_audit_at")
-        self._ready = True
-
-    async def insert_pledge_once(self, doc: dict) -> dict:
-        await self._ensure()
-        key = doc.get("client_key")
-        if key:
-            existing = await self._pledges.find_one({"client_key": key})
-            if existing:
-                return existing
-        try:
-            await self._pledges.insert_one(copy.deepcopy(doc))
-        except Exception as exc:
-            if key and exc.__class__.__name__ == "DuplicateKeyError":
-                existing = await self._pledges.find_one({"client_key": key})
-                if existing:
-                    return existing
-            raise
-        return doc
-
-    async def save_pledge(self, doc: dict) -> dict:
-        await self._ensure()
-        stored = copy.deepcopy(doc)
-        await self._pledges.replace_one({"_id": stored["_id"]}, stored, upsert=True)
-        return stored
-
-    async def get_pledge(self, pledge_id: str) -> Optional[dict]:
-        await self._ensure()
-        return await self._pledges.find_one({"_id": pledge_id})
-
-    async def find_by_client_key(self, client_key: str) -> Optional[dict]:
-        await self._ensure()
-        return await self._pledges.find_one({"client_key": client_key})
-
-    async def list_pledges_for_milestone(self, milestone_id: str) -> list[dict]:
-        await self._ensure()
-        cursor = self._pledges.find({"milestone_id": milestone_id})
-        return [doc async for doc in cursor]
-
-    async def append_evidence(self, milestone_id: str, evidence: dict) -> dict:
-        await self._ensure()
-        await self._milestones.update_one(
-            {"_id": milestone_id},
-            {
-                "$push": {"evidence": evidence},
-                "$set": {"updated_at": evidence.get("recorded_at")},
-                "$setOnInsert": {"proposal": None},
-            },
-            upsert=True,
-        )
-        return evidence
-
-    async def get_milestone(self, milestone_id: str) -> Optional[dict]:
-        await self._ensure()
-        return await self._milestones.find_one({"_id": milestone_id})
-
-    async def list_milestones(self) -> list[dict]:
-        await self._ensure()
-        cursor = self._milestones.find({})
-        return [doc async for doc in cursor]
-
-    async def set_proposal(self, milestone_id: str, proposal: dict) -> dict:
-        await self._ensure()
-        await self._milestones.update_one(
-            {"_id": milestone_id},
-            {
-                "$set": {"proposal": proposal, "updated_at": proposal.get("at") or now_iso()},
-                "$setOnInsert": {"evidence": []},
-            },
-            upsert=True,
-        )
-        doc = await self._milestones.find_one({"_id": milestone_id})
-        return doc or {"_id": milestone_id, "proposal": proposal, "evidence": []}
-
-    async def append_audit(self, entry: dict) -> dict:
-        await self._ensure()
-        stored = copy.deepcopy(entry)
-        await self._audit.insert_one(stored)
-        return stored
-
-    async def list_audit(self) -> list[dict]:
-        await self._ensure()
-        cursor = self._audit.find({}).sort("at", 1)
-        return [doc async for doc in cursor]
-
-
-_ledger: Any = None
-
-
-def reset_ledger() -> None:
-    global _ledger
-    _ledger = None
-
-
-def get_ledger() -> Any:
-    global _ledger
-    if _ledger is None:
-        if _mongo_wanted():
-            from app.db import db
-            _ledger = MongoLedger(db)
-        else:
-            _ledger = MemoryLedger()
-    return _ledger
 
 
 def _require_text(value: str, field: str) -> str:
@@ -367,7 +142,18 @@ async def create_pledge(
         "created_at": now_iso(),
         "history": ["created"],
     }
-    return await ledger.insert_pledge_once(doc)
+    saved = await ledger.insert_pledge_once(doc)
+    if saved.get("_id") == pledge_id and saved.get("history") == ["created"]:
+        await record_finance(
+            "pledge_created",
+            pledge_id=pledge_id,
+            milestone_id=milestone_id,
+            amount_eur=amount,
+            currency="EUR",
+            order_id=order_id,
+            status="created",
+        )
+    return saved
 
 
 def _require_status(pledge: dict, expected: str, target: str) -> None:
@@ -385,7 +171,17 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     pledge["authorization_id"] = auth_id
     pledge["authorization_expires_at"] = expiration or default_expiration()
     pledge["history"] = list(pledge.get("history") or []) + ["authorized"]
-    return await get_ledger().save_pledge(pledge)
+    saved = await get_ledger().save_pledge(pledge)
+    await record_finance(
+        "pledge_authorized",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        amount_eur=saved.get("amount_eur"),
+        currency="EUR",
+        authorization_id=auth_id,
+        status="authorized",
+    )
+    return saved
 
 
 async def capture_pledge(pledge_id: str, client: Any) -> dict:
@@ -406,6 +202,16 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
         status="captured",
         amount_eur=saved.get("amount_eur"),
         currency="EUR",
+    )
+    await record_finance(
+        "pledge_captured",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        amount_eur=saved.get("amount_eur"),
+        currency="EUR",
+        authorization_id=saved.get("authorization_id"),
+        status="captured",
+        actor="treasurer",
     )
     return saved
 
@@ -428,6 +234,16 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
         status="voided",
         amount_eur=saved.get("amount_eur"),
         currency="EUR",
+    )
+    await record_finance(
+        "pledge_voided",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        amount_eur=saved.get("amount_eur"),
+        currency="EUR",
+        authorization_id=saved.get("authorization_id"),
+        status="voided",
+        actor="treasurer",
     )
     return saved
 

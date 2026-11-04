@@ -32,6 +32,20 @@ def toolkit_enabled() -> bool:
     return os.environ.get("ESCALES_TOOLKIT_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def webhooks_enabled() -> bool:
+    """PayPal inbound webhooks. Off unless ESCALES_WEBHOOKS_ENABLED is truthy."""
+    return os.environ.get("ESCALES_WEBHOOKS_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def zapiper_enabled() -> bool:
+    """Optional Zapier forwarding hooks. Off unless ESCALES_ZAPIER_ENABLED is truthy."""
+    return os.environ.get("ESCALES_ZAPIER_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def paypal_webhook_id() -> str:
+    return (os.environ.get("PAYPAL_WEBHOOK_ID") or "").strip()
+
+
 def load_config() -> EscalesConfig:
     env = (os.environ.get("PAYPAL_ENV") or "sandbox").strip().lower()
     if env != "sandbox":

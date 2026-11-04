@@ -9,6 +9,28 @@ A supporter's PayPal pledge is **authorized** (Orders v2 `intent=AUTHORIZE`), an
 
 Status: in development. PayPal **sandbox only**; no real money moves. Planned departure: 15 May 2027.
 
+## Optional partners (feature flags)
+
+The API runs fully on local pytest and manual treasurer routes without any of the integrations below. Each partner is gated by an environment variable (see `bi-escales/.env.example`).
+
+| Integration | Flag | Role |
+|-------------|------|------|
+| PayPal webhooks | `ESCALES_WEBHOOKS_ENABLED` + `PAYPAL_WEBHOOK_ID` | Inbound `POST /api/escales/webhooks/paypal` with PayPal `verify-webhook-signature` and transmission idempotence |
+| PayPal Agent Toolkit | `ESCALES_TOOLKIT_ENABLED` | Read-only order lookups for the Captain |
+| Render deploy | `bi-escales/render.yaml` | Optional blueprint; set env vars in the Render dashboard (names only in the file) |
+| Postman | `bi-escales/postman/escales.postman_collection.json` | Sandbox walkthrough (create → authorize → capture / void); not loaded by the app |
+| Zapier | `ESCALES_ZAPIER_ENABLED` | Optional automation layer (see below) |
+
+### Optional Zapier Zap
+
+When `ESCALES_ZAPIER_ENABLED=1`, webhook responses may include a hint that you can forward verified events to Zapier. A typical **Zap** for demos:
+
+1. **Trigger — Webhooks by Zapier (Catch Hook)** or **PayPal** (sandbox) when you prefer native PayPal triggers.
+2. **Filter** — keep events where `event_type` matches your milestone workflow (for example `CHECKOUT.ORDER.APPROVED` or capture-related types).
+3. **Action — Webhooks POST** to your BI Escales treasurer tools (still behind `x-admin-key`) or to Slack/email for human approval.
+
+Zapier never replaces the treasurer: capture and void remain explicit `POST` calls with `ESCALES_ADMIN_KEY`. With the flag off, no Zapier-specific behaviour runs.
+
 ## Quick start (backend)
 ```bash
 cd bi-escales/backend

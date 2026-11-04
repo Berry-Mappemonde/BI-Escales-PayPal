@@ -86,13 +86,36 @@ def test_filter_numbers_drops_figures_absent_from_evidence():
 
 def test_filter_numbers_accepts_equivalent_amount_spellings():
     facts = {"amount_eur": "120.00"}
-    out = filter_numbers("Montants 120, 120.00 et 120,00.", facts)
-    assert "[?]" not in out
-    assert "120" in out
-    assert "120.00" in out
-    assert "120,00" in out
-    assert filter_numbers("12", facts) == "[?]"
-    assert filter_numbers("999", {"distance_nm": 120}) == "[?]"
+    french = filter_numbers("Montants 120, 120.00 et 120,00.", facts, lang="fr")
+    assert "[?]" not in french
+    assert french.startswith("Montants 120, ")
+    assert "120,00 €" in french
+    assert "120.00" not in french
+    english = filter_numbers("Amounts 120, 120.00 and 120,00 EUR.", facts, lang="en")
+    assert "[?]" not in english
+    assert "120.00 EUR" in english
+    assert "120,00" not in english
+    assert "€" not in english
+    assert filter_numbers("12", facts, lang="en") == "[?]"
+    assert filter_numbers("999", {"distance_nm": 120}, lang="fr") == "[?]"
+
+
+def test_filter_numbers_keeps_a_french_comma_and_a_derived_difference():
+    facts = {"amount_eur": "1.00"}
+    assert filter_numbers("Le mille coûte 1,00 €.", facts, lang="fr") == "Le mille coûte 1,00 €."
+    assert filter_numbers("Le mille coûte 1.00 EUR.", facts, lang="fr") == "Le mille coûte 1,00 €."
+    assert filter_numbers("The mile costs 1,00 €.", facts, lang="en") == "The mile costs 1.00 EUR."
+    assert filter_numbers("The mile costs 1.00 EUR.", facts, lang="en") == "The mile costs 1.00 EUR."
+    derived = filter_numbers(
+        "La jambe tombe 170 milles en dessous des 250 prévus après 80.",
+        {"planned_nm": 250, "sailed_nm": 80},
+        lang="fr",
+    )
+    assert "170" in derived
+    assert "250" in derived
+    assert "80" in derived
+    assert "[?]" not in derived
+    assert filter_numbers("999", {"planned_nm": 250, "sailed_nm": 80}) == "[?]"
 
 
 def test_captain_source_has_no_capture_or_void():
@@ -239,8 +262,9 @@ def test_chat_repeats_the_pledge_in_the_message_language(monkeypatch):
 
     seen = {}
 
-    async def fake_ask_text(prompt, system=None, **_kwargs):
+    async def fake_ask_text(prompt, system=None, **kwargs):
         seen["system"] = system
+        seen["temperature"] = kwargs.get("temperature")
         return "Of course, that leg can be sponsored."
 
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
@@ -252,10 +276,13 @@ def test_chat_repeats_the_pledge_in_the_message_language(monkeypatch):
 
     async def body():
         result = await chat("I'd like to sponsor 120 nautical miles near Lorient")
+        assert seen["temperature"] == 0.3
         assert "Reply in English" in seen["system"]
         assert "French" not in seen["system"]
         reply = result["reply"]
-        assert "120.00" in reply
+        assert "120.00 EUR" in reply
+        assert "120,00" not in reply
+        assert "€" not in reply
         assert "120 milles parrainés" in reply
         assert "lorient" in reply
         assert "AUTHORIZE" in reply
@@ -289,6 +316,96 @@ def test_treasurer_questions_skip_the_model(monkeypatch):
         assert result["reply"].count("— Le capitaine") == 1
         assert result["model_source"] == {"provider": "rules", "model": ""}
         assert len(result["reply"].split()) <= 80
+        english = await chat("My authorization is 28 days old. Will you capture or void it?")
+        assert "treasurer review" in english["reply"]
+        assert "trésorier" not in english["reply"]
+        assert "Le capitaine" not in english["reply"]
+        assert english["reply"].count("— The captain") == 1
+        assert english["model_source"] == {"provider": "rules", "model": ""}
+
+    asyncio.run(body())
+
+
+def test_a_complete_model_answer_is_not_followed_by_the_french_template(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return (
+            "Oui, c'est possible. Voici le montant calculé : 120,00 EUR, "
+            "description : 120 milles parrainés, étape : Lorient, intention : AUTHORIZE."
+        )
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je voudrais parrainer 120 milles près de Lorient")
+        assert "Promesse calculée" not in result["reply"]
+        assert "120,00 €" in result["reply"]
+        assert "120.00" not in result["reply"]
+        assert result["reply"].count("— Le capitaine") == 1
+
+    asyncio.run(body())
+
+
+def test_a_model_proposal_does_not_replace_the_code_decision(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return '{"proposal":"reauthorize","reason":"the model prefers to wait"}'
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        await record_evidence("dep-mayotte", met=True, facts={"port": "Mayotte"})
+        result = await review("dep-mayotte", reader=None)
+        assert result["proposal"] == "capture"
+        assert result["proposal"] != "reauthorize"
+
+    asyncio.run(body())
+
+
+def test_rules_amounts_follow_the_reply_language():
+    async def body():
+        french = await chat("Je parraine 20 milles près de Mayotte")
+        assert "20,00 €" in french["reply"]
+        assert "20.00" not in french["reply"]
+        assert "Promesse calculée" in french["reply"]
+        assert french["suggested_pledge"]["amount_eur"] == "20.00"
+        english = await chat("I'd like to sponsor 20 nautical miles near Lorient")
+        assert "20.00 EUR" in english["reply"]
+        assert "20,00" not in english["reply"]
+        assert "€" not in english["reply"]
+        assert "Computed pledge" in english["reply"]
+        assert english["model_source"] == {"provider": "rules", "model": ""}
+
+    asyncio.run(body())
+
+
+def test_number_guard_rewrites_amounts_into_the_reply_language(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(prompt, system=None, **_kwargs):
+        if system and "English" in system:
+            return "The price is 120,00 €. 120 milles parrainés, lorient, AUTHORIZE."
+        return "Le montant est 120.00 EUR. 120 milles parrainés, Lorient, AUTHORIZE."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        french = await chat("Je voudrais parrainer 120 milles près de Lorient")
+        assert "120,00 €" in french["reply"]
+        assert "120.00" not in french["reply"]
+        assert "120 milles parrainés" in french["reply"]
+        assert "Promesse calculée" not in french["reply"]
+        english = await chat("I'd like to sponsor 120 nautical miles near Lorient")
+        assert "120.00 EUR" in english["reply"]
+        assert "120,00" not in english["reply"]
+        assert "€" not in english["reply"]
+        assert "120 milles parrainés" in english["reply"]
+        assert "Computed pledge" not in english["reply"]
 
     asyncio.run(body())
 
@@ -307,7 +424,8 @@ def test_chat_keeps_one_signature_and_at_most_80_words(monkeypatch):
         reply = result["reply"]
         assert reply.count("— Le capitaine") == 1
         assert len(reply.split()) <= 80
-        assert "10.00" in reply
+        assert "10,00 €" in reply
+        assert "10.00" not in reply
         assert "brest" in reply
 
     asyncio.run(body())

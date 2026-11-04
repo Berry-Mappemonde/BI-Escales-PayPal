@@ -12,7 +12,14 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 from .config import membership_url
-from .milestones import decision_for, filter_numbers, get_milestone, latest_evidence
+from .milestones import (
+    amount_in_text,
+    decision_for,
+    filter_numbers,
+    format_amount,
+    get_milestone,
+    latest_evidence,
+)
 from .pledges import get_ledger, now_iso, pledges_for_milestone
 from .toolkit_tools import ReadOnlyTools
 
@@ -30,12 +37,14 @@ _PLACE = re.compile(
     re.IGNORECASE,
 )
 
-# Reports ask for about 0.2. NIM_TEMPERATURE, when set, still wins inside the NIM call.
+# Per-call temperatures. NIM_TEMPERATURE, when set, still wins inside the NIM call.
 _REPORT_TEMPERATURE = 0.2
+_CHAT_TEMPERATURE = 0.3
 _CHAT_WORD_LIMIT = 80
 
 _EN_HINT = re.compile(
-    r"\b(?:i|i'd|i’m|i'm|would|like|sponsor|please|the|near|miles?|nautical|dinner|and)\b",
+    r"\b(?:i|i'd|i’m|i'm|would|like|sponsor|please|the|near|miles?|nautical|dinner|and"
+    r"|my|you|your|will|is|are|was|old|days?|authorization|it|this)\b",
     re.IGNORECASE,
 )
 _FR_HINT = re.compile(
@@ -82,8 +91,8 @@ def _report_system(milestone_id: str) -> str:
         "Write exactly 2 or 3 sentences. No title, no heading, no list. "
         f"Keep this leg name verbatim: {milestone_id}. "
         "Use only numbers present in the evidence JSON. Do not invent a figure. "
-        "The decision word in the JSON is only a proposal for the treasurer. "
-        "You do not execute it."
+        "The decision field is fixed by the program. "
+        "Anything you write is advisory and is not executed."
     )
 
 
@@ -181,9 +190,18 @@ def _strip_signatures(text: str) -> str:
     ).strip()
 
 
+def _currency_present(text: str, currency: str) -> bool:
+    folded = (text or "").casefold()
+    code = str(currency or "").casefold()
+    if code and code in folded:
+        return True
+    return code == "eur" and "€" in (text or "")
+
+
 def _pledge_line(suggested: dict, lang: str) -> str:
+    shown = format_amount(suggested.get("amount_eur"), lang)
     exact = (
-        f"{suggested['description']} ({suggested['amount_eur']} {suggested['currency']}), "
+        f"{suggested['description']} ({shown}), "
         f"{suggested['milestone_id']}, {suggested['intent']}"
     )
     if lang == "en":
@@ -192,10 +210,19 @@ def _pledge_line(suggested: dict, lang: str) -> str:
 
 
 def _has_exact_pledge(text: str, suggested: dict) -> bool:
-    return all(
-        str(suggested[key]) in (text or "")
-        for key in ("description", "amount_eur", "currency", "milestone_id", "intent")
-    )
+    """True when the model already stated the computed pledge, in any spelling."""
+    folded = (text or "").casefold()
+    description = str(suggested.get("description") or "").casefold()
+    milestone = str(suggested.get("milestone_id") or "").casefold()
+    intent = str(suggested.get("intent") or "").casefold()
+    currency = str(suggested.get("currency") or "").casefold()
+    if not (description and milestone and intent):
+        return False
+    if description not in folded or milestone not in folded or intent not in folded:
+        return False
+    if not _currency_present(text or "", currency):
+        return False
+    return amount_in_text(text or "", str(suggested.get("amount_eur") or ""))
 
 
 def _membership_line(url: str, lang: str) -> str:
@@ -389,8 +416,11 @@ async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> d
         source = _rules_source()
     else:
         narrative = _shape_report(narrative, milestone_id)
-    narrative = filter_numbers(narrative, allowed)
-    justification = filter_numbers(f"{narrative} Décision : {decision}.", allowed)
+    report_lang = message_lang(narrative)
+    narrative = filter_numbers(narrative, allowed, lang=report_lang)
+    justification = filter_numbers(
+        f"{narrative} Décision : {decision}.", allowed, lang=report_lang,
+    )
     proposal = {
         "milestone_id": milestone_id,
         "proposal": decision,
@@ -432,9 +462,11 @@ async def chat(message: str) -> dict:
         raw, source = "", _rules_source()
     else:
         prompt = json.dumps(allowed, ensure_ascii=False, default=str)
-        raw, source = await _llm_text(prompt, _chat_system(lang), max_tokens=220)
+        raw, source = await _llm_text(
+            prompt, _chat_system(lang), max_tokens=220, temperature=_CHAT_TEMPERATURE,
+        )
         if raw:
-            raw = filter_numbers(raw, allowed)
+            raw = filter_numbers(raw, allowed, lang=lang)
         else:
             raw, source = "", _rules_source()
     reply = _compose_chat_reply(raw or "", suggested, url, lang, treasurer=treasurer)

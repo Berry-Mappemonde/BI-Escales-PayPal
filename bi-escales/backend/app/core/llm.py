@@ -1,7 +1,8 @@
 """LLM cascade for the Escales captain.
 
-Order, to spare Nebius credits: NVIDIA NIM, OpenRouter, Anthropic, then
-Nebius Token Factory, then the deterministic rules in the captain.
+Order, to spare Nebius credits: NVIDIA NIM, the smaller NIM fallback,
+OpenRouter, Anthropic, then Nebius Token Factory, then the deterministic
+rules in the captain.
 
 Each provider runs only when its API key is set. The master flag
 ``ESCALES_LLM_ENABLED`` is off by default: ``has_llm()`` is false and no
@@ -24,25 +25,26 @@ import httpx
 log = logging.getLogger("escales.llm")
 
 # HTTP hops, then the local rules applied by the captain when nothing answered.
-CASCADE = ("nim", "openrouter", "anthropic", "tokenfactory", "rules")
-HTTP_CASCADE = ("nim", "openrouter", "anthropic", "tokenfactory")
+# NIM primary, then the smaller NIM fallback, then the other providers.
+CASCADE = ("nim", "nim_fallback", "openrouter", "anthropic", "tokenfactory", "rules")
+HTTP_CASCADE = ("nim", "nim_fallback", "openrouter", "anthropic", "tokenfactory")
 
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 TOKENFACTORY_DEFAULT_BASE = "https://api.tokenfactory.nebius.com/v1"
 
-# PROVISIONAL — the NIM benchmark is still open. These values are not a
-# recommendation. The chosen config will replace this block.
-# Override with NIM_MODEL, NIM_TEMPERATURE, NIM_MAX_TOKENS, NIM_TOP_P,
-# NIM_REASONING and NIM_EXTRA_BODY (JSON object merged into the request).
-PROVISIONAL_NIM_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
-PROVISIONAL_NIM_TEMPERATURE = 0.2
-PROVISIONAL_NIM_MAX_TOKENS = 400
-PROVISIONAL_NIM_TOP_P = 0.7
-PROVISIONAL_NIM_REASONING = "low"
+# Benchmarked NIM defaults (final.log). Env overrides still win.
+# NIM_TEMPERATURE stays unset so chat 0.3, reports 0.2 and JSON 0 apply.
+NIM_MODEL_DEFAULT = "nvidia/nemotron-3.5-super-vl-120b-a12b"
+NIM_FALLBACK_MODEL_DEFAULT = "nvidia/nemotron-3.5-lightning-30b-a3b"
+NIM_MAX_TOKENS_DEFAULT = 400
+NIM_TOP_P_DEFAULT = 0.95
+NIM_REASONING_DEFAULT = "none"
+NIM_EXTRA_BODY_DEFAULT = {"chat_template_kwargs": {"enable_thinking": False}}
+NIM_FALLBACK_TIMEOUT_S = 8.0
 # Attribute kept so a script can still assign llm.NIM_MODEL. Env wins.
-NIM_MODEL = PROVISIONAL_NIM_MODEL
+NIM_MODEL = NIM_MODEL_DEFAULT
 
 OPENROUTER_DEFAULT_MODEL = "openai/gpt-4o-mini"
 ANTHROPIC_MODEL = "claude-haiku-4-5"
@@ -53,6 +55,7 @@ DEFAULT_PROVIDER_TIMEOUT_S = 10.0
 TIMEOUT = httpx.Timeout(DEFAULT_PROVIDER_TIMEOUT_S, connect=8.0)
 _TIMEOUT_ENV = {
     "nim": "ESCALES_LLM_TIMEOUT_NIM_S",
+    "nim_fallback": "ESCALES_LLM_TIMEOUT_NIM_FALLBACK_S",
     "openrouter": "ESCALES_LLM_TIMEOUT_OPENROUTER_S",
     "anthropic": "ESCALES_LLM_TIMEOUT_ANTHROPIC_S",
     "tokenfactory": "ESCALES_LLM_TIMEOUT_TOKENFACTORY_S",
@@ -133,22 +136,29 @@ def _env_float(raw: str, default: float) -> float:
 
 
 def nim_model() -> str:
-    """Model id for this call. ``NIM_MODEL`` env, else the module attribute, else provisional."""
+    """Primary NIM id. ``NIM_MODEL`` env, else the module attribute, else the benchmarked default."""
     configured = _env("NIM_MODEL")
     if configured:
         return configured
     current = (NIM_MODEL or "").strip()
-    return current or PROVISIONAL_NIM_MODEL
+    return current or NIM_MODEL_DEFAULT
 
 
-def nim_temperature(requested: Optional[float]) -> float:
-    """Env ``NIM_TEMPERATURE`` wins, so a benchmark can override a report's 0.2."""
+def nim_fallback_model() -> str:
+    """Second NIM id. Empty ``NIM_FALLBACK_MODEL`` disables the step."""
+    if "NIM_FALLBACK_MODEL" not in os.environ:
+        return NIM_FALLBACK_MODEL_DEFAULT
+    return _env("NIM_FALLBACK_MODEL")
+
+
+def nim_temperature(requested: Optional[float]) -> Optional[float]:
+    """``NIM_TEMPERATURE`` wins when set. Otherwise the per-call temperature is kept."""
     raw = _env("NIM_TEMPERATURE")
     if raw:
-        return _env_float(raw, PROVISIONAL_NIM_TEMPERATURE)
-    if requested is not None:
-        return float(requested)
-    return PROVISIONAL_NIM_TEMPERATURE
+        return _env_float(raw, 0.2 if requested is None else float(requested))
+    if requested is None:
+        return None
+    return float(requested)
 
 
 def nim_max_tokens(requested: int) -> int:
@@ -158,44 +168,46 @@ def nim_max_tokens(requested: int) -> int:
             return max(1, int(raw))
         except ValueError:
             pass
-    try:
-        return max(1, int(requested))
-    except (TypeError, ValueError):
-        return PROVISIONAL_NIM_MAX_TOKENS
+    return NIM_MAX_TOKENS_DEFAULT
 
 
 def nim_top_p() -> float:
     raw = _env("NIM_TOP_P")
     if raw:
-        return _env_float(raw, PROVISIONAL_NIM_TOP_P)
-    return PROVISIONAL_NIM_TOP_P
+        return _env_float(raw, NIM_TOP_P_DEFAULT)
+    return NIM_TOP_P_DEFAULT
 
 
 def nim_reasoning() -> str:
-    return _env("NIM_REASONING") or PROVISIONAL_NIM_REASONING
+    return _env("NIM_REASONING") or NIM_REASONING_DEFAULT
 
 
 def nim_extra_body() -> dict[str, Any]:
-    """Optional JSON object from ``NIM_EXTRA_BODY``. Invalid JSON is ignored."""
+    """JSON object from ``NIM_EXTRA_BODY``. ``guided_json`` and ``nvext`` are never kept here."""
     raw = _env("NIM_EXTRA_BODY")
     if not raw:
-        return {}
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        log.warning("NIM_EXTRA_BODY is not JSON; ignored")
-        return {}
+        data: Any = dict(NIM_EXTRA_BODY_DEFAULT)
+    else:
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            log.warning("NIM_EXTRA_BODY is not JSON; ignored")
+            data = dict(NIM_EXTRA_BODY_DEFAULT)
     if not isinstance(data, dict):
         log.warning("NIM_EXTRA_BODY is not a JSON object; ignored")
-        return {}
-    return data
+        data = dict(NIM_EXTRA_BODY_DEFAULT)
+    return {key: value for key, value in data.items() if key not in {"guided_json", "nvext"}}
 
 
 def provider_timeout_seconds(provider: str = "") -> float:
-    """Per-provider timeout. Specific env, else ``ESCALES_LLM_TIMEOUT_S``, else 10 s."""
-    raw = _env(_TIMEOUT_ENV.get(provider, "")) if provider else ""
-    if not raw:
-        raw = _env("ESCALES_LLM_TIMEOUT_S")
+    """Per-provider timeout. The NIM fallback stays at 8 s unless its own env is set."""
+    specific = _env(_TIMEOUT_ENV.get(provider, "")) if provider else ""
+    if specific:
+        value = _env_float(specific, DEFAULT_PROVIDER_TIMEOUT_S)
+        return value if value > 0 else DEFAULT_PROVIDER_TIMEOUT_S
+    if provider == "nim_fallback":
+        return NIM_FALLBACK_TIMEOUT_S
+    raw = _env("ESCALES_LLM_TIMEOUT_S")
     if not raw:
         return DEFAULT_PROVIDER_TIMEOUT_S
     value = _env_float(raw, DEFAULT_PROVIDER_TIMEOUT_S)
@@ -224,6 +236,7 @@ def active_providers() -> list[str]:
     """Configured HTTP hops, in cascade order. Nebius only when its flag is on."""
     ready = {
         "nim": bool(nvidia_key()),
+        "nim_fallback": bool(nvidia_key()) and bool(nim_fallback_model()),
         "openrouter": bool(openrouter_key()),
         "anthropic": bool(anthropic_key()),
         "tokenfactory": nebius_enabled() and bool(nebius_key()),
@@ -318,48 +331,76 @@ async def _post_json(
     return data
 
 
+# Advisory schema for ask_json only. Never merged into NIM_EXTRA_BODY.
+# nvext.guided_json returns 400, so the schema sits at the request root.
+ADVISORY_PROPOSAL_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "proposal": {
+            "type": "string",
+            "enum": ["capture", "void", "wait", "reauthorize"],
+        },
+        "reason": {"type": "string"},
+    },
+    "required": ["proposal", "reason"],
+}
+
+
 async def _call_nim(
     system: str,
     user: str,
     client: httpx.AsyncClient,
     max_tokens: int,
     temperature: Optional[float] = None,
+    *,
+    hop: str = "nim",
+    model: Optional[str] = None,
+    guided_json: Optional[dict[str, Any]] = None,
 ) -> LlmResult:
     key = nvidia_key()
     if not key:
         raise RuntimeError("NVIDIA_API_KEY missing")
+    chosen = (model or "").strip() or (nim_fallback_model() if hop == "nim_fallback" else nim_model())
+    if not chosen:
+        raise RuntimeError("NIM model missing")
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
     ]
     payload: dict[str, Any] = {
-        "model": nim_model(),
+        "model": chosen,
         "messages": messages,
-        "max_tokens": nim_max_tokens(max_tokens),
         "stream": False,
-        "temperature": nim_temperature(temperature),
-        "top_p": nim_top_p(),
-        "reasoning_effort": nim_reasoning(),
-        "chat_template_kwargs": {"thinking": False},
+        "chat_template_kwargs": {"enable_thinking": False},
     }
     extra = nim_extra_body()
     if extra:
         payload.update(extra)
-        payload["messages"] = messages
-        if _env("NIM_MODEL"):
-            payload["model"] = nim_model()
+    payload["messages"] = messages
+    payload["model"] = chosen
+    payload["max_tokens"] = nim_max_tokens(max_tokens)
+    payload["top_p"] = nim_top_p()
+    payload["reasoning_effort"] = nim_reasoning()
+    chosen_temperature = nim_temperature(temperature)
+    if chosen_temperature is None:
+        payload.pop("temperature", None)
+    else:
+        payload["temperature"] = chosen_temperature
+    payload.pop("nvext", None)
+    payload.pop("guided_json", None)
+    if guided_json is not None:
+        payload["guided_json"] = guided_json
     data = await _post_json(
         client,
-        "nim",
+        hop,
         NVIDIA_URL,
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         payload,
     )
     text = _openai_text(data)
     if not text:
-        raise RuntimeError("nim empty")
-    requested = str(payload.get("model") or nim_model())
-    return LlmResult(text, "nim", _reported_model(data, requested))
+        raise RuntimeError(f"{hop} empty")
+    return LlmResult(text, "nim", _reported_model(data, chosen))
 
 
 async def _call_openrouter(
@@ -480,12 +521,13 @@ async def ask_text(
     max_tokens: int = 500,
     client: Optional[httpx.AsyncClient] = None,
     temperature: Optional[float] = None,
+    guided_json: Optional[dict[str, Any]] = None,
 ) -> LlmResult:
     """Run the cascade. Raises when no provider answers so the captain uses its rules.
 
     ``client`` is for tests. Production opens a short-lived client and closes it.
-    ``temperature`` is the caller's preference (reports use about 0.2). NIM still
-    honours ``NIM_TEMPERATURE`` when that variable is set.
+    ``temperature`` is the caller's preference. NIM uses it unless ``NIM_TEMPERATURE`` is set.
+    ``guided_json`` is attached only to the NIM hops, at the request root.
     """
     if not has_llm():
         raise RuntimeError("No LLM configured")
@@ -498,7 +540,19 @@ async def ask_text(
         last = "no_llm_backend"
         for name in active_providers():
             try:
-                result = await _CALLS[name](system_text, user, http, budget, temperature)
+                if name in {"nim", "nim_fallback"}:
+                    result = await _call_nim(
+                        system_text,
+                        user,
+                        http,
+                        budget,
+                        temperature,
+                        hop=name,
+                        model=nim_fallback_model() if name == "nim_fallback" else nim_model(),
+                        guided_json=guided_json,
+                    )
+                else:
+                    result = await _CALLS[name](system_text, user, http, budget, temperature)
             except Exception as exc:
                 last = f"{name} {type(exc).__name__}"
                 log.warning("cascade %s failed (%s)", name, type(exc).__name__)
@@ -549,15 +603,16 @@ async def ask_json(
     system: Optional[str] = None,
     max_tokens: int = 500,
     client: Optional[httpx.AsyncClient] = None,
-    temperature: Optional[float] = None,
+    temperature: Optional[float] = 0,
 ) -> LlmJson:
-    """Ask for one JSON object and parse it. The captain does not use this to decide."""
+    """Ask for one JSON object. The schema is advisory and does not choose the payment."""
     system_text = (system or "").strip() or _JSON_SYSTEM
     result = await ask_text(
         prompt,
         system=system_text,
         max_tokens=max_tokens,
         client=client,
-        temperature=temperature,
+        temperature=0 if temperature is None else temperature,
+        guided_json=ADVISORY_PROPOSAL_SCHEMA,
     )
     return LlmJson(parse_json_object(result.text), result.provider, result.model, result.text)

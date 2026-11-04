@@ -37,8 +37,10 @@ LLM_ENV = (
     "NIM_TOP_P",
     "NIM_REASONING",
     "NIM_EXTRA_BODY",
+    "NIM_FALLBACK_MODEL",
     "ESCALES_LLM_TIMEOUT_S",
     "ESCALES_LLM_TIMEOUT_NIM_S",
+    "ESCALES_LLM_TIMEOUT_NIM_FALLBACK_S",
     "ESCALES_LLM_TIMEOUT_OPENROUTER_S",
     "ESCALES_LLM_TIMEOUT_ANTHROPIC_S",
     "ESCALES_LLM_TIMEOUT_TOKENFACTORY_S",
@@ -158,9 +160,14 @@ def _transport(script: dict[str, list[httpx.Response]]):
 
 
 def test_cascade_order_puts_nebius_last_and_rules_after_it():
-    assert llm.CASCADE == ("nim", "openrouter", "anthropic", "tokenfactory", "rules")
-    assert llm.NIM_MODEL == llm.PROVISIONAL_NIM_MODEL
-    assert "PROVISIONAL" in Path(llm.__file__).read_text(encoding="utf-8")
+    assert llm.CASCADE == (
+        "nim", "nim_fallback", "openrouter", "anthropic", "tokenfactory", "rules",
+    )
+    assert llm.NIM_MODEL == llm.NIM_MODEL_DEFAULT == "nvidia/nemotron-3.5-super-vl-120b-a12b"
+    assert llm.NIM_FALLBACK_MODEL_DEFAULT == "nvidia/nemotron-3.5-lightning-30b-a3b"
+    module = Path(llm.__file__).read_text(encoding="utf-8")
+    assert '{"thinking": False}' not in module
+    assert "enable_thinking" in module
     assert "29" not in captain._report_system("lorient")
     assert "29" not in captain._chat_system("fr")
     assert "reauthor" not in captain._chat_system("en").lower()
@@ -168,7 +175,6 @@ def test_cascade_order_puts_nebius_last_and_rules_after_it():
     assert "capture_authorization" not in source
     assert "void_authorization" not in source
     assert "paypal_client" not in source
-    module = Path(llm.__file__).read_text(encoding="utf-8")
     assert "capture_authorization" not in module
     assert "sk-" not in module
     assert "nvapi-" not in module
@@ -181,10 +187,22 @@ def test_env_example_lists_flags_and_empty_keys():
     for name in (
         "NVIDIA_API_KEY", "OPENROUTER_API_KEY", "OPENROUTER_MODEL", "ANTHROPIC_API_KEY", "NEBIUS_API_KEY",
         "NIM_MODEL", "NIM_TEMPERATURE", "NIM_MAX_TOKENS", "NIM_TOP_P", "NIM_REASONING", "NIM_EXTRA_BODY",
-        "ESCALES_LLM_TIMEOUT_NIM_S",
+        "NIM_FALLBACK_MODEL", "ESCALES_LLM_TIMEOUT_NIM_S", "ESCALES_LLM_TIMEOUT_NIM_FALLBACK_S",
     ):
-        assert f"{name}=" in lines
+        assert any(line.startswith(f"{name}=") for line in lines)
     assert "ESCALES_LLM_TIMEOUT_S=10" in lines
+    assert "NIM_TEMPERATURE=" in lines
+    assert "NIM_MODEL=nvidia/nemotron-3.5-super-vl-120b-a12b" in lines
+    assert "NIM_FALLBACK_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b" in lines
+    assert "NIM_TOP_P=0.95" in lines
+    assert "NIM_MAX_TOKENS=400" in lines
+    assert "NIM_REASONING=none" in lines
+    assert "ESCALES_LLM_TIMEOUT_NIM_FALLBACK_S=8" in lines
+    joined = "\n".join(lines)
+    assert "enable_thinking" in joined
+    extra = next(line for line in lines if line.startswith("NIM_EXTRA_BODY="))
+    assert "guided_json" not in extra
+    assert "nvext" not in extra
     for line in lines:
         if line.split("=", 1)[0] in {"NVIDIA_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "NEBIUS_API_KEY"}:
             assert line.endswith("=")
@@ -197,7 +215,7 @@ def test_master_flag_off_does_not_open_http(monkeypatch):
     monkeypatch.setenv("ESCALES_LLM_NEBIUS_ENABLED", "true")
     assert llm.llm_enabled() is False
     assert llm.has_llm() is False
-    assert llm.active_providers() == ["nim", "tokenfactory"]
+    assert llm.active_providers() == ["nim", "nim_fallback", "tokenfactory"]
 
     def boom():
         raise AssertionError("HTTP client opened")
@@ -218,6 +236,8 @@ def test_has_llm_needs_a_key_and_ignores_blank_values(monkeypatch):
     assert llm.active_providers() == []
     monkeypatch.setenv("NVIDIA_API_KEY", "test-nvidia-key")
     assert llm.has_llm() is True
+    assert llm.active_providers() == ["nim", "nim_fallback"]
+    monkeypatch.setenv("NIM_FALLBACK_MODEL", "")
     assert llm.active_providers() == ["nim"]
 
 
@@ -226,13 +246,13 @@ def test_nebius_stays_off_unless_its_flag_is_truthy(monkeypatch):
     monkeypatch.setenv("NEBIUS_API_KEY", "test-nebius-key")
     monkeypatch.setenv("NVIDIA_API_KEY", "test-nvidia-key")
     assert llm.nebius_enabled() is False
-    assert llm.active_providers() == ["nim"]
+    assert llm.active_providers() == ["nim", "nim_fallback"]
     monkeypatch.setenv("ESCALES_LLM_NEBIUS_ENABLED", "false")
-    assert llm.active_providers() == ["nim"]
+    assert llm.active_providers() == ["nim", "nim_fallback"]
     monkeypatch.setenv("ESCALES_LLM_NEBIUS_ENABLED", "0")
     assert "tokenfactory" not in llm.active_providers()
     monkeypatch.setenv("ESCALES_LLM_NEBIUS_ENABLED", "true")
-    assert llm.active_providers() == ["nim", "tokenfactory"]
+    assert llm.active_providers() == ["nim", "nim_fallback", "tokenfactory"]
     monkeypatch.delenv("NVIDIA_API_KEY")
     assert llm.active_providers() == ["tokenfactory"]
     assert llm.has_llm() is True
@@ -245,10 +265,12 @@ def test_configured_providers_keep_nim_openrouter_anthropic_nebius_order(monkeyp
     monkeypatch.setenv("NEBIUS_API_KEY", "test-nebius-key")
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
     monkeypatch.setenv("NVIDIA_API_KEY", "test-nvidia-key")
-    assert llm.active_providers() == ["nim", "openrouter", "anthropic", "tokenfactory"]
+    assert llm.active_providers() == [
+        "nim", "nim_fallback", "openrouter", "anthropic", "tokenfactory",
+    ]
 
 
-def test_nim_answers_first_with_the_provisional_model(monkeypatch):
+def test_nim_answers_first_with_the_benchmarked_model(monkeypatch):
     _enable("nim", "openrouter", "anthropic", "tokenfactory", nebius="true")
     seen, client = _transport({
         "integrate.api.nvidia.com": [_openai("Rapport NIM.", llm.NIM_MODEL)],
@@ -259,19 +281,22 @@ def test_nim_answers_first_with_the_provisional_model(monkeypatch):
         result = await llm.ask_text("preuve", system="systeme", max_tokens=500, client=client)
         assert result.text == "Rapport NIM."
         assert result.provider == "nim"
-        assert result.model == llm.PROVISIONAL_NIM_MODEL
+        assert result.model == llm.NIM_MODEL_DEFAULT
         assert [item["host"] for item in seen] == ["integrate.api.nvidia.com"]
         call = seen[0]
         assert call["url"] == llm.NVIDIA_URL
-        assert call["model"] == llm.PROVISIONAL_NIM_MODEL
+        assert call["model"] == llm.NIM_MODEL_DEFAULT
         assert call["authorization"] == "Bearer test-nvidia-key"
         assert call["x-api-key"] is None
         assert "test-nvidia-key" not in call["raw"]
-        assert call["body"]["temperature"] == llm.PROVISIONAL_NIM_TEMPERATURE
-        assert call["body"]["top_p"] == llm.PROVISIONAL_NIM_TOP_P
-        assert call["body"]["reasoning_effort"] == llm.PROVISIONAL_NIM_REASONING
-        assert call["body"]["chat_template_kwargs"] == {"thinking": False}
-        assert call["body"]["max_tokens"] == 500
+        assert "temperature" not in call["body"]
+        assert call["body"]["top_p"] == 0.95
+        assert call["body"]["reasoning_effort"] == "none"
+        assert call["body"]["chat_template_kwargs"] == {"enable_thinking": False}
+        assert "thinking" not in call["body"]["chat_template_kwargs"]
+        assert "guided_json" not in call["body"]
+        assert "nvext" not in call["body"]
+        assert call["body"]["max_tokens"] == 400
         assert call["body"]["messages"][0] == {"role": "system", "content": "systeme"}
         await client.aclose()
 
@@ -282,7 +307,7 @@ def test_fallback_order_is_openrouter_then_anthropic_then_nebius(monkeypatch):
     _enable("nim", "openrouter", "anthropic", "tokenfactory", nebius="true")
     monkeypatch.setenv("OPENROUTER_MODEL", "meta/example-small")
     seen, client = _transport({
-        "integrate.api.nvidia.com": [_fail(503)],
+        "integrate.api.nvidia.com": [_fail(503), _fail(503)],
         "openrouter.ai": [_fail(429)],
         "api.anthropic.com": [_fail(500)],
         "api.tokenfactory.nebius.com": [_openai("Rapport Nebius.", llm.TOKENFACTORY_MODEL)],
@@ -295,25 +320,28 @@ def test_fallback_order_is_openrouter_then_anthropic_then_nebius(monkeypatch):
         assert result.text == "Rapport Nebius."
         assert [item["host"] for item in seen] == [
             "integrate.api.nvidia.com",
+            "integrate.api.nvidia.com",
             "openrouter.ai",
             "api.anthropic.com",
             "api.tokenfactory.nebius.com",
         ]
-        assert seen[1]["model"] == "meta/example-small"
-        assert seen[1]["authorization"] == "Bearer test-openrouter-key"
-        assert seen[1]["body"]["temperature"] == 0.4
-        assert seen[2]["model"] == llm.ANTHROPIC_MODEL
-        assert seen[2]["x-api-key"] == "test-anthropic-key"
-        assert seen[2]["authorization"] is None
-        assert seen[2]["anthropic-version"] == "2023-06-01"
-        assert seen[2]["body"]["temperature"] == 0
-        assert seen[2]["body"]["system"]
-        assert "test-anthropic-key" not in seen[2]["raw"]
-        assert seen[3]["url"] == "https://api.tokenfactory.nebius.com/v1/chat/completions"
-        assert seen[3]["authorization"] == "Bearer test-nebius-key"
-        assert seen[3]["body"]["reasoning_effort"] == "none"
-        assert seen[3]["body"]["chat_template_kwargs"] == {"enable_thinking": False}
-        assert "test-nebius-key" not in seen[3]["raw"]
+        assert seen[0]["model"] == llm.NIM_MODEL_DEFAULT
+        assert seen[1]["model"] == llm.NIM_FALLBACK_MODEL_DEFAULT
+        assert seen[2]["model"] == "meta/example-small"
+        assert seen[2]["authorization"] == "Bearer test-openrouter-key"
+        assert seen[2]["body"]["temperature"] == 0.4
+        assert seen[3]["model"] == llm.ANTHROPIC_MODEL
+        assert seen[3]["x-api-key"] == "test-anthropic-key"
+        assert seen[3]["authorization"] is None
+        assert seen[3]["anthropic-version"] == "2023-06-01"
+        assert seen[3]["body"]["temperature"] == 0
+        assert seen[3]["body"]["system"]
+        assert "test-anthropic-key" not in seen[3]["raw"]
+        assert seen[4]["url"] == "https://api.tokenfactory.nebius.com/v1/chat/completions"
+        assert seen[4]["authorization"] == "Bearer test-nebius-key"
+        assert seen[4]["body"]["reasoning_effort"] == "none"
+        assert seen[4]["body"]["chat_template_kwargs"] == {"enable_thinking": False}
+        assert "test-nebius-key" not in seen[4]["raw"]
         await client.aclose()
 
     asyncio.run(body())
@@ -322,7 +350,7 @@ def test_fallback_order_is_openrouter_then_anthropic_then_nebius(monkeypatch):
 def test_nebius_is_not_called_when_its_flag_is_off(monkeypatch):
     _enable("nim", "openrouter", "anthropic", "tokenfactory", nebius="false")
     seen, client = _transport({
-        "integrate.api.nvidia.com": [_fail(503)],
+        "integrate.api.nvidia.com": [_fail(503), _fail(503)],
         "openrouter.ai": [_openai("", "openai/gpt-4o-mini")],
         "api.anthropic.com": [httpx.Response(200, content=b"not-json")],
         "api.tokenfactory.nebius.com": [_openai("ne doit pas partir", llm.TOKENFACTORY_MODEL)],
@@ -332,6 +360,7 @@ def test_nebius_is_not_called_when_its_flag_is_off(monkeypatch):
         with pytest.raises(RuntimeError, match="exhausted"):
             await llm.ask_text("preuve", client=client)
         assert [item["host"] for item in seen] == [
+            "integrate.api.nvidia.com",
             "integrate.api.nvidia.com",
             "openrouter.ai",
             "api.anthropic.com",
@@ -344,7 +373,10 @@ def test_nebius_is_not_called_when_its_flag_is_off(monkeypatch):
 def test_openrouter_answers_when_nim_returns_only_a_think_block():
     _enable("nim", "openrouter")
     seen, client = _transport({
-        "integrate.api.nvidia.com": [_openai("<think>secret plan</think>", llm.NIM_MODEL)],
+        "integrate.api.nvidia.com": [
+            _openai("<think>secret plan</think>", llm.NIM_MODEL),
+            _openai("<think>encore</think>", llm.NIM_FALLBACK_MODEL_DEFAULT),
+        ],
         "openrouter.ai": [_openai("<think>brouillon</think>Rapport OpenRouter.", "openai/gpt-4o-mini")],
     })
 
@@ -353,7 +385,11 @@ def test_openrouter_answers_when_nim_returns_only_a_think_block():
         assert result.provider == "openrouter"
         assert result.model == "openai/gpt-4o-mini"
         assert result.text == "Rapport OpenRouter."
-        assert [item["host"] for item in seen] == ["integrate.api.nvidia.com", "openrouter.ai"]
+        assert [item["host"] for item in seen] == [
+            "integrate.api.nvidia.com",
+            "integrate.api.nvidia.com",
+            "openrouter.ai",
+        ]
         await client.aclose()
 
     asyncio.run(body())
@@ -417,7 +453,7 @@ def test_captain_review_exposes_nim_and_never_captures(monkeypatch):
         await record_evidence("dep-mayotte", met=True, facts={"port": "Mayotte"})
         result = await review("dep-mayotte", reader=ReadOnlyTools(spy))
         assert result["proposal"] == "capture"
-        assert result["model_source"] == {"provider": "nim", "model": llm.PROVISIONAL_NIM_MODEL}
+        assert result["model_source"] == {"provider": "nim", "model": llm.NIM_MODEL_DEFAULT}
         assert "annuler" in result["report"]
         assert "dep-mayotte" in result["report"]
         assert seen_box["seen"][0]["body"]["temperature"] == 0.2
@@ -450,7 +486,7 @@ def test_captain_strips_invented_figures_and_keeps_the_source(monkeypatch):
         assert "999" not in result["report"]
         assert "[?]" in result["justification"]
         assert result["proposal"] == "capture"
-        assert result["model_source"] == {"provider": "nim", "model": llm.PROVISIONAL_NIM_MODEL}
+        assert result["model_source"] == {"provider": "nim", "model": llm.NIM_MODEL_DEFAULT}
 
     asyncio.run(body())
 
@@ -508,7 +544,7 @@ def test_captain_uses_rules_when_every_provider_fails(monkeypatch):
 
     def factory():
         seen, client = _transport({
-            "integrate.api.nvidia.com": [_fail(401)],
+            "integrate.api.nvidia.com": [_fail(401), _fail(401)],
             "api.tokenfactory.nebius.com": [_openai("ne doit pas partir", llm.TOKENFACTORY_MODEL)],
         })
         seen_box["seen"] = seen
@@ -522,7 +558,10 @@ def test_captain_uses_rules_when_every_provider_fails(monkeypatch):
         assert result["model_source"] == {"provider": "rules", "model": ""}
         assert result["proposal"] == "capture"
         assert "Proposition" in result["report"]
-        assert [item["host"] for item in seen_box["seen"]] == ["integrate.api.nvidia.com"]
+        assert [item["host"] for item in seen_box["seen"]] == [
+            "integrate.api.nvidia.com",
+            "integrate.api.nvidia.com",
+        ]
 
     asyncio.run(body())
 
@@ -565,7 +604,8 @@ def test_invalid_nim_extra_body_is_ignored(monkeypatch):
     async def body():
         await llm.ask_text("preuve", client=client)
         assert "seed" not in seen[0]["body"]
-        assert seen[0]["model"] == llm.PROVISIONAL_NIM_MODEL
+        assert seen[0]["model"] == llm.NIM_MODEL_DEFAULT
+        assert seen[0]["body"]["chat_template_kwargs"] == {"enable_thinking": False}
         await client.aclose()
 
     asyncio.run(body())
@@ -573,13 +613,80 @@ def test_invalid_nim_extra_body_is_ignored(monkeypatch):
 
 def test_provider_timeout_defaults_to_ten_seconds_and_is_configurable(monkeypatch):
     assert llm.provider_timeout_seconds("nim") == 10.0
+    assert llm.provider_timeout_seconds("nim_fallback") == 8.0
+    assert 6 <= llm.provider_timeout_seconds("nim_fallback") <= 8
     assert 8 <= llm.provider_timeout_seconds("openrouter") <= 10
     monkeypatch.setenv("ESCALES_LLM_TIMEOUT_S", "9")
     monkeypatch.setenv("ESCALES_LLM_TIMEOUT_NIM_S", "8")
     assert llm.provider_timeout_seconds("nim") == 8
+    assert llm.provider_timeout_seconds("nim_fallback") == 8
     assert llm.provider_timeout_seconds("anthropic") == 9
+    monkeypatch.setenv("ESCALES_LLM_TIMEOUT_NIM_FALLBACK_S", "7")
+    assert llm.provider_timeout_seconds("nim_fallback") == 7
     timeout = llm.provider_timeout("nim")
     assert timeout.read == 8
+
+
+def test_nim_fallback_answers_before_openrouter():
+    _enable("nim", "openrouter")
+    calls = []
+
+    class FakeClient:
+        async def post(self, url, headers=None, json=None, timeout=None):
+            calls.append({
+                "host": url.host if hasattr(url, "host") else str(url),
+                "model": json["model"],
+                "read": timeout.read,
+                "guided": "guided_json" in json,
+                "nvext": "nvext" in json,
+            })
+            if len(calls) == 1:
+                return httpx.Response(503, json={"error": {"message": "slow"}})
+            return httpx.Response(200, json={
+                "model": json["model"],
+                "choices": [{"message": {"content": "fallback ok"}}],
+            })
+
+        async def aclose(self):
+            return None
+
+    async def body():
+        result = await llm.ask_text("preuve", client=FakeClient())
+        assert result.text == "fallback ok"
+        assert result.provider == "nim"
+        assert result.model == llm.NIM_FALLBACK_MODEL_DEFAULT
+        assert len(calls) == 2
+        assert calls[0]["model"] == llm.NIM_MODEL_DEFAULT
+        assert calls[0]["read"] == 10
+        assert calls[1]["model"] == llm.NIM_FALLBACK_MODEL_DEFAULT
+        assert 6 <= calls[1]["read"] <= 8
+        assert calls[0]["guided"] is False
+        assert calls[1]["nvext"] is False
+
+    asyncio.run(body())
+
+
+def test_global_extra_body_cannot_carry_guided_json(monkeypatch):
+    _enable("nim")
+    monkeypatch.setenv(
+        "NIM_EXTRA_BODY",
+        '{"guided_json": {"type": "object"}, "nvext": {"guided_json": {"type": "object"}}, "seed": 3}',
+    )
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [_openai("Rapport.", llm.NIM_MODEL_DEFAULT)],
+    })
+
+    async def body():
+        await llm.ask_text("preuve", client=client)
+        body_json = seen[0]["body"]
+        assert "guided_json" not in body_json
+        assert "nvext" not in body_json
+        assert body_json["seed"] == 3
+        assert body_json["chat_template_kwargs"] == {"enable_thinking": False}
+        assert body_json["reasoning_effort"] == "none"
+        await client.aclose()
+
+    asyncio.run(body())
 
 
 def test_each_call_sends_its_own_timeout(monkeypatch):
@@ -619,7 +726,14 @@ def test_ask_json_parses_a_fenced_object():
         parsed = await llm.ask_json("Return JSON", client=client)
         assert parsed.data == {"status": "ready", "note": "ok"}
         assert parsed.provider == "nim"
-        assert "29" not in seen[0]["body"]["messages"][0]["content"]
+        body_json = seen[0]["body"]
+        assert body_json["temperature"] == 0
+        assert body_json["guided_json"] == llm.ADVISORY_PROPOSAL_SCHEMA
+        assert body_json["guided_json"]["properties"]["proposal"]["enum"] == [
+            "capture", "void", "wait", "reauthorize",
+        ]
+        assert "nvext" not in body_json
+        assert "29" not in body_json["messages"][0]["content"]
         await client.aclose()
 
     asyncio.run(body())

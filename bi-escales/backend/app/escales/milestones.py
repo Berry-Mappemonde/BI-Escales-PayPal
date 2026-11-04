@@ -1,8 +1,9 @@
 """Milestone evidence and the number filter.
 
 NAVIGUIDE evidence posted through the API is flagged ``simulation``.
-The decision (capture, void, or wait) comes from that evidence. The model
-only writes the sentence; ``filter_numbers`` drops any figure it was not given.
+The decision (capture, void, or wait) comes from that evidence. A model
+proposal is advisory. ``filter_numbers`` drops a figure that is neither in
+the evidence nor the sum or difference of two figures that are.
 """
 from __future__ import annotations
 
@@ -11,6 +12,12 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
+# A price token, with an optional euro marker. The marker must not eat the next word.
+_AMOUNT_SPAN = re.compile(
+    r"\d+(?:[.,]\d+)?(?:\s*(?:€|eur(?:os?)?))?(?!\w)",
+    re.IGNORECASE,
+)
+_MONEY_KEY = re.compile(r"amount|prix|price|eur", re.IGNORECASE)
 
 
 def allowed_numbers(facts: Any) -> set[str]:
@@ -53,29 +60,109 @@ def _as_decimal(token: str) -> Optional[Decimal]:
         return None
 
 
-def filter_numbers(text: str, facts: Any) -> str:
+def amount_in_text(text: str, amount: str) -> bool:
+    """True when ``text`` contains ``amount``, including a French decimal comma."""
+    target = _as_decimal(str(amount))
+    if target is None:
+        return str(amount) in (text or "")
+    return any(_as_decimal(token) == target for token in _NUMBER.findall(text or ""))
+
+
+def format_amount(amount: Any, lang: str = "fr") -> str:
+    """French uses a decimal comma and €. English uses a decimal point and EUR."""
+    value = amount if isinstance(amount, Decimal) else _as_decimal(str(amount))
+    if value is None:
+        return str(amount)
+    quantized = value.quantize(Decimal("0.01"))
+    if lang == "en":
+        return f"{quantized:.2f} EUR"
+    return f"{quantized:.2f}".replace(".", ",") + " €"
+
+
+def _money_values(facts: Any) -> set[Decimal]:
+    """Amounts named as money. A mile count stored beside them is not money."""
+    found: set[Decimal] = set()
+
+    def walk(key: Any, value: Any) -> None:
+        money_key = isinstance(key, str) and bool(_MONEY_KEY.search(key))
+        if isinstance(value, bool):
+            return
+        if isinstance(value, Decimal):
+            if money_key:
+                found.add(value)
+            return
+        if isinstance(value, int):
+            if money_key:
+                found.add(Decimal(value))
+            return
+        if isinstance(value, float):
+            if money_key:
+                found.add(Decimal(str(value)))
+            return
+        if isinstance(value, str):
+            if money_key:
+                for token in _NUMBER.findall(value):
+                    parsed = _as_decimal(token)
+                    if parsed is not None:
+                        found.add(parsed)
+            return
+        if isinstance(value, dict):
+            for child_key, item in value.items():
+                walk(child_key, item)
+            return
+        if isinstance(value, (list, tuple)):
+            for item in value:
+                walk(key, item)
+
+    walk("", facts)
+    return found
+
+
+def _with_derived(values: set[Decimal]) -> set[Decimal]:
+    """Allow the sum and the absolute difference of two evidence figures."""
+    extra = set(values)
+    numbers = list(values)
+    for index, left in enumerate(numbers):
+        for right in numbers[index + 1:]:
+            extra.add(left + right)
+            extra.add(abs(left - right))
+    return extra
+
+
+def filter_numbers(text: str, facts: Any, lang: str = "fr") -> str:
     """Replace any figure that is not already present in ``facts``.
 
-    An amount already in the facts is kept in any of the spellings ``120``,
-    ``120.00`` and ``120,00``.
+    ``120``, ``120.00`` and ``120,00`` are accepted as the same amount.
+    A money amount is then written in the reply language: ``120,00 €`` in
+    French, ``120.00 EUR`` in English. A derived figure such as ``170``
+    from ``250`` and ``80`` is kept as a count.
     """
     allowed = allowed_numbers(facts)
-    values = {item for item in (_as_decimal(token) for token in allowed) if item is not None}
+    values = _with_derived(
+        {item for item in (_as_decimal(token) for token in allowed) if item is not None}
+    )
+    money = _money_values(facts)
 
     def replace(match: re.Match) -> str:
-        token = match.group(0)
-        if token in allowed:
-            return token
+        span = match.group(0)
+        number = _NUMBER.match(span)
+        if number is None:
+            return span
+        token = number.group(0)
+        marked_as_money = bool(span[number.end():].strip())
         value = _as_decimal(token)
-        if value is not None and value in values:
-            return token
-        return "[?]"
+        if value is None or value not in values:
+            return "[?]"
+        has_decimal = "," in token or "." in token
+        if marked_as_money or (has_decimal and value in money):
+            return format_amount(value, lang)
+        return token
 
-    return _NUMBER.sub(replace, text or "")
+    return _AMOUNT_SPAN.sub(replace, text or "")
 
 
 def decision_for(met: Optional[bool]) -> str:
-    """Rules on facts. The model does not choose."""
+    """Rules on facts. A model proposal does not change this."""
     if met is True:
         return "capture"
     if met is False:

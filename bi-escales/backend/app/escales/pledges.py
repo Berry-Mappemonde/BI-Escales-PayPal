@@ -279,6 +279,7 @@ async def record_pledge_captured_once(pledge: dict, *, actor: str) -> bool:
             return False
     milestone_id = finance_milestone_id(pledge)
     await ensure_finance_milestone(pledge, milestone_id)
+    at = str(pledge.get("captured_at") or "").strip() or now_iso()
     await record_finance(
         "pledge_captured",
         pledge_id=pledge_id,
@@ -287,6 +288,8 @@ async def record_pledge_captured_once(pledge: dict, *, actor: str) -> bool:
         currency=pledge.get("currency") or "EUR",
         status="captured",
         actor=actor,
+        at=at,
+        capture_id=pledge.get("capture_id"),
         **_identity(pledge),
     )
     return True

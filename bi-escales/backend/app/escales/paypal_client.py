@@ -54,6 +54,14 @@ def _paypal_api_error_fields(body: Any) -> Optional[dict[str, Any]]:
     }
 
 
+def paypal_public_error_detail(body: Any) -> Optional[str]:
+    """JSON string with PayPal ``name``, ``debug_id``, and ``details`` when present."""
+    fields = _paypal_api_error_fields(body)
+    if not fields:
+        return None
+    return json.dumps(fields, default=str)
+
+
 def _log_paypal_api_error(status: int, body: Any) -> None:
     fields = _paypal_api_error_fields(body)
     if not fields:
@@ -628,6 +636,7 @@ class PayPalClient:
             },
             "items": [{
                 "recipient_type": "EMAIL",
+                "recipient_wallet": "PAYPAL",
                 "amount": {"value": amount_eur, "currency_code": self.cfg.currency},
                 "receiver": receiver_email,
                 "note": (note or "")[:165],

@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 from .ledger import _euros, get_ledger, list_finance_entries, record_finance, update_finance_entry
+from .paypal_client import PayPalError, _paypal_api_error_fields
 
 
 class PayoutNotFound(LookupError):
@@ -120,10 +121,13 @@ async def propose_project_payout(
 
 async def approve_project_payout(payout_id: str, client: Any) -> dict:
     """Send a previously proposed payout to PayPal. Requires a second human step."""
+    proposal = await find_payout_proposal(payout_id)
+    status = str(proposal.get("status") or "")
+    if status == "failed":
+        raise PayoutStateError("payout approval failed")
     if await _payout_sent_for_proposal(payout_id):
         raise PayoutStateError("payout already approved")
-    proposal = await find_payout_proposal(payout_id)
-    if str(proposal.get("status") or "") != "pending_approval":
+    if status != "pending_approval":
         raise PayoutStateError("payout already approved")
     project_id = str(proposal.get("project_id") or "")
     amount = _amount(str(proposal.get("amount_eur") or "0"))
@@ -131,13 +135,21 @@ async def approve_project_payout(payout_id: str, client: Any) -> dict:
     if amount > available:
         raise ValueError(f"payout exceeds captured project funds ({available:.2f} EUR)")
     batch_id = f"payout-{payout_id}"
-    payload = client.create_payout(
-        batch_id=batch_id,
-        receiver_email=str(proposal.get("receiver_email") or ""),
-        amount_eur=f"{amount:.2f}",
-        note=str(proposal.get("note") or ""),
-        item_id=payout_id,
-    )
+    try:
+        payload = client.create_payout(
+            batch_id=batch_id,
+            receiver_email=str(proposal.get("receiver_email") or ""),
+            amount_eur=f"{amount:.2f}",
+            note=str(proposal.get("note") or ""),
+            item_id=payout_id,
+        )
+    except PayPalError as exc:
+        err = _paypal_api_error_fields(exc.body) or {}
+        await update_finance_entry(
+            payout_id,
+            {"status": "failed", "paypal_error": err},
+        )
+        raise
     batch_header = payload.get("batch_header") if isinstance(payload, dict) else {}
     await update_finance_entry(payout_id, {"status": "approved"})
     return await record_finance(

@@ -54,7 +54,7 @@ from app.escales.naviguide_bridge import (
     sync_leg_shells,
     sync_milestone_shells,
 )
-from app.escales.paypal_client import PayPalClient, PayPalError, approve_link
+from app.escales.paypal_client import PayPalClient, PayPalError, approve_link, paypal_public_error_detail
 from app.escales.paypal_disputes import (
     accept_dispute_claim,
     get_dispute,
@@ -194,6 +194,10 @@ class RefundIn(BaseModel):
     now: Optional[str] = None
 
 
+class CaptureIn(BaseModel):
+    now: Optional[str] = None
+
+
 class PayoutProposeIn(BaseModel):
     amount_eur: str
     receiver_email: str
@@ -313,6 +317,9 @@ def _paypal_order_not_approved(exc: PayPalError) -> bool:
 
 
 def _paypal_client_error_detail(exc: PayPalError) -> str:
+    public = paypal_public_error_detail(exc.body)
+    if public:
+        return public
     body = exc.body
     if isinstance(body, dict):
         details = body.get("details")
@@ -554,10 +561,18 @@ async def post_authorize(pledge_id: str):
 
 
 @router.post("/pledges/{pledge_id}/capture")
-async def post_capture(pledge_id: str, request: Request):
+async def post_capture(pledge_id: str, request: Request, body: CaptureIn = CaptureIn()):
     _require_treasurer(request)
+    effective_at = None
+    if (body.now or "").strip():
+        if not clock_now_pinned():
+            raise HTTPException(
+                status_code=422,
+                detail="capture timestamp override requires ESCALES_CLOCK_NOW",
+            )
+        effective_at = parse_clock_moment(str(body.now))
     try:
-        doc = await capture_pledge(pledge_id, _paypal())
+        doc = await capture_pledge(pledge_id, _paypal(), effective_at=effective_at)
     except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
         raise _money_http(exc) from exc
     return await _public_pledge_with_fund(doc)
@@ -795,7 +810,8 @@ async def post_payout_approve(payout_id: str, request: Request):
     except PayoutNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PayoutStateError as exc:
-        if "already" in str(exc).lower():
+        msg = str(exc).lower()
+        if "already" in msg or "failed" in msg:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         raise _as_http(exc) from exc
     except (PayPalError, ValueError) as exc:

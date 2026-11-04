@@ -144,9 +144,13 @@ async def record_subscription(
             continue
         if str(entry.get("subscription_id") or "") != sub_id:
             continue
+        if not str(plan_id or "").strip():
+            patch["plan_id"] = entry.get("plan_id") or ""
         updated = await update_finance_entry(str(entry.get("_id") or ""), patch)
         if updated:
             return updated
+    if not str(plan_id or "").strip():
+        return {"skipped": True, "reason": "subscription row requires plan_id"}
     row = await record_finance(
         "paypal_subscription_local",
         subscription_id=sub_id,

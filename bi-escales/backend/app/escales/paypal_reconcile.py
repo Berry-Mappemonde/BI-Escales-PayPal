@@ -14,7 +14,8 @@ from .paypal_txn_search import clamp_transaction_search_range
 
 SANDBOX_REPORTING_LAG_HOURS = 3
 RECONCILE_NOTE = (
-    "Matching uses PayPal capture_id = transaction_id (not calendar dates alone). "
+    "Matching uses PayPal capture_id = transaction_id. Ledger rows are not filtered by "
+    "simulated finance timestamps; Transaction Search uses the clamped real UTC window only. "
     "Sandbox Transaction Search often lags the finance journal by about 3 hours."
 )
 
@@ -79,7 +80,7 @@ def _search_window_from_ledger(
     start_date: str,
     end_date: str,
 ) -> tuple[str, str]:
-    """Clamp the treasurer-requested window (ledger rows are filtered separately)."""
+    """Clamp the treasurer-requested window for PayPal Transaction Search (real UTC)."""
     _ = ledger
     return clamp_transaction_search_range(start_date, end_date)
 
@@ -103,10 +104,8 @@ async def reconcile_paypal_ledger(
     """Compare captured pledges in ``escales_finance`` to PayPal reporting (read-only)."""
     ledger_all = _ledger_captures(finance_entries)
     search_start, search_end = _search_window_from_ledger(ledger_all, start_date, end_date)
-    ledger = [
-        row for row in ledger_all
-        if _moment_in_window(str(row.get("at") or ""), search_start, search_end)
-    ]
+    # Match by capture_id across the full ledger; PayPal search uses the real UTC window only.
+    ledger = ledger_all
     paypal_payload = client.search_transactions(start_date=search_start, end_date=search_end)
     paypal = _paypal_rows(paypal_payload if isinstance(paypal_payload, dict) else {})
 

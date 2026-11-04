@@ -339,6 +339,8 @@ def _subscription_webhook_fields(event_type: str, resource: dict) -> tuple[str, 
             or resource.get("subscription_id")
             or ""
         ).strip()
+        if not sub_id:
+            return "", "", ""
         plan_id = str(resource.get("plan_id") or "")
         status = str(resource.get("state") or resource.get("status") or "ACTIVE")
         return sub_id, plan_id, status

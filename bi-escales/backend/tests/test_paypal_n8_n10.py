@@ -89,11 +89,18 @@ def test_n8_refunded_at_not_before_captured_at_under_pinned_clock(monkeypatch):
     asyncio.run(run())
 
 
-def test_n10_reconcile_filters_ledger_to_clamped_window():
+def test_n10_reconcile_matches_all_ledger_captures_by_capture_id():
     async def run():
         class TxnClient:
             def search_transactions(self, **kwargs):
-                return {"transaction_details": []}
+                return {
+                    "transaction_details": [{
+                        "transaction_info": {
+                            "transaction_id": "CAP-OLD",
+                            "transaction_amount": {"value": "1.00"},
+                        },
+                    }],
+                }
 
         report = await reconcile_paypal_ledger(
             start_date="2026-11-04T00:00:00Z",
@@ -119,7 +126,9 @@ def test_n10_reconcile_filters_ledger_to_clamped_window():
             ],
         )
         assert report["searched_start_date"] == report["start_date"]
-        assert report["ledger_capture_count"] == 1
+        assert report["ledger_capture_count"] == 2
+        assert len(report["matched"]) == 1
+        assert report["matched"][0]["capture_id"] == "CAP-OLD"
         assert len(report["ledger_only"]) == 1
         assert report["ledger_only"][0]["capture_id"] == "CAP-IN"
 

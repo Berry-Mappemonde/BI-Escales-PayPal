@@ -233,7 +233,9 @@ def test_reconcile_reports_searched_window():
         assert report["searched_start_date"] == report["start_date"]
         assert report["searched_end_date"] == report["end_date"]
         assert report["searched_start_date"] != report["requested_start_date"]
-        assert report["ledger_capture_count"] == 0
+        assert report["ledger_capture_count"] == 1
+        assert len(report["ledger_only"]) == 1
+        assert report["ledger_only"][0]["capture_id"] == "CAP-1"
 
     asyncio.run(run())
 

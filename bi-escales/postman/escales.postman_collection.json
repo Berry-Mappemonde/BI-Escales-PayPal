@@ -2,15 +2,17 @@
   "info": {
     "_postman_id": "escales-sandbox-scenario",
     "name": "BI Escales — Pay Only If We Sail (sandbox)",
-    "description": "Optional Postman scenario for the PayPal sandbox. Import only when testing against a running API; the backend does not require Postman.",
+    "description": "Optional Postman scenario exported from the Escales OpenAPI routes (pledges, webhooks, features). Import when testing a running API; placeholders only — no secrets.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {"key": "baseUrl", "value": "http://127.0.0.1:8000"},
-    {"key": "adminKey", "value": "change-me"},
+    {"key": "baseUrl", "value": "https://bi-escales-api.onrender.com"},
+    {"key": "adminKey", "value": "{{SANDBOX_ADMIN_KEY}}"},
     {"key": "milestoneId", "value": "dep-mayotte"},
     {"key": "pledgeIdCapture", "value": ""},
-    {"key": "pledgeIdVoid", "value": ""}
+    {"key": "pledgeIdVoid", "value": ""},
+    {"key": "paypalWebhookId", "value": "{{PAYPAL_WEBHOOK_ID}}"},
+    {"key": "paypalTransmissionId", "value": "postman-transmission-{{$timestamp}}"}
   ],
   "item": [
     {
@@ -19,6 +21,14 @@
         "method": "GET",
         "header": [],
         "url": "{{baseUrl}}/api/health"
+      }
+    },
+    {
+      "name": "Features (partner flags)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/escales/features"
       }
     },
     {
@@ -118,6 +128,25 @@
         "method": "GET",
         "header": [],
         "url": "{{baseUrl}}/api/escales/milestones"
+      }
+    },
+    {
+      "name": "8 — PayPal webhook (unsigned stub — expect 4xx when verification on)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"},
+          {"key": "Paypal-Transmission-Id", "value": "{{paypalTransmissionId}}"},
+          {"key": "Paypal-Transmission-Time", "value": "2026-11-04T12:00:00Z"},
+          {"key": "Paypal-Transmission-Sig", "value": "postman-stub"},
+          {"key": "Paypal-Cert-Url", "value": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-STUB"},
+          {"key": "Paypal-Auth-Algo", "value": "SHA256withRSA"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"WH-POSTMAN-STUB\",\n  \"event_type\": \"CHECKOUT.ORDER.APPROVED\",\n  \"resource\": {\n    \"id\": \"ORDER-STUB\",\n    \"status\": \"APPROVED\"\n  }\n}"
+        },
+        "url": "{{baseUrl}}/api/escales/webhooks/paypal"
       }
     }
   ]

@@ -63,7 +63,9 @@ TOKENFACTORY_DEFAULT_BASE = "https://api.tokenfactory.nebius.com/v1"
 
 # Benchmarked NIM defaults (final.log). Env overrides still win.
 # NIM_TEMPERATURE stays unset so chat 0.3, reports 0.2 and JSON 0 apply.
-# The public id without ``private/`` returns 404 at NVIDIA. The private id returns 200.
+# The old id nvidia/nemotron-3.5-super-vl-120b-a12b returns 404.
+# So does nvidia/nemotron-3.5-super-120b-a12b without the private/ prefix.
+# model_source reports the model that answered, including lightning after that 404.
 NIM_MODEL_DEFAULT = "private/nvidia/nemotron-3.5-super-120b-a12b"
 NIM_FALLBACK_MODEL_DEFAULT = "nvidia/nemotron-3.5-lightning-30b-a3b"
 NIM_MAX_TOKENS_DEFAULT = 400

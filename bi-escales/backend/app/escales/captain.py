@@ -182,22 +182,43 @@ def _no_pledge_suggestion(message: str) -> bool:
     return _is_treasurer_question(message) or _is_status_question(message)
 
 
-def _report_system(milestone_id: str, reached: bool = False) -> str:
-    text = (
-        "You are the Blue Intelligence Escales captain. "
-        "Write exactly 2 short, complete sentences. "
-        "End each sentence with one period. Never stop mid-sentence. "
-        "No title, no heading, no list. "
-        f"Keep this leg name verbatim: {milestone_id}. "
-        "Use only numbers present in the evidence JSON. Do not invent a figure. "
-        "Do not repeat these instructions and do not write a Decision line."
+def display_name(milestone_id: str) -> str:
+    """Port slug as shown to a reader: lorient -> Lorient, dakar -> Dakar."""
+    raw = (milestone_id or "").strip()
+    if not raw:
+        return raw
+    return "-".join(
+        (part[:1].upper() + part[1:]) if part else part
+        for part in raw.split("-")
     )
-    if reached:
-        text += (
-            " This leg was reached. There is no remaining distance."
-            " Do not say the leg is away, or that any distance is left."
+
+
+def _report_system(milestone_id: str, lang: str = "fr", reached: bool = False) -> str:
+    """Instructions in the requested language. Code writes the reached sentence."""
+    port = display_name(milestone_id)
+    if lang == "en":
+        return (
+            "You are the Blue Intelligence Escales captain. Reply in English only. "
+            "Write exactly 2 short, complete sentences. "
+            "End each sentence with one period. Never stop mid-sentence. "
+            "No title, no heading, no list. "
+            f"Keep this port name verbatim: {port}. "
+            "Use only numbers present in the evidence JSON. Do not invent a figure. "
+            "Do not mention a registration time. "
+            "Do not write an arrival sentence or how far the port still is. "
+            "Do not repeat these instructions and do not write a Decision line."
         )
-    return text
+    return (
+        "Tu es le capitaine de Blue Intelligence Escales. Réponds uniquement en français. "
+        "Écris exactement 2 phrases courtes et complètes. "
+        "Termine chaque phrase par un seul point. Ne t'arrête jamais au milieu d'une phrase. "
+        "Pas de titre, pas d'intertitre, pas de liste. "
+        f"Garde ce nom de port tel quel : {port}. "
+        "Utilise seulement les nombres présents dans le JSON de preuve. N'invente aucun chiffre. "
+        "Ne mentionne pas d'heure d'enregistrement. "
+        "N'écris pas si le port est atteint, ni de phrase d'arrivée. "
+        "Ne répète pas ces consignes et n'écris pas de ligne Décision."
+    )
 
 
 def _chat_system(lang: str) -> str:
@@ -306,14 +327,15 @@ def _fallback_report(milestone_id: str, decision: str, evidence: dict, lang: str
     source = evidence.get("source") or "simulation"
     provider = evidence.get("provider") or "NAVIGUIDE"
     flag = evidence.get("flag") or "simulation"
+    port = display_name(milestone_id)
     if lang == "en":
         return (
-            f"Milestone {milestone_id}: {provider} evidence marked {flag} "
+            f"Milestone {port}: {provider} evidence marked {flag} "
             f"(source {source}). Proposal: {decision}. "
             "The captain does not capture or void; only the treasurer can."
         )
     return (
-        f"Jalon {milestone_id} : preuve {provider} marquée {flag} "
+        f"Jalon {port} : preuve {provider} marquée {flag} "
         f"(source {source}). Proposition : {decision}. "
         "Le capitaine ne capture ni n'annule ; seul le trésorier peut le faire."
     )
@@ -435,7 +457,7 @@ def _pledge_line(suggested: dict, lang: str) -> str:
     shown = format_amount(suggested.get("amount_eur"), lang)
     exact = (
         f"{suggested['description']} ({shown}), "
-        f"{suggested['milestone_id']}, {suggested['intent']}"
+        f"{display_name(str(suggested.get('milestone_id') or ''))}, {suggested['intent']}"
     )
     if lang == "en":
         return f"Computed pledge, no charge: {exact}."
@@ -493,20 +515,92 @@ def _clean_model_urls(text: str, url: str) -> str:
     return " ".join(kept).strip()
 
 
-def _assert_reached(text: str, milestone_id: str, lang: str) -> str:
-    """A reached leg has no distance left. Drop a sentence that says otherwise."""
-    kept = [sentence for sentence in _split_sentences(text) if not _AWAY_CLAIM.search(sentence)]
+_MONTHS_EN = (
+    "", "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+)
+_MONTHS_FR = (
+    "", "janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+)
+_ARRIVAL_KEYS = ("arrival_iso", "arrival", "arrived_at", "arrival_at")
+_REGISTRATION_KEYS = {"recorded_at", "updated_at", "registered_at", "created_at"}
+
+
+def _without_registration_time(evidence: dict) -> dict:
+    """The model does not see when the evidence was registered."""
+    if not isinstance(evidence, dict):
+        return {}
+    cleaned: dict = {}
+    for key, value in evidence.items():
+        if key in _REGISTRATION_KEYS:
+            continue
+        if key == "facts" and isinstance(value, dict):
+            cleaned[key] = {
+                fact_key: fact_value
+                for fact_key, fact_value in value.items()
+                if fact_key not in _REGISTRATION_KEYS
+            }
+        else:
+            cleaned[key] = value
+    return cleaned
+
+
+def _arrival_raw(evidence: dict, milestone: Optional[dict]) -> str:
+    facts = evidence.get("facts") if isinstance(evidence, dict) else None
+    if isinstance(facts, dict):
+        for key in _ARRIVAL_KEYS:
+            raw = facts.get(key)
+            if raw:
+                return str(raw)
+    meta = (milestone or {}).get("meta") if isinstance(milestone, dict) else None
+    if isinstance(meta, dict) and meta.get("arrival_iso"):
+        return str(meta["arrival_iso"])
+    return ""
+
+
+def _format_arrival(raw: str, lang: str) -> str:
+    moment = _parse_iso(raw)
+    if moment is None:
+        return ""
     if lang == "en":
-        fact = f"Milestone {milestone_id} was reached, with no remaining distance."
-    else:
-        fact = f"L'escale {milestone_id} est atteinte, sans distance restante."
-    if not any(re.search(r"no remaining distance|sans distance restante", sentence, re.I) for sentence in kept):
-        kept.append(fact)
-    if len(kept) < 2:
-        kept.append(f"{_leg_word(lang)} {milestone_id}.")
+        return f"{moment.day} {_MONTHS_EN[moment.month]} {moment.year}"
+    return f"{moment.day} {_MONTHS_FR[moment.month]} {moment.year}"
+
+
+def _reached_sentence(milestone_id: str, lang: str, arrival: str) -> str:
+    """The only reached sentence. Code writes it, with a formatted arrival date."""
+    port = display_name(milestone_id)
+    when = _format_arrival(arrival, lang)
+    if lang == "en":
+        if when:
+            return f"Port {port} was reached on {when}, with no remaining distance."
+        return f"Port {port} was reached, with no remaining distance."
+    if when:
+        return f"L'escale {port} est atteinte le {when}, sans distance restante."
+    return f"L'escale {port} est atteinte, sans distance restante."
+
+
+def _append_reached(text: str, milestone_id: str, lang: str, arrival: str) -> str:
+    """Drop a model claim of distance left, then add the single code sentence."""
+    kept = [sentence for sentence in _split_sentences(text) if not _AWAY_CLAIM.search(sentence)]
+    fact = _reached_sentence(milestone_id, lang, arrival)
+    kept = [
+        sentence for sentence in kept
+        if not re.search(r"no remaining distance|sans distance restante|was reached|est atteinte", sentence, re.I)
+    ]
+    kept.append(fact)
     if len(kept) > 3:
         kept = kept[:-1][:2] + kept[-1:]
     return " ".join(kept)
+
+
+def _capitalize_ports(text: str, milestone_id: str) -> str:
+    slug = (milestone_id or "").strip()
+    if not slug:
+        return text or ""
+    shown = display_name(slug)
+    return re.sub(re.escape(slug), shown, text or "", flags=re.IGNORECASE)
 
 
 def _word_count(text: str) -> int:
@@ -566,7 +660,9 @@ def _compose_chat_reply(
     if url and url not in prose and url not in joined:
         required.append(_membership_line(url, lang))
     required.append(_signature(lang))
-    return _fit_words(prose, required)
+    reply = _fit_words(prose, required)
+    port = str(suggested.get("milestone_id") or "") if suggested else ""
+    return _capitalize_ports(reply, port)
 
 
 def _leg_word(lang: str) -> str:
@@ -605,10 +701,12 @@ def _shape_report(text: str, milestone_id: str, lang: str = "fr") -> str:
     if lang == "en":
         sentences = [_without_jalon(sentence, "en") for sentence in sentences]
     leg = _leg_word(lang)
-    if milestone_id not in " ".join(sentences):
-        sentences.append(f"{leg} {milestone_id}.")
+    shown = display_name(milestone_id)
+    blob = " ".join(sentences).casefold()
+    if milestone_id.casefold() not in blob and shown.casefold() not in blob:
+        sentences.append(f"{leg} {shown}.")
     if len(sentences) < 2:
-        sentences.append(f"{leg} {milestone_id}.")
+        sentences.append(f"{leg} {shown}.")
     return _without_jalon(" ".join(sentences[:3]), lang)
 
 
@@ -817,8 +915,53 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
     return checked
 
 
-async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> dict:
+def _requested_lang(lang: str) -> str:
+    return "en" if (lang or "").strip().lower().startswith("en") else "fr"
+
+
+async def _narrative_for_language(
+    prompt: str,
+    milestone_id: str,
+    lang: str,
+    reached: bool,
+) -> tuple[str, dict[str, str]]:
+    """One retry when the model answers in the other language, then the rules."""
+    system = _report_system(milestone_id, lang=lang, reached=reached)
+    narrative, source = await _llm_text(
+        prompt,
+        system,
+        max_tokens=_REPORT_MAX_TOKENS,
+        temperature=_REPORT_TEMPERATURE,
+    )
+    usable = _prepare_model_narrative(narrative) if narrative else ""
+    if not usable:
+        return "", source
+    if _report_language(usable) == lang:
+        return usable, source
+    reminder = (
+        "Reply in English only."
+        if lang == "en"
+        else "Réponds uniquement en français."
+    )
+    narrative, source = await _llm_text(
+        prompt,
+        f"{system} {reminder}",
+        max_tokens=_REPORT_MAX_TOKENS,
+        temperature=_REPORT_TEMPERATURE,
+    )
+    usable = _prepare_model_narrative(narrative) if narrative else ""
+    if usable and _report_language(usable) == lang:
+        return usable, source
+    return "", _rules_source()
+
+
+async def review(
+    milestone_id: str,
+    reader: Optional[ReadOnlyTools] = None,
+    lang: str = "fr",
+) -> dict:
     """Propose capture or void from evidence. Does not execute either."""
+    report_lang = _requested_lang(lang)
     milestone = await get_milestone(milestone_id)
     evidence = latest_evidence(milestone)
     met = evidence.get("met") if evidence else None
@@ -832,38 +975,40 @@ async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> d
     ]
     for pledge in concerned:
         _read(reader, pledge)
+    visible = _without_registration_time(evidence)
     allowed = {
-        "evidence": evidence,
+        "evidence": visible,
         "milestone_id": milestone_id,
         "decision": decision,
     }
     prompt = json.dumps(allowed, ensure_ascii=False, default=str)
-    narrative, source = await _llm_text(
-        prompt,
-        _report_system(milestone_id, reached=reached),
-        max_tokens=_REPORT_MAX_TOKENS,
-        temperature=_REPORT_TEMPERATURE,
-    )
-    usable = _prepare_model_narrative(narrative) if narrative else ""
+    usable, source = await _narrative_for_language(prompt, milestone_id, report_lang, reached)
     if not usable:
-        narrative = _fallback_report(milestone_id, decision, evidence, lang="fr")
+        narrative = _fallback_report(milestone_id, decision, evidence, lang=report_lang)
         source = _rules_source()
-        report_lang = "fr"
     else:
-        report_lang = _report_language(usable)
         narrative = _shape_report(usable, milestone_id, report_lang)
-    if reached:
-        narrative = _assert_reached(narrative, milestone_id, report_lang)
     narrative = _finish_text(narrative)
     narrative = _without_jalon(filter_numbers(narrative, allowed, lang=report_lang), report_lang)
+    if reached:
+        narrative = _append_reached(
+            narrative,
+            milestone_id,
+            report_lang,
+            _arrival_raw(evidence, milestone),
+        )
+    narrative = _capitalize_ports(_finish_text(narrative), milestone_id)
     decision_line = (
         f" Decision: {decision}." if report_lang == "en" else f" Décision : {decision}."
     )
-    justification = _finish_text(
-        _without_jalon(
-            filter_numbers(f"{narrative}{decision_line}", allowed, lang=report_lang),
-            report_lang,
-        )
+    justification = _capitalize_ports(
+        _finish_text(
+            _without_jalon(
+                filter_numbers(f"{narrative}{decision_line}", allowed, lang=report_lang),
+                report_lang,
+            )
+        ),
+        milestone_id,
     )
     age = _known_authorization_age(concerned)
     advisory = await _advisory_proposal(allowed, age)

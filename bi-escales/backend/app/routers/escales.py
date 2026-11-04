@@ -303,8 +303,9 @@ def _enforce_captain_rate(request: Request, text: str = "") -> None:
 @router.post("/captain/review/{milestone_id}")
 async def post_review(milestone_id: str, request: Request):
     _enforce_captain_rate(request)
+    lang = lang_for(request.headers.get("accept-language", ""))
     try:
-        return await captain_review(milestone_id, reader=_reader())
+        return await captain_review(milestone_id, reader=_reader(), lang=lang)
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
 

@@ -271,6 +271,31 @@ def test_captain_route_does_not_capture_or_void(api):
     assert client.get(f"/api/escales/pledges/{authorized['id']}").json()["status"] == "authorized"
 
 
+def test_review_route_passes_the_browser_language(api, monkeypatch):
+    client, _fake = api
+    seen = {}
+
+    async def fake_review(milestone_id, reader=None, lang="fr"):
+        seen["milestone_id"] = milestone_id
+        seen["lang"] = lang
+        return {"milestone_id": milestone_id, "proposal": "wait", "lang": lang}
+
+    monkeypatch.setattr("app.routers.escales.captain_review", fake_review)
+    english = client.post(
+        "/api/escales/captain/review/lorient",
+        headers={"accept-language": "en-GB,en;q=0.8"},
+    )
+    assert english.status_code == 200
+    assert seen == {"milestone_id": "lorient", "lang": "en"}
+    french = client.post(
+        "/api/escales/captain/review/dakar",
+        headers={"accept-language": "fr-FR,fr;q=0.9"},
+    )
+    assert french.status_code == 200
+    assert seen["lang"] == "fr"
+    assert seen["milestone_id"] == "dakar"
+
+
 def test_audit_records_proposal_and_treasurer_actions(api):
     client, _fake = api
     client.post(

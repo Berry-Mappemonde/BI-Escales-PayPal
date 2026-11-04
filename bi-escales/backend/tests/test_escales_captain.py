@@ -203,7 +203,7 @@ def test_review_strips_numbers_not_in_the_evidence(monkeypatch):
 
     async def body():
         await record_evidence("dep-mayotte", met=True, facts={"boats": 12})
-        result = await review("dep-mayotte", reader=None)
+        result = await review("dep-mayotte", reader=None, lang="en")
         text = result["justification"]
         assert "12" in text
         assert "999" not in text
@@ -285,7 +285,7 @@ def test_chat_repeats_the_pledge_in_the_message_language(monkeypatch):
         assert "€" not in reply
         assert "120 sponsored miles" in reply
         assert "milles parrainés" not in reply
-        assert "lorient" in reply
+        assert "Lorient" in reply
         assert "AUTHORIZE" in reply
         assert result["membership_url"] in reply
         assert reply.count("— The captain") == 1
@@ -437,7 +437,7 @@ def test_chat_keeps_one_signature_and_at_most_80_words(monkeypatch):
         assert len(reply.split()) <= 80
         assert "10,00 €" in reply
         assert "10.00" not in reply
-        assert "brest" in reply
+        assert "Brest" in reply
 
     asyncio.run(body())
 
@@ -547,9 +547,9 @@ def test_english_report_templates_say_milestone_not_jalon():
     evidence = {"source": "simulation", "provider": "NAVIGUIDE", "flag": "simulation"}
     english = captain._fallback_report("lorient", "capture", evidence, lang="en")
     assert "Jalon" not in english
-    assert "Milestone lorient" in english
+    assert "Milestone Lorient" in english
     french = captain._fallback_report("lorient", "wait", evidence, lang="fr")
-    assert "Jalon lorient" in french
+    assert "Jalon Lorient" in french
     assert "Milestone" not in french
     shaped = captain._shape_report(
         "Jalon lorient is late. The treasurer alone decides.",
@@ -650,7 +650,7 @@ def test_review_labels_ask_json_as_advisory_and_drops_a_28_day_reauthorize(monke
         stored["authorization_age_days"] = 28
         await get_ledger().save_pledge(stored)
         await record_evidence("dep-mayotte", met=True, facts={"port": "Mayotte"})
-        result = await review("dep-mayotte", reader=None)
+        result = await review("dep-mayotte", reader=None, lang="en")
         assert result["proposal"] == "capture"
         advisory = result["llm_proposal"]
         assert advisory["advisory"] is True
@@ -820,21 +820,23 @@ def test_reached_leg_prompt_says_there_is_no_remaining_distance(monkeypatch):
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
     monkeypatch.setattr(llm, "ask_text", fake_ask_text)
     monkeypatch.setattr(llm, "ask_json", fake_ask_json)
-    prompt = captain._report_system("lorient", reached=True)
-    assert "This leg was reached." in prompt
-    assert "There is no remaining distance." in prompt
-    waiting = captain._report_system("lorient", reached=False)
+    prompt = captain._report_system("lorient", lang="en", reached=True)
+    assert "Reply in English only." in prompt
+    assert "This leg was reached." not in prompt
+    assert "no remaining distance" not in prompt.lower()
+    waiting = captain._report_system("lorient", lang="en", reached=False)
     assert "was reached" not in waiting
     assert "no remaining distance" not in waiting
 
     async def body():
         await record_evidence("lorient", met=True, facts={"distance_nm": 120})
-        result = await review("lorient", reader=None)
-        assert "This leg was reached." in seen["system"]
-        assert "There is no remaining distance." in seen["system"]
+        result = await review("lorient", reader=None, lang="en")
+        assert "Reply in English only." in seen["system"]
+        assert "This leg was reached." not in seen["system"]
         assert "away" not in result["report"].lower()
         assert "away" not in result["justification"].lower()
-        assert "no remaining distance" in result["report"].lower()
+        assert "Port Lorient was reached" in result["report"]
+        assert "no remaining distance" in result["report"]
         assert result["proposal"] == "capture"
         advisory = result["llm_proposal"]
         assert advisory["proposal"] == "capture"
@@ -866,15 +868,15 @@ def test_reached_sentence_follows_the_report_language(monkeypatch):
 
     async def body():
         await record_evidence("lorient", met=True, facts={"distance_nm": 120})
-        english = await review("lorient", reader=None)
-        assert "was reached" in english["report"]
+        english = await review("lorient", reader=None, lang="en")
+        assert "Port Lorient was reached" in english["report"]
         assert "no remaining distance" in english["report"]
         assert "L'escale" not in english["report"]
         assert "atteinte" not in english["report"]
         assert "L'escale" not in english["justification"]
         await record_evidence("dakar", met=True, facts={"distance_nm": 80})
-        french = await review("dakar", reader=None)
-        assert "L'escale dakar est atteinte" in french["report"]
+        french = await review("dakar", reader=None, lang="fr")
+        assert "L'escale Dakar est atteinte" in french["report"]
         assert "sans distance restante" in french["report"]
         assert "was reached" not in french["report"]
         assert "no remaining distance" not in french["report"]
@@ -945,7 +947,7 @@ def test_report_strips_echoed_instructions_in_both_languages(monkeypatch):
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
     monkeypatch.setattr(llm, "ask_text", fake_ask_text)
     monkeypatch.setattr(llm, "ask_json", fake_ask_json)
-    prompt = captain._report_system("lorient", reached=True)
+    prompt = captain._report_system("lorient", lang="en", reached=True)
     assert "Never stop mid-sentence." in prompt
     assert "decision field is fixed" not in prompt.lower()
     assert "not executed" not in prompt.lower()
@@ -953,7 +955,7 @@ def test_report_strips_echoed_instructions_in_both_languages(monkeypatch):
 
     async def body():
         await record_evidence("lorient", met=True, facts={"distance_nm": 120})
-        english = await review("lorient", reader=None)
+        english = await review("lorient", reader=None, lang="en")
         assert seen["max_tokens"] == 400
         report = english["report"]
         justification = english["justification"]
@@ -967,7 +969,7 @@ def test_report_strips_echoed_instructions_in_both_languages(monkeypatch):
         assert justification.lower().count("decision:") == 1
         assert "Décision" not in justification
         await record_evidence("brest", met=True, facts={"distance_nm": 40})
-        french = await review("brest", reader=None)
+        french = await review("brest", reader=None, lang="fr")
         french_report = french["report"]
         french_justification = french["justification"]
         assert "champ de décision" not in french_report.lower()
@@ -979,6 +981,95 @@ def test_report_strips_echoed_instructions_in_both_languages(monkeypatch):
         assert french_report.lower().count("décision") == 0
         assert french_justification.lower().count("décision") == 1
         assert "Decision:" not in french_justification
+
+    asyncio.run(body())
+
+
+def test_code_writes_the_reached_sentence_with_a_formatted_date(monkeypatch):
+    import app.core.llm as llm
+
+    seen = {}
+
+    async def fake_ask_text(prompt, system=None, **_kwargs):
+        seen["prompt"] = prompt
+        seen["system"] = system
+        return "The treasurer alone decides. Evidence is a simulation."
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "capture", "reason": "met"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence(
+            "lorient",
+            met=True,
+            facts={"arrival_iso": "2026-11-02T14:00:00Z", "distance_nm": 120},
+        )
+        english = await review("lorient", reader=None, lang="en")
+        assert "recorded_at" not in seen["prompt"]
+        assert "Reply in English only." in seen["system"]
+        assert "Port Lorient was reached on 2 November 2026" in english["report"]
+        assert "14:00" not in english["report"]
+        assert "no remaining distance" in english["report"]
+        await record_evidence(
+            "dakar",
+            met=True,
+            facts={"arrival_iso": "2026-11-02T14:00:00Z"},
+        )
+        french = await review("dakar", reader=None, lang="fr")
+        assert "L'escale Dakar est atteinte le 2 novembre 2026" in french["report"]
+        assert "14:00" not in french["report"]
+        assert "was reached" not in french["report"]
+
+    asyncio.run(body())
+
+
+def test_wrong_language_retries_then_uses_the_fallback(monkeypatch):
+    import app.core.llm as llm
+
+    systems = []
+
+    async def fake_ask_text(prompt, system=None, **_kwargs):
+        systems.append(system or "")
+        return "Le modèle écrit seulement en français pour ce port."
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "wait", "reason": "later"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence("lorient", met=False, facts={"port": "Lorient"})
+        result = await review("lorient", reader=None, lang="en")
+        assert len(systems) == 2
+        assert "Reply in English only." in systems[0]
+        assert "English" in systems[1]
+        assert result["model_source"] == {"provider": "rules", "model": ""}
+        assert "Milestone Lorient" in result["report"]
+        assert "seulement en français" not in result["report"]
+        assert "Jalon" not in result["report"]
+
+    asyncio.run(body())
+
+
+def test_displayed_ports_are_capitalized():
+    assert captain.display_name("lorient") == "Lorient"
+    assert captain.display_name("dakar") == "Dakar"
+    assert captain.display_name("dep-mayotte") == "Dep-Mayotte"
+
+    async def body():
+        french = await chat("Je parraine 20 milles près de Dakar")
+        assert "Dakar" in french["reply"]
+        assert french["suggested_pledge"]["milestone_id"] == "dakar"
+        english = await chat("I'd like to sponsor 20 nautical miles near Lorient")
+        assert "Lorient" in english["reply"]
+        assert "lorient" not in english["reply"]
+        assert english["suggested_pledge"]["milestone_id"] == "lorient"
 
     asyncio.run(body())
 

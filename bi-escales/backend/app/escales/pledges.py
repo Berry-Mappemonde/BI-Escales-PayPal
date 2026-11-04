@@ -23,7 +23,14 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from .config import AUTH_MAX_DAYS, order_cancel_url, order_return_url, vault_cancel_url, vault_return_url
+from .config import (
+    AUTH_MAX_DAYS,
+    order_cancel_url,
+    order_return_url,
+    simulated_now,
+    vault_cancel_url,
+    vault_return_url,
+)
 from .ledger import (
     COLLECTIONS,
     get_ledger,
@@ -870,7 +877,7 @@ def _stamp_void(pledge: dict, payload: Any, fallback_id: str, *, hold: str) -> N
         pledge["void_id"] = fallback
         pledge["void_id_source"] = hold
         pledge["void_note"] = f"PayPal's void returned no id. void_id is the {hold} id."
-    pledge["voided_at"] = now_iso()
+    pledge["voided_at"] = simulated_now().replace(microsecond=0).isoformat()
     pledge["status"] = "voided"
     pledge["history"] = list(pledge.get("history") or []) + ["voided"]
 

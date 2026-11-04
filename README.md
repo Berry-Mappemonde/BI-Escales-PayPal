@@ -11,7 +11,7 @@ Status: in development. PayPal **sandbox only**; no real money moves. Planned de
 
 ## Void id
 
-PayPal's void of an authorization usually returns no id (HTTP 204). `void_id` is then the authorization id, `void_id_source` is `authorization`, and `void_note` says so. A vault release with no id uses the vault id the same way. When the void body contains an `id`, that value is stored and `void_id_source` is `paypal`, even if it is the same string as the authorization id.
+PayPal's void of an authorization usually returns no id (HTTP 204). `void_id` is then the authorization id, `void_id_source` is `authorization`, and `void_note` says so. A vault release with no id uses the vault id the same way. When the void body contains an `id`, that value is stored and `void_id_source` is `paypal`, even if it is the same string as the authorization id. `voided_at` is the voyage clock (`ESCALES_CLOCK_NOW`, or real UTC when that variable is unset), not a second clock.
 
 ## NIM model
 

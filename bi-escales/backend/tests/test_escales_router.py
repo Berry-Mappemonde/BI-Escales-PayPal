@@ -525,6 +525,18 @@ def test_void_records_void_id_and_voided_at(api):
     assert echoed.json()["void_id_source"] == "paypal"
 
 
+def test_voided_at_follows_the_simulated_clock(api, monkeypatch):
+    """voided_at is ESCALES_CLOCK_NOW, the same clock as the voyage, not wall time."""
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-01-15T08:00:00Z")
+    client, _fake = api
+    _created, authorized = _ready(client, "void-clock")
+    response = client.post(f"/api/escales/pledges/{authorized['id']}/void", headers=ADMIN)
+    assert response.status_code == 200, response.text
+    assert response.json()["voided_at"] == "2026-01-15T08:00:00+00:00"
+    listed = client.get(f"/api/escales/pledges/{authorized['id']}", headers=ADMIN)
+    assert listed.json()["voided_at"] == "2026-01-15T08:00:00+00:00"
+
+
 def test_void_with_admin_key(api):
     client, fake = api
     _created, authorized = _ready(client, "void-ok")

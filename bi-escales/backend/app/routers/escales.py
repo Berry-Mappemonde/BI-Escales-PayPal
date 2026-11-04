@@ -1,0 +1,210 @@
+"""BI Escales HTTP API, prefix /api/escales.
+
+Registered from ``app.main`` only when ``ESCALES_ENABLED`` is truthy.
+Every route also 404s when the flag is off, so a process that imported the
+router early still hides it. Capture and void require ``x-admin-key``.
+"""
+from __future__ import annotations
+
+import os
+import secrets
+from typing import Any, Callable, Optional
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.routing import APIRoute
+from pydantic import BaseModel, Field
+from starlette.responses import Response
+
+from app.escales.captain import chat as captain_chat
+from app.escales.captain import review as captain_review
+from app.escales.config import escales_enabled, load_config
+from app.escales.milestones import list_milestones, record_evidence
+from app.escales.paypal_client import PayPalClient, PayPalError
+from app.escales.pledges import (
+    IllegalTransition,
+    PledgeNotFound,
+    authorize_pledge,
+    capture_pledge,
+    create_pledge,
+    require_pledge,
+    to_public,
+    void_pledge,
+)
+from app.escales.toolkit_tools import ReadOnlyTools
+
+_client_factory: Optional[Callable[[], Any]] = None
+
+
+def set_paypal_client_factory(factory: Optional[Callable[[], Any]]) -> None:
+    """Tests inject a fake client. Production leaves this unset."""
+    global _client_factory
+    _client_factory = factory
+
+
+class _EnabledRoute(APIRoute):
+    def get_route_handler(self):
+        inner = super().get_route_handler()
+
+        async def guard(request: Request) -> Response:
+            if not escales_enabled():
+                raise HTTPException(status_code=404, detail="Not Found")
+            return await inner(request)
+
+        return guard
+
+
+router = APIRouter(prefix="/api/escales", route_class=_EnabledRoute, tags=["escales"])
+
+
+class PledgeIn(BaseModel):
+    amount_eur: str
+    description: str
+    milestone_id: str
+    contributor: Optional[str] = None
+
+
+class EvidenceIn(BaseModel):
+    met: Optional[bool] = None
+    facts: dict = Field(default_factory=dict)
+
+
+class ChatIn(BaseModel):
+    message: str
+
+
+def _paypal() -> Any:
+    if _client_factory is not None:
+        return _client_factory()
+    cfg = load_config()
+    if not cfg.configured:
+        raise HTTPException(status_code=503, detail="PayPal sandbox is not configured")
+    return PayPalClient(cfg)
+
+
+def _reader() -> Optional[ReadOnlyTools]:
+    try:
+        client = _paypal()
+    except HTTPException:
+        return None
+    return ReadOnlyTools(client)
+
+
+def _require_treasurer(request: Request) -> None:
+    try:
+        expected = os.environ["ESCALES_ADMIN_KEY"]
+    except KeyError:
+        raise HTTPException(status_code=401, detail="ESCALES_ADMIN_KEY is not configured") from None
+    if not expected:
+        raise HTTPException(status_code=401, detail="ESCALES_ADMIN_KEY is not configured")
+    provided = request.headers.get("x-admin-key", "")
+    if not provided:
+        raise HTTPException(status_code=401, detail="Admin key required")
+    if not secrets.compare_digest(provided, expected):
+        raise HTTPException(status_code=403, detail="Admin key rejected")
+
+
+def _as_http(exc: Exception) -> HTTPException:
+    if isinstance(exc, PledgeNotFound):
+        return HTTPException(status_code=404, detail="Pledge not found")
+    if isinstance(exc, IllegalTransition):
+        return HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, PayPalError):
+        return HTTPException(status_code=502, detail="PayPal request failed")
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=422, detail=str(exc))
+    raise exc
+
+
+def _public_milestone(doc: dict) -> dict:
+    return {
+        "id": doc.get("_id"),
+        "evidence": doc.get("evidence") or [],
+        "proposal": doc.get("proposal"),
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+@router.post("/pledges")
+async def post_pledge(body: PledgeIn, request: Request):
+    client_key = request.headers.get("paypal-request-id")
+    try:
+        doc = await create_pledge(
+            amount_eur=body.amount_eur,
+            description=body.description,
+            milestone_id=body.milestone_id,
+            contributor=body.contributor,
+            client=_paypal(),
+            client_key=client_key,
+        )
+    except (PayPalError, ValueError) as exc:
+        raise _as_http(exc) from exc
+    return to_public(doc)
+
+
+@router.post("/pledges/{pledge_id}/authorize")
+async def post_authorize(pledge_id: str):
+    try:
+        doc = await authorize_pledge(pledge_id, _paypal())
+    except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
+        raise _as_http(exc) from exc
+    return to_public(doc)
+
+
+@router.post("/pledges/{pledge_id}/capture")
+async def post_capture(pledge_id: str, request: Request):
+    _require_treasurer(request)
+    try:
+        doc = await capture_pledge(pledge_id, _paypal())
+    except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
+        raise _as_http(exc) from exc
+    return to_public(doc)
+
+
+@router.post("/pledges/{pledge_id}/void")
+async def post_void(pledge_id: str, request: Request):
+    _require_treasurer(request)
+    try:
+        doc = await void_pledge(pledge_id, _paypal())
+    except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
+        raise _as_http(exc) from exc
+    return to_public(doc)
+
+
+@router.get("/pledges/{pledge_id}")
+async def get_pledge(pledge_id: str):
+    try:
+        doc = await require_pledge(pledge_id)
+    except PledgeNotFound as exc:
+        raise _as_http(exc) from exc
+    return to_public(doc)
+
+
+@router.get("/milestones")
+async def get_milestones():
+    docs = await list_milestones()
+    return [_public_milestone(doc) for doc in docs]
+
+
+@router.post("/milestones/{milestone_id}/evidence")
+async def post_evidence(milestone_id: str, body: EvidenceIn):
+    try:
+        evidence = await record_evidence(milestone_id, body.met, body.facts)
+    except ValueError as exc:
+        raise _as_http(exc) from exc
+    return {"milestone_id": milestone_id, **evidence}
+
+
+@router.post("/captain/review/{milestone_id}")
+async def post_review(milestone_id: str):
+    try:
+        return await captain_review(milestone_id, reader=_reader())
+    except (PayPalError, ValueError) as exc:
+        raise _as_http(exc) from exc
+
+
+@router.post("/captain/chat")
+async def post_chat(body: ChatIn):
+    try:
+        return await captain_chat(body.message)
+    except ValueError as exc:
+        raise _as_http(exc) from exc

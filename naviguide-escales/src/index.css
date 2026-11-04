@@ -1,0 +1,824 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+html, body, #root { height: 100%; margin: 0; overflow: hidden; }
+
+.leaflet-container { background: #0f172a; font: inherit; z-index: 0; --map-control-h: 20px; }
+/* Zoom rapide : une tuile pas encore là reste couleur mer, pas un carré blanc. */
+.leaflet-container .leaflet-tile-pane,
+.leaflet-container .leaflet-map-pane,
+.leaflet-container img.leaflet-tile { background-color: #0f172a; }
+.leaflet-fade-anim .leaflet-tile { transition: none; }
+.light-mode .leaflet-container,
+.light-mode .leaflet-container .leaflet-tile-pane,
+.light-mode .leaflet-container img.leaflet-tile { background-color: #d6d3cd; }
+
+/*
+ * Map credits stay inside the visible map: right of the tools panel's edge
+ * and above the film bar (App sets the insets as CSS variables). Under a
+ * translucent panel the text bled through — never again.
+ */
+.leaflet-container .leaflet-bottom.leaflet-right {
+  left: var(--sim-inset-left, 0px);
+  right: var(--sim-inset-right, 0px);
+  bottom: var(--sim-inset-bottom, 0px);
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 4px;
+  transition: left 300ms ease, right 300ms ease, bottom 300ms ease;
+}
+.leaflet-container .leaflet-bottom.leaflet-right .leaflet-control {
+  float: none;
+  clear: none;
+  margin: 0;
+}
+/* Sélecteur plus spécifique que le chunk Leaflet (chargé après)
+ * pour garder la bande translucide dans les deux thèmes, sans aplat blanc. */
+.leaflet-container .leaflet-bottom.leaflet-right .leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.72);
+  background-color: rgba(15, 23, 42, 0.72);
+  color: rgba(226, 232, 240, 0.85);
+  font-size: 10px;
+  height: auto;
+  min-height: var(--map-control-h);
+  line-height: var(--map-control-h);
+  padding: 0 6px;
+  margin: 0;
+  border-radius: 6px 0 0 0;
+  /* Block, not flex: flex items drop the spaces around « | », « © » and « ( ». */
+  display: block;
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+  text-align: right;
+  max-width: calc(100% - (var(--map-control-h) * 2) - 8px);
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: visible;
+}
+.leaflet-container .leaflet-bottom.leaflet-right .leaflet-control-attribution a { color: #7dd3fc; }
+
+/*
+ * Visible map under 260 px: the credits fold into an « ⓘ » button (bottom
+ * right of the visible map, zoom above it); the tap opens them in a popover
+ * above the panels (compactAttribution.js).
+ */
+.leaflet-container .naviguide-attrib-toggle { display: none; }
+.leaflet-container.naviguide-attrib-compact .leaflet-bottom.leaflet-right {
+  flex-direction: column;
+  align-items: flex-end;
+}
+.leaflet-container.naviguide-attrib-compact .leaflet-bottom.leaflet-right .leaflet-control-attribution { display: none; }
+.leaflet-container.naviguide-attrib-compact .naviguide-attrib-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--map-control-h);
+  height: var(--map-control-h);
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #e2e8f0;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.naviguide-attrib-popover {
+  position: fixed;
+  z-index: 2000;
+  box-sizing: border-box;
+  width: max-content;
+  padding: 6px 26px 6px 10px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.96);
+  color: #e2e8f0;
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: right;
+  white-space: normal;
+  overflow-wrap: normal;
+  overflow: auto;
+}
+.naviguide-attrib-popover[hidden] { display: none; }
+.naviguide-attrib-popover a { color: #7dd3fc; }
+.naviguide-attrib-popover-close {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* +/− horizontaux, plus petits que le 26–30 px Leaflet, à côté des crédits. */
+.leaflet-container .leaflet-bottom.leaflet-right .leaflet-control-zoom.leaflet-bar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: row;
+  box-shadow: none;
+  border: none;
+  background: rgba(15, 23, 42, 0.72);
+  background-color: rgba(15, 23, 42, 0.72);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.leaflet-container .leaflet-bottom.leaflet-right .leaflet-control-zoom a,
+.leaflet-container.leaflet-touch .leaflet-bottom.leaflet-right .leaflet-control-zoom a {
+  width: var(--map-control-h);
+  height: var(--map-control-h);
+  line-height: var(--map-control-h);
+  font: 700 14px/var(--map-control-h) ui-monospace, "Lucida Console", Monaco, monospace;
+  background: transparent;
+  background-color: transparent;
+  color: rgba(226, 232, 240, 0.95);
+  border: none;
+  border-right: 1px solid rgba(226, 232, 240, 0.18);
+  border-radius: 0;
+  text-indent: 0;
+}
+.leaflet-container .leaflet-bottom.leaflet-right .leaflet-control-zoom a:last-child {
+  border-right: none;
+}
+.leaflet-container .leaflet-bottom.leaflet-right .leaflet-control-zoom a:hover,
+.leaflet-container .leaflet-bottom.leaflet-right .leaflet-control-zoom a:focus {
+  background: rgba(226, 232, 240, 0.12);
+  background-color: rgba(226, 232, 240, 0.12);
+}
+.leaflet-container .leaflet-bottom.leaflet-right .leaflet-control-zoom a.leaflet-disabled {
+  background: transparent;
+  background-color: transparent;
+  color: rgba(226, 232, 240, 0.35);
+}
+
+.naviguide-sidebar-panel {
+  z-index: 2000 !important;
+}
+/* Tiroir gauche : les textes restent lisibles hors champ (la recette les
+   voit). Les boutons, non, tant que le glissement (duration-300) n'est pas
+   fini. « Fermer » hors écran est sinon vu comme visible, puis se détache,
+   et le clic attend jusqu'au délai du test. Le panneau droit a déjà sa
+   propre visibilité et n'a pas la classe drawer. */
+.naviguide-sidebar-drawer:not(.naviguide-drawer-settled) button,
+.naviguide-sidebar-drawer:not(.naviguide-drawer-settled) [role="button"] {
+  visibility: hidden;
+}
+.naviguide-sidebar-toggle {
+  z-index: 2010 !important;
+}
+
+/* Plein écran film : masque les sidebars sans les démonter. */
+.film-fullscreen .naviguide-demo-launch,
+.film-fullscreen .naviguide-demo-panel,
+.film-fullscreen .naviguide-sidebar-panel,
+.film-fullscreen .naviguide-sidebar-toggle {
+  display: none !important;
+}
+
+.catamaran-divicon, .flag-divicon, .plane-divicon, .grib-barb { background: none !important; border: none !important; }
+
+/* Briefing focus: the place named in the sidebar, pinned on the map. */
+.briefing-focus-pin { background: none !important; border: none !important; }
+.briefing-focus-dot {
+  position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 9999px;
+  background: rgba(125, 211, 252, 0.95); border: 2px solid #0f172a;
+  box-shadow: 0 0 0 4px rgba(125, 211, 252, 0.35), 0 0 12px rgba(125, 211, 252, 0.9);
+  animation: briefing-focus-pulse 1.6s ease-out infinite;
+}
+.briefing-focus-label {
+  position: absolute; left: 12px; top: -10px; white-space: nowrap;
+  font-size: 11px; font-weight: 600; color: #e0f2fe; background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(125, 211, 252, 0.5); border-radius: 6px; padding: 1px 6px;
+}
+@keyframes briefing-focus-pulse {
+  0% { box-shadow: 0 0 0 4px rgba(125, 211, 252, 0.45), 0 0 12px rgba(125, 211, 252, 0.9); }
+  100% { box-shadow: 0 0 0 14px rgba(125, 211, 252, 0), 0 0 12px rgba(125, 211, 252, 0.9); }
+}
+.grib-barb { pointer-events: none; }
+.marker-rotatable {
+  transform: rotate(var(--marker-bearing, 0deg));
+  transform-origin: 50% 50%;
+  transition: transform 0.35s ease;
+}
+.plane-icon { filter: drop-shadow(0 0 8px rgba(250, 250, 255, 0.95)); }
+.catamaran-divicon--side img,
+.catamaran-divicon--side svg { filter: drop-shadow(0 0 5px rgba(34, 211, 238, 0.9)); }
+.catamaran-divicon--live img,
+.catamaran-divicon--live svg { filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.95)); }
+.catamaran-divicon--ghost img,
+.catamaran-divicon--ghost svg {
+  opacity: 0.55;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.85));
+}
+.catamaran-divicon--draw svg { filter: drop-shadow(0 0 5px rgba(250, 204, 21, 0.85)); }
+
+.light-mode {
+  --ng-light-fg: #0f172a;
+  --ng-light-muted: #334155;
+  --ng-light-bg: #f8fafc;
+  --ng-light-surface: #ffffff;
+  --ng-light-accent: #1d4ed8;
+  --ng-light-on-accent: #ffffff;
+  --ng-light-ok: #047857;
+  --ng-light-warn: #9a3412;
+  --ng-light-danger: #b91c1c;
+  --ng-light-link: #075985;
+  --ng-light-teal: #0f766e;
+  color: var(--ng-light-fg);
+}
+.light-mode .naviguide-sidebar-panel {
+  background-color: rgb(248 250 252 / 0.98) !important;
+  color: var(--ng-light-fg);
+  border-color: rgb(191 219 254) !important;
+}
+.light-mode .naviguide-sidebar-toggle {
+  background-color: var(--ng-light-surface) !important;
+  color: var(--ng-light-fg) !important;
+  border-color: rgb(148 163 184) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="bg-slate-950"],
+.light-mode .naviguide-sidebar-panel [class*="bg-slate-900"] {
+  background-color: rgb(255 255 255 / 0.96) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="bg-slate-800"] {
+  background-color: rgb(241 245 249 / 0.9) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="bg-slate-700"] {
+  background-color: rgb(226 232 240 / 0.95) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="bg-blue-950"] {
+  background-color: rgb(239 246 255 / 0.92) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="bg-blue-900"] {
+  background-color: rgb(219 234 254 / 0.9) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="border-slate-"],
+.light-mode .naviguide-sidebar-panel [class*="border-white/"] {
+  border-color: rgb(203 213 225) !important;
+}
+.light-mode .naviguide-sidebar-panel .text-white,
+.light-mode .naviguide-sidebar-panel [class*="text-slate-200"],
+.light-mode .naviguide-sidebar-panel [class*="text-slate-300"] {
+  color: var(--ng-light-fg) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="text-white/"],
+.light-mode .naviguide-sidebar-panel [class*="text-slate-400"],
+.light-mode .naviguide-sidebar-panel [class*="text-slate-500"],
+.light-mode .naviguide-sidebar-panel [class*="text-slate-600"] {
+  color: var(--ng-light-muted) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="bg-blue-600"],
+.light-mode .naviguide-sidebar-panel [class*="bg-sky-600"] {
+  background-color: var(--ng-light-accent) !important;
+  color: var(--ng-light-on-accent) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="bg-teal-700"] {
+  background-color: var(--ng-light-teal) !important;
+  color: var(--ng-light-on-accent) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="bg-blue-600"].text-white,
+.light-mode .naviguide-sidebar-panel [class*="bg-sky-600"].text-white,
+.light-mode .naviguide-sidebar-panel [class*="bg-teal-700"].text-white,
+.light-mode .naviguide-sidebar-panel [class*="bg-blue-600"] .text-white,
+.light-mode .naviguide-sidebar-panel [class*="bg-sky-600"] .text-white,
+.light-mode .naviguide-sidebar-panel [class*="bg-teal-700"] .text-white {
+  color: var(--ng-light-on-accent) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="text-green-"],
+.light-mode .naviguide-sidebar-panel [class*="text-emerald-"] {
+  color: var(--ng-light-ok) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="text-teal-"] {
+  color: var(--ng-light-teal) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="text-red-"],
+.light-mode .naviguide-sidebar-panel [class*="text-rose-"] {
+  color: var(--ng-light-danger) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="text-orange-"] {
+  color: var(--ng-light-warn) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="text-blue-4"],
+.light-mode .naviguide-sidebar-panel [class*="text-blue-5"] {
+  color: var(--ng-light-link) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="bg-teal-900"],
+.light-mode .naviguide-sidebar-panel [class*="bg-teal-800"] {
+  background-color: rgb(240 253 250 / 0.95) !important;
+}
+.light-mode .naviguide-departure-field input {
+  background-color: rgb(255 255 255) !important;
+  border-color: rgb(148 163 184) !important;
+  color: rgb(15 23 42) !important;
+}
+.light-mode .naviguide-film-bar,
+.light-mode .naviguide-floating-card,
+.light-mode .naviguide-climo-banner {
+  background-color: rgb(255 255 255 / 0.96) !important;
+  color: rgb(15 23 42) !important;
+  border-color: rgb(148 163 184 / 0.8) !important;
+  box-shadow: 0 12px 32px rgb(15 23 42 / 0.18) !important;
+}
+.light-mode .naviguide-film-bar [class*="text-white"],
+.light-mode .naviguide-floating-card [class*="text-white"] {
+  color: rgb(15 23 42) !important;
+}
+.light-mode .naviguide-film-bar [class*="bg-white/"],
+.light-mode .naviguide-floating-card [class*="bg-slate-800"] {
+  background-color: rgb(226 232 240 / 0.95) !important;
+}
+.light-mode .naviguide-film-bar [class*="border-white/"],
+.light-mode .naviguide-floating-card [class*="border-white/"] {
+  border-color: rgb(148 163 184 / 0.8) !important;
+}
+
+/* Mode clair — relecture des blocs du 19 sept. : cartes NOW / FREE,
+   fiche d'escale, journal de bord, replay, tracé. Les accents pâles conçus
+   pour le fond sombre (emerald-200, sky-200, violet-200, amber-200, cyan-200)
+   deviennent leurs teintes foncées ; les fonds teintés translucides s'éclaircissent. */
+.light-mode .naviguide-sidebar-panel [class*="text-emerald-"],
+.light-mode .naviguide-film-bar [class*="text-emerald-"],
+.light-mode .naviguide-floating-card [class*="text-emerald-"] { color: rgb(4 120 87) !important; }
+.light-mode .naviguide-sidebar-panel [class*="text-sky-"],
+.light-mode .naviguide-film-bar [class*="text-sky-"],
+.light-mode .naviguide-floating-card [class*="text-sky-"] { color: rgb(3 105 161) !important; }
+.light-mode .naviguide-sidebar-panel [class*="text-cyan-"],
+.light-mode .naviguide-film-bar [class*="text-cyan-"],
+.light-mode .naviguide-floating-card [class*="text-cyan-"] { color: rgb(14 116 144) !important; }
+.light-mode .naviguide-sidebar-panel [class*="text-violet-"],
+.light-mode .naviguide-floating-card [class*="text-violet-"] { color: rgb(109 40 217) !important; }
+.light-mode .naviguide-sidebar-panel [class*="text-amber-"],
+.light-mode .naviguide-film-bar [class*="text-amber-"],
+.light-mode .naviguide-floating-card [class*="text-amber-"] { color: rgb(180 83 9) !important; }
+.light-mode .naviguide-sidebar-panel [class*="text-blue-1"],
+.light-mode .naviguide-sidebar-panel [class*="text-blue-2"],
+.light-mode .naviguide-sidebar-panel [class*="text-blue-3"],
+.light-mode .naviguide-film-bar [class*="text-blue-1"],
+.light-mode .naviguide-film-bar [class*="text-blue-2"],
+.light-mode .naviguide-film-bar [class*="text-blue-3"] { color: rgb(29 78 216) !important; }
+.light-mode .naviguide-sidebar-panel [class*="bg-emerald-950"],
+.light-mode .naviguide-sidebar-panel [class*="bg-emerald-900"] { background-color: rgb(236 253 245 / 0.95) !important; }
+.light-mode .naviguide-sidebar-panel [class*="bg-sky-950"],
+.light-mode .naviguide-sidebar-panel [class*="bg-sky-900"] { background-color: rgb(240 249 255 / 0.95) !important; }
+.light-mode .naviguide-sidebar-panel [class*="bg-violet-950"] { background-color: rgb(245 243 255 / 0.95) !important; }
+.light-mode .naviguide-sidebar-panel [class*="bg-amber-950"],
+.light-mode .naviguide-sidebar-panel [class*="bg-rose-950"] { background-color: rgb(255 251 235 / 0.95) !important; }
+.light-mode .naviguide-sidebar-panel [class*="bg-cyan-950"],
+.light-mode .naviguide-sidebar-panel [class*="bg-cyan-900"] { background-color: rgb(236 254 255 / 0.95) !important; }
+.light-mode .naviguide-sidebar-panel input[type="text"] {
+  background-color: rgb(255 255 255) !important;
+  color: rgb(15 23 42) !important;
+  border-color: rgb(148 163 184) !important;
+}
+.light-mode .naviguide-sidebar-panel input::placeholder { color: var(--ng-light-muted) !important; }
+.light-mode .naviguide-sidebar-panel [class*="bg-blue-600"],
+.light-mode .naviguide-sidebar-panel [class*="bg-sky-600"],
+.light-mode .naviguide-sidebar-panel button[class*="bg-cyan-6"],
+.light-mode .naviguide-sidebar-panel button[class*="bg-cyan-7"],
+.light-mode .naviguide-film-bar [class*="bg-cyan-6"],
+.light-mode .naviguide-film-bar [class*="bg-cyan-7"],
+.light-mode .naviguide-film-bar [class*="bg-sky-6"],
+.light-mode .naviguide-film-bar [class*="bg-sky-7"] {
+  background-color: var(--ng-light-accent) !important;
+  color: var(--ng-light-on-accent) !important;
+}
+.light-mode .naviguide-sidebar-panel [class*="bg-teal-700"] {
+  background-color: var(--ng-light-teal) !important;
+  color: var(--ng-light-on-accent) !important;
+}
+.light-mode .naviguide-film-bar [class*="bg-rose-6"],
+.light-mode .naviguide-film-bar [class*="bg-rose-7"] {
+  background-color: var(--ng-light-danger) !important;
+  color: var(--ng-light-on-accent) !important;
+}
+.light-mode .naviguide-film-bar [class*="bg-amber-6"] {
+  background-color: var(--ng-light-warn) !important;
+  color: var(--ng-light-on-accent) !important;
+}
+.light-mode .naviguide-film-bar [class*="bg-slate-950"] { background-color: rgb(255 255 255 / 0.96) !important; }
+
+.sidebar-scroll { scrollbar-width: thin; scrollbar-color: rgb(71 85 105) transparent; }
+
+/* Hauteurs fixes du panneau gauche (un seul réglage). */
+:root {
+  --sim-box-h-chat: 168px;
+  --sim-box-h-now: 10rem;
+  --sim-box-h-ici: 16rem;
+  --sim-box-h-story: 14rem;
+  --sim-box-h-ici-now: 100%;
+  --sim-box-h-ici-tabs: 1.5rem;
+}
+.sim-box-chat {
+  height: var(--sim-box-h-chat);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.sim-box-now {
+  max-height: var(--sim-box-h-now);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.sim-box-ici {
+  height: var(--sim-box-h-ici);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.sim-box-story {
+  height: var(--sim-box-h-story);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.light-mode .sim-box-chat {
+  height: var(--sim-box-h-chat);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.light-mode .sim-box-now {
+  max-height: var(--sim-box-h-now);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.light-mode .sim-box-ici {
+  height: var(--sim-box-h-ici);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.light-mode .sim-box-story {
+  height: var(--sim-box-h-story);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.ici-maintenant {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+/* Journal : couleur explicite dans les deux thèmes (pas text-inherit). */
+.ici-maintenant [data-testid="ici-journal-entry"] {
+  color: rgb(226 232 240);
+}
+.ici-maintenant-tabs {
+  height: var(--sim-box-h-ici-tabs);
+}
+.light-mode .ici-maintenant {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: rgb(255 255 255 / 0.94);
+  border-color: rgb(203 213 225);
+  color: rgb(15 23 42);
+}
+.light-mode .ici-maintenant-tabs {
+  height: var(--sim-box-h-ici-tabs);
+}
+.light-mode .ici-maintenant [data-testid="ici-tabs"] [aria-selected="true"] {
+  color: rgb(15 23 42);
+}
+.light-mode .ici-maintenant [data-testid="ici-tabs"] [aria-selected="false"] {
+  color: rgb(100 116 139);
+}
+.light-mode .ici-maintenant .ici-maintenant-section > div:first-child {
+  color: rgb(71 85 105);
+}
+.light-mode .ici-maintenant .ici-maintenant-section p,
+.light-mode .ici-maintenant .ici-maintenant-section details {
+  color: rgb(30 41 59);
+}
+.light-mode .ici-maintenant [data-testid="ici-sources-line"] {
+  color: rgb(71 85 105);
+}
+.light-mode .ici-maintenant [data-testid="ici-source-link"],
+.light-mode .ici-maintenant [data-testid="ici-around-link"] {
+  color: rgb(3 105 161);
+}
+.light-mode .ici-maintenant [data-testid="ici-journal-entry"] {
+  color: rgb(30 41 59);
+}
+.light-mode .ici-maintenant [data-testid="ici-journal-entry"]:hover {
+  background: rgb(15 23 42 / 0.05);
+}
+
+/* Bulle événement ancrée au bateau (L.popup). */
+.leaflet-popup.event-bubble {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.leaflet-popup.event-bubble.event-bubble--visible {
+  opacity: 1;
+}
+.leaflet-popup.event-bubble .leaflet-popup-content-wrapper {
+  width: 280px;
+  background: rgba(15, 23, 42, 0.88);
+  color: #f8fafc;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.leaflet-popup.event-bubble .leaflet-popup-content {
+  margin: 8px 10px 10px;
+  width: 260px !important;
+}
+.leaflet-popup.event-bubble .leaflet-popup-tip {
+  background: rgba(15, 23, 42, 0.88);
+}
+.event-bubble-card { width: 100%; }
+.event-bubble-facts {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.light-mode .leaflet-popup.event-bubble .leaflet-popup-content-wrapper,
+.light-mode .leaflet-popup.event-bubble .leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.94);
+  color: rgb(15 23 42);
+  border-color: rgb(203 213 225);
+}
+.light-mode .leaflet-popup.event-bubble .event-bubble-card [class*="text-sky-"],
+.light-mode .leaflet-popup.event-bubble .event-bubble-card [class*="text-slate-100"] {
+  color: rgb(15 23 42) !important;
+}
+.light-mode .leaflet-popup.event-bubble .event-bubble-card [class*="bg-white/10"] {
+  background-color: rgb(241 245 249) !important;
+  color: rgb(15 23 42) !important;
+  border-color: rgb(203 213 225) !important;
+}
+.light-mode .leaflet-popup.event-bubble .event-bubble-card [class*="text-sky-200"],
+.light-mode .leaflet-popup.event-bubble .event-bubble-card [class*="text-sky-100"] {
+  color: rgb(3 105 161) !important;
+}
+
+/* Fiche d'escale ancrée au drapeau (L.popup). */
+.leaflet-popup.escale-popup .leaflet-popup-content-wrapper {
+  width: 340px;
+  max-width: 340px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #f8fafc;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  padding: 0;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.leaflet-popup.escale-popup .leaflet-popup-content {
+  margin: 0;
+  width: 340px !important;
+  max-height: 260px;
+  overflow: hidden;
+}
+.leaflet-popup.escale-popup .leaflet-popup-tip {
+  background: rgba(15, 23, 42, 0.92);
+}
+.escale-popup-card { width: 100%; }
+.light-mode .leaflet-popup.escale-popup .leaflet-popup-content-wrapper,
+.light-mode .leaflet-popup.escale-popup .leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.96);
+  color: rgb(15 23 42);
+  border-color: rgb(16 185 129 / 0.45);
+}
+
+/* Above the film bar, never over it: the bar height comes from --sim-inset-bottom.
+   On a short or narrow screen the card scrolls instead of growing under the bar. */
+.layer-fiche-popup {
+  bottom: calc(var(--sim-inset-bottom, 24px) + 8px);
+  min-width: min(220px, calc(100vw - 24px));
+  max-width: min(300px, calc(100vw - 24px));
+  max-height: calc(100% - var(--sim-inset-bottom, 24px) - 72px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: rgba(15, 23, 42, 0.96);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.layer-fiche-popup h3 { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: #fff; }
+.layer-fiche-popup a { color: #38bdf8; text-decoration: none; word-break: break-all; }
+.layer-fiche-popup .muted { color: #94a3b8; font-size: 11px; }
+
+/*
+ * Sous 600 px : le panneau gauche est un tiroir (il ne réserve pas la colonne
+ * de la barre). La barre du film occupe toute la largeur, sous les panneaux,
+ * et ses commandes passent sur deux lignes. À 600 px et au-dessus, rien ici
+ * ne s'applique.
+ */
+@media (max-width: 599px) {
+  .naviguide-sidebar-panel {
+    height: auto !important;
+    max-height: calc(100% - var(--sim-inset-bottom, 120px) - 8px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .naviguide-sidebar-drawer {
+    width: min(320px, calc(100vw - 48px)) !important;
+  }
+  .naviguide-sidebar-drawer-body {
+    overflow-y: auto;
+  }
+  .naviguide-sidebar-toggle--left[class*="322px"] {
+    left: calc(min(320px, 100vw - 48px) + 4px) !important;
+  }
+  [data-testid="film-bar"],
+  [data-testid="sim-root"] > .absolute:has(> [data-testid="show-film-bar"]) {
+    left: var(--film-bar-left, 8px) !important;
+    right: var(--film-bar-right, 8px) !important;
+  }
+  .naviguide-film-bar {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+  .naviguide-film-bar [data-testid="film-clock-line"] {
+    white-space: normal;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  /* Les commandes deviennent des items du même flex, coupées en deux
+     rangées : masquage, cinéma, écoute, style et durée au-dessus ;
+     mode, départ et relecture en dessous. */
+  .naviguide-film-bar > .flex.items-start {
+    flex-wrap: wrap;
+    align-items: center;
+    align-content: flex-start;
+    column-gap: 2px;
+    row-gap: 2px;
+  }
+  .naviguide-film-bar > .flex.items-start::before {
+    content: "";
+    order: 2;
+    flex: 0 0 100%;
+    width: 100%;
+    height: 0;
+    overflow: hidden;
+  }
+  .naviguide-film-bar [data-testid="film-commands"],
+  .naviguide-film-bar [data-testid="film-commands"] > div,
+  .naviguide-film-bar [data-testid="replay-controls"],
+  .naviguide-film-bar [data-testid="replay-controls"] > div {
+    display: contents;
+  }
+  .naviguide-film-bar [data-testid="film-source"] {
+    order: 0;
+    flex: 1 0 100%;
+    max-width: 100%;
+  }
+  .naviguide-film-bar button,
+  .naviguide-film-bar [data-testid="film-style"],
+  .naviguide-film-bar [data-testid="film-duration"] {
+    order: 1;
+  }
+  .naviguide-film-bar [data-testid="film-view-switch"],
+  .naviguide-film-bar [data-testid="replay-departure-field"],
+  .naviguide-film-bar [data-testid="replay-start"],
+  .naviguide-film-bar [data-testid="replay-stop"] {
+    order: 3;
+  }
+  .naviguide-film-bar button,
+  .naviguide-film-bar [data-testid="film-style"],
+  .naviguide-film-bar [data-testid="film-view-switch"],
+  .naviguide-film-bar [data-testid="film-duration"],
+  .naviguide-film-bar [data-testid="replay-departure-field"] {
+    font-size: 7px;
+    flex-shrink: 0;
+  }
+  .naviguide-film-bar button {
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+  .naviguide-film-bar [data-testid="replay-departure-field"] input {
+    font-size: 8px;
+  }
+  .naviguide-sidebar-toggle:focus-visible,
+  .naviguide-film-bar button:focus-visible,
+  .naviguide-film-bar input:focus-visible,
+  .naviguide-sidebar-drawer button:focus-visible,
+  .naviguide-sidebar-panel button:focus-visible,
+  [data-testid="not-for-nav-modal"] button:focus-visible {
+    outline: 2px solid #7dd3fc !important;
+    outline-offset: 1px;
+  }
+}
+
+/*
+ * Bureau, 600 px et plus. Le tiroir reste large de --sidebar-width (320 px) :
+ * son contenu ne peut pas l'élargir par-dessus la barre. La barre prend
+ * --film-bar-left / --film-bar-right, le même 320 quand le panneau est ouvert.
+ */
+@media (min-width: 600px) {
+  .naviguide-sidebar-drawer,
+  .naviguide-sidebar-panel.right-0 {
+    box-sizing: border-box !important;
+    width: var(--sidebar-width, 320px) !important;
+    min-width: 0 !important;
+    max-width: var(--sidebar-width, 320px) !important;
+  }
+  [data-testid="film-bar"],
+  [data-testid="sim-root"] > .absolute:has(> [data-testid="show-film-bar"]) {
+    box-sizing: border-box;
+    left: var(--film-bar-left, 8px) !important;
+    right: var(--film-bar-right, 8px) !important;
+    width: calc(100% - var(--film-bar-left, 8px) - var(--film-bar-right, 8px)) !important;
+    min-width: 0 !important;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  /* Entre les deux panneaux (640 px à 1280), les commandes restent sur une
+     seule rangée : le bloc Revoir ne passe pas à la ligne, les gouttières
+     se resserrent pour tenir dans la barre. Sous 600 px, le bloc du tiroir
+     garde ses deux lignes. */
+  .naviguide-film-bar {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+  .naviguide-film-bar > .flex.items-start,
+  .naviguide-film-bar [data-testid="film-commands"] > .flex,
+  .naviguide-film-bar [data-testid="replay-controls"],
+  .naviguide-film-bar [data-testid="replay-controls"] > .flex,
+  .naviguide-film-bar [data-testid="film-style"],
+  .naviguide-film-bar [data-testid="film-view-switch"] {
+    flex-wrap: nowrap;
+    gap: 2px;
+  }
+  .naviguide-film-bar button {
+    padding-left: 3px;
+    padding-right: 3px;
+  }
+}
+
+/* Visite des juges : projecteur driver.js sous la bulle React (z 2300) et au-dessus de l'appli. */
+.driver-overlay { z-index: 2250 !important; }
+.driver-active .naviguide-demo-panel,
+.driver-active .naviguide-demo-panel *,
+.driver-active .naviguide-demo-launch,
+.driver-active .naviguide-demo-launch * { pointer-events: auto; }
+
+/* Arrow on the demo walkthrough panel (data-arrow) */
+.naviguide-demo-panel {
+  position: fixed;
+  overflow: visible; /* The inner content scrolls; the arrow remains visible. */
+}
+.naviguide-demo-panel::before {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 6px solid transparent;
+  z-index: 2400;
+}
+.naviguide-demo-panel[data-arrow="up"]::before {
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-bottom-color: var(--panel-border-color, rgba(15, 23, 42, 0.92));
+}
+.naviguide-demo-panel[data-arrow="down"]::before {
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-top-color: var(--panel-border-color, rgba(15, 23, 42, 0.92));
+}
+.naviguide-demo-panel[data-arrow="left"]::before {
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-right-color: var(--panel-border-color, rgba(15, 23, 42, 0.92));
+}
+.naviguide-demo-panel[data-arrow="right"]::before {
+  right: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left-color: var(--panel-border-color, rgba(15, 23, 42, 0.92));
+}
+
+/* Pulse animation for "trace" step target */
+.naviguide-tour-pulse {
+  outline: 3px solid #00ffff;
+  outline-offset: 2px;
+  animation: naviguide-tour-pulse 2s ease-in-out infinite;
+}
+@keyframes naviguide-tour-pulse {
+  0%, 100% { outline-color: #00ffff; outline-width: 3px; }
+  50% { outline-color: rgba(0, 255, 255, 0.4); outline-width: 5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .naviguide-tour-pulse {
+    animation: none;
+  }
+}

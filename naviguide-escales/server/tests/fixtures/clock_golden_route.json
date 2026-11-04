@@ -1,0 +1,14 @@
+{
+  "t0": "2026-06-15T08:00:00Z",
+  "points": [
+    {"lat": 46.1541, "lon": -1.167, "cumNm": 0, "filmCum": 0, "jump": false, "nonMaritime": false},
+    {"lat": 40.0, "lon": -15.0, "cumNm": 650, "filmCum": 650, "jump": false, "nonMaritime": false},
+    {"lat": 28.0, "lon": -30.0, "cumNm": 1450, "filmCum": 1450, "jump": false, "nonMaritime": false},
+    {"lat": 16.0, "lon": -48.0, "cumNm": 2600, "filmCum": 2600, "jump": false, "nonMaritime": false},
+    {"lat": 14.6, "lon": -61.07, "cumNm": 3350, "filmCum": 3350, "jump": false, "nonMaritime": false}
+  ],
+  "marks": [
+    {"name": "La Rochelle", "nm": 0, "filmNm": 0, "lat": 46.1541, "lon": -1.167, "index": 0},
+    {"name": "Fort-de-France (Martinique)", "nm": 3350, "filmNm": 3350, "lat": 14.6, "lon": -61.07, "index": 4}
+  ]
+}

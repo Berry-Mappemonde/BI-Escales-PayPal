@@ -1,0 +1,8 @@
+# Optional partner modules. Not required by backend/requirements.txt.
+#
+# paypal-agent-toolkit is imported only when ESCALES_TOOLKIT_ENABLED is
+# truthy (1, true, yes, on). Leave that variable empty and Escales stays on
+# the plain REST client: authorize, capture, and void, plus read-only
+# orders.get and authorizations.get. Removing this package does not change
+# the app. No other sponsor SDK belongs in this file.
+paypal-agent-toolkit==1.11.0

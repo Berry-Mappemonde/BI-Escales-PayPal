@@ -1,0 +1,299 @@
+{
+ "_source": "Film rédigé intégral réel (Nemotron Super + Ultra, Lightning EN), run du 29/10/2026 02 h 59 Toronto, lot fix/film-defauts-0125 ; textes seuls (ancres/évènements retirés).",
+ "fr": {
+  "chapters": [
+   {
+    "id": "leg-0",
+    "tA": "2026-05-15T08:00:00Z",
+    "tB": "2026-06-01T22:13:28Z",
+    "fromName": "Saint-Maur",
+    "toName": "Ajaccio (Corse)",
+    "text": "L’expédition Berry-Mappemonde a quitté Saint-Maur le 15 mai 2026 par la route jusqu’à La Rochelle. Le jour même, Berry-Mappemonde quitte La Rochelle, cap au sud-ouest pour la longue traversée vers Ajaccio (Corse). 1 819 milles, une vingtaine de jours de mer, à 4 nœuds de moyenne. Puis, les vents d'ouest s'installent : douze nœuds, la moyenne de saison. Arrivée à Ajaccio (Corse) le 1er juin, amarré au port d’Ajaccio (Corse). Trois jours d'escale."
+   },
+   {
+    "id": "leg-1",
+    "tA": "2026-06-01T22:13:28Z",
+    "tB": "2026-07-14T17:57:14Z",
+    "fromName": "Ajaccio (Corse)",
+    "toName": "Fort-de-France (Martinique)",
+    "text": "Le 4 juin, Berry-Mappemonde quitte Ajaccio (Corse) pour la longue traversée vers Fort-de-France (Martinique). 5 153 milles, une quarantaine de jours de mer, à 5 nœuds de moyenne. Puis, les eaux françaises. Le 5 juin, la Corse — Calvi, Bastia puis Porto-Vecchio. Puis, le bateau longe L'Île-Rousse. Le 8 juin, les eaux espagnoles. Puis, le bateau longe l'Andalousie — Almería. Le 17 juin, les eaux marocaines. Puis, les eaux des Canaries. Le 22 juin, les eaux de Madère. Puis, les alizés de nord-est s'installent : 14 nœuds, la moyenne de saison. Le 24 juin, les eaux disputées du Sahara occidental. Puis, les eaux capverdiennes. Le 28 juin, à 28 milles, le projet Cape Verde Marine Protected Areas Network. Puis, le flotteur Argo 4903331. Le 10 juillet, les eaux barbadiennes. Puis, les eaux de Saint-Vincent-et-les-Grenadines, puis celles de Sainte-Lucie, puis celles de la Martinique. Arrivée à Fort-de-France (Martinique) le 14 juillet, amarré à la marina Étang Z'Abricots. Escale de 3 jours."
+   },
+   {
+    "id": "leg-2",
+    "tA": "2026-07-14T17:57:14Z",
+    "tB": "2026-07-18T19:40:22Z",
+    "fromName": "Fort-de-France (Martinique)",
+    "toName": "Pointe-à-Pitre (Guadeloupe)",
+    "text": "Le 17 juillet, d'île en île, Berry-Mappemonde quitte Fort-de-France (Martinique), cap au nord-ouest pour Pointe-à-Pitre (Guadeloupe). 192 milles, un jour de mer, à 8 nœuds de moyenne. Puis, les eaux de la Martinique, puis celles de la Dominique, puis celles de la Guadeloupe, puis celles de Montserrat. Le 17 juillet, à vingt et un milles, le projet Restaurer les coraux préférés des poissons-demoiselles Année 1. Le lendemain, le bateau longe Basse-Terre. Le 18 juillet, à vingt-sept milles, le projet NAUTIK N/BT - Préservation de la biodiversité du Grand Cul Sac Marin. Puis, à vingt-sept milles, le projet CleanMyIsland. Arrivée à Pointe-à-Pitre (Guadeloupe) le 18 juillet, amarré à la marina de Baie-Mahault. Trois jours au port."
+   },
+   {
+    "id": "leg-3",
+    "tA": "2026-07-18T19:40:22Z",
+    "tB": "2026-07-23T11:23:54Z",
+    "fromName": "Pointe-à-Pitre (Guadeloupe)",
+    "toName": "Gustavia (Saint-Barthélemy)",
+    "text": "Le 21 juillet, d'île en île, Berry-Mappemonde quitte Pointe-à-Pitre (Guadeloupe), cap au nord-ouest pour Gustavia (Saint-Barthélemy). 173 milles, un jour de mer, à 8 nœuds de moyenne. Puis, les eaux de la Guadeloupe, puis celles de Montserrat, puis celles d'Antigua-et-Barbuda, puis celles de Saint-Christophe-et-Niévès, puis celles de Saint-Eustache, puis celles de Sint Maarten (partie néerlandaise), puis celles de Saint-Martin (partie française). Le 22 juillet, le bateau longe Saint John's. Puis, à vingt-sept milles, le projet Conch Surveying in St Kitts & Nevis. Arrivée à Gustavia (Saint-Barthélemy) le 23 juillet, amarré au port de Gustavia (Saint-Barthélemy)."
+   },
+   {
+    "id": "leg-4",
+    "tA": "2026-07-23T11:23:54Z",
+    "tB": "2026-07-27T08:58:13Z",
+    "fromName": "Gustavia (Saint-Barthélemy)",
+    "toName": "Marigot (Saint-Martin)",
+    "text": "Le 26 juillet, d'île en île, Berry-Mappemonde quitte Gustavia (Saint-Barthélemy), cap au nord-ouest pour Marigot (Saint-Martin). 41 milles, un jour de mer, à 8 nœuds de moyenne. Puis, les eaux de Saint-Barthélemy, puis celles de Sint Maarten (partie néerlandaise), puis celles de Saint-Martin (partie française). Arrivée à Marigot (Saint-Martin) le 27 juillet, amarré au port de Marigot (Saint-Martin)."
+   },
+   {
+    "id": "leg-5",
+    "tA": "2026-07-27T08:58:13Z",
+    "tB": "2026-08-15T20:20:47Z",
+    "fromName": "Marigot (Saint-Martin)",
+    "toName": "Cayenne (Guyane)",
+    "text": "Le 30 juillet, Berry-Mappemonde quitte Marigot (Saint-Martin), cap au sud pour la longue traversée vers Cayenne (Guyane). 1 200 milles, une quinzaine de jours de mer. Puis, les eaux de Saint-Martin (partie française), puis celles de Sint Maarten (partie néerlandaise). Le 30 juillet, haute mer. Puis, les eaux de Saint-Eustache, puis celles de Saint-Christophe-et-Niévès, puis celles d'Antigua-et-Barbuda, puis celles de Montserrat, puis celles de la Guadeloupe, puis celles de la Dominique, puis celles de la Martinique, puis celles de Sainte-Lucie, puis celles de Saint-Vincent-et-les-Grenadines, puis les eaux grenadiennes, puis celles de Trinité-et-Tobago. Le 3 août, à vingt et un milles, le projet Sandy Island Oyster Bed Marine Protected Area. Puis, le bateau longe Saint George's. Le 4 août, à vingt-six milles, le projet Tackling Plastic Pollution Through Producer Accountability. Puis, les eaux vénézuéliennes, puis celles du Guyana. Le 9 août, le bateau longe Georgetown. Le lendemain, les eaux surinamaises. Le 11 août, les alizés de nord-est s'installent : neuf nœuds, la moyenne de saison. Puis, le bateau longe Paramaribo. Le 14 août, les eaux de la Guyane. Le lendemain, la zone de la campagne océanographique LINKS. Le 15 août, le bateau longe Dégrad des Cannes. Puis, à l'équateur, les alizés de sud-est s'installent : onze nœuds, la moyenne de saison. Arrivée à Cayenne (Guyane) le 15 août, amarré à la marina de Dégrad des Cannes. Escale de trois jours."
+   },
+   {
+    "id": "leg-6",
+    "tA": "2026-08-15T20:20:47Z",
+    "tB": "2026-08-19T04:28:25Z",
+    "fromName": "Cayenne (Guyane)",
+    "toName": "Halifax (Nouvelle-Écosse)",
+    "text": "Le 18 août, l'équipage s'envole de Cayenne (Guyane) pour Halifax (Nouvelle-Écosse) ; le catamaran attend à Cayenne (Guyane)."
+   },
+   {
+    "id": "leg-7",
+    "tA": "2026-08-19T04:28:25Z",
+    "tB": "2026-08-21T18:34:56Z",
+    "fromName": "Halifax (Nouvelle-Écosse)",
+    "toName": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
+    "text": "Le 19 août, à Halifax (Nouvelle-Écosse), l'équipage embarque sur un second voilier pour Saint-Pierre (Saint-Pierre-et-Miquelon). 497 milles, trois jours de mer. Puis, le vent tourne à l'ouest : huit nœuds, la moyenne de saison. Puis, les vents d'ouest s'installent : douze nœuds, la moyenne de saison. Arrivée à Saint-Pierre (Saint-Pierre-et-Miquelon) le 21 août, amarré au port de Saint-Pierre (Saint-Pierre-et-Miquelon)."
+   },
+   {
+    "id": "leg-8",
+    "tA": "2026-08-21T18:34:56Z",
+    "tB": "2026-08-28T20:31:05Z",
+    "fromName": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
+    "toName": "Halifax (Nouvelle-Écosse)",
+    "text": "Le 23 août, à Saint-Pierre (Saint-Pierre-et-Miquelon), l'équipage reprend un second voilier pour Halifax (Nouvelle-Écosse). 417 milles, cinq jours de mer. Arrivée à Halifax (Nouvelle-Écosse) le 28 août, amarré au port d’Halifax (Nouvelle-Écosse)."
+   },
+   {
+    "id": "leg-9",
+    "tA": "2026-08-28T20:31:05Z",
+    "tB": "2026-08-29T04:31:05Z",
+    "fromName": "Halifax (Nouvelle-Écosse)",
+    "toName": "Cayenne (Guyane)",
+    "text": "Le 28 août, l'équipage s'envole de Halifax pour Cayenne."
+   },
+   {
+    "id": "leg-10",
+    "tA": "2026-08-29T04:31:05Z",
+    "tB": "2026-10-14T03:34:42Z",
+    "fromName": "Cayenne (Guyane)",
+    "toName": "Papeete (Polynésie française)",
+    "text": "Le 29 août, le catamaran reprend la mer, départ vers Papeete (Polynésie française). 6 671 milles, 46 jours de mer, à 6 nœuds de moyenne. Le lendemain, le vent tourne au nord-est : six nœuds, la moyenne de saison. Le 30 août, les alizés de nord-est s'installent : douze nœuds, la moyenne de saison. Puis, à l'équateur, les alizés de sud-est s'installent : douze nœuds, la moyenne de saison. Arrivée à Papeete (Polynésie française) le 14 octobre, amarré au port de Papeete (Polynésie française). Trois jours au port."
+   },
+   {
+    "id": "leg-11",
+    "tA": "2026-10-14T03:34:42Z",
+    "tB": "2026-10-27T13:55:18Z",
+    "fromName": "Papeete (Polynésie française)",
+    "toName": "Mata-Utu (Wallis-et-Futuna)",
+    "text": "Le 17 octobre, Berry-Mappemonde quitte Papeete (Polynésie française), cap à l'ouest pour la longue traversée vers Mata-Utu (Wallis-et-Futuna). 1 642 milles, une dizaine de jours de mer, à 7 nœuds de moyenne. Puis, à 5 milles, le projet Tia'i fenua / nana sac plastique. Le 17 octobre, les eaux de la Polynésie française. Puis, à 10 milles, le projet Shark spy: bird's eye view. Le 18 octobre, le flotteur Argo 5905685. Puis, les eaux des Îles Cook. Le 22 octobre, à 22 milles, le projet Ocean Initiative. Puis, les eaux des Samoa américaines. Le 24 octobre, le bateau longe Pago Pago. Le lendemain, les eaux samoanes, puis les eaux tongiennes, puis celles de Wallis-et-Futuna. Le 27 octobre, le bateau longe Mata-Utu. Puis, à 20 milles, le projet Mouvement du Focolari de Wallis et Futuna. Arrivée à Mata-Utu (Wallis-et-Futuna) le 27 octobre, amarré au port de Mata-Utu (Wallis-et-Futuna)."
+   },
+   {
+    "id": "leg-12",
+    "tA": "2026-10-27T13:55:18Z",
+    "tB": "2026-11-07T15:57:44Z",
+    "fromName": "Mata-Utu (Wallis-et-Futuna)",
+    "toName": "Nouméa (Nouvelle-Calédonie)",
+    "text": "Le 30 octobre, Berry-Mappemonde quitte Mata-Utu (Wallis-et-Futuna), cap au sud-ouest pour Nouméa (Nouvelle-Calédonie). 1 330 milles, une dizaine de jours de mer, à 7 nœuds de moyenne. Puis, les eaux de Wallis-et-Futuna. Le 1er novembre, les eaux tongiennes, puis les eaux fidjiennes. Puis, les eaux de Nouvelle-Calédonie. Le 6 novembre, la zone de la campagne océanographique CALICO. Le lendemain, à vingt-six milles, le projet Programme Animlagon en Nouvelle-Calédonie. Puis, à vingt-six milles, le projet 10 000 enfants pour les coraux. Arrivée à Nouméa (Nouvelle-Calédonie) le 7 novembre, amarré à Port Brunelet. Trois jours d'escale."
+   },
+   {
+    "id": "leg-13",
+    "tA": "2026-11-07T15:57:44Z",
+    "tB": "2026-12-31T04:25:31Z",
+    "fromName": "Nouméa (Nouvelle-Calédonie)",
+    "toName": "Dzaoudzi (Mayotte)",
+    "text": "Le 10 novembre, Berry-Mappemonde quitte Nouméa (Nouvelle-Calédonie), cap à l'ouest pour la longue traversée vers Dzaoudzi (Mayotte). 9 152 milles, 48 jours de mer, à 8 nœuds de moyenne. Puis, la zone de la campagne océanographique MAYOBS33. Le 10 novembre, les eaux de Nouvelle-Calédonie. Puis, les eaux australiennes. Le 19 novembre, les eaux papouanes, puis les eaux indonésiennes. Puis, le bateau longe Dili. Le 24 novembre, le bateau longe Ende. Puis, le bateau longe Tanjung Benete. Le 4 décembre, les eaux indiennes. Puis, haute mer. Le 8 décembre, les alizés de nord-est s'installent : vents moyens de saison. Puis, les eaux sri-lankaises. Le 18 décembre, à l'équateur, les alizés de sud-est s'installent : vents moyens de saison. Puis, les eaux maldiviennes. Le 26 décembre, les eaux seychelloises. Le lendemain, le bateau longe Victoria. Puis, les eaux malgaches, puis celles des Terres australes et antarctiques françaises, puis celles de Mayotte. Arrivée à Dzaoudzi (Mayotte) le 31 décembre, amarré au port de Dzaoudzi (Mayotte)."
+   },
+   {
+    "id": "leg-14",
+    "tA": "2026-12-31T04:25:31Z",
+    "tB": "2027-01-21T11:19:02Z",
+    "fromName": "Dzaoudzi (Mayotte)",
+    "toName": "Tromelin (TAAF)",
+    "text": "Le 3 janvier, Berry-Mappemonde quitte Dzaoudzi (Mayotte) pour la longue traversée vers Tromelin (TAAF). 925 milles, une vingtaine de jours de mer. Puis, la zone de la campagne océanographique MAYOBS33. Le 3 janvier, les eaux de Mayotte. Le lendemain, la zone de la campagne océanographique MAYOBS30. Le 4 janvier, les eaux malgaches, puis celles des Terres australes et antarctiques françaises, puis les eaux seychelloises. Puis, le flotteur Argo 6903148. Arrivée à Tromelin (TAAF) le 21 janvier, amarré au port de Tromelin (TAAF)."
+   },
+   {
+    "id": "leg-15",
+    "tA": "2027-01-21T11:19:02Z",
+    "tB": "2027-01-27T07:32:22Z",
+    "fromName": "Tromelin (TAAF)",
+    "toName": "Saint-Gilles (La Réunion)",
+    "text": "Le 24 janvier, d'île en île, Berry-Mappemonde quitte Tromelin (TAAF), cap au sud pour Saint-Gilles (La Réunion). 322 milles, trois jours de mer, à 5 nœuds de moyenne. Puis, les eaux des Terres australes et antarctiques françaises. Le 26 janvier, les eaux de La Réunion. Puis, le bateau longe Saint-Denis. Le 26 janvier, à vingt-cinq milles, le projet Best Run. Le lendemain, à vingt-six milles, le projet Agence de Recherche pour la Biodiversité à La Réunion. Puis, à vingt-six milles, le projet Kosa - Sciences participatives citoyennes à La Réunion. Arrivée à Saint-Gilles (La Réunion) le 27 janvier, amarré au port de Saint-Gilles (La Réunion)."
+   },
+   {
+    "id": "leg-16",
+    "tA": "2027-01-27T07:32:22Z",
+    "tB": "2027-02-21T14:02:26Z",
+    "fromName": "Saint-Gilles (La Réunion)",
+    "toName": "Europa (TAAF)",
+    "text": "Le 30 janvier, Berry-Mappemonde quitte Saint-Gilles (La Réunion) pour la longue traversée vers Europa (TAAF). 1 457 milles, une vingtaine de jours de mer. Le lendemain, les eaux mauriciennes. Le 1er février, les eaux de La Réunion. Le lendemain, haute mer. Le 3 février, les eaux malgaches. Puis, le flotteur Argo 7902126. Le 20 février, les alizés de sud-est s'installent : vents moyens de saison. Le lendemain, les eaux des Terres australes et antarctiques françaises. Puis, à dix-neuf milles, le projet Les Iles Éparses, sentinelles de l'évolution de l'océan (ISEO). Arrivée à Europa (TAAF) le 21 février, amarré au port d’Europa (TAAF)."
+   },
+   {
+    "id": "leg-17",
+    "tA": "2027-02-21T14:02:26Z",
+    "tB": "2027-05-31T22:50:43Z",
+    "fromName": "Europa (TAAF)",
+    "toName": "La Rochelle",
+    "text": "Le 24 février, pour la dernière étape, Berry-Mappemonde quitte Europa (TAAF) pour La Rochelle. 8 393 milles, 96 jours de mer. Puis, les eaux des Terres australes et antarctiques françaises. Le 25 février, les eaux malgaches. Puis, haute mer. Le 5 mars, les eaux sud-africaines. Puis, à 28 milles, le projet Cresta Coastal Network. Le 25 mars, à 24 milles, le projet Causality. Puis, à 24 milles, le projet ID-shot Southern Right Whales. Le 9 avril, les alizés de sud-est s'installent : vents moyens de saison. Puis, à 23 milles, le projet High Seas: New Hope Beyond National Boundaries. Le 20 avril, le bateau longe Jamestown. Puis, les alizés de nord-est s'installent : vents moyens de saison. Le 3 mai, le flotteur Argo 4903967. Puis, les eaux capverdiennes. Le 16 mai, les eaux disputées du Sahara occidental. Puis, les eaux des Canaries. Puis, les eaux françaises. Arrivée à La Rochelle le 31 mai, amarré à Port de Saint-Martin-de-Ré. Aujourd’hui, le bateau est à La Rochelle."
+   }
+  ]
+ },
+ "en": {
+  "chapters": [
+   {
+    "id": "leg-0",
+    "tA": "2026-05-15T08:00:00Z",
+    "tB": "2026-06-01T22:13:28Z",
+    "fromName": "Saint-Maur",
+    "toName": "Ajaccio (Corse)",
+    "text": "The Berry-Mappemonde expedition left Saint-Maur on May 15, 2026 by road to La Rochelle. The same day, Berry-Mappemonde left La Rochelle, heading southwest for the long crossing to Ajaccio (Corsica). 1,819 miles, about twenty days at sea, at an average of 4 knots. Then, the westerly winds set in: twelve knots, the seasonal average. Arrival at Ajaccio (Corsica) on June 1, moored at Ajaccio (Corsica) port. Three days’ stopover."
+   },
+   {
+    "id": "leg-1",
+    "tA": "2026-06-01T22:13:28Z",
+    "tB": "2026-07-14T17:57:14Z",
+    "fromName": "Ajaccio (Corse)",
+    "toName": "Fort-de-France (Martinique)",
+    "text": "On June 4, Berry-Mappemonde leaves Ajaccio (Corsica) for the long crossing to Fort-de-France (Martinique). 5,153 miles, roughly forty days at sea, at an average of 5 knots. Then, French waters. On June 5, Corsica — Calvi, Bastia then Porto-Vecchio. Then, the boat sails past Île-Rousse. On June 8, Spanish waters. Then, the boat sails past Andalusia — Almería. On June 17, Moroccan waters. Then, Canary waters. On June 22, Madeira waters. Then, the northeast trade winds settle in: 14 knots, seasonal average. On June 24, disputed Western Sahara waters. Then, Cape Verde waters. On June 28, at 28 miles, the Cape Verde Marine Protected Areas Network. Then, Argo float 4903331. On July 10, Barbadian waters. Then, Saint Vincent and the Grenadines waters, then those of Saint Lucia, then those of Martinique. Arrival at Fort-de-France (Martinique) on July 14, moored at Étang Z'Abricots marina. 3-day stopover."
+   },
+   {
+    "id": "leg-2",
+    "tA": "2026-07-14T17:57:14Z",
+    "tB": "2026-07-18T19:40:22Z",
+    "fromName": "Fort-de-France (Martinique)",
+    "toName": "Pointe-à-Pitre (Guadeloupe)",
+    "text": "On July 17, island by island, Berry-Mappemonde leaves Fort-de-France (Martinique), heading northwest for Pointe-à-Pitre (Guadeloupe). 192 nautical miles, one day at sea, at 8 knots average. Then, the waters of Martinique, then those of Dominica, then those of Guadeloupe, then those of Montserrat. On July 17, at 21 nautical miles, the project Restore the preferred corals of the damsel fish Year 1. The next day, the boat sails along Basse-Terre. On July 18, at 27 nautical miles, the project NAUTIK N/BT - Preservation of the biodiversity of the Grand Cul Sac Marin. Then, at 27 nautical miles, the project CleanMyIsland. Arrival at Pointe-à-Pitre (Guadeloupe) on July 18, moored at Baie-Mahault marina. Three days at port."
+   },
+   {
+    "id": "leg-3",
+    "tA": "2026-07-18T19:40:22Z",
+    "tB": "2026-07-23T11:23:54Z",
+    "fromName": "Pointe-à-Pitre (Guadeloupe)",
+    "toName": "Gustavia (Saint-Barthélemy)",
+    "text": "On July 21, from island to island, Berry-Mappemonde leaves Pointe-à-Pitre (Guadeloupe), heading northwest for Gustavia (Saint-Barthélemy). 173 miles, one day at sea, at 8 knots average. Then, the waters of Guadeloupe, then those of Montserrat, then those of Antigua and Barbuda, then those of Saint Kitts and Nevis, then those of Saint Eustache, then those of Sint Maarten (Dutch part), then those of Saint Martin (French part). On July 22, the boat sails past Saint John's. Then, at twenty-seven miles, the Conch Surveying in St Kitts & Nevis project. Arrival at Gustavia (Saint-Barthélemy) on July 23, moored at Gustavia (Saint-Barthélemy)."
+   },
+   {
+    "id": "leg-4",
+    "tA": "2026-07-23T11:23:54Z",
+    "tB": "2026-07-27T08:58:13Z",
+    "fromName": "Gustavia (Saint-Barthélemy)",
+    "toName": "Marigot (Saint-Martin)",
+    "text": "On July 26, island-hopping, Berry-Mappemonde leaves Gustavia (Saint-Barthélemy), heading northwest for Marigot (Saint-Martin). 41 miles, one day at sea, at 8 knots average. Then, the waters of Saint-Barthélemy, then those of Sint Maarten (Dutch side), then those of Saint-Martin (French side). Arrival at Marigot (Saint-Martin) on July 27, moored at Marigot (Saint-Martin) port."
+   },
+   {
+    "id": "leg-5",
+    "tA": "2026-07-27T08:58:13Z",
+    "tB": "2026-08-15T20:20:47Z",
+    "fromName": "Marigot (Saint-Martin)",
+    "toName": "Cayenne (Guyane)",
+    "text": "On July 30, Berry-Mappemonde leaves Marigot (Saint-Martin), heading south for the long crossing to Cayenne (French Guiana). 1,200 miles, a fortnight at sea. Then, the waters of Saint-Martin (French part), then those of Sint Maarten (Dutch part). On July 30, high sea. Then, the waters of Saint-Eustache, then those of Saint-Christophe-et-Niévès, then those of Antigua-et-Barbuda, then those of Montserrat, then those of Guadeloupe, then those of Dominica, then those of Martinique, then those of Saint Lucia, then those of Saint Vincent and the Grenadines, then the Grenadine waters, then those of Trinidad and Tobago. On August 3, at twenty-one miles, the Sandy Island Oyster Bed Marine Protected Area project. Then, the boat sails past Saint George's. On August 4, at twenty-six miles, the Tackling Plastic Pollution Through Producer Accountability project. Then, Venezuelan waters, then those of Guyana. On August 9, the boat sails past Georgetown. The next day, Surinamese waters. On August 11, the northeast trade winds set in: nine knots, the seasonal average. Then, the boat sails past Paramaribo. On August 14, Guyanese waters. The next day, the LINKS oceanographic campaign zone. On August 15, the boat sails past Dégrad des Cannes. Then, at the equator, the southeast trade winds set in: eleven knots, the seasonal average. Arrival in Cayenne (French Guiana) on August 15, moored at the Dégrad des Cannes marina. Three-day stopover."
+   },
+   {
+    "id": "leg-6",
+    "tA": "2026-08-15T20:20:47Z",
+    "tB": "2026-08-19T04:28:25Z",
+    "fromName": "Cayenne (Guyane)",
+    "toName": "Halifax (Nouvelle-Écosse)",
+    "text": "On August 18, the crew flies from Cayenne (French Guiana) to Halifax (Nova Scotia); the catamaran waits at Cayenne (French Guiana)."
+   },
+   {
+    "id": "leg-7",
+    "tA": "2026-08-19T04:28:25Z",
+    "tB": "2026-08-21T18:34:56Z",
+    "fromName": "Halifax (Nouvelle-Écosse)",
+    "toName": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
+    "text": "On August 19, in Halifax (Nova Scotia), the crew boards a second vessel for Saint-Pierre (Saint Pierre and Miquelon). 497 miles, three days at sea. Then, the wind turns west: eight knots, the seasonal average. Then, the westerly winds set in: twelve knots, the seasonal average. Arrival at Saint-Pierre (Saint Pierre and Miquelon) on August 21, moored at Saint-Pierre (Saint Pierre and Miquelon) port."
+   },
+   {
+    "id": "leg-8",
+    "tA": "2026-08-21T18:34:56Z",
+    "tB": "2026-08-28T20:31:05Z",
+    "fromName": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
+    "toName": "Halifax (Nouvelle-Écosse)",
+    "text": "On August 23, at Saint-Pierre (Saint-Pierre-et-Miquelon), the crew takes on a second vessel for Halifax (Nova Scotia). 417 miles, five days at sea. Arrival in Halifax (Nova Scotia) on August 28, moored at the Halifax (Nova Scotia) port."
+   },
+   {
+    "id": "leg-9",
+    "tA": "2026-08-28T20:31:05Z",
+    "tB": "2026-08-29T04:31:05Z",
+    "fromName": "Halifax (Nouvelle-Écosse)",
+    "toName": "Cayenne (Guyane)",
+    "text": "On August 28, the crew flies from Halifax to Cayenne."
+   },
+   {
+    "id": "leg-10",
+    "tA": "2026-08-29T04:31:05Z",
+    "tB": "2026-10-14T03:34:42Z",
+    "fromName": "Cayenne (Guyane)",
+    "toName": "Papeete (Polynésie française)",
+    "text": "Le August 29, the catamaran puts to sea, departure for Papeete (French Polynesia). 6,671 miles, 46 days at sea, at 6 knots average. The next day, the wind turns north-east: six knots, the seasonal average. Le August 30, the north-east trade winds set in: twelve knots, the seasonal average. Then, at the equator, the south-east trade winds set in: twelve knots, the seasonal average. Arrival at Papeete (French Polynesia) on October 14, moored at Papeete (French Polynesia). Three days at port."
+   },
+   {
+    "id": "leg-11",
+    "tA": "2026-10-14T03:34:42Z",
+    "tB": "2026-10-27T13:55:18Z",
+    "fromName": "Papeete (Polynésie française)",
+    "toName": "Mata-Utu (Wallis-et-Futuna)",
+    "text": "On October 17, Berry-Mappemonde leaves Papeete (French Polynesia), heading west for the long crossing to Mata-Utu (Wallis and Futuna). 1,642 miles, about ten days at sea, at an average of 7 knots. Then, at 5 miles, the Tia'i fenua / nana sac plastique project. On October 17, French Polynesia waters. Then, at 10 miles, the Shark spy: bird's eye view project. On October 18, Argo float 5905685 floater. Then, Cook Islands waters. On October 22, at 22 miles, the Ocean Initiative project. Then, American Samoa waters. On October 24, the boat passes Pago Pago. The next day, Samoan waters, then Tongan waters, then Wallis and Futuna waters. On October 27, the boat passes Mata-Utu. Then, at 20 miles, the Mouvement du Focolari de Wallis et Futuna project. Arrival at Mata-Utu (Wallis and Futuna) on October 27, moored at Mata-Utu (Wallis and Futuna) port."
+   },
+   {
+    "id": "leg-12",
+    "tA": "2026-10-27T13:55:18Z",
+    "tB": "2026-11-07T15:57:44Z",
+    "fromName": "Mata-Utu (Wallis-et-Futuna)",
+    "toName": "Nouméa (Nouvelle-Calédonie)",
+    "text": "On October 30, Berry-Mappemonde leaves Mata-Utu (Wallis-et-Futuna), heading southwest for Nouméa (New Caledonia). 1,330 miles, a ten-day sea voyage, at an average of 7 knots. Then, Wallis-et-Futuna waters. On November 1, Tongan waters, then Fijian waters. Then, New Caledonia waters. On November 6, the CALICO oceanographic campaign zone. The following day, at twenty-six miles, the Programme Animlagon en Nouvelle-Calédonie project. Then, at twenty-six miles, the 10,000 enfants pour les coraux project. Arrival in Nouméa (New Caledonia) on November 7, moored at Port Brunelet. Three days' stopover."
+   },
+   {
+    "id": "leg-13",
+    "tA": "2026-11-07T15:57:44Z",
+    "tB": "2026-12-31T04:25:31Z",
+    "fromName": "Nouméa (Nouvelle-Calédonie)",
+    "toName": "Dzaoudzi (Mayotte)",
+    "text": "On November 10, Berry-Mappemonde leaves Nouméa (New Caledonia), heading west for the long crossing to Dzaoudzi (Mayotte). 9,152 miles, 48 days at sea, at 8 knots average. Then, the MAYOBS33 oceanographic campaign area. On November 10, New Caledonian waters. Then, Australian waters. On November 19, Papuan waters, then Indonesian waters. Then, the boat passes Dili. On November 24, the boat passes Ende. Then, the boat passes Tanjung Benete. On December 4, Indian Ocean waters. Then, high seas. On December 8, north-east trade winds settle in: seasonal average winds. Then, Sri Lankan waters. On December 18, at the equator, south-east trade winds settle in: seasonal average winds. Then, Maldivian waters. On December 26, Seychellois waters. The next day, the boat passes Victoria. Then, Malagasy waters, then those of the French Southern and Antarctic Lands, then those of Mayotte. Arrival at Dzaoudzi (Mayotte) on December 31, moored at Dzaoudzi (Mayotte) port."
+   },
+   {
+    "id": "leg-14",
+    "tA": "2026-12-31T04:25:31Z",
+    "tB": "2027-01-21T11:19:02Z",
+    "fromName": "Dzaoudzi (Mayotte)",
+    "toName": "Tromelin (TAAF)",
+    "text": "On January 3, Berry-Mappemonde leaves Dzaoudzi (Mayotte) for the long crossing to Tromelin (TAAF). 925 miles, about twenty days at sea. Then, the area of the oceanographic campaign MAYOBS33. On January 3, Mayotte waters. The next day, the area of the oceanographic campaign MAYOBS30. On January 4, Malagasy waters, then those of the French Southern and Antarctic Lands, then Seychellois waters. Then, the Argo float 6903148. Arrival at Tromelin (TAAF) on January 21, moored at Tromelin (TAAF) port."
+   },
+   {
+    "id": "leg-15",
+    "tA": "2027-01-21T11:19:02Z",
+    "tB": "2027-01-27T07:32:22Z",
+    "fromName": "Tromelin (TAAF)",
+    "toName": "Saint-Gilles (La Réunion)",
+    "text": "On January 24, from island to island, Berry-Mappemonde leaves Tromelin (TAAF), steering south for Saint-Gilles (La Réunion). 322 miles, three days at sea, at an average of 5 knots. Then, the waters of the French Southern and Antarctic Lands. On January 26, the waters of La Réunion. Then, the boat sails past Saint-Denis. On January 26, at twenty-five miles, the project Best Run. The next day, at twenty-six miles, the project Agence de Recherche pour la Biodiversité à La Réunion. Then, at twenty-six miles, the project Kosa - Sciences participatives citoyennes à La Réunion. Arrival at Saint-Gilles (La Réunion) on January 27, moored at the port of Saint-Gilles (La Réunion)."
+   },
+   {
+    "id": "leg-16",
+    "tA": "2027-01-27T07:32:22Z",
+    "tB": "2027-02-21T14:02:26Z",
+    "fromName": "Saint-Gilles (La Réunion)",
+    "toName": "Europa (TAAF)",
+    "text": "On January 30, Berry-Mappemonde leaves Saint-Gilles (La Réunion) for the long crossing to Europa (TAAF). 1,457 miles, about twenty days at sea. The next day, Mauritian waters. February 1, waters of La Réunion. The next day, high sea. February 3, Malagasy waters. Then, Argo float 7902126. February 20, south-easterly trade winds set in: seasonal average winds. The next day, waters of the French Southern and Antarctic Lands. Then, at nineteen miles, the project Les Iles Éparses, sentinelles de l'évolution de l'océan (ISEO). Arrival at Europa (TAAF) on February 21, moored at the port of Europa (TAAF)."
+   },
+   {
+    "id": "leg-17",
+    "tA": "2027-02-21T14:02:26Z",
+    "tB": "2027-05-31T22:50:43Z",
+    "fromName": "Europa (TAAF)",
+    "toName": "La Rochelle",
+    "text": "On February 24, for the last leg, Berry-Mappemonde leaves Europa (TAAF) for La Rochelle. 8,393 miles, 96 days at sea. Then, waters of the French Southern and Antarctic Lands. On February 25, Malagasy waters. Then, high sea. On March 5, South African waters. Then, at 28 miles, the Cresta Coastal Network project. On March 25, at 24 miles, the Causality project. Then, at 24 miles, the ID-shot Southern Right Whales project. On April 9, south-east trade winds set in: seasonal average winds. Then, at 23 miles, the High Seas: New Hope Beyond National Boundaries project. On April 20, the boat sails past Jamestown. Then, north-east trade winds set in: seasonal average winds. On May 3, Argo float 4903967. Then, Cape Verde waters. On May 16, disputed waters of Western Sahara. Then, Canary waters. Then, French waters. Arrival in La Rochelle on May 31, moored at Port de Saint-Martin-de-Ré. Today, the boat is in La Rochelle."
+   }
+  ]
+ }
+}

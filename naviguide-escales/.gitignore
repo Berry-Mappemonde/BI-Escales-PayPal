@@ -1,0 +1,23 @@
+node_modules/
+dist/
+.dev/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+server/polar_data/*.json
+server/voyage_data/
+server/forecast_cache/
+server/grib_data/
+server/saildocs_inbox/
+.env
+.DS_Store
+test-results/
+playwright-report/
+e2e/.auth/
+
+# Dépendances Python installées localement (contournement sandbox) — NE JAMAIS committer
+../../.pip_packages/
+candidate.geojson
+amp-nogo.json
+PLAN.md

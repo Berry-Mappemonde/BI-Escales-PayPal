@@ -1,0 +1,23 @@
+{
+  "default": 3,
+  "source": "programme Berry-Mappemonde 2026",
+  "stops": {
+    "Saint-Maur": 0,
+    "La Rochelle": 3,
+    "Ajaccio": 3,
+    "Fort-de-France": 3,
+    "Pointe-à-Pitre": 3,
+    "Gustavia": 3,
+    "Marigot": 3,
+    "Cayenne": 3,
+    "Halifax": 1,
+    "Saint-Pierre": 3,
+    "Papeete": 3,
+    "Mata-Utu": 3,
+    "Nouméa": 3,
+    "Dzaoudzi": 3,
+    "Tromelin": 3,
+    "Saint-Gilles": 3,
+    "Europa": 3
+  }
+}

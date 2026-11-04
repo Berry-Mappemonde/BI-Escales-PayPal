@@ -1,0 +1,99 @@
+{
+  "source": "fixture",
+  "review": {
+    "n": 2,
+    "source": "fixture",
+    "legs": [
+      {
+        "from": "Nouméa",
+        "to": "Dzaoudzi",
+        "departIso": "2026-10-01T08:00:00Z",
+        "arriveIso": "2026-11-02T08:00:00Z",
+        "depart": "2026-10-01",
+        "arrive": "2026-11-02",
+        "daysAtSea": 32,
+        "holdDays": 5,
+        "fromNm": 19324,
+        "toNm": 25468,
+        "legNm": 6144,
+        "month": 10,
+        "alertCount": 11,
+        "zees": [],
+        "flags": [],
+        "ampCount": 0,
+        "pearls": { "known": 1, "unknown": 0 },
+        "antiShipping": { "score": 0.78, "lanes": ["Malacca"] }
+      },
+      {
+        "from": "Dzaoudzi",
+        "to": "Le Cap",
+        "departIso": "2026-11-07T08:00:00Z",
+        "arriveIso": "2026-11-28T08:00:00Z",
+        "depart": "2026-11-07",
+        "arrive": "2026-11-28",
+        "daysAtSea": 21,
+        "holdDays": 4,
+        "fromNm": 25468,
+        "toNm": 28000,
+        "legNm": 2532,
+        "month": 11,
+        "alertCount": 2,
+        "zees": [],
+        "flags": [],
+        "ampCount": 0,
+        "pearls": { "known": 1, "unknown": 0 }
+      },
+      {
+        "from": "Ajaccio (Corse)",
+        "to": "Fort-de-France (Martinique)",
+        "departIso": "2026-05-27T08:00:00Z",
+        "arriveIso": "2026-06-24T10:00:00Z",
+        "depart": "2026-05-27",
+        "arrive": "2026-06-24",
+        "daysAtSea": 26.8,
+        "holdDays": 3,
+        "fromNm": 1820,
+        "toNm": 6973,
+        "legNm": 5153,
+        "month": 6,
+        "alertCount": 1,
+        "zees": [],
+        "flags": [],
+        "ampCount": 0,
+        "pearls": { "known": 1, "unknown": 0 },
+        "antiShipping": { "score": 0.83, "lanes": ["Gibraltar"] }
+      }
+    ]
+  },
+  "advice": {
+    "status": "done",
+    "source": "fixture",
+    "leg": 0,
+    "best": {
+      "shiftDays": 7,
+      "corridor": "north",
+      "extraNm": 41,
+      "alertsBefore": 11,
+      "alertsAfter": 5,
+      "totalBefore": 27,
+      "totalAfter": 19,
+      "from": "Nouméa",
+      "to": "Dzaoudzi",
+      "departWas": "2026-10-01",
+      "departNow": "2026-10-08",
+      "cascade": [
+        { "stop": "Dzaoudzi", "was": "2026-11-02", "now": "2026-11-09" }
+      ],
+      "facts": [
+        "jambe Nouméa → Dzaoudzi",
+        "décalage 7 jours (absolu 7)",
+        "départ 2026-10-01 → 2026-10-08",
+        "alertes 11 → 5",
+        "extraNm 41"
+      ],
+      "sentence": "Partir de Nouméa le 8 octobre plutôt que le 1er par le corridor nord : 5 alertes au lieu de 11 sur cette jambe (+41 nm) ; toutes les escales suivantes reculent de 7 jours.",
+      "sentenceLang": "fr",
+      "sentenceSource": "rules"
+    }
+  }
+}

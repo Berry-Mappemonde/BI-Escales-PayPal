@@ -1,0 +1,2171 @@
+{
+  "voyageId": "berry-mappemonde-2026-officiel-mini",
+  "t0": "2026-05-15T08:00:00Z",
+  "mode": "follow",
+  "startAt": "la-rochelle",
+  "points": [
+    {
+      "lat": 46.15,
+      "lon": -1.16,
+      "cumNm": 0.0,
+      "filmCum": 0.0,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 44.8354,
+      "lon": -3.6562,
+      "cumNm": 139.58,
+      "filmCum": 139.58,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 43.5208,
+      "lon": -6.1525,
+      "cumNm": 279.17,
+      "filmCum": 279.17,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 42.2062,
+      "lon": -8.6487,
+      "cumNm": 418.75,
+      "filmCum": 418.75,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 40.8917,
+      "lon": -11.145,
+      "cumNm": 558.33,
+      "filmCum": 558.33,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 39.5771,
+      "lon": -13.6413,
+      "cumNm": 697.92,
+      "filmCum": 697.92,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 38.2625,
+      "lon": -16.1375,
+      "cumNm": 837.5,
+      "filmCum": 837.5,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 36.9479,
+      "lon": -18.6338,
+      "cumNm": 977.08,
+      "filmCum": 977.08,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 35.6333,
+      "lon": -21.13,
+      "cumNm": 1116.67,
+      "filmCum": 1116.67,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 34.3188,
+      "lon": -23.6263,
+      "cumNm": 1256.25,
+      "filmCum": 1256.25,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 33.0042,
+      "lon": -26.1225,
+      "cumNm": 1395.83,
+      "filmCum": 1395.83,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 31.6896,
+      "lon": -28.6188,
+      "cumNm": 1535.42,
+      "filmCum": 1535.42,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 30.375,
+      "lon": -31.115,
+      "cumNm": 1675.0,
+      "filmCum": 1675.0,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 29.0604,
+      "lon": -33.6112,
+      "cumNm": 1814.58,
+      "filmCum": 1814.58,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 27.7458,
+      "lon": -36.1075,
+      "cumNm": 1954.17,
+      "filmCum": 1954.17,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 26.4312,
+      "lon": -38.6037,
+      "cumNm": 2093.75,
+      "filmCum": 2093.75,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 25.1167,
+      "lon": -41.1,
+      "cumNm": 2233.33,
+      "filmCum": 2233.33,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 23.8021,
+      "lon": -43.5963,
+      "cumNm": 2372.92,
+      "filmCum": 2372.92,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 22.4875,
+      "lon": -46.0925,
+      "cumNm": 2512.5,
+      "filmCum": 2512.5,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 21.1729,
+      "lon": -48.5887,
+      "cumNm": 2652.08,
+      "filmCum": 2652.08,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 19.8583,
+      "lon": -51.085,
+      "cumNm": 2791.67,
+      "filmCum": 2791.67,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 18.5438,
+      "lon": -53.5812,
+      "cumNm": 2931.25,
+      "filmCum": 2931.25,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 17.2292,
+      "lon": -56.0775,
+      "cumNm": 3070.83,
+      "filmCum": 3070.83,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 15.9146,
+      "lon": -58.5738,
+      "cumNm": 3210.42,
+      "filmCum": 3210.42,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 14.6,
+      "lon": -61.07,
+      "cumNm": 3350.0,
+      "filmCum": 3350.0,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 14.7094,
+      "lon": -61.1009,
+      "cumNm": 3358.67,
+      "filmCum": 3358.67,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 14.8188,
+      "lon": -61.1317,
+      "cumNm": 3367.33,
+      "filmCum": 3367.33,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 14.9282,
+      "lon": -61.1626,
+      "cumNm": 3376.0,
+      "filmCum": 3376.0,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 15.0376,
+      "lon": -61.1935,
+      "cumNm": 3384.67,
+      "filmCum": 3384.67,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 15.147,
+      "lon": -61.2243,
+      "cumNm": 3393.33,
+      "filmCum": 3393.33,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 15.2564,
+      "lon": -61.2552,
+      "cumNm": 3402.0,
+      "filmCum": 3402.0,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 15.3658,
+      "lon": -61.2861,
+      "cumNm": 3410.67,
+      "filmCum": 3410.67,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 15.4752,
+      "lon": -61.3169,
+      "cumNm": 3419.33,
+      "filmCum": 3419.33,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 15.5846,
+      "lon": -61.3478,
+      "cumNm": 3428.0,
+      "filmCum": 3428.0,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 15.694,
+      "lon": -61.3787,
+      "cumNm": 3436.67,
+      "filmCum": 3436.67,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 15.8034,
+      "lon": -61.4095,
+      "cumNm": 3445.33,
+      "filmCum": 3445.33,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 15.9128,
+      "lon": -61.4404,
+      "cumNm": 3454.0,
+      "filmCum": 3454.0,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 16.0222,
+      "lon": -61.4713,
+      "cumNm": 3462.67,
+      "filmCum": 3462.67,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 16.1316,
+      "lon": -61.5021,
+      "cumNm": 3471.33,
+      "filmCum": 3471.33,
+      "jump": false,
+      "nonMaritime": false
+    },
+    {
+      "lat": 16.241,
+      "lon": -61.533,
+      "cumNm": 3480.0,
+      "filmCum": 3480.0,
+      "jump": false,
+      "nonMaritime": false
+    }
+  ],
+  "marks": [
+    {
+      "name": "La Rochelle",
+      "nm": 0,
+      "filmNm": 0,
+      "lat": 46.15,
+      "lon": -1.16,
+      "index": 0
+    },
+    {
+      "name": "Fort-de-France (Martinique)",
+      "nm": 3350,
+      "filmNm": 3350,
+      "lat": 14.6,
+      "lon": -61.07,
+      "index": 24
+    },
+    {
+      "name": "Pointe-à-Pitre (Guadeloupe)",
+      "nm": 3480,
+      "filmNm": 3480,
+      "lat": 16.241,
+      "lon": -61.533,
+      "index": 39
+    }
+  ],
+  "clock": {
+    "t0": "2026-05-15T08:00:00Z",
+    "kind": "climatology",
+    "regime": "climatology",
+    "vertices": [
+      {
+        "filmNm": 0.0,
+        "sailNm": 0.0,
+        "lat": 46.15,
+        "lon": -1.16,
+        "bearing": 250.0,
+        "tHours": 0.0,
+        "iso": "2026-05-15T08:00:00Z",
+        "speedKnots": 8.0,
+        "windKnots": 14.0,
+        "hs": 1.4,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "hindcast",
+        "regime": "hindcast",
+        "sources": [
+          "era5"
+        ]
+      },
+      {
+        "filmNm": 139.58,
+        "sailNm": 139.58,
+        "lat": 44.8354,
+        "lon": -3.6562,
+        "bearing": 250.0,
+        "tHours": 17.4475,
+        "iso": "2026-05-16T01:26:51Z",
+        "speedKnots": 8.0,
+        "windKnots": 14.0,
+        "hs": 1.4,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "hindcast",
+        "regime": "hindcast",
+        "sources": [
+          "era5"
+        ]
+      },
+      {
+        "filmNm": 279.17,
+        "sailNm": 279.17,
+        "lat": 43.5208,
+        "lon": -6.1525,
+        "bearing": 250.0,
+        "tHours": 34.8963,
+        "iso": "2026-05-16T18:53:46Z",
+        "speedKnots": 8.0,
+        "windKnots": 16.0,
+        "hs": 1.6,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "forecast",
+        "regime": "forecast",
+        "sources": [
+          "openmeteo-gfs"
+        ]
+      },
+      {
+        "filmNm": 418.75,
+        "sailNm": 418.75,
+        "lat": 42.2062,
+        "lon": -8.6487,
+        "bearing": 250.0,
+        "tHours": 52.3438,
+        "iso": "2026-05-17T12:20:37Z",
+        "speedKnots": 8.0,
+        "windKnots": 16.0,
+        "hs": 1.6,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "forecast",
+        "regime": "forecast",
+        "sources": [
+          "openmeteo-gfs"
+        ]
+      },
+      {
+        "filmNm": 558.33,
+        "sailNm": 558.33,
+        "lat": 40.8917,
+        "lon": -11.145,
+        "bearing": 250.0,
+        "tHours": 69.7913,
+        "iso": "2026-05-18T05:47:28Z",
+        "speedKnots": 8.0,
+        "windKnots": 16.0,
+        "hs": 1.6,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "forecast",
+        "regime": "forecast",
+        "sources": [
+          "openmeteo-gfs"
+        ]
+      },
+      {
+        "filmNm": 697.92,
+        "sailNm": 697.92,
+        "lat": 39.5771,
+        "lon": -13.6413,
+        "bearing": 250.0,
+        "tHours": 87.24,
+        "iso": "2026-05-18T23:14:24Z",
+        "speedKnots": 8.0,
+        "windKnots": 16.0,
+        "hs": 1.6,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "forecast",
+        "regime": "forecast",
+        "sources": [
+          "openmeteo-gfs"
+        ]
+      },
+      {
+        "filmNm": 837.5,
+        "sailNm": 837.5,
+        "lat": 38.2625,
+        "lon": -16.1375,
+        "bearing": 250.0,
+        "tHours": 104.6875,
+        "iso": "2026-05-19T16:41:15Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 977.08,
+        "sailNm": 977.08,
+        "lat": 36.9479,
+        "lon": -18.6338,
+        "bearing": 250.0,
+        "tHours": 122.135,
+        "iso": "2026-05-20T10:08:06Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 1116.67,
+        "sailNm": 1116.67,
+        "lat": 35.6333,
+        "lon": -21.13,
+        "bearing": 250.0,
+        "tHours": 139.5838,
+        "iso": "2026-05-21T03:35:01Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 1256.25,
+        "sailNm": 1256.25,
+        "lat": 34.3188,
+        "lon": -23.6263,
+        "bearing": 250.0,
+        "tHours": 157.0312,
+        "iso": "2026-05-21T21:01:52Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 1395.83,
+        "sailNm": 1395.83,
+        "lat": 33.0042,
+        "lon": -26.1225,
+        "bearing": 250.0,
+        "tHours": 174.4787,
+        "iso": "2026-05-22T14:28:43Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 1535.42,
+        "sailNm": 1535.42,
+        "lat": 31.6896,
+        "lon": -28.6188,
+        "bearing": 250.0,
+        "tHours": 191.9275,
+        "iso": "2026-05-23T07:55:39Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 1675.0,
+        "sailNm": 1675.0,
+        "lat": 30.375,
+        "lon": -31.115,
+        "bearing": 250.0,
+        "tHours": 209.375,
+        "iso": "2026-05-24T01:22:30Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 1814.58,
+        "sailNm": 1814.58,
+        "lat": 29.0604,
+        "lon": -33.6112,
+        "bearing": 250.0,
+        "tHours": 226.8225,
+        "iso": "2026-05-24T18:49:21Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 1954.17,
+        "sailNm": 1954.17,
+        "lat": 27.7458,
+        "lon": -36.1075,
+        "bearing": 250.0,
+        "tHours": 244.2713,
+        "iso": "2026-05-25T12:16:16Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 2093.75,
+        "sailNm": 2093.75,
+        "lat": 26.4312,
+        "lon": -38.6037,
+        "bearing": 250.0,
+        "tHours": 261.7188,
+        "iso": "2026-05-26T05:43:07Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 2233.33,
+        "sailNm": 2233.33,
+        "lat": 25.1167,
+        "lon": -41.1,
+        "bearing": 250.0,
+        "tHours": 279.1662,
+        "iso": "2026-05-26T23:09:58Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 2372.92,
+        "sailNm": 2372.92,
+        "lat": 23.8021,
+        "lon": -43.5963,
+        "bearing": 250.0,
+        "tHours": 296.615,
+        "iso": "2026-05-27T16:36:54Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 2512.5,
+        "sailNm": 2512.5,
+        "lat": 22.4875,
+        "lon": -46.0925,
+        "bearing": 250.0,
+        "tHours": 314.0625,
+        "iso": "2026-05-28T10:03:45Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 2652.08,
+        "sailNm": 2652.08,
+        "lat": 21.1729,
+        "lon": -48.5887,
+        "bearing": 250.0,
+        "tHours": 331.51,
+        "iso": "2026-05-29T03:30:36Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 2791.67,
+        "sailNm": 2791.67,
+        "lat": 19.8583,
+        "lon": -51.085,
+        "bearing": 250.0,
+        "tHours": 348.9588,
+        "iso": "2026-05-29T20:57:31Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 2931.25,
+        "sailNm": 2931.25,
+        "lat": 18.5438,
+        "lon": -53.5812,
+        "bearing": 250.0,
+        "tHours": 366.4062,
+        "iso": "2026-05-30T14:24:22Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3070.83,
+        "sailNm": 3070.83,
+        "lat": 17.2292,
+        "lon": -56.0775,
+        "bearing": 250.0,
+        "tHours": 383.8537,
+        "iso": "2026-05-31T07:51:13Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 5,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3210.42,
+        "sailNm": 3210.42,
+        "lat": 15.9146,
+        "lon": -58.5738,
+        "bearing": 250.0,
+        "tHours": 401.3025,
+        "iso": "2026-06-01T01:18:09Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3350.0,
+        "sailNm": 3350.0,
+        "lat": 14.6,
+        "lon": -61.07,
+        "bearing": 250.0,
+        "tHours": 418.75,
+        "iso": "2026-06-01T18:45:00Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3358.67,
+        "sailNm": 3358.67,
+        "lat": 14.7094,
+        "lon": -61.1009,
+        "bearing": 330.0,
+        "tHours": 491.8338,
+        "iso": "2026-06-04T19:50:01Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3367.33,
+        "sailNm": 3367.33,
+        "lat": 14.8188,
+        "lon": -61.1317,
+        "bearing": 330.0,
+        "tHours": 492.9162,
+        "iso": "2026-06-04T20:54:58Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3376.0,
+        "sailNm": 3376.0,
+        "lat": 14.9282,
+        "lon": -61.1626,
+        "bearing": 330.0,
+        "tHours": 494.0,
+        "iso": "2026-06-04T22:00:00Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3384.67,
+        "sailNm": 3384.67,
+        "lat": 15.0376,
+        "lon": -61.1935,
+        "bearing": 330.0,
+        "tHours": 495.0838,
+        "iso": "2026-06-04T23:05:01Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3393.33,
+        "sailNm": 3393.33,
+        "lat": 15.147,
+        "lon": -61.2243,
+        "bearing": 330.0,
+        "tHours": 496.1662,
+        "iso": "2026-06-05T00:09:58Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3402.0,
+        "sailNm": 3402.0,
+        "lat": 15.2564,
+        "lon": -61.2552,
+        "bearing": 330.0,
+        "tHours": 497.25,
+        "iso": "2026-06-05T01:15:00Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3410.67,
+        "sailNm": 3410.67,
+        "lat": 15.3658,
+        "lon": -61.2861,
+        "bearing": 330.0,
+        "tHours": 498.3338,
+        "iso": "2026-06-05T02:20:01Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3419.33,
+        "sailNm": 3419.33,
+        "lat": 15.4752,
+        "lon": -61.3169,
+        "bearing": 330.0,
+        "tHours": 499.4162,
+        "iso": "2026-06-05T03:24:58Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3428.0,
+        "sailNm": 3428.0,
+        "lat": 15.5846,
+        "lon": -61.3478,
+        "bearing": 330.0,
+        "tHours": 500.5,
+        "iso": "2026-06-05T04:30:00Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3436.67,
+        "sailNm": 3436.67,
+        "lat": 15.694,
+        "lon": -61.3787,
+        "bearing": 330.0,
+        "tHours": 501.5838,
+        "iso": "2026-06-05T05:35:01Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3445.33,
+        "sailNm": 3445.33,
+        "lat": 15.8034,
+        "lon": -61.4095,
+        "bearing": 330.0,
+        "tHours": 502.6662,
+        "iso": "2026-06-05T06:39:58Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3454.0,
+        "sailNm": 3454.0,
+        "lat": 15.9128,
+        "lon": -61.4404,
+        "bearing": 330.0,
+        "tHours": 503.75,
+        "iso": "2026-06-05T07:45:00Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3462.67,
+        "sailNm": 3462.67,
+        "lat": 16.0222,
+        "lon": -61.4713,
+        "bearing": 330.0,
+        "tHours": 504.8338,
+        "iso": "2026-06-05T08:50:01Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3471.33,
+        "sailNm": 3471.33,
+        "lat": 16.1316,
+        "lon": -61.5021,
+        "bearing": 330.0,
+        "tHours": 505.9162,
+        "iso": "2026-06-05T09:54:58Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      },
+      {
+        "filmNm": 3480.0,
+        "sailNm": 3480.0,
+        "lat": 16.241,
+        "lon": -61.533,
+        "bearing": 330.0,
+        "tHours": 507.0,
+        "iso": "2026-06-05T11:00:00Z",
+        "speedKnots": 8.0,
+        "windKnots": 12.0,
+        "hs": 1.2,
+        "month": 6,
+        "vehicle": "main",
+        "basis": "planned",
+        "kind": "climatology",
+        "regime": "climatology",
+        "sources": [
+          "atlas"
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "name": "La Rochelle",
+        "nm": 0,
+        "filmNm": 0,
+        "lat": 46.15,
+        "lon": -1.16,
+        "index": 0,
+        "tHours": 0,
+        "holdHours": 0,
+        "iso": "2026-05-15T08:00:00Z"
+      },
+      {
+        "name": "Fort-de-France (Martinique)",
+        "nm": 3350,
+        "filmNm": 3350,
+        "lat": 14.6,
+        "lon": -61.07,
+        "index": 24,
+        "tHours": 418.75,
+        "holdHours": 72,
+        "iso": "2026-06-01T18:45:00Z"
+      },
+      {
+        "name": "Pointe-à-Pitre (Guadeloupe)",
+        "nm": 3480,
+        "filmNm": 3480,
+        "lat": 16.241,
+        "lon": -61.533,
+        "index": 39,
+        "tHours": 507.0,
+        "holdHours": 48,
+        "iso": "2026-06-05T11:00:00Z"
+      }
+    ]
+  },
+  "pearls": [
+    {
+      "lat": 46.15,
+      "lon": -1.16,
+      "sailNm": 0.0,
+      "pearl": "rich",
+      "zee": {
+        "name": "French Exclusive Economic Zone",
+        "mrgid": 5677,
+        "territory": "france_metropolitaine",
+        "gold": true
+      },
+      "poe": [
+        {
+          "name": "La Rochelle - La Pallice",
+          "nm": 1.2,
+          "url": "https://www.larochelle.port.fr/"
+        }
+      ],
+      "amp": [],
+      "nearby": {
+        "marinas": [
+          {
+            "name": "Port des Minimes",
+            "nm": 0.8,
+            "url": "https://www.portlarochelle.com/"
+          }
+        ]
+      },
+      "aton": {
+        "nearby": [
+          {
+            "name": "Feu des Minimes",
+            "nm": 0.4
+          }
+        ],
+        "source": "osm"
+      },
+      "emodnet": {
+        "seabed": {
+          "kind": "observation",
+          "source": "emodnet-geology",
+          "label": "sand",
+          "reason": null
+        }
+      },
+      "science": {
+        "nearby": [
+          {
+            "name": "Campagne THALASSA",
+            "nm": 4.0,
+            "kind": "cruise",
+            "provider": "Ifremer"
+          }
+        ]
+      },
+      "climatology": {
+        "month": 5,
+        "rose": {
+          "gale_pct": 4.0
+        },
+        "cyclone": {
+          "nearby": 0,
+          "in_season": false
+        }
+      },
+      "satellites": {
+        "source": "cdse",
+        "scene": {
+          "id": "S2A_MSIL2A_20260515T110000_N0512_R094_T30TWT_20260515T140000",
+          "product": "Sentinel-2",
+          "datetime": "2026-05-15T11:00:00Z"
+        }
+      },
+      "weather": {
+        "status": "ready",
+        "source": "openmeteo-gfs",
+        "wind": {
+          "speedKnots": 14.0,
+          "dirFromDeg": 270
+        },
+        "wave": {
+          "hs": 1.4
+        }
+      },
+      "sources": {
+        "zee": "vliz-local",
+        "bi": "ok",
+        "weather": "openmeteo-gfs",
+        "satellites": "cdse",
+        "emodnet": "emodnet",
+        "aton": "osm",
+        "climatology": "atlas"
+      },
+      "at": {
+        "lat": 46.15,
+        "lon": -1.16
+      }
+    },
+    {
+      "lat": 44.8354,
+      "lon": -3.6562,
+      "sailNm": 139.58,
+      "pearl": "rich",
+      "zee": {
+        "name": "French Exclusive Economic Zone",
+        "mrgid": 5677,
+        "territory": "france_metropolitaine",
+        "gold": true
+      },
+      "poe": [
+        {
+          "name": "La Rochelle - La Pallice",
+          "nm": 12.0,
+          "url": "https://www.larochelle.port.fr/"
+        }
+      ],
+      "amp": [
+        {
+          "name": "Parc naturel marin de l’estuaire de la Gironde",
+          "nm": 18.0,
+          "site_id": "fr-pn-gironde",
+          "iucn_cat": "V",
+          "designation": "parc naturel marin",
+          "visit_url": "https://parc-marin-gironde.fr/"
+        }
+      ],
+      "nearby": {
+        "marinas": []
+      },
+      "aton": {
+        "nearby": [],
+        "source": "osm"
+      },
+      "emodnet": {
+        "seabed": {
+          "kind": "observation",
+          "source": "emodnet-geology",
+          "label": "mud",
+          "reason": null
+        }
+      },
+      "science": {
+        "nearby": []
+      },
+      "climatology": {
+        "month": 5,
+        "rose": {
+          "gale_pct": 6.5
+        },
+        "cyclone": {
+          "nearby": 0,
+          "in_season": false
+        }
+      },
+      "satellites": {
+        "reason": "not_in_along_pearl"
+      },
+      "weather": {
+        "status": "ready",
+        "source": "openmeteo-gfs",
+        "wind": {
+          "speedKnots": 16.0
+        },
+        "wave": {
+          "hs": 1.6
+        }
+      },
+      "sources": {
+        "zee": "vliz-local",
+        "bi": "ok",
+        "weather": "openmeteo-gfs",
+        "emodnet": "emodnet",
+        "climatology": "atlas"
+      },
+      "at": {
+        "lat": 44.8354,
+        "lon": -3.6562
+      }
+    },
+    {
+      "lat": 42.2062,
+      "lon": -8.6487,
+      "sailNm": 418.75,
+      "pearl": "rich",
+      "zee": {
+        "name": "Haute mer",
+        "mrgid": null,
+        "territory": null,
+        "gold": false
+      },
+      "poe": [],
+      "amp": [],
+      "nearby": {
+        "marinas": []
+      },
+      "aton": {
+        "nearby": [],
+        "reason": "not_in_along_pearl"
+      },
+      "emodnet": {
+        "seabed": {
+          "reason": "no_feature_at_point"
+        }
+      },
+      "science": {
+        "nearby": []
+      },
+      "climatology": {
+        "month": 5,
+        "rose": {
+          "gale_pct": 8.0
+        },
+        "cyclone": {
+          "nearby": 0,
+          "in_season": false
+        }
+      },
+      "satellites": {
+        "reason": "not_in_along_pearl"
+      },
+      "weather": {
+        "status": "ready",
+        "source": "openmeteo-gfs",
+        "wind": {
+          "speedKnots": 18.0
+        },
+        "wave": {
+          "hs": 2.0
+        }
+      },
+      "sources": {
+        "zee": "vliz-local",
+        "weather": "openmeteo-gfs",
+        "climatology": "atlas"
+      },
+      "at": {
+        "lat": 42.2062,
+        "lon": -8.6487
+      }
+    },
+    {
+      "lat": 38.2625,
+      "lon": -16.1375,
+      "sailNm": 837.5,
+      "pearl": "rich",
+      "zee": {
+        "name": "Haute mer",
+        "mrgid": null,
+        "gold": false
+      },
+      "poe": [],
+      "amp": [],
+      "nearby": {
+        "marinas": []
+      },
+      "aton": {
+        "nearby": []
+      },
+      "emodnet": {
+        "seabed": {
+          "reason": "no_feature_at_point"
+        }
+      },
+      "science": {
+        "nearby": []
+      },
+      "climatology": {
+        "month": 5,
+        "rose": {
+          "gale_pct": 9.0
+        },
+        "cyclone": {
+          "nearby": 0,
+          "in_season": false
+        }
+      },
+      "satellites": {
+        "reason": "not_in_along_pearl"
+      },
+      "weather": {
+        "status": "ready",
+        "wind": {
+          "speedKnots": 20.0
+        },
+        "wave": {
+          "hs": 2.2
+        },
+        "source": "openmeteo-gfs"
+      },
+      "sources": {
+        "zee": "marineregions",
+        "weather": "openmeteo-gfs",
+        "climatology": "atlas"
+      },
+      "at": {
+        "lat": 38.2625,
+        "lon": -16.1375
+      }
+    },
+    {
+      "lat": 33.0042,
+      "lon": -26.1225,
+      "sailNm": 1395.83,
+      "pearl": "rich",
+      "zee": {
+        "name": "Haute mer",
+        "mrgid": null,
+        "gold": false
+      },
+      "poe": [],
+      "amp": [],
+      "nearby": {
+        "marinas": []
+      },
+      "aton": {
+        "nearby": []
+      },
+      "emodnet": {
+        "seabed": {
+          "reason": "no_feature_at_point"
+        }
+      },
+      "science": {
+        "nearby": []
+      },
+      "climatology": {
+        "month": 5,
+        "rose": {
+          "gale_pct": 11.0
+        },
+        "cyclone": {
+          "nearby": 2,
+          "in_season": true
+        }
+      },
+      "satellites": {
+        "reason": "not_in_along_pearl"
+      },
+      "weather": {
+        "status": "ready",
+        "wind": {
+          "speedKnots": 22.0
+        },
+        "wave": {
+          "hs": 2.4
+        },
+        "source": "openmeteo-gfs"
+      },
+      "sources": {
+        "zee": "marineregions",
+        "weather": "openmeteo-gfs",
+        "climatology": "atlas"
+      },
+      "at": {
+        "lat": 33.0042,
+        "lon": -26.1225
+      }
+    },
+    {
+      "lat": 27.7458,
+      "lon": -36.1075,
+      "sailNm": 1954.17,
+      "pearl": "rich",
+      "zee": {
+        "name": "Haute mer",
+        "mrgid": null,
+        "gold": false
+      },
+      "poe": [],
+      "amp": [],
+      "nearby": {
+        "marinas": []
+      },
+      "aton": {
+        "nearby": []
+      },
+      "emodnet": {
+        "seabed": {
+          "reason": "no_feature_at_point"
+        }
+      },
+      "science": {
+        "nearby": []
+      },
+      "climatology": {
+        "month": 5,
+        "rose": {
+          "gale_pct": 10.0
+        },
+        "cyclone": {
+          "nearby": 1,
+          "in_season": true
+        }
+      },
+      "satellites": {
+        "reason": "not_in_along_pearl"
+      },
+      "weather": {
+        "status": "ready",
+        "wind": {
+          "speedKnots": 19.0
+        },
+        "wave": {
+          "hs": 2.1
+        },
+        "source": "openmeteo-gfs"
+      },
+      "sources": {
+        "zee": "marineregions",
+        "weather": "openmeteo-gfs",
+        "climatology": "atlas"
+      },
+      "at": {
+        "lat": 27.7458,
+        "lon": -36.1075
+      }
+    },
+    {
+      "lat": 21.1729,
+      "lon": -48.5887,
+      "sailNm": 2652.08,
+      "pearl": "rich",
+      "zee": {
+        "name": "Haute mer",
+        "mrgid": null,
+        "gold": false
+      },
+      "poe": [],
+      "amp": [],
+      "nearby": {
+        "marinas": []
+      },
+      "aton": {
+        "nearby": []
+      },
+      "emodnet": {
+        "seabed": {
+          "reason": "no_feature_at_point"
+        }
+      },
+      "science": {
+        "nearby": [
+          {
+            "name": "Station PIRATA",
+            "nm": 8.0,
+            "kind": "mooring"
+          }
+        ]
+      },
+      "climatology": {
+        "month": 5,
+        "rose": {
+          "gale_pct": 7.0
+        },
+        "cyclone": {
+          "nearby": 0,
+          "in_season": false
+        }
+      },
+      "satellites": {
+        "reason": "not_in_along_pearl"
+      },
+      "weather": {
+        "status": "ready",
+        "wind": {
+          "speedKnots": 15.0
+        },
+        "wave": {
+          "hs": 1.8
+        },
+        "source": "openmeteo-gfs"
+      },
+      "sources": {
+        "zee": "marineregions",
+        "weather": "openmeteo-gfs",
+        "climatology": "atlas"
+      },
+      "at": {
+        "lat": 21.1729,
+        "lon": -48.5887
+      }
+    },
+    {
+      "lat": 17.2292,
+      "lon": -56.0775,
+      "sailNm": 3070.83,
+      "pearl": "rich",
+      "zee": {
+        "name": "French Exclusive Economic Zone",
+        "mrgid": 33178,
+        "territory": "martinique",
+        "gold": false
+      },
+      "poe": [],
+      "amp": [],
+      "nearby": {
+        "marinas": []
+      },
+      "aton": {
+        "nearby": []
+      },
+      "emodnet": {
+        "seabed": {
+          "kind": "observation",
+          "source": "emodnet-geology",
+          "label": "coral",
+          "reason": null
+        }
+      },
+      "science": {
+        "nearby": []
+      },
+      "climatology": {
+        "month": 5,
+        "rose": {
+          "gale_pct": 5.0
+        },
+        "cyclone": {
+          "nearby": 0,
+          "in_season": false
+        }
+      },
+      "satellites": {
+        "reason": "not_in_along_pearl"
+      },
+      "weather": {
+        "status": "ready",
+        "wind": {
+          "speedKnots": 13.0
+        },
+        "wave": {
+          "hs": 1.5
+        },
+        "source": "openmeteo-gfs"
+      },
+      "sources": {
+        "zee": "vliz-local",
+        "bi": "ok",
+        "weather": "openmeteo-gfs",
+        "climatology": "atlas"
+      },
+      "at": {
+        "lat": 17.2292,
+        "lon": -56.0775
+      }
+    },
+    {
+      "lat": 14.6,
+      "lon": -61.07,
+      "sailNm": 3350.0,
+      "pearl": "rich",
+      "zee": {
+        "name": "French Exclusive Economic Zone",
+        "mrgid": 33178,
+        "territory": "martinique",
+        "gold": true
+      },
+      "poe": [
+        {
+          "name": "Fort-de-France",
+          "nm": 2.0,
+          "url": "https://www.martinique.port.fr/"
+        }
+      ],
+      "amp": [
+        {
+          "name": "Réserve naturelle de la Caravelle",
+          "nm": 11.0,
+          "site_id": "fr-rn-caravelle",
+          "iucn_cat": "IV",
+          "designation": "réserve naturelle"
+        }
+      ],
+      "nearby": {
+        "marinas": [
+          {
+            "name": "Marina du Marin",
+            "nm": 14.0
+          }
+        ]
+      },
+      "aton": {
+        "nearby": [
+          {
+            "name": "Phare de la Caravelle",
+            "nm": 10.0
+          }
+        ],
+        "source": "osm"
+      },
+      "emodnet": {
+        "seabed": {
+          "kind": "observation",
+          "source": "emodnet-geology",
+          "label": "sand",
+          "reason": null
+        }
+      },
+      "science": {
+        "nearby": []
+      },
+      "climatology": {
+        "month": 5,
+        "rose": {
+          "gale_pct": 3.5
+        },
+        "cyclone": {
+          "nearby": 0,
+          "in_season": false
+        }
+      },
+      "satellites": {
+        "source": "cdse",
+        "scene": {
+          "id": "S2B_MSIL2A_20260522T143000_N0512_R096_T20PPA_20260522T170000",
+          "product": "Sentinel-2",
+          "datetime": "2026-05-22T14:30:00Z"
+        }
+      },
+      "weather": {
+        "status": "ready",
+        "source": "openmeteo-gfs",
+        "wind": {
+          "speedKnots": 12.0
+        },
+        "wave": {
+          "hs": 1.2
+        }
+      },
+      "sources": {
+        "zee": "vliz-local",
+        "bi": "ok",
+        "weather": "openmeteo-gfs",
+        "satellites": "cdse",
+        "emodnet": "emodnet",
+        "aton": "osm",
+        "climatology": "atlas"
+      },
+      "at": {
+        "lat": 14.6,
+        "lon": -61.07
+      }
+    },
+    {
+      "lat": 15.2564,
+      "lon": -61.2552,
+      "sailNm": 3402.0,
+      "pearl": "rich",
+      "zee": {
+        "name": "French Exclusive Economic Zone (Guadeloupe)",
+        "mrgid": 33177,
+        "territory": "guadeloupe",
+        "gold": true
+      },
+      "poe": [
+        {
+          "name": "Pointe-à-Pitre",
+          "nm": 18.0,
+          "url": "https://www.guadeloupe-port.com/"
+        }
+      ],
+      "amp": [
+        {
+          "name": "Grand Cul-de-Sac Marin",
+          "nm": 6.0,
+          "site_id": "fr-amp-gcsm",
+          "iucn_cat": "II",
+          "designation": "parc national",
+          "visit_url": "https://www.guadeloupe-parcnational.fr/"
+        }
+      ],
+      "nearby": {
+        "marinas": [
+          {
+            "name": "Marina Bas-du-Fort",
+            "nm": 16.0
+          }
+        ]
+      },
+      "aton": {
+        "nearby": [
+          {
+            "name": "Phare de Port-Louis",
+            "nm": 9.0
+          }
+        ],
+        "source": "osm"
+      },
+      "emodnet": {
+        "seabed": {
+          "kind": "observation",
+          "source": "emodnet-geology",
+          "label": "coral",
+          "reason": null
+        }
+      },
+      "science": {
+        "nearby": [
+          {
+            "name": "Station CORIOLIS-Guadeloupe",
+            "nm": 7.5,
+            "kind": "station"
+          }
+        ]
+      },
+      "climatology": {
+        "month": 5,
+        "rose": {
+          "gale_pct": 3.0
+        },
+        "cyclone": {
+          "nearby": 0,
+          "in_season": false
+        }
+      },
+      "satellites": {
+        "source": "cdse",
+        "scene": {
+          "id": "S2A_MSIL2A_20260523T144000_N0512_R096_T20QPE_20260523T171000",
+          "product": "Sentinel-2",
+          "datetime": "2026-05-23T14:40:00Z"
+        }
+      },
+      "weather": {
+        "status": "ready",
+        "source": "openmeteo-gfs",
+        "wind": {
+          "speedKnots": 12.0,
+          "dirFromDeg": 80
+        },
+        "wave": {
+          "hs": 1.1
+        }
+      },
+      "sources": {
+        "zee": "vliz-local",
+        "bi": "ok",
+        "weather": "openmeteo-gfs",
+        "satellites": "cdse",
+        "emodnet": "emodnet",
+        "aton": "osm",
+        "climatology": "atlas"
+      },
+      "at": {
+        "lat": 15.2564,
+        "lon": -61.2552
+      }
+    },
+    {
+      "lat": 15.694,
+      "lon": -61.3787,
+      "sailNm": 3436.67,
+      "pearl": "rich",
+      "zee": {
+        "name": "French Exclusive Economic Zone (Guadeloupe)",
+        "mrgid": 33177,
+        "territory": "guadeloupe",
+        "gold": true
+      },
+      "poe": [
+        {
+          "name": "Pointe-à-Pitre",
+          "nm": 9.0,
+          "url": "https://www.guadeloupe-port.com/"
+        }
+      ],
+      "amp": [
+        {
+          "name": "Grand Cul-de-Sac Marin",
+          "nm": 4.0,
+          "site_id": "fr-amp-gcsm",
+          "iucn_cat": "II",
+          "designation": "parc national",
+          "visit_url": "https://www.guadeloupe-parcnational.fr/"
+        }
+      ],
+      "nearby": {
+        "marinas": [
+          {
+            "name": "Marina Bas-du-Fort",
+            "nm": 8.0,
+            "url": "https://www.marinabasdufort.com/"
+          }
+        ]
+      },
+      "aton": {
+        "nearby": [
+          {
+            "name": "Feu de la Pointe Jarry",
+            "nm": 7.0
+          }
+        ],
+        "source": "osm"
+      },
+      "emodnet": {
+        "seabed": {
+          "kind": "observation",
+          "source": "emodnet-geology",
+          "label": "sand",
+          "reason": null
+        }
+      },
+      "science": {
+        "nearby": []
+      },
+      "climatology": {
+        "month": 5,
+        "rose": {
+          "gale_pct": 2.5
+        },
+        "cyclone": {
+          "nearby": 0,
+          "in_season": false
+        }
+      },
+      "satellites": {
+        "reason": "not_in_along_pearl"
+      },
+      "weather": {
+        "status": "ready",
+        "source": "openmeteo-gfs",
+        "wind": {
+          "speedKnots": 11.0
+        },
+        "wave": {
+          "hs": 1.0
+        }
+      },
+      "sources": {
+        "zee": "vliz-local",
+        "bi": "ok",
+        "weather": "openmeteo-gfs",
+        "emodnet": "emodnet",
+        "aton": "osm",
+        "climatology": "atlas"
+      },
+      "at": {
+        "lat": 15.694,
+        "lon": -61.3787
+      }
+    },
+    {
+      "lat": 16.241,
+      "lon": -61.533,
+      "sailNm": 3480.0,
+      "pearl": "rich",
+      "zee": {
+        "name": "French Exclusive Economic Zone (Guadeloupe)",
+        "mrgid": 33177,
+        "territory": "guadeloupe",
+        "gold": true
+      },
+      "poe": [
+        {
+          "name": "Pointe-à-Pitre",
+          "nm": 1.5,
+          "url": "https://www.guadeloupe-port.com/"
+        }
+      ],
+      "amp": [],
+      "nearby": {
+        "marinas": [
+          {
+            "name": "Marina Bas-du-Fort",
+            "nm": 1.0,
+            "url": "https://www.marinabasdufort.com/"
+          }
+        ]
+      },
+      "aton": {
+        "nearby": [
+          {
+            "name": "Feu de la Pointe Jarry",
+            "nm": 0.6
+          }
+        ],
+        "source": "osm"
+      },
+      "emodnet": {
+        "seabed": {
+          "kind": "observation",
+          "source": "emodnet-geology",
+          "label": "mud",
+          "reason": null
+        }
+      },
+      "science": {
+        "nearby": []
+      },
+      "climatology": {
+        "month": 5,
+        "rose": {
+          "gale_pct": 2.0
+        },
+        "cyclone": {
+          "nearby": 0,
+          "in_season": false
+        }
+      },
+      "satellites": {
+        "source": "cdse",
+        "scene": {
+          "id": "S2B_MSIL2A_20260524T144200_N0512_R096_T20QPE_20260524T171200",
+          "product": "Sentinel-2",
+          "datetime": "2026-05-24T14:42:00Z"
+        }
+      },
+      "weather": {
+        "status": "ready",
+        "source": "openmeteo-gfs",
+        "wind": {
+          "speedKnots": 8.0
+        },
+        "wave": {
+          "hs": 0.6
+        }
+      },
+      "sources": {
+        "zee": "vliz-local",
+        "bi": "ok",
+        "weather": "openmeteo-gfs",
+        "satellites": "cdse",
+        "emodnet": "emodnet",
+        "aton": "osm",
+        "climatology": "atlas"
+      },
+      "at": {
+        "lat": 16.241,
+        "lon": -61.533
+      }
+    }
+  ],
+  "legs": [
+    {
+      "from": "La Rochelle",
+      "to": "Fort-de-France (Martinique)",
+      "day": 17,
+      "kn": 8.0,
+      "basis": "planned",
+      "remainingNm": 900.0,
+      "doneNm": 2450.0,
+      "headingDeg": 250.0,
+      "eta": {
+        "p10": "2026-06-01",
+        "p90": "2026-06-04"
+      },
+      "regime": "climatology",
+      "fromNm": 0.0,
+      "toNm": 3350.0,
+      "legNm": 3350
+    },
+    {
+      "from": "Fort-de-France (Martinique)",
+      "to": "Pointe-à-Pitre (Guadeloupe)",
+      "day": 21,
+      "kn": 8.0,
+      "basis": "planned",
+      "remainingNm": 80.0,
+      "doneNm": 50.0,
+      "headingDeg": 330.0,
+      "eta": {
+        "p10": "2026-06-06T22:00:00Z",
+        "p90": "2026-06-07T06:00:00Z"
+      },
+      "regime": "climatology",
+      "fromNm": 3350.0,
+      "toNm": 3480.0,
+      "legNm": 130
+    }
+  ],
+  "skipper_thresholds": {
+    "galeKt": 34,
+    "hsAlertM": 3.0
+  }
+}

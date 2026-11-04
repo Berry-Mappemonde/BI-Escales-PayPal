@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Application web (MapLibre) — pas de zones privées à bloquer pour l’instant.
+Sitemap: https://www.naviguide.fr/sitemap.xml

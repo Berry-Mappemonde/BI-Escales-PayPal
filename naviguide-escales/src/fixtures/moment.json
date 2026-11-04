@@ -1,0 +1,152 @@
+{
+  "t": "2026-06-05T01:15:00Z",
+  "pos": {
+    "lat": 15.2564,
+    "lon": -61.2552
+  },
+  "mode": "follow",
+  "leg": {
+    "from": "Fort-de-France (Martinique)",
+    "to": "Pointe-à-Pitre (Guadeloupe)",
+    "day": 21,
+    "kn": 8.0,
+    "basis": "planned",
+    "remainingNm": 80.0,
+    "doneNm": 50.0,
+    "headingDeg": 330.0,
+    "eta": {
+      "p10": "2026-06-06T22:00:00Z",
+      "p90": "2026-06-07T06:00:00Z"
+    },
+    "regime": "climatology"
+  },
+  "alerts": [
+    {
+      "id": "wind-2026-06-05",
+      "kind": "wind",
+      "severity": "alert",
+      "title": "Coup de vent",
+      "fact": "Vent 36 kn ≥ 34 kn.",
+      "until": null
+    },
+    {
+      "id": "sea-2026-06-05",
+      "kind": "sea",
+      "severity": "alert",
+      "title": "Mer",
+      "fact": "Hs 3,4 m ≥ 3,0 m.",
+      "until": null
+    },
+    {
+      "id": "mpa-fr-amp-gcsm",
+      "kind": "mpa",
+      "severity": "decision",
+      "title": "Aire marine protégée",
+      "fact": "Grand Cul-de-Sac Marin (6 nm): IUCN II.",
+      "until": null
+    }
+  ],
+  "here": {
+    "zee": {
+      "name": "Zone économique exclusive française (Guadeloupe)",
+      "mrgid": 33177,
+      "entry": {
+        "known": true,
+        "ports": [
+          "Pointe-à-Pitre"
+        ]
+      }
+    },
+    "entry": {
+      "known": true,
+      "ports": [
+        "Pointe-à-Pitre"
+      ]
+    },
+    "mpa": [
+      {
+        "name": "Grand Cul-de-Sac Marin",
+        "nm": 6.0,
+        "url": "https://www.guadeloupe-parcnational.fr/",
+        "site_id": "fr-amp-gcsm",
+        "iucn_cat": "II",
+        "designation": "parc national"
+      }
+    ],
+    "seamarks": [
+      {
+        "name": "Phare de Port-Louis",
+        "nm": 9.0
+      }
+    ],
+    "seabed": {
+      "kind": "observation",
+      "source": "emodnet-geology",
+      "label": "coral",
+      "reason": null
+    },
+    "weather": {
+      "status": "ready",
+      "source": "openmeteo-gfs",
+      "wind": {
+        "speedKnots": 36.0,
+        "dirFromDeg": 80
+      },
+      "wave": {
+        "hs": 3.4
+      }
+    },
+    "sentences": [
+      "Le bateau navigue dans Zone économique exclusive française (Guadeloupe).",
+      "Ports d’entrée officiels les plus proches : Pointe-à-Pitre (18 nm).",
+      "Aires marines protégées à moins de 30 milles : Grand Cul-de-Sac Marin (6 nm).",
+      "Météo au bateau : vent 36 kn, mer 3,4 m."
+    ],
+    "links": [
+      {
+        "label": "Pointe-à-Pitre",
+        "url": "https://www.guadeloupe-port.com/"
+      },
+      {
+        "label": "Grand Cul-de-Sac Marin",
+        "url": "https://www.guadeloupe-parcnational.fr/"
+      }
+    ]
+  },
+  "around": [
+    {
+      "kind": "satellite",
+      "title": "Image satellite",
+      "fact": "Sentinel-2 · 2026-05-23",
+      "url": null
+    },
+    {
+      "kind": "climatology",
+      "title": "Climatologie",
+      "fact": "mois 5 · coup de vent 3,0 % · 0 traces",
+      "url": null
+    },
+    {
+      "kind": "science",
+      "title": "Station croisée",
+      "fact": "Station CORIOLIS-Guadeloupe (7,5 nm)",
+      "url": null
+    },
+    {
+      "kind": "marina",
+      "title": "Marina Bas-du-Fort",
+      "fact": "Marina Bas-du-Fort (16 nm)",
+      "url": null
+    }
+  ],
+  "sources": [
+    "VLIZ",
+    "Blue Intelligence",
+    "Open-Meteo",
+    "CDSE",
+    "EMODnet",
+    "OpenStreetMap",
+    "Atlas BI"
+  ],
+  "signature": "dd428f9025a65eb15d2fdcc4c4904fe4fc3fbc8a"
+}

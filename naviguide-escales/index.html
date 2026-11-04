@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <script>
+      try {
+        var next = "naviguide_lang_v4";
+        var prev = "naviguide_lang_v3";
+        var lang = localStorage.getItem(next);
+        if (lang !== "en" && lang !== "fr") {
+          var old = localStorage.getItem(prev);
+          if (old === "en" || old === "fr") {
+            localStorage.setItem(next, old);
+            localStorage.removeItem(prev);
+            lang = old;
+          }
+        }
+        if (lang === "en" || lang === "fr") document.documentElement.lang = lang;
+      } catch (e) {}
+    </script>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon-n-bl.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NAVIGUIDE simulator</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

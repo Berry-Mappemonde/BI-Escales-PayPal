@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "table_date": "2024-01",
+  "source": "IMB/UKMTO",
+  "zones": [
+    {
+      "name": "Gulf of Guinea",
+      "lat_min": -5,
+      "lat_max": 10,
+      "lon_min": -10,
+      "lon_max": 20,
+      "level": "HIGH",
+      "source": "IMB"
+    },
+    {
+      "name": "Horn of Africa / Gulf Aden",
+      "lat_min": 10,
+      "lat_max": 16,
+      "lon_min": 42,
+      "lon_max": 57,
+      "level": "HIGH",
+      "source": "IMB/UKMTO"
+    },
+    {
+      "name": "Red Sea (Houthi)",
+      "lat_min": 12,
+      "lat_max": 30,
+      "lon_min": 30,
+      "lon_max": 45,
+      "level": "HIGH",
+      "source": "UKMTO"
+    },
+    {
+      "name": "Strait of Malacca",
+      "lat_min": 0,
+      "lat_max": 7,
+      "lon_min": 97,
+      "lon_max": 110,
+      "level": "MEDIUM",
+      "source": "ReCAAP"
+    },
+    {
+      "name": "Indian Ocean (Somalia)",
+      "lat_min": -5,
+      "lat_max": 15,
+      "lon_min": 45,
+      "lon_max": 75,
+      "level": "MEDIUM",
+      "source": "IMB"
+    },
+    {
+      "name": "Mozambique Channel N",
+      "lat_min": -16,
+      "lat_max": -8,
+      "lon_min": 38,
+      "lon_max": 45,
+      "level": "LOW",
+      "source": "IMB"
+    }
+  ]
+}

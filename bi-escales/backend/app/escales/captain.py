@@ -6,12 +6,13 @@ Prices come from the catalogue below, not from the model.
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
 import re
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
-from .config import membership_url
+from .config import AUTH_MAX_DAYS, membership_url
 from .milestones import (
     amount_in_text,
     decision_for,
@@ -28,10 +29,10 @@ MILE_EUR = Decimal("1.00")
 DINNER_EUR = Decimal("60.00")
 
 _MILES = re.compile(
-    r"(\d+(?:[.,]\d+)?)\s*(?:nautical\s+|nautiques?\s+)?(?:milles?|miles?|nm)\b",
+    r"(\d+(?:[.,]\d+)?)\s*(?:nautical\s+|nautiques?\s+)?(?:milles?|miles?|nm|mi)\b",
     re.IGNORECASE,
 )
-_DINNER = re.compile(r"d[iî]ners?|dinner", re.IGNORECASE)
+_DINNER = re.compile(r"\bd[iî]ners?\b|\bdinners?\b", re.IGNORECASE)
 _PLACE = re.compile(
     r"(?:près de|pres de|près d'|pres d'|near)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ-]{1,40})",
     re.IGNORECASE,
@@ -53,6 +54,30 @@ _FR_HINT = re.compile(
 )
 _TREASURER_Q = re.compile(
     r"encaiss|annul|captur|void|tr[ée]sorier|treasurer|authori[sz]ation|autorisation",
+    re.IGNORECASE,
+)
+_STATUS_Q = re.compile(
+    r"\b(?:statuts?|status|états?|etats?)\b"
+    r"|où en est|ou en est|où en sommes|ou en sommes",
+    re.IGNORECASE,
+)
+# A stated authorization age, not an unrelated count in the same sentence.
+_AUTH_AGE = re.compile(
+    r"(\d+)\s*[- ]?\s*(?:day|days|jour|jours)[- ]?\s*(?:old\s+)?"
+    r"(?:authorization|authorisation|autorisation)"
+    r"|(?:authorization|authorisation|autorisation)\D{0,40}?"
+    r"(\d+)\s*[- ]?\s*(?:day|days|jour|jours)",
+    re.IGNORECASE,
+)
+_EXPIRED_CLAIM = re.compile(
+    r"expir(?:ed|ée|é)|has expired|a expir|périm|perim|échue?s?|echue?s?"
+    r"|no longer valid|plus valide|n['’]est plus valide|lapsed"
+    r"|honor\s*period|p[ée]riode d['’]honneur",
+    re.IGNORECASE,
+)
+_STILL_VALID_REASON = "authorization still valid: younger than 29 days"
+_LONG_SIGNATURE = re.compile(
+    r"[—–-]{0,2}\s*(?:le\s+|the\s+)?(?:capitaine|captain)\s+blue\s+intelligence(?:\s+escales)?",
     re.IGNORECASE,
 )
 # Horizon and re-issue policy stay in code. Drop them if a model writes them anyway.
@@ -83,6 +108,15 @@ def message_lang(text: str) -> str:
 
 def _is_treasurer_question(message: str) -> bool:
     return bool(_TREASURER_Q.search(message or ""))
+
+
+def _is_status_question(message: str) -> bool:
+    return bool(_STATUS_Q.search(message or ""))
+
+
+def _no_pledge_suggestion(message: str) -> bool:
+    """Treasurer and status questions are not a pledge to price."""
+    return _is_treasurer_question(message) or _is_status_question(message)
 
 
 def _report_system(milestone_id: str) -> str:
@@ -116,50 +150,96 @@ def _place(message: str) -> str:
     return slug or "unspecified"
 
 
-def suggest_pledge(message: str) -> dict:
-    """Compose one AUTHORIZE pledge from the catalogue and the contributor's words."""
-    place = _place(message)
-    miles = _MILES.search(message or "")
-    if miles:
+def _format_count(count: Decimal) -> str:
+    integral = count.to_integral_value()
+    if count == integral:
+        return str(int(integral))
+    return f"{count.quantize(Decimal('0.01')):.2f}".rstrip("0").rstrip(".")
+
+
+def _miles_description(count: Decimal, lang: str) -> str:
+    label = _format_count(count)
+    if lang == "en":
+        noun = "sponsored mile" if count == 1 else "sponsored miles"
+        return f"{label} {noun}"
+    if count == 1:
+        return "1 mille parrainé"
+    return f"{label} milles parrainés"
+
+
+def _dinner_description(count: int, lang: str) -> str:
+    if lang == "en":
+        return "port dinner" if count == 1 else f"{count} port dinners"
+    return "Dîner d'escale" if count == 1 else f"{count} dîners d'escale"
+
+
+def _pledge_description(total_miles: Decimal, dinners: int, lang: str) -> str:
+    parts: list[str] = []
+    if total_miles > 0:
+        parts.append(_miles_description(total_miles, lang))
+    if dinners > 0:
+        parts.append(_dinner_description(dinners, lang))
+    if not parts:
+        parts.append(_miles_description(Decimal("1"), lang))
+    if lang == "en":
+        return " and ".join(parts)
+    if len(parts) == 2:
+        dinner = parts[1][0].lower() + parts[1][1:]
+        return f"{parts[0]} et {dinner}"
+    return parts[0]
+
+
+def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
+    """Compose one AUTHORIZE pledge from every catalogue item in the message.
+
+    Miles are 1.00 EUR each and a dinner is 60.00 EUR. Both in the same
+    message are added. Treasurer and status questions get no suggestion.
+    The description follows ``lang``: ``120 sponsored miles`` in English,
+    ``milles parrainés`` only in French.
+    """
+    if _no_pledge_suggestion(message):
+        return None
+    text = message or ""
+    place = _place(text)
+    counts: list[Decimal] = []
+    for match in _MILES.finditer(text):
         try:
-            count = Decimal(miles.group(1).replace(",", "."))
+            count = Decimal(match.group(1).replace(",", "."))
         except InvalidOperation:
-            count = Decimal("1")
-        if count <= 0:
-            count = Decimal("1")
-        amount = (count * MILE_EUR).quantize(Decimal("0.01"))
-        label = miles.group(1).replace(",", ".")
-        return {
-            "amount_eur": f"{amount:.2f}",
-            "currency": "EUR",
-            "description": f"{label} milles parrainés",
-            "milestone_id": place,
-            "intent": "AUTHORIZE",
-            "item": "mile",
-        }
-    if _DINNER.search(message or ""):
-        return {
-            "amount_eur": f"{DINNER_EUR:.2f}",
-            "currency": "EUR",
-            "description": "Dîner d'escale",
-            "milestone_id": place,
-            "intent": "AUTHORIZE",
-            "item": "dinner",
-        }
+            continue
+        if count > 0:
+            counts.append(count)
+    dinners = len(_DINNER.findall(text))
+    if not counts and dinners == 0:
+        counts = [Decimal("1")]
+    total_miles = sum(counts, Decimal("0"))
+    amount = (total_miles * MILE_EUR + DINNER_EUR * dinners).quantize(Decimal("0.01"))
+    if total_miles > 0 and dinners:
+        item = "mixed"
+    elif dinners:
+        item = "dinner"
+    else:
+        item = "mile"
     return {
-        "amount_eur": f"{MILE_EUR:.2f}",
+        "amount_eur": f"{amount:.2f}",
         "currency": "EUR",
-        "description": "1 mille parrainé",
+        "description": _pledge_description(total_miles, dinners, lang),
         "milestone_id": place,
         "intent": "AUTHORIZE",
-        "item": "mile",
+        "item": item,
     }
 
 
-def _fallback_report(milestone_id: str, decision: str, evidence: dict) -> str:
+def _fallback_report(milestone_id: str, decision: str, evidence: dict, lang: str = "fr") -> str:
     source = evidence.get("source") or "simulation"
     provider = evidence.get("provider") or "NAVIGUIDE"
     flag = evidence.get("flag") or "simulation"
+    if lang == "en":
+        return (
+            f"Milestone {milestone_id}: {provider} evidence marked {flag} "
+            f"(source {source}). Proposal: {decision}. "
+            "The captain does not capture or void; only the treasurer can."
+        )
     return (
         f"Jalon {milestone_id} : preuve {provider} marquée {flag} "
         f"(source {source}). Proposition : {decision}. "
@@ -182,12 +262,15 @@ def _signature(lang: str) -> str:
 
 
 def _strip_signatures(text: str) -> str:
-    return re.sub(
+    """Drop model sign-offs so the reply keeps a single short signature."""
+    cleaned = _LONG_SIGNATURE.sub(" ", text or "")
+    cleaned = re.sub(
         r"[—–-]{1,2}\s*(?:Le capitaine|The captain)\b",
-        "",
-        text or "",
+        " ",
+        cleaned,
         flags=re.IGNORECASE,
-    ).strip()
+    )
+    return re.sub(r"\s{2,}", " ", cleaned).strip()
 
 
 def _currency_present(text: str, currency: str) -> bool:
@@ -256,18 +339,23 @@ def _fit_words(prose: str, required: list[str], limit: int = _CHAT_WORD_LIMIT) -
 
 def _compose_chat_reply(
     model_text: str,
-    suggested: dict,
+    suggested: Optional[dict],
     url: str,
     lang: str,
     *,
     treasurer: bool,
 ) -> str:
     """Pledge repeated exactly, one signature, at most 80 words."""
-    if treasurer:
-        if lang == "en":
-            prose = "This question belongs to the treasurer review. The captain does not decide it."
+    if treasurer or not suggested:
+        if treasurer:
+            if lang == "en":
+                prose = "This question belongs to the treasurer review. The captain does not decide it."
+            else:
+                prose = "Cette question relève de la revue du trésorier. Le capitaine ne la tranche pas."
+        elif lang == "en":
+            prose = "This question is about status. The captain does not suggest a pledge."
         else:
-            prose = "Cette question relève de la revue du trésorier. Le capitaine ne la tranche pas."
+            prose = "Cette question porte sur le statut. Le capitaine ne propose pas de promesse."
         return _fit_words("", [prose, _signature(lang)])
     prose = _strip_signatures(model_text)
     prose = _drop_sentences(prose, _POLICY_RE)
@@ -284,7 +372,18 @@ def _compose_chat_reply(
     return _fit_words(prose, required)
 
 
-def _shape_report(text: str, milestone_id: str) -> str:
+def _leg_word(lang: str) -> str:
+    return "Milestone" if lang == "en" else "Jalon"
+
+
+def _without_jalon(text: str, lang: str) -> str:
+    """English reports say Milestone. French reports keep Jalon."""
+    if lang != "en":
+        return text
+    return re.sub(r"\bJalons?\b", "Milestone", text or "", flags=re.IGNORECASE)
+
+
+def _shape_report(text: str, milestone_id: str, lang: str = "fr") -> str:
     """Two or three sentences, no title, leg name kept verbatim."""
     lines = []
     for raw_line in (text or "").splitlines():
@@ -306,11 +405,14 @@ def _shape_report(text: str, milestone_id: str) -> str:
         for sentence in _split_sentences(body)
         if sentence.strip() and not _POLICY_RE.search(sentence)
     ]
+    if lang == "en":
+        sentences = [_without_jalon(sentence, "en") for sentence in sentences]
+    leg = _leg_word(lang)
     if milestone_id not in " ".join(sentences):
-        sentences.append(f"Jalon {milestone_id}.")
+        sentences.append(f"{leg} {milestone_id}.")
     if len(sentences) < 2:
-        sentences.append(f"Jalon {milestone_id}.")
-    return " ".join(sentences[:3])
+        sentences.append(f"{leg} {milestone_id}.")
+    return _without_jalon(" ".join(sentences[:3]), lang)
 
 
 def _rules_source() -> dict[str, str]:
@@ -386,6 +488,128 @@ def _read(reader: Optional[ReadOnlyTools], pledge: dict) -> None:
             pass
 
 
+def _parse_iso(raw: Optional[str]) -> Optional[dt.datetime]:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        moment = dt.datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment
+
+
+def authorization_age_days(
+    pledge: dict,
+    now: Optional[dt.datetime] = None,
+) -> Optional[int]:
+    """Whole days since authorization. None when the pledge does not say."""
+    raw = pledge.get("authorization_age_days")
+    if raw is not None and str(raw).strip() != "":
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            pass
+    expiry = _parse_iso(pledge.get("authorization_expires_at"))
+    if expiry is None:
+        return None
+    moment = now or dt.datetime.now(dt.timezone.utc)
+    authorized = expiry - dt.timedelta(days=AUTH_MAX_DAYS)
+    return (moment - authorized).days
+
+
+def _known_authorization_age(pledges: list[dict]) -> Optional[int]:
+    ages = [
+        age for age in (authorization_age_days(pledge) for pledge in pledges) if age is not None
+    ]
+    if not ages:
+        return None
+    return min(ages)
+
+
+def _stated_authorization_age(reason: str) -> Optional[int]:
+    match = _AUTH_AGE.search(reason or "")
+    if not match:
+        return None
+    raw = match.group(1) or match.group(2)
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def validate_advisory_proposal(
+    proposal: Optional[str],
+    reason: Optional[str],
+    age_days: Optional[int] = None,
+) -> dict:
+    """Check an ask_json proposal and its reason against the 29-day rule.
+
+    An authorization younger than 29 days is still valid. A reauthorize
+    proposal, or a void proposal whose reason says the authorization has
+    expired, is dropped. A reason that claims expiry is overridden.
+    The result is always advisory: it never replaces the code decision.
+    """
+    raw_proposal = (proposal or "").strip().lower() or None
+    raw_reason = (reason or "").strip() or None
+    known = age_days
+    stated = _stated_authorization_age(raw_reason or "")
+    age = known if known is not None else stated
+    still_valid = None if age is None else age < AUTH_MAX_DAYS
+    reason_contradicts = bool(still_valid and raw_reason and _EXPIRED_CLAIM.search(raw_reason))
+    proposal_contradicts = False
+    if still_valid and raw_proposal == "reauthorize":
+        proposal_contradicts = True
+    if still_valid and raw_proposal == "void" and reason_contradicts:
+        proposal_contradicts = True
+    shown_reason = _STILL_VALID_REASON if reason_contradicts else raw_reason
+    shown_proposal = None if proposal_contradicts else raw_proposal
+    return {
+        "advisory": True,
+        "label": "advisory",
+        "proposal": shown_proposal,
+        "reason": shown_reason,
+        "raw_proposal": raw_proposal,
+        "raw_reason": raw_reason,
+        "dropped": proposal_contradicts or reason_contradicts,
+        "authorization_age_days": age,
+        "authorization_valid": still_valid,
+    }
+
+
+async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict]:
+    """ask_json opinion, validated. Failure leaves the code decision alone."""
+    try:
+        from app.core import llm
+    except Exception:
+        return None
+    try:
+        if not llm.has_llm():
+            return None
+    except Exception:
+        return None
+    payload = dict(allowed)
+    payload["authorization_age_days"] = age
+    prompt = json.dumps(payload, ensure_ascii=False, default=str)
+    try:
+        parsed = await llm.ask_json(prompt, max_tokens=180, temperature=0)
+    except Exception:
+        return None
+    data = parsed.data if isinstance(getattr(parsed, "data", None), dict) else {}
+    checked = validate_advisory_proposal(
+        str(data.get("proposal") or ""),
+        str(data.get("reason") or ""),
+        age,
+    )
+    checked["provider"] = getattr(parsed, "provider", "") or ""
+    checked["model"] = getattr(parsed, "model", "") or ""
+    return checked
+
+
 async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> dict:
     """Propose capture or void from evidence. Does not execute either."""
     milestone = await get_milestone(milestone_id)
@@ -412,15 +636,22 @@ async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> d
         temperature=_REPORT_TEMPERATURE,
     )
     if not narrative:
-        narrative = _fallback_report(milestone_id, decision, evidence)
+        narrative = _fallback_report(milestone_id, decision, evidence, lang="fr")
         source = _rules_source()
+        report_lang = "fr"
     else:
-        narrative = _shape_report(narrative, milestone_id)
-    report_lang = message_lang(narrative)
-    narrative = filter_numbers(narrative, allowed, lang=report_lang)
-    justification = filter_numbers(
-        f"{narrative} Décision : {decision}.", allowed, lang=report_lang,
+        report_lang = message_lang(narrative)
+        narrative = _shape_report(narrative, milestone_id, report_lang)
+    narrative = _without_jalon(filter_numbers(narrative, allowed, lang=report_lang), report_lang)
+    decision_line = (
+        f" Decision: {decision}." if report_lang == "en" else f" Décision : {decision}."
     )
+    justification = _without_jalon(
+        filter_numbers(f"{narrative}{decision_line}", allowed, lang=report_lang),
+        report_lang,
+    )
+    age = _known_authorization_age(concerned)
+    advisory = await _advisory_proposal(allowed, age)
     proposal = {
         "milestone_id": milestone_id,
         "proposal": decision,
@@ -429,6 +660,7 @@ async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> d
         "pledge_ids": [pledge["_id"] for pledge in concerned],
         "evidence_flag": evidence.get("flag"),
         "model_source": source,
+        "llm_proposal": advisory,
         "at": now_iso(),
     }
     from .provisioning_channel3 import attach_provisioning
@@ -452,12 +684,12 @@ async def chat(message: str) -> dict:
     text = (message or "").strip()
     if not text:
         raise ValueError("message is required")
-    suggested = suggest_pledge(text)
     url = membership_url()
     lang = message_lang(text)
     treasurer = _is_treasurer_question(text)
+    suggested = suggest_pledge(text, lang)
     allowed = {"message": text, "suggested": suggested, "membership_url": url}
-    if treasurer:
+    if treasurer or suggested is None:
         # Do not send this question to a model: the horizon rule stays in code.
         raw, source = "", _rules_source()
     else:

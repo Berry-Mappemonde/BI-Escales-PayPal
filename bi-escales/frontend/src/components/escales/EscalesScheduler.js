@@ -3,6 +3,22 @@
  * Composant isolé : le frontend parent fournit `schedule` et `features`.
  */
 import React, { useMemo } from "react";
+import { advisoryView } from "./advisoryLabel.js";
+
+export function AdvisoryBadge({ llmProposal }) {
+  const view = advisoryView(llmProposal);
+  if (!view) return null;
+  return (
+    <p className="escales-advisory" data-advisory="true" data-dropped={view.dropped ? "true" : "false"}>
+      <strong>Advisory</strong>
+      {view.dropped ? (
+        <span> La suggestion du modèle est écartée. {view.reason}</span>
+      ) : (
+        <span> Suggestion du modèle, non exécutée : {view.proposal}. {view.reason}</span>
+      )}
+    </p>
+  );
+}
 
 function toDate(value) {
   if (!value) return null;
@@ -106,7 +122,7 @@ function BryntumSchedule({ events, onSelect }) {
   return <div className="escales-scheduler-bryntum" ref={containerRef} />;
 }
 
-export default function EscalesScheduler({ schedule, features, onSelectEscale }) {
+export default function EscalesScheduler({ schedule, features, onSelectEscale, captainReview = null }) {
   const escales = schedule?.export?.escales || schedule?.escales || localFallbackEscales();
   const events = useMemo(() => buildEvents(escales), [escales]);
   const useBryntum = Boolean(features?.bryntum);
@@ -117,6 +133,7 @@ export default function EscalesScheduler({ schedule, features, onSelectEscale })
         <h2>Calendrier des escales</h2>
         <p>Mode {useBryntum ? "Bryntum" : "local"} — Pay Only If We Sail</p>
       </header>
+      <AdvisoryBadge llmProposal={captainReview?.llm_proposal} />
       {useBryntum ? (
         <BryntumSchedule events={events} onSelect={onSelectEscale} />
       ) : (

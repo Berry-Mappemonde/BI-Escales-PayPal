@@ -429,13 +429,14 @@ def test_missing_keys_are_skipped():
 
 def test_captain_review_exposes_nim_and_never_captures(monkeypatch):
     _enable("nim", "tokenfactory", nebius="true")
-    seen_box: dict = {}
+    seen_box: dict = {"narrative": None}
 
     def factory():
         seen, client = _transport({
             "integrate.api.nvidia.com": [_openai("Le modele voudrait annuler.", llm.NIM_MODEL)],
         })
-        seen_box["seen"] = seen
+        if seen_box["narrative"] is None:
+            seen_box["narrative"] = seen
         return client
 
     monkeypatch.setattr(llm, "_client", factory)
@@ -456,11 +457,12 @@ def test_captain_review_exposes_nim_and_never_captures(monkeypatch):
         assert result["model_source"] == {"provider": "nim", "model": llm.NIM_MODEL_DEFAULT}
         assert "annuler" in result["report"]
         assert "dep-mayotte" in result["report"]
-        assert seen_box["seen"][0]["body"]["temperature"] == 0.2
+        narrative = seen_box["narrative"]
+        assert narrative[0]["body"]["temperature"] == 0.2
         sentences = [part for part in result["report"].replace("!", ".").replace("?", ".").split(".") if part.strip()]
         assert 2 <= len(sentences) <= 3
-        assert seen_box["seen"][0]["host"] == "integrate.api.nvidia.com"
-        assert len(seen_box["seen"]) == 1
+        assert narrative[0]["host"] == "integrate.api.nvidia.com"
+        assert len(narrative) == 1
         names = [call[0] for call in spy.calls]
         assert "capture" not in names
         assert "void" not in names

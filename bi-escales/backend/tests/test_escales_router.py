@@ -376,16 +376,34 @@ def test_pledge_accepts_kind_and_target(api):
     response = _create(client, "m0-meal", {
         **PLEDGE,
         "kind": "meal",
-        "target_id": "projet-ecole",
+        "target_id": "mayotte",
         "amount_eur": "60.00",
     })
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["kind"] == "meal"
-    assert body["target_id"] == "projet-ecole"
+    assert body["target_id"] == "mayotte"
     assert body["milestone_id"] == "dep-mayotte"
     assert body["simulated_price"]["amount_eur"] == "60.00"
     assert body["simulated_price"]["label"] == "simulated price"
+
+
+def test_target_slug_must_be_known_for_a_stopover_kind(api):
+    client, fake = api
+    bad_slug = _create(client, "m0-slug", {**PLEDGE, "kind": "berth", "target_id": "Projet Ecole"})
+    assert bad_slug.status_code == 422
+    unknown = _create(client, "m0-unknown", {**PLEDGE, "kind": "care", "target_id": "nulle-part"})
+    assert unknown.status_code == 422
+    project = _create(client, "m0-project", {
+        **PLEDGE,
+        "kind": "project_pledge",
+        "target_id": "projet-ecole",
+        "amount_eur": "12.50",
+    })
+    assert project.status_code == 200, project.text
+    assert project.json()["target_id"] == "projet-ecole"
+    assert project.json()["amount_eur"] == "12.50"
+    assert fake.calls[-1][0] == "create"
 
 
 def test_unknown_pledge_kind_is_rejected(api):
@@ -418,6 +436,11 @@ def test_prices_and_clock(api, monkeypatch):
     assert by_kind["cabin_leg"]["amount_eur"] == "80.00"
     assert "amount_eur" not in by_kind["project_pledge"]
     assert "amount_eur" not in by_kind["common_fund"]
+    assert by_kind["project_pledge"]["free_amount"] is True
+    assert by_kind["mile"]["free_amount"] is False
+    assert by_kind["mile"]["indicative"] is True
+    assert catalogue["indicative"] is True
+    assert "indicative" in catalogue["note"].lower()
     clock = client.get("/api/escales/clock")
     assert clock.status_code == 200
     assert clock.json()["start"] == "2026-11-12"
@@ -435,9 +458,10 @@ def test_clock_start_is_configurable_outside_production(monkeypatch):
     monkeypatch.setenv("ESCALES_ENV", "test")
     monkeypatch.setenv("ESCALES_CLOCK_START", "2027-01-03T08:00:00Z")
     assert clock_start() == "2027-01-03"
+    monkeypatch.setenv("ESCALES_CLOCK_START", "2026-11-12T03:00:00Z")
+    assert clock_start() == "2026-11-11"
     monkeypatch.setenv("ESCALES_CLOCK_START", "tomorrow")
-    with pytest.raises(ValueError):
-        clock_start()
+    assert clock_start() == "2026-11-12"
 
 
 def test_schedule_local_fallback(api, monkeypatch):

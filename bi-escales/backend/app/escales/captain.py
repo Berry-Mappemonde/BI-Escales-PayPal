@@ -316,24 +316,35 @@ def display_name(milestone_id: str) -> str:
 
 
 def simulated_unit(kind: str) -> dict:
-    """One catalogue line. ``label`` is always ``simulated price``."""
+    """One catalogue line. The figure is indicative, never the charged amount.
+
+    ``project_pledge`` and ``common_fund`` have no unit price: the visitor's
+    amount stays as written. The other kinds show a simulated price the
+    pledge does not have to copy.
+    """
     row = {
         "kind": kind,
         "currency": "EUR",
         "label": SIMULATED_PRICE_LABEL,
         "simulated": True,
+        "indicative": True,
     }
     amount = _SIMULATED_EUR.get(kind)
-    if amount is not None:
+    if amount is None:
+        row["free_amount"] = True
+    else:
         row["amount_eur"] = f"{amount:.2f}"
+        row["free_amount"] = False
     return row
 
 
 def simulated_prices() -> dict:
-    """One row per pledge kind. Fixed lines carry amount_eur."""
+    """One row per pledge kind. Prices are indicative; the visitor's amount stays."""
     return {
         "simulated": True,
+        "indicative": True,
         "label": SIMULATED_PRICE_LABEL,
+        "note": "Prices are indicative. The visitor's amount is what PayPal authorizes.",
         "currency": "EUR",
         "prices": [simulated_unit(kind) for kind in PLEDGE_KINDS],
     }

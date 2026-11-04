@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import os
 from dataclasses import dataclass
+from zoneinfo import ZoneInfo
 
 SANDBOX_BASE = "https://api-m.sandbox.paypal.com"
 AUTH_MAX_DAYS = 29
+log = logging.getLogger("escales.config")
+_TORONTO = ZoneInfo("America/Toronto")
 
 _TRUTHY = {"1", "true", "yes", "on"}
 _FALSY = {"0", "false", "no", "off"}
@@ -40,21 +44,28 @@ PRODUCTION_CLOCK_START = "2026-11-12"
 
 
 def _clock_date(raw: str) -> str:
-    """Date UTC. Même repli ``Z`` que ``payment_mode._parse_arrival``."""
+    """Civil date in America/Toronto. A bare ``YYYY-MM-DD`` is kept as written.
+
+    A bad value does not raise: the voyage falls back to 12 November 2026.
+    """
     text = raw.strip()
     if len(text) == 10 and "T" not in text:
         try:
             return dt.date.fromisoformat(text).isoformat()
-        except ValueError as exc:
-            raise ValueError("ESCALES_CLOCK_START must be a date (YYYY-MM-DD)") from exc
+        except ValueError:
+            log.warning("ESCALES_CLOCK_START is not a date; using %s", PRODUCTION_CLOCK_START)
+            return PRODUCTION_CLOCK_START
     if text.endswith("Z"):
         text = text[:-1] + "+00:00"
     try:
         moment = dt.datetime.fromisoformat(text)
-    except ValueError as exc:
-        raise ValueError("ESCALES_CLOCK_START must be a date (YYYY-MM-DD)") from exc
-    if moment.tzinfo is not None:
-        moment = moment.astimezone(dt.timezone.utc)
+    except ValueError:
+        log.warning("ESCALES_CLOCK_START is not a date; using %s", PRODUCTION_CLOCK_START)
+        return PRODUCTION_CLOCK_START
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=_TORONTO)
+    else:
+        moment = moment.astimezone(_TORONTO)
     return moment.date().isoformat()
 
 

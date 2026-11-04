@@ -299,14 +299,41 @@ def test_kind_and_target_are_stored_and_unknown_kind_is_rejected():
             milestone_id="dep-mayotte",
             client=spy,
             kind="meal",
-            target_id="projet-ecole",
+            target_id="mayotte",
         )
         assert created["kind"] == "meal"
-        assert created["target_id"] == "projet-ecole"
+        assert created["target_id"] == "mayotte"
         assert created["milestone_id"] == "dep-mayotte"
         stored = await get_ledger().get_pledge(created["_id"])
         assert stored["kind"] == "meal"
-        assert stored["target_id"] == "projet-ecole"
+        assert stored["target_id"] == "mayotte"
+        project = await create_pledge(
+            amount_eur="15.00",
+            description="don",
+            milestone_id="dep-mayotte",
+            client=spy,
+            kind="project_pledge",
+            target_id="projet-ecole",
+        )
+        assert project["target_id"] == "projet-ecole"
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="30.00",
+                description="poste",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="berth",
+                target_id="nulle-part",
+            )
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="30.00",
+                description="poste",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="berth",
+                target_id="Projet Ecole",
+            )
         with pytest.raises(ValueError):
             await create_pledge(
                 amount_eur="1.00",

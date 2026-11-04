@@ -50,6 +50,10 @@ class VaultPayPal:
             "links": [{"rel": "approve", "href": f"https://sandbox.paypal.com/agreements/approve?token={token}"}],
         }
 
+    def get_setup_token(self, setup_token_id):
+        self.calls.append(("get_setup_token", setup_token_id))
+        return {"status": "APPROVED", "id": setup_token_id}
+
     def create_payment_token(self, setup_token_id):
         self.calls.append(("payment_token", setup_token_id))
         return {"id": f"VAULT-{setup_token_id}"}
@@ -154,6 +158,31 @@ def test_card_token_is_charged_with_card_source():
         captured = await capture_pledge(created["_id"], client)
         assert captured["status"] == "captured"
         assert ("charge_vaulted", "CARDTOK", "1.00", created["_id"], "card") in client.calls
+
+    asyncio.run(body())
+
+
+def test_vault_register_uses_the_stored_token_and_requires_approved():
+    async def body():
+        await _seed_far_milestone("dep-token")
+        client = VaultPayPal()
+        created = await create_pledge(
+            amount_eur="1.00",
+            description="jeton",
+            milestone_id="dep-token",
+            client=client,
+            client_key="vault-token",
+        )
+        with pytest.raises(ValueError, match="does not match"):
+            await register_vault_pledge(created["_id"], client, setup_token_id="OTHER")
+        client.get_setup_token = lambda setup_token_id: {"status": "CREATED", "id": setup_token_id}
+        with pytest.raises(ValueError, match="not approved"):
+            await register_vault_pledge(created["_id"], client)
+        client.get_setup_token = lambda setup_token_id: {"status": "APPROVED", "id": setup_token_id}
+        vaulted = await register_vault_pledge(created["_id"], client)
+        assert vaulted["status"] == "vaulted"
+        assert vaulted["setup_token_id"] == created["setup_token_id"]
+        assert ("payment_token", created["setup_token_id"]) in client.calls
 
     asyncio.run(body())
 

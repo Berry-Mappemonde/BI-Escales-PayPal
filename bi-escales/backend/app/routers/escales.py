@@ -32,7 +32,7 @@ from app.escales.config import (
     vault_enabled,
     webhooks_enabled,
 )
-from app.escales.ledger import _unplaced_bucket, fund_for_milestone, get_ledger, list_webhook_outcomes, record_spending
+from app.escales.ledger import fund_for_milestone, get_ledger, list_webhook_outcomes, record_spending
 from app.escales_names import display_name as escale_display_name
 from app.escales.milestones import list_milestones, record_evidence
 from app.escales.naviguide_bridge import (
@@ -210,7 +210,11 @@ def _public_milestone(doc: dict) -> dict:
     shown = meta.get("display_name") or escale_display_name(milestone_id)
     proposal = doc.get("proposal")
     if isinstance(proposal, dict):
-        proposal = {key: value for key, value in proposal.items() if key != "pending_authorizations"}
+        proposal = {
+            key: value
+            for key, value in proposal.items()
+            if key not in {"pending_authorizations", "pledge_ids"}
+        }
     return {
         "id": doc.get("_id"),
         "display_name": shown,
@@ -332,12 +336,19 @@ async def post_register_vault(pledge_id: str, body: VaultRegisterIn):
     return await _public_pledge_with_fund(doc)
 
 
+def _money_http(exc: Exception) -> HTTPException:
+    """A declined or expired capture is a conflict. Other value errors stay 422."""
+    if isinstance(exc, ValueError):
+        return HTTPException(status_code=409, detail=str(exc))
+    return _as_http(exc)
+
+
 @router.post("/pledges/{pledge_id}/authorize")
 async def post_authorize(pledge_id: str):
     try:
         doc = await authorize_pledge(pledge_id, _paypal())
-    except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
-        raise _as_http(exc) from exc
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
+        raise _money_http(exc) from exc
     return await _public_pledge_with_fund(doc)
 
 
@@ -346,8 +357,8 @@ async def post_capture(pledge_id: str, request: Request):
     _require_treasurer(request)
     try:
         doc = await capture_pledge(pledge_id, _paypal())
-    except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
-        raise _as_http(exc) from exc
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
+        raise _money_http(exc) from exc
     return await _public_pledge_with_fund(doc)
 
 
@@ -356,8 +367,8 @@ async def post_void(pledge_id: str, request: Request):
     _require_treasurer(request)
     try:
         doc = await void_pledge(pledge_id, _paypal())
-    except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
-        raise _as_http(exc) from exc
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
+        raise _money_http(exc) from exc
     return await _public_pledge_with_fund(doc)
 
 
@@ -380,9 +391,8 @@ async def get_pledge(pledge_id: str):
 
 @router.get("/milestones/{milestone_id}/fund")
 async def get_fund(milestone_id: str, request: Request):
-    """Stopover funds are public. Project and common-fund totals need the treasurer key."""
-    if _unplaced_bucket(milestone_id):
-        _require_treasurer(request)
+    """Every fund total needs the treasurer key, including a stopover."""
+    _require_treasurer(request)
     try:
         return await fund_for_milestone(milestone_id)
     except LookupError as exc:
@@ -444,7 +454,9 @@ async def post_review(milestone_id: str, request: Request):
         raise _as_http(exc) from exc
     if not _valid_admin_key(request):
         proposal = {
-            key: value for key, value in proposal.items() if key != "pending_authorizations"
+            key: value
+            for key, value in proposal.items()
+            if key not in {"pending_authorizations", "pledge_ids"}
         }
     return proposal
 

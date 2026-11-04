@@ -19,8 +19,15 @@ class WebhookRejected(Exception):
         super().__init__(detail)
 
 
+# A pending capture moves only on these events. An authorized pledge stays put.
+_PENDING_CAPTURE = {
+    "PAYMENT.CAPTURE.COMPLETED": "captured",
+    "PAYMENT.CAPTURE.DENIED": "capture_failed",
+}
+
+
 class WebhookDuplicate(Exception):
-    """Same PayPal transmission_id was already accepted."""
+    """Same PayPal event id (or transmission id) was already accepted."""
 
     def __init__(self, transmission_id: str):
         self.transmission_id = transmission_id
@@ -114,18 +121,24 @@ async def verify_and_process(
         await _record_outcome(transmission_id, event, "rejected", None)
         raise WebhookRejected(401, "PayPal webhook signature rejected")
 
+    dedup_key = _dedup_key(event, transmission_id)
     ledger = get_ledger()
-    claimed = await ledger.claim_webhook(
-        transmission_id,
-        {"event_id": event.get("id") if isinstance(event, dict) else None,
-         "event_type": event.get("event_type") if isinstance(event, dict) else None},
-    )
-    if not claimed:
+    if await ledger.has_webhook(dedup_key):
         pledge_id = await _pledge_id_for(event)
         await _record_outcome(transmission_id, event, "duplicate", pledge_id)
         raise WebhookDuplicate(transmission_id)
 
     result = await _apply_event(event)
+    claimed = await ledger.claim_webhook(
+        dedup_key,
+        {"event_id": event.get("id") if isinstance(event, dict) else None,
+         "event_type": event.get("event_type") if isinstance(event, dict) else None,
+         "transmission_id": transmission_id},
+    )
+    if not claimed:
+        pledge_id = result.get("pledge_id") or await _pledge_id_for(event)
+        await _record_outcome(transmission_id, event, "duplicate", pledge_id)
+        raise WebhookDuplicate(transmission_id)
     await _record_outcome(transmission_id, event, "accepted", result.get("pledge_id"))
     result["transmission_id"] = transmission_id
     result["event_id"] = event.get("id")
@@ -151,12 +164,34 @@ async def _apply_event(event: dict) -> dict:
         pledge_kind=identity.get("kind") if identity else None,
         target_id=identity.get("target_id") if identity else None,
     )
+    target = _PENDING_CAPTURE.get(event_type)
+    if pledge and target and pledge.get("status") == "pending":
+        pledge["status"] = target
+        pledge["paypal_status"] = "COMPLETED" if target == "captured" else "DENIED"
+        pledge["history"] = list(pledge.get("history") or []) + [target]
+        pledge = await get_ledger().save_pledge(pledge)
+        await record_finance(
+            "webhook_capture_completed" if target == "captured" else "webhook_capture_denied",
+            event_type=event_type,
+            order_id=order_id,
+            pledge_id=pledge.get("_id"),
+            resource_id=resource.get("id"),
+            status=target,
+            pledge_kind=identity.get("kind") if identity else None,
+            target_id=identity.get("target_id") if identity else None,
+        )
 
     return {
         "accepted": True,
         "pledge_id": pledge.get("_id") if pledge else None,
         "order_id": order_id,
     }
+
+
+def _dedup_key(event: dict, transmission_id: str) -> str:
+    """Claim the PayPal event id. A transmission id is only the fallback."""
+    event_id = str(event.get("id") or "").strip() if isinstance(event, dict) else ""
+    return event_id or transmission_id
 
 
 def _event_dict(event: Any) -> dict:

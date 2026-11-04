@@ -259,6 +259,10 @@ class PayPalClient:
     def get_authorization(self, authorization_id: str) -> dict:
         return self._req("GET", f"/v2/payments/authorizations/{authorization_id}")
 
+    def get_setup_token(self, setup_token_id: str) -> dict:
+        """Readable setup token. ``status`` is a PaymentTokenStatus (APPROVED before vaulting)."""
+        return self._req("GET", f"/v3/vault/setup-tokens/{setup_token_id}")
+
     def create_setup_token(self, return_url: str, cancel_url: str) -> dict:
         body = {"payment_source": {"paypal": {
             "usage_type": "MERCHANT",

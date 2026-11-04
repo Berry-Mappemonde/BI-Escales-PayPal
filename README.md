@@ -16,10 +16,23 @@ The API runs fully on local pytest and manual treasurer routes without any of th
 | Integration | Flag | Role |
 |-------------|------|------|
 | PayPal webhooks | `ESCALES_WEBHOOKS_ENABLED` + `PAYPAL_WEBHOOK_ID` | Inbound `POST /api/escales/webhooks/paypal` with PayPal `verify-webhook-signature` and transmission idempotence |
-| PayPal Agent Toolkit | `ESCALES_TOOLKIT_ENABLED` | Read-only order lookups for the Captain |
+| PayPal Agent Toolkit | `ESCALES_TOOLKIT_ENABLED` | Read-only order lookups for the Captain. Stays off unless the variable is truthy. |
 | Render deploy | `bi-escales/render.yaml` | Optional blueprint; set env vars in the Render dashboard (names only in the file) |
 | Postman | `bi-escales/postman/escales.postman_collection.json` | Sandbox walkthrough (create → authorize → capture / void); not loaded by the app |
 | Zapier | `ESCALES_ZAPIER_ENABLED` | Optional automation layer (see below) |
+
+## APIMatic check (money path)
+
+APIMatic’s PayPal context plugin (`acp-paypal-server-sdk-ts`, MCP `https://chatbotapi.apimatic.io/mcp/cacdb56c-c789-4017-b820-011496c7ed24/typescript`) was queried while reviewing the money-path calls. It is not imported by the app, not listed in `requirements.txt`, and has no feature flag. `ESCALES_TOOLKIT_ENABLED` stays off.
+
+| Call we ship | APIMatic lookup | What changed |
+| --- | --- | --- |
+| `POST /v2/payments/authorizations/{id}/capture` | `endpoint_search` `captureAuthorization` → `CaptureAuthorizedPayment` | Path unchanged. `CaptureStatus` is `COMPLETED`, `DECLINED`, `PENDING`, `REFUNDED`, `PARTIALLY_REFUNDED`, `FAILED`. A body status of `DECLINED` stays a `ValueError` and our route returns **409**. |
+| `POST /v2/payments/authorizations/{id}/void` | `endpoint_search` `voidAuthorization` → `VoidPayment` (422 business validation, 409 if a call is already in progress) | Path unchanged. A `ValueError` on void is **409**. |
+| `POST /v2/checkout/orders/{id}/authorize` | `endpoint_search` `authorizeOrder` → `AuthorizeOrder` | Path unchanged. A `ValueError` on authorize is **409**. |
+| `GET /v3/vault/setup-tokens/{id}` | `endpoint_search` `getSetupToken` → `GetSetupToken`; `model_search` `PaymentTokenStatus` includes `APPROVED` | Added. Registration uses the token stored on the pledge and refuses any other status. |
+| `POST /v1/notifications/verify-webhook-signature` | `endpoint_search` `VerifyWebhookSignature` and `webhook` did not return this method | Not in that TypeScript catalog. The existing call is unchanged. The event id is claimed only after the ledger write. |
+| Expired authorization | `ask` “issue name when the authorization has expired” | The plugin said that name is not specified. `AUTHORIZATION_EXPIRED` was not added. Our own expiry check still raises `ValueError`, mapped to **409**. |
 
 ### Optional Zapier Zap
 

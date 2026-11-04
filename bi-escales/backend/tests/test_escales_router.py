@@ -260,7 +260,15 @@ def test_capture_refused_when_admin_key_unset(api, monkeypatch):
 
 def test_fund_counts_captured_income_and_treasurer_spending(api):
     client, _fake = api
-    empty = client.get("/api/escales/milestones/dep-mayotte/fund")
+    locked = client.get("/api/escales/milestones/dep-mayotte/fund")
+    assert locked.status_code == 401
+    assert "income_eur" not in locked.text
+    rejected = client.get(
+        "/api/escales/milestones/dep-mayotte/fund",
+        headers={"x-admin-key": "wrong-admin-key"},
+    )
+    assert rejected.status_code == 403
+    empty = client.get("/api/escales/milestones/dep-mayotte/fund", headers=ADMIN)
     assert empty.status_code == 200
     assert empty.json()["income_eur"] == "0.00"
     assert empty.json()["spending_eur"] == "0.00"
@@ -268,7 +276,7 @@ def test_fund_counts_captured_income_and_treasurer_spending(api):
     assert empty.json()["income"] == []
 
     _created, authorized = _ready(client, "fund-auth")
-    held = client.get("/api/escales/milestones/dep-mayotte/fund").json()
+    held = client.get("/api/escales/milestones/dep-mayotte/fund", headers=ADMIN).json()
     assert held["income_eur"] == "0.00"
     assert held["income"] == []
 
@@ -312,10 +320,10 @@ def test_fund_counts_captured_income_and_treasurer_spending(api):
     assert fund["income"][0]["target_id"] == "dzaoudzi-mayotte"
     assert fund["spending"][0]["description"] == "gasoil"
     assert fund["spending"][0]["amount_eur"] == "5.00"
-    same = client.get("/api/escales/milestones/mayotte/fund").json()
+    same = client.get("/api/escales/milestones/mayotte/fund", headers=ADMIN).json()
     assert same["income_eur"] == "20.00"
     assert same["spending_eur"] == "5.00"
-    dakar = client.get("/api/escales/milestones/dakar/fund").json()
+    dakar = client.get("/api/escales/milestones/dakar/fund", headers=ADMIN).json()
     assert dakar["income_eur"] == "60.00"
     assert dakar["spending_eur"] == "0.00"
     assert dakar["balance_eur"] == "60.00"
@@ -325,8 +333,9 @@ def test_fund_counts_captured_income_and_treasurer_spending(api):
 
 def test_fund_rejects_bad_amounts_and_unknown_stopovers(api):
     client, _fake = api
-    missing = client.get("/api/escales/milestones/nulle-part/fund")
+    missing = client.get("/api/escales/milestones/nulle-part/fund", headers=ADMIN)
     assert missing.status_code == 404
+    assert client.get("/api/escales/milestones/nulle-part/fund").status_code == 401
     for amount in ("NaN", "Infinity", "-Infinity", "1.999", "10000.01", "0"):
         response = client.post(
             "/api/escales/milestones/lorient/fund/spending",
@@ -351,7 +360,7 @@ def test_fund_rejects_bad_amounts_and_unknown_stopovers(api):
         headers=ADMIN,
     )
     assert capped.status_code == 422
-    alias = client.get("/api/escales/milestones/lorient/fund")
+    alias = client.get("/api/escales/milestones/lorient/fund", headers=ADMIN)
     assert alias.status_code == 200
     assert alias.json()["spending_eur"] == "0.00"
     assert alias.json()["milestone_id"] == "lorient"
@@ -372,7 +381,7 @@ def test_fund_rejects_bad_amounts_and_unknown_stopovers(api):
         headers=ADMIN,
     )
     assert over.status_code == 422
-    plain = client.get("/api/escales/milestones/mayotte/fund").json()
+    plain = client.get("/api/escales/milestones/mayotte/fund", headers=ADMIN).json()
     assert plain["spending_eur"] == "20.00"
     assert plain["income_eur"] == "20.00"
     assert plain["overdrawn"] is False
@@ -459,12 +468,13 @@ def test_captain_route_does_not_capture_or_void(api):
     assert review.status_code == 200
     body = review.json()
     assert body["proposal"] == "capture"
-    assert authorized["id"] in body["pledge_ids"]
+    assert "pledge_ids" not in body
     assert "pending_authorizations" not in body
     assert "authorization_id" not in review.text
     listed = client.get("/api/escales/milestones")
     stored = next(row for row in listed.json() if row["id"] == "dep-mayotte")
     assert "pending_authorizations" not in (stored.get("proposal") or {})
+    assert "pledge_ids" not in (stored.get("proposal") or {})
     assert "authorization_id" not in listed.text
     wrong = client.post(
         "/api/escales/captain/review/dep-mayotte",
@@ -613,9 +623,13 @@ def test_pledge_accepts_kind_and_target(api):
 
 def test_target_slug_must_be_known_for_a_stopover_kind(api):
     client, fake = api
-    bad_slug = _create(client, "m0-slug", {**PLEDGE, "kind": "berth", "target_id": "Projet Ecole"})
+    bad_slug = _create(client, "m0-slug", {
+        **PLEDGE, "kind": "berth", "amount_eur": "30.00", "target_id": "Projet Ecole",
+    })
     assert bad_slug.status_code == 422
-    unknown = _create(client, "m0-unknown", {**PLEDGE, "kind": "care", "target_id": "nulle-part"})
+    unknown = _create(client, "m0-unknown", {
+        **PLEDGE, "kind": "care", "amount_eur": "40.00", "target_id": "nulle-part",
+    })
     assert unknown.status_code == 422
     project = _create(client, "m0-project", {
         **PLEDGE,
@@ -740,7 +754,7 @@ def test_schedule_local_fallback(api, monkeypatch):
 
 
 def test_unplaced_project_and_fund_totals_are_readable(api):
-    """Project and common-fund totals need the treasurer key. A stopover stays public."""
+    """Project, common-fund and stopover totals all need the treasurer key."""
     client, _fake = api
     locked_project = client.get("/api/escales/milestones/project/fund")
     assert locked_project.status_code == 401
@@ -808,7 +822,8 @@ def test_unplaced_project_and_fund_totals_are_readable(api):
     assert client.post(
         f"/api/escales/pledges/{stop['id']}/capture", headers=ADMIN
     ).status_code == 200
-    assert client.get("/api/escales/milestones/mayotte/fund").json()["income_eur"] == "9.00"
+    assert client.get("/api/escales/milestones/mayotte/fund").status_code == 401
+    assert client.get("/api/escales/milestones/mayotte/fund", headers=ADMIN).json()["income_eur"] == "9.00"
     assert client.get("/api/escales/milestones/fund/fund", headers=ADMIN).json()["income_eur"] == "12.00"
 
     refused = client.post(
@@ -817,7 +832,7 @@ def test_unplaced_project_and_fund_totals_are_readable(api):
         headers=ADMIN,
     )
     assert refused.status_code == 404
-    assert client.get("/api/escales/milestones/nulle-part/fund").status_code == 404
+    assert client.get("/api/escales/milestones/nulle-part/fund", headers=ADMIN).status_code == 404
 
 
 def _capture_open_and_stopover(client):
@@ -978,6 +993,32 @@ def test_priced_kind_requires_its_unit_price(api):
         "description": "cabine",
     })
     assert priced.status_code == 200, priced.text
+    above = _create(client, "cabin-90", {
+        **PLEDGE,
+        "kind": "cabin_leg",
+        "amount_eur": "90.00",
+        "milestone_id": "leg-la-rochelle-to-ajaccio-corse",
+        "description": "cabine",
+    })
+    assert above.status_code == 422
+    assert "80.00" in above.json()["detail"]
+    two_nights = _create(client, "night-120", {
+        **PLEDGE,
+        "kind": "night",
+        "amount_eur": "120.00",
+        "description": "deux nuits",
+    })
+    assert two_nights.status_code == 422
+    assert "60.00" in two_nights.json()["detail"]
+    one_night = _create(client, "night-60", {
+        **PLEDGE,
+        "kind": "night",
+        "amount_eur": "60.00",
+        "description": "une nuit",
+    })
+    assert one_night.status_code == 200, one_night.text
+    mile = _create(client, "mile-20", {**PLEDGE, "kind": "mile", "amount_eur": "20.00"})
+    assert mile.status_code == 200, mile.text
     gift = _create(client, "project-small", {
         "amount_eur": "5.00",
         "description": "promesse projet",
@@ -1081,3 +1122,56 @@ def test_vault_stays_off_unless_escales_vault_enabled(monkeypatch):
     window = text[start:start + 80]
     assert 'value: "false"' in window
     assert 'value: "true"' not in window
+
+
+def test_declined_or_expired_capture_is_a_conflict(api, monkeypatch):
+    """ValueError from capture, void or authorize is 409, not an unhandled 500."""
+    import app.routers.escales as routes
+    from app.escales.ledger import get_ledger
+
+    client, fake = api
+    _created, authorized = _ready(client, "cap-expired")
+
+    async def expire():
+        doc = await get_ledger().get_pledge(authorized["id"])
+        doc["authorization_expires_at"] = "2020-01-01T00:00:00Z"
+        await get_ledger().save_pledge(doc)
+
+    asyncio.run(expire())
+    expired = client.post(
+        f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN,
+    )
+    assert expired.status_code == 409
+    assert "expired" in expired.json()["detail"].lower()
+
+    _created_d, declined_pledge = _ready(client, "cap-declined")
+
+    def declined_capture(authorization_id, final=True):
+        fake.calls.append(("capture", authorization_id))
+        return {"id": "CAP-D", "status": "DECLINED"}
+
+    fake.capture_authorization = declined_capture
+    declined = client.post(
+        f"/api/escales/pledges/{declined_pledge['id']}/capture", headers=ADMIN,
+    )
+    assert declined.status_code == 409
+    assert "DECLINED" in declined.json()["detail"]
+    stored = client.get(f"/api/escales/pledges/{declined_pledge['id']}")
+    assert stored.json()["status"] == "authorized"
+
+    async def boom(*_args, **_kwargs):
+        raise ValueError("PayPal authorization has expired")
+
+    monkeypatch.setattr(routes, "void_pledge", boom)
+    voided = client.post(
+        f"/api/escales/pledges/{declined_pledge['id']}/void", headers=ADMIN,
+    )
+    assert voided.status_code == 409
+    assert "expired" in voided.json()["detail"].lower()
+
+    monkeypatch.setattr(routes, "authorize_pledge", boom)
+    fresh = _create(client, "auth-expired")
+    assert fresh.status_code == 200
+    refused = client.post(f"/api/escales/pledges/{fresh.json()['id']}/authorize")
+    assert refused.status_code == 409
+    assert "expired" in refused.json()["detail"].lower()

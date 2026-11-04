@@ -308,7 +308,7 @@ def test_flag_off_app_and_captain_work_without_the_toolkit(monkeypatch):
             assert review.status_code == 200, review.text
             proposal = review.json()
             assert proposal["proposal"] == "capture"
-            assert authorized["id"] in proposal["pledge_ids"]
+            assert "pledge_ids" not in proposal
             names = [call[0] for call in fake.calls]
             assert "orders.get" in names
             assert "authorizations.get" in names

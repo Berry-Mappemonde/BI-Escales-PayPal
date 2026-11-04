@@ -170,6 +170,8 @@ async def _apply_event(event: dict) -> dict:
         pledge["paypal_status"] = "COMPLETED" if target == "captured" else "DENIED"
         if resource.get("id"):
             pledge["capture_id"] = str(resource["id"])
+        if target == "captured" and not str(pledge.get("captured_at") or "").strip():
+            pledge["captured_at"] = now_iso()
         pledge["history"] = list(pledge.get("history") or []) + [target]
         pledge = await get_ledger().save_pledge(pledge)
         if target == "captured":

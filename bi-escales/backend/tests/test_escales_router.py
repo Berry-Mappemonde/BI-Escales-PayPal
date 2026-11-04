@@ -468,6 +468,23 @@ def test_capture_ok_with_admin_key(api):
     assert ("capture", "AUTH-ORDER1") in fake.calls
 
 
+def test_get_pledge_returns_captured_at_with_the_capture_id(api):
+    """A completed capture stores captured_at. GET returns it next to capture_id."""
+    client, _fake = api
+    _created, authorized = _ready(client, "cap-when")
+    captured = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
+    assert captured.status_code == 200, captured.text
+    body = captured.json()
+    assert body["capture_id"] == "CAP"
+    assert body["captured_at"]
+    listed = client.get(f"/api/escales/pledges/{authorized['id']}", headers=ADMIN)
+    assert listed.status_code == 200, listed.text
+    got = listed.json()
+    assert got["capture_id"] == "CAP"
+    assert got["captured_at"] == body["captured_at"]
+    assert "T" in got["captured_at"]
+
+
 def test_void_records_void_id_and_voided_at(api):
     """A void keeps PayPal's id when the body has one, else the authorization id."""
     client, fake = api

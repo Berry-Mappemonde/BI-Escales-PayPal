@@ -527,6 +527,9 @@ def test_pending_capture_follows_completed_and_denied(api):
         "p-held": "authorized",
         "p-done": "captured",
     }
+    pending = asyncio.run(get_ledger().get_pledge("p-pending"))
+    assert pending["capture_id"] == "CAP-WH-CAP-OK"
+    assert pending["captured_at"]
     assert len(captured) == 1
     assert captured[0]["milestone_id"] == "dep-mayotte"
     assert captured[0]["amount_eur"] == "20.00"

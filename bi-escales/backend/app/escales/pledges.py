@@ -795,6 +795,8 @@ async def _finish_capture(pledge: dict, payload: Any, *, finance: dict) -> dict:
 
     if status == "COMPLETED":
         pledge["status"] = "captured"
+        if not str(pledge.get("captured_at") or "").strip():
+            pledge["captured_at"] = now_iso()
         pledge["history"] = list(pledge.get("history") or []) + ["captured"]
         saved = await get_ledger().save_pledge(pledge)
         await record("capture", status="captured", **audit_fields)

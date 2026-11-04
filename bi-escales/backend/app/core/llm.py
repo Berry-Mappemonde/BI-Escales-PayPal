@@ -13,6 +13,7 @@ The captain proposes. This module never captures, voids, or moves money.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -31,12 +32,31 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 TOKENFACTORY_DEFAULT_BASE = "https://api.tokenfactory.nebius.com/v1"
 
-NIM_MODEL = "openai/gpt-oss-20b"
+# PROVISIONAL — the NIM benchmark is still open. These values are not a
+# recommendation. The chosen config will replace this block.
+# Override with NIM_MODEL, NIM_TEMPERATURE, NIM_MAX_TOKENS, NIM_TOP_P,
+# NIM_REASONING and NIM_EXTRA_BODY (JSON object merged into the request).
+PROVISIONAL_NIM_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
+PROVISIONAL_NIM_TEMPERATURE = 0.2
+PROVISIONAL_NIM_MAX_TOKENS = 400
+PROVISIONAL_NIM_TOP_P = 0.7
+PROVISIONAL_NIM_REASONING = "low"
+# Attribute kept so a script can still assign llm.NIM_MODEL. Env wins.
+NIM_MODEL = PROVISIONAL_NIM_MODEL
+
 OPENROUTER_DEFAULT_MODEL = "openai/gpt-4o-mini"
 ANTHROPIC_MODEL = "claude-haiku-4-5"
 TOKENFACTORY_MODEL = "nvidia/Nemotron-3.5-Super-VL"
 
-TIMEOUT = httpx.Timeout(25.0, connect=8.0)
+# Each provider call, not the whole cascade. Default sits in the 8–10 s band.
+DEFAULT_PROVIDER_TIMEOUT_S = 10.0
+TIMEOUT = httpx.Timeout(DEFAULT_PROVIDER_TIMEOUT_S, connect=8.0)
+_TIMEOUT_ENV = {
+    "nim": "ESCALES_LLM_TIMEOUT_NIM_S",
+    "openrouter": "ESCALES_LLM_TIMEOUT_OPENROUTER_S",
+    "anthropic": "ESCALES_LLM_TIMEOUT_ANTHROPIC_S",
+    "tokenfactory": "ESCALES_LLM_TIMEOUT_TOKENFACTORY_S",
+}
 _TRUTHY = {"1", "true", "yes", "on"}
 _THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 _THINK_OPEN_RE = re.compile(r"<think\b[^>]*>.*\Z", re.IGNORECASE | re.DOTALL)
@@ -46,7 +66,7 @@ _DEFAULT_SYSTEM = (
     "You propose only. You never capture, void, or move money."
 )
 
-_Caller = Callable[[str, str, httpx.AsyncClient, int], Awaitable["LlmResult"]]
+_Caller = Callable[..., Awaitable["LlmResult"]]
 
 
 class LlmResult:
@@ -102,6 +122,99 @@ def openrouter_model() -> str:
     return _env("OPENROUTER_MODEL") or OPENROUTER_DEFAULT_MODEL
 
 
+def _env_float(raw: str, default: float) -> float:
+    try:
+        value = float(raw.replace(",", "."))
+    except (TypeError, ValueError):
+        return default
+    if value != value:  # NaN
+        return default
+    return value
+
+
+def nim_model() -> str:
+    """Model id for this call. ``NIM_MODEL`` env, else the module attribute, else provisional."""
+    configured = _env("NIM_MODEL")
+    if configured:
+        return configured
+    current = (NIM_MODEL or "").strip()
+    return current or PROVISIONAL_NIM_MODEL
+
+
+def nim_temperature(requested: Optional[float]) -> float:
+    """Env ``NIM_TEMPERATURE`` wins, so a benchmark can override a report's 0.2."""
+    raw = _env("NIM_TEMPERATURE")
+    if raw:
+        return _env_float(raw, PROVISIONAL_NIM_TEMPERATURE)
+    if requested is not None:
+        return float(requested)
+    return PROVISIONAL_NIM_TEMPERATURE
+
+
+def nim_max_tokens(requested: int) -> int:
+    raw = _env("NIM_MAX_TOKENS")
+    if raw:
+        try:
+            return max(1, int(raw))
+        except ValueError:
+            pass
+    try:
+        return max(1, int(requested))
+    except (TypeError, ValueError):
+        return PROVISIONAL_NIM_MAX_TOKENS
+
+
+def nim_top_p() -> float:
+    raw = _env("NIM_TOP_P")
+    if raw:
+        return _env_float(raw, PROVISIONAL_NIM_TOP_P)
+    return PROVISIONAL_NIM_TOP_P
+
+
+def nim_reasoning() -> str:
+    return _env("NIM_REASONING") or PROVISIONAL_NIM_REASONING
+
+
+def nim_extra_body() -> dict[str, Any]:
+    """Optional JSON object from ``NIM_EXTRA_BODY``. Invalid JSON is ignored."""
+    raw = _env("NIM_EXTRA_BODY")
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        log.warning("NIM_EXTRA_BODY is not JSON; ignored")
+        return {}
+    if not isinstance(data, dict):
+        log.warning("NIM_EXTRA_BODY is not a JSON object; ignored")
+        return {}
+    return data
+
+
+def provider_timeout_seconds(provider: str = "") -> float:
+    """Per-provider timeout. Specific env, else ``ESCALES_LLM_TIMEOUT_S``, else 10 s."""
+    raw = _env(_TIMEOUT_ENV.get(provider, "")) if provider else ""
+    if not raw:
+        raw = _env("ESCALES_LLM_TIMEOUT_S")
+    if not raw:
+        return DEFAULT_PROVIDER_TIMEOUT_S
+    value = _env_float(raw, DEFAULT_PROVIDER_TIMEOUT_S)
+    if value <= 0:
+        return DEFAULT_PROVIDER_TIMEOUT_S
+    return value
+
+
+def provider_timeout(provider: str = "") -> httpx.Timeout:
+    seconds = provider_timeout_seconds(provider)
+    return httpx.Timeout(seconds, connect=min(8.0, seconds))
+
+
+def _temperature(requested: Optional[float], default: float) -> float:
+    if requested is None:
+        return default
+    return float(requested)
+
+
 def tokenfactory_url() -> str:
     base = (_env("NAVIGUIDE_TF_BASE") or TOKENFACTORY_DEFAULT_BASE).rstrip("/")
     return f"{base}/chat/completions"
@@ -124,7 +237,7 @@ def has_llm() -> bool:
 
 
 def _client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(timeout=TIMEOUT)
+    return httpx.AsyncClient(timeout=provider_timeout())
 
 
 def _clean_text(txt: str | None) -> str:
@@ -191,7 +304,9 @@ async def _post_json(
     headers: dict[str, str],
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    response = await client.post(url, headers=headers, json=payload)
+    response = await client.post(
+        url, headers=headers, json=payload, timeout=provider_timeout(provider),
+    )
     if response.status_code >= 400:
         raise _http_error(provider, response)
     try:
@@ -204,24 +319,35 @@ async def _post_json(
 
 
 async def _call_nim(
-    system: str, user: str, client: httpx.AsyncClient, max_tokens: int,
+    system: str,
+    user: str,
+    client: httpx.AsyncClient,
+    max_tokens: int,
+    temperature: Optional[float] = None,
 ) -> LlmResult:
     key = nvidia_key()
     if not key:
         raise RuntimeError("NVIDIA_API_KEY missing")
-    payload = {
-        "model": NIM_MODEL,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        "max_tokens": max_tokens,
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+    payload: dict[str, Any] = {
+        "model": nim_model(),
+        "messages": messages,
+        "max_tokens": nim_max_tokens(max_tokens),
         "stream": False,
-        "temperature": 0.6,
-        "top_p": 0.7,
-        "reasoning_effort": "low",
+        "temperature": nim_temperature(temperature),
+        "top_p": nim_top_p(),
+        "reasoning_effort": nim_reasoning(),
         "chat_template_kwargs": {"thinking": False},
     }
+    extra = nim_extra_body()
+    if extra:
+        payload.update(extra)
+        payload["messages"] = messages
+        if _env("NIM_MODEL"):
+            payload["model"] = nim_model()
     data = await _post_json(
         client,
         "nim",
@@ -232,11 +358,16 @@ async def _call_nim(
     text = _openai_text(data)
     if not text:
         raise RuntimeError("nim empty")
-    return LlmResult(text, "nim", _reported_model(data, NIM_MODEL))
+    requested = str(payload.get("model") or nim_model())
+    return LlmResult(text, "nim", _reported_model(data, requested))
 
 
 async def _call_openrouter(
-    system: str, user: str, client: httpx.AsyncClient, max_tokens: int,
+    system: str,
+    user: str,
+    client: httpx.AsyncClient,
+    max_tokens: int,
+    temperature: Optional[float] = None,
 ) -> LlmResult:
     key = openrouter_key()
     if not key:
@@ -249,7 +380,7 @@ async def _call_openrouter(
             {"role": "user", "content": user},
         ],
         "max_tokens": max_tokens,
-        "temperature": 0.4,
+        "temperature": _temperature(temperature, 0.4),
     }
     data = await _post_json(
         client,
@@ -265,7 +396,11 @@ async def _call_openrouter(
 
 
 async def _call_anthropic(
-    system: str, user: str, client: httpx.AsyncClient, max_tokens: int,
+    system: str,
+    user: str,
+    client: httpx.AsyncClient,
+    max_tokens: int,
+    temperature: Optional[float] = None,
 ) -> LlmResult:
     key = anthropic_key()
     if not key:
@@ -273,7 +408,7 @@ async def _call_anthropic(
     payload = {
         "model": ANTHROPIC_MODEL,
         "max_tokens": max_tokens,
-        "temperature": 0,
+        "temperature": _temperature(temperature, 0),
         "system": system,
         "messages": [{"role": "user", "content": user}],
     }
@@ -295,7 +430,11 @@ async def _call_anthropic(
 
 
 async def _call_tokenfactory(
-    system: str, user: str, client: httpx.AsyncClient, max_tokens: int,
+    system: str,
+    user: str,
+    client: httpx.AsyncClient,
+    max_tokens: int,
+    temperature: Optional[float] = None,
 ) -> LlmResult:
     key = nebius_key()
     if not key:
@@ -309,7 +448,7 @@ async def _call_tokenfactory(
             {"role": "user", "content": user},
         ],
         "max_tokens": max_tokens,
-        "temperature": 0.4,
+        "temperature": _temperature(temperature, 0.4),
         "stream": False,
         "reasoning_effort": "none",
         "chat_template_kwargs": {"enable_thinking": False},
@@ -340,10 +479,13 @@ async def ask_text(
     system: Optional[str] = None,
     max_tokens: int = 500,
     client: Optional[httpx.AsyncClient] = None,
+    temperature: Optional[float] = None,
 ) -> LlmResult:
     """Run the cascade. Raises when no provider answers so the captain uses its rules.
 
     ``client`` is for tests. Production opens a short-lived client and closes it.
+    ``temperature`` is the caller's preference (reports use about 0.2). NIM still
+    honours ``NIM_TEMPERATURE`` when that variable is set.
     """
     if not has_llm():
         raise RuntimeError("No LLM configured")
@@ -356,7 +498,7 @@ async def ask_text(
         last = "no_llm_backend"
         for name in active_providers():
             try:
-                result = await _CALLS[name](system_text, user, http, budget)
+                result = await _CALLS[name](system_text, user, http, budget, temperature)
             except Exception as exc:
                 last = f"{name} {type(exc).__name__}"
                 log.warning("cascade %s failed (%s)", name, type(exc).__name__)
@@ -368,3 +510,54 @@ async def ask_text(
     finally:
         if own:
             await http.aclose()
+
+
+class LlmJson:
+    """Parsed JSON object plus the provider and model that wrote it."""
+
+    def __init__(self, data: dict[str, Any], provider: str, model: str, text: str) -> None:
+        self.data = data
+        self.provider = provider
+        self.model = model
+        self.text = text
+
+    def __bool__(self) -> bool:
+        return bool(self.data)
+
+
+_JSON_SYSTEM = "Reply with one JSON object only. No markdown fence and no commentary."
+
+
+def parse_json_object(text: str) -> dict[str, Any]:
+    """Accept a raw object or one JSON object wrapped in prose or a fence."""
+    cleaned = _clean_text(text)
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError:
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start < 0 or end <= start:
+            raise RuntimeError("LLM JSON parse failed")
+        data = json.loads(cleaned[start:end + 1])
+    if not isinstance(data, dict):
+        raise RuntimeError("LLM JSON was not an object")
+    return data
+
+
+async def ask_json(
+    prompt: str,
+    system: Optional[str] = None,
+    max_tokens: int = 500,
+    client: Optional[httpx.AsyncClient] = None,
+    temperature: Optional[float] = None,
+) -> LlmJson:
+    """Ask for one JSON object and parse it. The captain does not use this to decide."""
+    system_text = (system or "").strip() or _JSON_SYSTEM
+    result = await ask_text(
+        prompt,
+        system=system_text,
+        max_tokens=max_tokens,
+        client=client,
+        temperature=temperature,
+    )
+    return LlmJson(parse_json_object(result.text), result.provider, result.model, result.text)

@@ -31,6 +31,17 @@ LLM_ENV = (
     "NAVIGUIDE_TF_BASE",
     "HELLOASSO_MEMBERSHIP_URL",
     "ESCALES_TOOLKIT_ENABLED",
+    "NIM_MODEL",
+    "NIM_TEMPERATURE",
+    "NIM_MAX_TOKENS",
+    "NIM_TOP_P",
+    "NIM_REASONING",
+    "NIM_EXTRA_BODY",
+    "ESCALES_LLM_TIMEOUT_S",
+    "ESCALES_LLM_TIMEOUT_NIM_S",
+    "ESCALES_LLM_TIMEOUT_OPENROUTER_S",
+    "ESCALES_LLM_TIMEOUT_ANTHROPIC_S",
+    "ESCALES_LLM_TIMEOUT_TOKENFACTORY_S",
 )
 
 
@@ -148,7 +159,11 @@ def _transport(script: dict[str, list[httpx.Response]]):
 
 def test_cascade_order_puts_nebius_last_and_rules_after_it():
     assert llm.CASCADE == ("nim", "openrouter", "anthropic", "tokenfactory", "rules")
-    assert llm.NIM_MODEL == "openai/gpt-oss-20b"
+    assert llm.NIM_MODEL == llm.PROVISIONAL_NIM_MODEL
+    assert "PROVISIONAL" in Path(llm.__file__).read_text(encoding="utf-8")
+    assert "29" not in captain._report_system("lorient")
+    assert "29" not in captain._chat_system("fr")
+    assert "reauthor" not in captain._chat_system("en").lower()
     source = inspect.getsource(captain)
     assert "capture_authorization" not in source
     assert "void_authorization" not in source
@@ -163,8 +178,13 @@ def test_env_example_lists_flags_and_empty_keys():
     lines = [line.strip() for line in ENV_FILE.read_text(encoding="utf-8").splitlines()]
     assert "ESCALES_LLM_ENABLED=" in lines
     assert "ESCALES_LLM_NEBIUS_ENABLED=false" in lines
-    for name in ("NVIDIA_API_KEY", "OPENROUTER_API_KEY", "OPENROUTER_MODEL", "ANTHROPIC_API_KEY", "NEBIUS_API_KEY"):
+    for name in (
+        "NVIDIA_API_KEY", "OPENROUTER_API_KEY", "OPENROUTER_MODEL", "ANTHROPIC_API_KEY", "NEBIUS_API_KEY",
+        "NIM_MODEL", "NIM_TEMPERATURE", "NIM_MAX_TOKENS", "NIM_TOP_P", "NIM_REASONING", "NIM_EXTRA_BODY",
+        "ESCALES_LLM_TIMEOUT_NIM_S",
+    ):
         assert f"{name}=" in lines
+    assert "ESCALES_LLM_TIMEOUT_S=10" in lines
     for line in lines:
         if line.split("=", 1)[0] in {"NVIDIA_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "NEBIUS_API_KEY"}:
             assert line.endswith("=")
@@ -228,7 +248,7 @@ def test_configured_providers_keep_nim_openrouter_anthropic_nebius_order(monkeyp
     assert llm.active_providers() == ["nim", "openrouter", "anthropic", "tokenfactory"]
 
 
-def test_nim_answers_first_with_gpt_oss_20b(monkeypatch):
+def test_nim_answers_first_with_the_provisional_model(monkeypatch):
     _enable("nim", "openrouter", "anthropic", "tokenfactory", nebius="true")
     seen, client = _transport({
         "integrate.api.nvidia.com": [_openai("Rapport NIM.", llm.NIM_MODEL)],
@@ -239,17 +259,17 @@ def test_nim_answers_first_with_gpt_oss_20b(monkeypatch):
         result = await llm.ask_text("preuve", system="systeme", max_tokens=500, client=client)
         assert result.text == "Rapport NIM."
         assert result.provider == "nim"
-        assert result.model == "openai/gpt-oss-20b"
+        assert result.model == llm.PROVISIONAL_NIM_MODEL
         assert [item["host"] for item in seen] == ["integrate.api.nvidia.com"]
         call = seen[0]
         assert call["url"] == llm.NVIDIA_URL
-        assert call["model"] == "openai/gpt-oss-20b"
+        assert call["model"] == llm.PROVISIONAL_NIM_MODEL
         assert call["authorization"] == "Bearer test-nvidia-key"
         assert call["x-api-key"] is None
         assert "test-nvidia-key" not in call["raw"]
-        assert call["body"]["temperature"] == 0.6
-        assert call["body"]["top_p"] == 0.7
-        assert call["body"]["reasoning_effort"] == "low"
+        assert call["body"]["temperature"] == llm.PROVISIONAL_NIM_TEMPERATURE
+        assert call["body"]["top_p"] == llm.PROVISIONAL_NIM_TOP_P
+        assert call["body"]["reasoning_effort"] == llm.PROVISIONAL_NIM_REASONING
         assert call["body"]["chat_template_kwargs"] == {"thinking": False}
         assert call["body"]["max_tokens"] == 500
         assert call["body"]["messages"][0] == {"role": "system", "content": "systeme"}
@@ -397,8 +417,12 @@ def test_captain_review_exposes_nim_and_never_captures(monkeypatch):
         await record_evidence("dep-mayotte", met=True, facts={"port": "Mayotte"})
         result = await review("dep-mayotte", reader=ReadOnlyTools(spy))
         assert result["proposal"] == "capture"
-        assert result["model_source"] == {"provider": "nim", "model": "openai/gpt-oss-20b"}
+        assert result["model_source"] == {"provider": "nim", "model": llm.PROVISIONAL_NIM_MODEL}
         assert "annuler" in result["report"]
+        assert "dep-mayotte" in result["report"]
+        assert seen_box["seen"][0]["body"]["temperature"] == 0.2
+        sentences = [part for part in result["report"].replace("!", ".").replace("?", ".").split(".") if part.strip()]
+        assert 2 <= len(sentences) <= 3
         assert seen_box["seen"][0]["host"] == "integrate.api.nvidia.com"
         assert len(seen_box["seen"]) == 1
         names = [call[0] for call in spy.calls]
@@ -426,7 +450,7 @@ def test_captain_strips_invented_figures_and_keeps_the_source(monkeypatch):
         assert "999" not in result["report"]
         assert "[?]" in result["justification"]
         assert result["proposal"] == "capture"
-        assert result["model_source"] == {"provider": "nim", "model": "openai/gpt-oss-20b"}
+        assert result["model_source"] == {"provider": "nim", "model": llm.PROVISIONAL_NIM_MODEL}
 
     asyncio.run(body())
 
@@ -499,5 +523,121 @@ def test_captain_uses_rules_when_every_provider_fails(monkeypatch):
         assert result["proposal"] == "capture"
         assert "Proposition" in result["report"]
         assert [item["host"] for item in seen_box["seen"]] == ["integrate.api.nvidia.com"]
+
+    asyncio.run(body())
+
+
+def test_nim_params_come_from_the_environment(monkeypatch):
+    _enable("nim")
+    monkeypatch.setenv("NIM_MODEL", "nvidia/benchmark-model")
+    monkeypatch.setenv("NIM_TEMPERATURE", "0.15")
+    monkeypatch.setenv("NIM_MAX_TOKENS", "128")
+    monkeypatch.setenv("NIM_TOP_P", "0.5")
+    monkeypatch.setenv("NIM_REASONING", "none")
+    monkeypatch.setenv("NIM_EXTRA_BODY", '{"seed": 7, "chat_template_kwargs": {"thinking": false}}')
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [_openai("Rapport.", "nvidia/benchmark-model")],
+    })
+
+    async def body():
+        result = await llm.ask_text("preuve", max_tokens=500, temperature=0.2, client=client)
+        body_json = seen[0]["body"]
+        assert body_json["model"] == "nvidia/benchmark-model"
+        assert body_json["temperature"] == 0.15
+        assert body_json["max_tokens"] == 128
+        assert body_json["top_p"] == 0.5
+        assert body_json["reasoning_effort"] == "none"
+        assert body_json["seed"] == 7
+        assert body_json["messages"][1]["content"] == "preuve"
+        assert result.provider == "nim"
+        await client.aclose()
+
+    asyncio.run(body())
+
+
+def test_invalid_nim_extra_body_is_ignored(monkeypatch):
+    _enable("nim")
+    monkeypatch.setenv("NIM_EXTRA_BODY", "not-json")
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [_openai("Rapport.", llm.nim_model())],
+    })
+
+    async def body():
+        await llm.ask_text("preuve", client=client)
+        assert "seed" not in seen[0]["body"]
+        assert seen[0]["model"] == llm.PROVISIONAL_NIM_MODEL
+        await client.aclose()
+
+    asyncio.run(body())
+
+
+def test_provider_timeout_defaults_to_ten_seconds_and_is_configurable(monkeypatch):
+    assert llm.provider_timeout_seconds("nim") == 10.0
+    assert 8 <= llm.provider_timeout_seconds("openrouter") <= 10
+    monkeypatch.setenv("ESCALES_LLM_TIMEOUT_S", "9")
+    monkeypatch.setenv("ESCALES_LLM_TIMEOUT_NIM_S", "8")
+    assert llm.provider_timeout_seconds("nim") == 8
+    assert llm.provider_timeout_seconds("anthropic") == 9
+    timeout = llm.provider_timeout("nim")
+    assert timeout.read == 8
+
+
+def test_each_call_sends_its_own_timeout(monkeypatch):
+    _enable("nim")
+    captured = {}
+
+    class FakeClient:
+        async def post(self, url, headers=None, json=None, timeout=None):
+            captured["timeout"] = timeout
+            captured["url"] = url
+            return httpx.Response(200, json={
+                "model": llm.nim_model(),
+                "choices": [{"message": {"content": "ok"}}],
+            })
+
+        async def aclose(self):
+            return None
+
+    async def body():
+        result = await llm.ask_text("preuve", client=FakeClient())
+        assert result.text == "ok"
+        assert captured["timeout"].read == 10
+
+    asyncio.run(body())
+
+
+def test_ask_json_parses_a_fenced_object():
+    _enable("nim")
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [_openai(
+            '```json\n{"status":"ready","note":"ok"}\n```',
+            llm.nim_model(),
+        )],
+    })
+
+    async def body():
+        parsed = await llm.ask_json("Return JSON", client=client)
+        assert parsed.data == {"status": "ready", "note": "ok"}
+        assert parsed.provider == "nim"
+        assert "29" not in seen[0]["body"]["messages"][0]["content"]
+        await client.aclose()
+
+    asyncio.run(body())
+
+
+def test_report_temperature_is_about_0_2_unless_nim_env_overrides(monkeypatch):
+    _enable("nim")
+    monkeypatch.setenv("NIM_TEMPERATURE", "0.33")
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [_openai("Fait pour dep-mayotte.", llm.nim_model())],
+    })
+    monkeypatch.setattr(llm, "_client", lambda: client)
+
+    async def body():
+        await record_evidence("dep-mayotte", met=True, facts={"port": "Mayotte"})
+        result = await review("dep-mayotte", reader=None)
+        assert seen[0]["body"]["temperature"] == 0.33
+        assert "dep-mayotte" in result["report"]
+        assert result["proposal"] == "capture"
 
     asyncio.run(body())

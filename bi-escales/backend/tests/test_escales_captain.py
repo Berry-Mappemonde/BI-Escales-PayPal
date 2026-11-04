@@ -230,6 +230,9 @@ def test_chat_offers_membership_url_and_does_not_order(monkeypatch):
         assert pledge["currency"] == "EUR"
         assert pledge["intent"] == "AUTHORIZE"
         assert pledge["milestone_id"] == "mayotte"
+        assert pledge["kind"] == "mile"
+        assert pledge["simulated"] is True
+        assert pledge["price_label"] == "simulated price"
         assert "order_id" not in result
         assert "999" not in result["reply"]
         assert result["model_source"] == {"provider": "rules", "model": ""}
@@ -1068,6 +1071,9 @@ def test_displayed_ports_are_capitalized():
     assert captain.display_name("dakar") == "Dakar"
     assert captain.display_name("dep-mayotte") == "Mayotte"
     assert not captain.display_name("dep-mayotte").casefold().startswith("dep-")
+    assert captain.display_name("dep-fort-de-france") == "Fort-de-France"
+    assert captain.display_name("pointe-a-pitre") == "Pointe-à-Pitre"
+    assert "dep-" not in captain.display_name("dep-fort-de-france").lower()
 
     async def body():
         french = await chat("Je parraine 20 milles près de Dakar")

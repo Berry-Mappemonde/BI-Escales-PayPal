@@ -1,6 +1,7 @@
 """Configuration from the environment. Sandbox is the only allowed PayPal environment."""
 from __future__ import annotations
 
+import datetime as dt
 import os
 from dataclasses import dataclass
 
@@ -32,6 +33,44 @@ def escales_env() -> str:
     """``development`` unless ``ESCALES_ENV`` says otherwise."""
     raw = (os.environ.get("ESCALES_ENV") or "development").strip().lower()
     return raw or "development"
+
+
+# Départ d'horloge du mini-mix quand ESCALES_CLOCK_START est absent.
+PRODUCTION_CLOCK_START = "2026-11-12"
+
+
+def _clock_date(raw: str) -> str:
+    """Date UTC. Même repli ``Z`` que ``payment_mode._parse_arrival``."""
+    text = raw.strip()
+    if len(text) == 10 and "T" not in text:
+        try:
+            return dt.date.fromisoformat(text).isoformat()
+        except ValueError as exc:
+            raise ValueError("ESCALES_CLOCK_START must be a date (YYYY-MM-DD)") from exc
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        moment = dt.datetime.fromisoformat(text)
+    except ValueError as exc:
+        raise ValueError("ESCALES_CLOCK_START must be a date (YYYY-MM-DD)") from exc
+    if moment.tzinfo is not None:
+        moment = moment.astimezone(dt.timezone.utc)
+    return moment.date().isoformat()
+
+
+def clock_start() -> str:
+    """Origine de l'horloge de voyage (``YYYY-MM-DD``).
+
+    ``ESCALES_CLOCK_START`` la fixe en développement et dans les tests.
+    Sans variable, et en production (``ESCALES_ENV=production``), le départ
+    est le 12 novembre 2026. Sans variable hors production, même date.
+    """
+    raw = (os.environ.get("ESCALES_CLOCK_START") or "").strip()
+    if raw:
+        return _clock_date(raw)
+    # ``ESCALES_ENV=production`` sans variable : 2026-11-12.
+    # Développement et tests : la même date, déplaçable avec ESCALES_CLOCK_START.
+    return PRODUCTION_CLOCK_START
 
 
 def limits_enabled() -> bool:

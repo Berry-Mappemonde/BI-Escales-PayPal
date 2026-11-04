@@ -355,13 +355,101 @@ def test_main_registers_escales_only_when_enabled():
     assert "webhooks_router" in text
 
 
-def test_schedule_local_fallback(api):
+def test_pledge_defaults_to_mile_and_labels_the_simulated_price(api):
+    client, fake = api
+    response = _create(client, "m0-mile")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["kind"] == "mile"
+    assert body["target_id"] == "dep-mayotte"
+    assert body["intent"] == "AUTHORIZE"
+    assert body["status"] == "created"
+    assert body["price_label"] == "simulated price"
+    assert body["simulated_price"]["label"] == "simulated price"
+    assert body["simulated_price"]["simulated"] is True
+    assert body["simulated_price"]["amount_eur"] == "1.00"
+    assert "capture" not in [call[0] for call in fake.calls]
+
+
+def test_pledge_accepts_kind_and_target(api):
+    client, _fake = api
+    response = _create(client, "m0-meal", {
+        **PLEDGE,
+        "kind": "meal",
+        "target_id": "projet-ecole",
+        "amount_eur": "60.00",
+    })
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["kind"] == "meal"
+    assert body["target_id"] == "projet-ecole"
+    assert body["milestone_id"] == "dep-mayotte"
+    assert body["simulated_price"]["amount_eur"] == "60.00"
+    assert body["simulated_price"]["label"] == "simulated price"
+
+
+def test_unknown_pledge_kind_is_rejected(api):
+    client, fake = api
+    response = _create(client, "m0-bad", {**PLEDGE, "kind": "yacht"})
+    assert response.status_code == 422
+    assert fake.calls == []
+
+
+def test_prices_and_clock(api, monkeypatch):
+    monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
+    monkeypatch.delenv("ESCALES_ENV", raising=False)
+    client, _fake = api
+    prices = client.get("/api/escales/prices")
+    assert prices.status_code == 200
+    catalogue = prices.json()
+    assert catalogue["simulated"] is True
+    assert catalogue["label"] == "simulated price"
+    kinds = [row["kind"] for row in catalogue["prices"]]
+    assert kinds == [
+        "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "common_fund",
+    ]
+    assert all(row["label"] == "simulated price" and row["simulated"] is True for row in catalogue["prices"])
+    by_kind = {row["kind"]: row for row in catalogue["prices"]}
+    assert by_kind["mile"]["amount_eur"] == "1.00"
+    assert by_kind["meal"]["amount_eur"] == "60.00"
+    assert by_kind["berth"]["copied_from"] == "mile"
+    clock = client.get("/api/escales/clock")
+    assert clock.status_code == 200
+    assert clock.json()["start"] == "2026-11-12"
+
+
+def test_clock_start_is_configurable_outside_production(monkeypatch):
+    from app.escales.config import clock_start
+
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
+    assert clock_start() == "2026-11-12"
+    monkeypatch.setenv("ESCALES_ENV", "development")
+    monkeypatch.setenv("ESCALES_CLOCK_START", "2026-12-01")
+    assert clock_start() == "2026-12-01"
+    monkeypatch.setenv("ESCALES_ENV", "test")
+    monkeypatch.setenv("ESCALES_CLOCK_START", "2027-01-03T08:00:00Z")
+    assert clock_start() == "2027-01-03"
+    monkeypatch.setenv("ESCALES_CLOCK_START", "tomorrow")
+    with pytest.raises(ValueError):
+        clock_start()
+
+
+def test_schedule_local_fallback(api, monkeypatch):
+    monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
+    monkeypatch.delenv("ESCALES_ENV", raising=False)
     client, _fake = api
     response = client.get("/api/escales/schedule")
     assert response.status_code == 200
     body = response.json()
     assert body["source"] == "local"
     assert any(row["_id"] == "dep-mayotte" for row in body["milestones"])
+    shown = next(row for row in body["milestones"] if row["_id"] == "dep-fort-de-france")
+    assert shown["display_name"] == "Fort-de-France"
+    assert "dep-" not in shown["display_name"].lower()
+    assert body["clock"]["start"] == "2026-11-12"
+    assert body["prices"]["label"] == "simulated price"
+    assert body["prices"]["simulated"] is True
 
 
 def test_features_flags_off_by_default(api):

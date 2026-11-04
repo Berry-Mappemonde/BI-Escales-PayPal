@@ -23,14 +23,17 @@ from .milestones import (
     get_milestone,
     latest_evidence,
 )
-from .pledges import get_ledger, now_iso, pledges_for_milestone
+from .pledges import PLEDGE_KINDS, get_ledger, now_iso, pledges_for_milestone
 from .toolkit_tools import ReadOnlyTools
 
 log = logging.getLogger("escales.captain")
 
 # Bureau prices. The model is not allowed to invent another tariff.
+# meal reuses the dinner line. Every other kind reuses the mile unit.
+# Both figures are a simulation, not a PayPal quote.
 MILE_EUR = Decimal("1.00")
 DINNER_EUR = Decimal("60.00")
+SIMULATED_PRICE_LABEL = "simulated price"
 
 _MILES = re.compile(
     r"(\d+(?:[.,]\d+)?)\s*(?:nautical\s+|nautiques?\s+)?(?:milles?|miles?|nm|mi)\b",
@@ -303,6 +306,35 @@ def display_name(milestone_id: str) -> str:
     return slug or raw
 
 
+def _simulated_amount(kind: str) -> Decimal:
+    if kind == "meal":
+        return DINNER_EUR
+    return MILE_EUR
+
+
+def simulated_unit(kind: str) -> dict:
+    """One catalogue line. ``label`` is always ``simulated price``."""
+    amount = _simulated_amount(kind)
+    return {
+        "kind": kind,
+        "amount_eur": f"{amount:.2f}",
+        "currency": "EUR",
+        "label": SIMULATED_PRICE_LABEL,
+        "simulated": True,
+        "copied_from": "dinner" if kind == "meal" else "mile",
+    }
+
+
+def simulated_prices() -> dict:
+    """Same two bureau figures, one row per pledge kind."""
+    return {
+        "simulated": True,
+        "label": SIMULATED_PRICE_LABEL,
+        "currency": "EUR",
+        "prices": [simulated_unit(kind) for kind in PLEDGE_KINDS],
+    }
+
+
 def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -> str:
     """Full instructions written in the report language. Code writes the reached sentence."""
     port = display_name(milestone_id)
@@ -553,14 +585,21 @@ def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
         item = "dinner"
     else:
         item = "mile"
-    return {
+    suggested = {
         "amount_eur": f"{amount:.2f}",
         "currency": "EUR",
         "description": _pledge_description(total_miles, dinners, lang),
         "milestone_id": place,
         "intent": "AUTHORIZE",
         "item": item,
+        "simulated": True,
+        "price_label": SIMULATED_PRICE_LABEL,
     }
+    if item == "mile":
+        suggested["kind"] = "mile"
+    elif item == "dinner":
+        suggested["kind"] = "meal"
+    return suggested
 
 
 def _covered_miles_sentence(evidence: dict, lang: str = "fr") -> str:

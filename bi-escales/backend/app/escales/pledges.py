@@ -19,6 +19,7 @@ from .ledger import (
     COLLECTIONS,
     get_ledger,
     now_iso,
+    pledge_defaults,
     record_finance,
     reset_ledger,
 )
@@ -37,6 +38,18 @@ MILESTONES_COLLECTION = "escales_milestones"
 AUDIT_COLLECTION = "escales_audit"
 
 _AMOUNT = re.compile(r"^\d+(?:\.\d{1,2})?$")
+
+# Même liste pour la création, le catalogue et l'API. ``mile`` est le défaut.
+PLEDGE_KINDS = (
+    "mile",
+    "project_pledge",
+    "berth",
+    "night",
+    "meal",
+    "care",
+    "cabin_leg",
+    "common_fund",
+)
 
 
 class IllegalTransition(Exception):
@@ -72,10 +85,32 @@ def normalize_amount(raw: str) -> str:
 
 
 def to_public(doc: dict) -> dict:
+    row = pledge_defaults(doc) or doc
     hidden = {"_id", "client_key"}
-    out = {key: value for key, value in doc.items() if key not in hidden}
+    out = {key: value for key, value in row.items() if key not in hidden}
     out["id"] = doc["_id"]
     return out
+
+
+def _kind(raw: Optional[str]) -> str:
+    if raw is None or not str(raw).strip():
+        return "mile"
+    kind = str(raw).strip().lower()
+    if kind not in PLEDGE_KINDS:
+        raise ValueError("kind must be one of: " + ", ".join(PLEDGE_KINDS))
+    return kind
+
+
+def _target(target_id: Optional[str], milestone_id: str) -> str:
+    text = (target_id or "").strip()
+    if text:
+        return text
+    return milestone_id
+
+
+def _identity(doc: dict) -> dict:
+    row = pledge_defaults(doc) or doc
+    return {"pledge_kind": row.get("kind"), "target_id": row.get("target_id")}
 
 
 def _require_text(value: str, field: str) -> str:
@@ -125,10 +160,14 @@ async def create_pledge(
     client_key: Optional[str] = None,
     contributor: Optional[str] = None,
     payment_mode: Optional[PaymentMode] = None,
+    kind: Optional[str] = None,
+    target_id: Optional[str] = None,
 ) -> dict:
     amount = normalize_amount(amount_eur)
     description = _require_text(description, "description")
     milestone_id = _require_text(milestone_id, "milestone_id")
+    pledge_kind = _kind(kind)
+    resolved_target = _target(target_id, milestone_id)
     mode = payment_mode or await resolve_payment_mode(milestone_id)
     if mode == "VAULT":
         return await _create_vault_pledge(
@@ -138,6 +177,8 @@ async def create_pledge(
             client=client,
             client_key=client_key,
             contributor=contributor,
+            kind=pledge_kind,
+            target_id=resolved_target,
         )
     return await _create_authorize_pledge(
         amount=amount,
@@ -146,6 +187,8 @@ async def create_pledge(
         client=client,
         client_key=client_key,
         contributor=contributor,
+        kind=pledge_kind,
+        target_id=resolved_target,
     )
 
 
@@ -157,6 +200,8 @@ async def _create_authorize_pledge(
     client: Any,
     client_key: Optional[str],
     contributor: Optional[str],
+    kind: str,
+    target_id: str,
 ) -> dict:
     key = _client_key(client_key)
     ledger = get_ledger()
@@ -189,6 +234,8 @@ async def _create_authorize_pledge(
         "amount_eur": amount,
         "description": description,
         "milestone_id": milestone_id,
+        "kind": kind,
+        "target_id": target_id,
         "contributor": (contributor or "").strip() or None,
         "order_id": order_id,
         "approve_link": approve_link(order),
@@ -211,6 +258,8 @@ async def _create_authorize_pledge(
             order_id=order_id,
             status="created",
             payment_mode="AUTHORIZE",
+            pledge_kind=kind,
+            target_id=target_id,
         )
     return saved
 
@@ -223,6 +272,8 @@ async def _create_vault_pledge(
     client: Any,
     client_key: Optional[str],
     contributor: Optional[str],
+    kind: str,
+    target_id: str,
 ) -> dict:
     key = _client_key(client_key)
     ledger = get_ledger()
@@ -250,6 +301,8 @@ async def _create_vault_pledge(
         "amount_eur": amount,
         "description": description,
         "milestone_id": milestone_id,
+        "kind": kind,
+        "target_id": target_id,
         "contributor": (contributor or "").strip() or None,
         "order_id": None,
         "approve_link": setup_token_approve_link(setup),
@@ -272,6 +325,8 @@ async def _create_vault_pledge(
             setup_token_id=str(setup_id),
             status="created",
             payment_mode="VAULT",
+            pledge_kind=kind,
+            target_id=target_id,
         )
     return saved
 
@@ -306,6 +361,7 @@ async def register_vault_pledge(
         currency="EUR",
         vault_id=vault_id,
         status="vaulted",
+        **_identity(saved),
     )
     return saved
 
@@ -334,6 +390,7 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
         currency="EUR",
         authorization_id=auth_id,
         status="authorized",
+        **_identity(saved),
     )
     return saved
 
@@ -365,6 +422,7 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
             amount_eur=saved.get("amount_eur"),
             currency="EUR",
             payment_mode="VAULT",
+            **_identity(saved),
         )
         await record_finance(
             "pledge_captured",
@@ -376,6 +434,7 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
             status="captured",
             actor="treasurer",
             payment_mode="VAULT",
+            **_identity(saved),
         )
         return saved
     _require_status(pledge, "authorized", "captured")
@@ -394,6 +453,7 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
         status="captured",
         amount_eur=saved.get("amount_eur"),
         currency="EUR",
+        **_identity(saved),
     )
     await record_finance(
         "pledge_captured",
@@ -404,6 +464,7 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
         authorization_id=saved.get("authorization_id"),
         status="captured",
         actor="treasurer",
+        **_identity(saved),
     )
     return saved
 
@@ -430,6 +491,7 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
             amount_eur=saved.get("amount_eur"),
             currency="EUR",
             payment_mode="VAULT",
+            **_identity(saved),
         )
         await record_finance(
             "pledge_voided",
@@ -441,6 +503,7 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
             status="voided",
             actor="treasurer",
             payment_mode="VAULT",
+            **_identity(saved),
         )
         return saved
     _require_status(pledge, "authorized", "voided")
@@ -459,6 +522,7 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
         status="voided",
         amount_eur=saved.get("amount_eur"),
         currency="EUR",
+        **_identity(saved),
     )
     await record_finance(
         "pledge_voided",
@@ -469,6 +533,7 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
         authorization_id=saved.get("authorization_id"),
         status="voided",
         actor="treasurer",
+        **_identity(saved),
     )
     return saved
 

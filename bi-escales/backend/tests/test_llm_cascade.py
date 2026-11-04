@@ -471,6 +471,7 @@ def test_captain_review_exposes_nim_and_never_captures(monkeypatch):
         assert "annuler" in result["report"]
         assert "Mayotte" in result["report"]
         assert "Dep-Mayotte" not in result["report"]
+        assert "dep-" not in result["report"].lower()
         narrative = seen_box["narrative"]
         assert narrative[0]["body"]["temperature"] == 0.2
         sentences = [part for part in result["report"].replace("!", ".").replace("?", ".").split(".") if part.strip()]
@@ -855,6 +856,7 @@ def test_report_temperature_is_about_0_2_unless_nim_env_overrides(monkeypatch):
         assert seen[0]["body"]["temperature"] == 0.33
         assert "Mayotte" in result["report"]
         assert "Dep-Mayotte" not in result["report"]
+        assert "dep-" not in result["report"].lower()
         assert result["proposal"] == "capture"
 
     asyncio.run(body())

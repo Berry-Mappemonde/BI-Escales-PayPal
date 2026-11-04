@@ -5,7 +5,7 @@ import json
 from typing import Any, Optional
 
 from .config import paypal_webhook_id, zapiper_enabled
-from .ledger import get_ledger, record_finance
+from .ledger import get_ledger, pledge_defaults, record_finance
 from .paypal_client import PayPalClient, PayPalError
 
 
@@ -96,12 +96,15 @@ async def _apply_event(event: dict) -> dict:
     order_id = _order_id_from_resource(resource)
     pledge = await get_ledger().find_pledge_by_order_id(order_id) if order_id else None
 
+    identity = pledge_defaults(pledge) if pledge else None
     await record_finance(
         "webhook_received",
         event_type=event_type,
         order_id=order_id,
         pledge_id=pledge.get("_id") if pledge else None,
         resource_id=resource.get("id"),
+        pledge_kind=identity.get("kind") if identity else None,
+        target_id=identity.get("target_id") if identity else None,
     )
 
     return {

@@ -16,10 +16,9 @@ from pydantic import BaseModel, Field
 from starlette.responses import Response
 
 from app.core import llm
-from app.escales.captain import SIMULATED_PRICE_LABEL
 from app.escales.captain import chat as captain_chat
 from app.escales.captain import review as captain_review
-from app.escales.captain import simulated_prices, simulated_unit
+from app.escales.captain import simulated_price_label, simulated_prices, simulated_unit
 from app.escales.config import (
     bryntum_scheduler_enabled,
     card_fields_enabled,
@@ -417,16 +416,18 @@ def _public_milestone(doc: dict) -> dict:
     }
 
 
-def _public_pledge(doc: dict) -> dict:
+def _public_pledge(doc: dict, *, lang: str = "en") -> dict:
     """Same shape as ``to_public``, plus the simulated catalogue line.
 
     ``approve_link`` is the buyer step. A stored order without one still
     gets the sandbox checkout URL.
     """
+    resolved = resolve_app_language(lang)
     public = to_public(doc)
     public["payment_mode"] = doc.get("payment_mode") or doc.get("intent")
-    public["simulated_price"] = simulated_unit(str(public.get("kind") or "mile"))
-    public["price_label"] = SIMULATED_PRICE_LABEL
+    kind = str(public.get("kind") or "mile")
+    public["simulated_price"] = simulated_unit(kind, resolved)
+    public["price_label"] = simulated_price_label(resolved)
     if not public.get("approve_link") and public.get("order_id"):
         public["approve_link"] = approve_link({"id": public["order_id"]})
     return public
@@ -440,9 +441,9 @@ async def _fund_aggregate(milestone_id: str) -> Optional[dict]:
         return None
 
 
-async def _public_pledge_with_fund(doc: dict) -> dict:
+async def _public_pledge_with_fund(doc: dict, *, lang: str = "en") -> dict:
     """Pledge the buyer needs, with the public fund aggregate and no pledge list."""
-    public = _public_pledge(doc)
+    public = _public_pledge(doc, lang=lang)
     public["fund"] = await _fund_aggregate(str(doc.get("milestone_id") or ""))
     return public
 
@@ -562,7 +563,7 @@ async def post_pledge(body: PledgeIn, request: Request):
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
-    return await _public_pledge_with_fund(doc)
+    return await _public_pledge_with_fund(doc, lang=resolve_app_language(body.lang))
 
 
 @router.post("/pledges/{pledge_id}/vault")

@@ -27,9 +27,22 @@ from app.escales.paypal_subscriptions import (
     resolve_crew_supporter_plan_id,
 )
 from app.escales.pledges import authorize_pledge, capture_pledge, create_pledge, reset_ledger
-from app.routers.escales import router, set_paypal_client_factory
+from app.routers.escales import router, set_paypal_client_factory, webhooks_router
 from tests.test_escales_pledges import Spy
+from tests.test_escales_router import FakePayPal as RouterFakePayPal
+from tests.test_escales_webhooks import HEADERS
 from tests.test_paypal_n1_n5 import NSpy
+
+
+class WebhookCapablePayPal(RouterFakePayPal):
+    def __init__(self):
+        super().__init__()
+        self.verify_calls = 0
+
+    def verify_webhook_signature(self, **kwargs):
+        self.verify_calls += 1
+        assert kwargs["webhook_id"] == "WH-DEMO"
+        return {"verification_status": "SUCCESS"}
 
 
 @pytest.fixture(autouse=True)
@@ -40,6 +53,20 @@ def memory_ledger(monkeypatch):
     reset_ledger()
     yield
     reset_ledger()
+    set_paypal_client_factory(None)
+
+
+@pytest.fixture
+def api(monkeypatch):
+    monkeypatch.setenv("ESCALES_WEBHOOKS_ENABLED", "1")
+    monkeypatch.setenv("PAYPAL_WEBHOOK_ID", "WH-DEMO")
+    fake = WebhookCapablePayPal()
+    set_paypal_client_factory(lambda: fake)
+    app = FastAPI()
+    app.include_router(router)
+    app.include_router(webhooks_router)
+    with TestClient(app) as client:
+        yield client, fake
     set_paypal_client_factory(None)
 
 
@@ -247,3 +274,94 @@ def test_n30_public_fund_includes_refunded_eur():
         },
     )
     assert public["refunded_eur"] == "2.50"
+
+
+def test_n31_french_price_label_on_suggested_pledge_and_create_response(api, monkeypatch):
+    from app.escales.captain import suggest_pledge
+
+    from tests.test_escales_router import NEAR_MAYOTTE_CLOCK
+
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", NEAR_MAYOTTE_CLOCK)
+    suggested = suggest_pledge("Je parraine 5 milles près de Mayotte", lang="fr")
+    assert suggested is not None
+    assert suggested["price_label"] == "prix simulé"
+
+    client, _fake = api
+    payload = {
+        "amount_eur": "12.00",
+        "description": "milles parrainés",
+        "milestone_id": "dep-mayotte",
+        "kind": "mile",
+        "target_id": "mayotte",
+        "lang": "fr",
+    }
+    response = client.post(
+        "/api/escales/pledges",
+        headers={"PayPal-Request-Id": "n31-fr", "Content-Type": "application/json"},
+        json=payload,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["price_label"] == "prix simulé"
+    assert body["simulated_price"]["label"] == "prix simulé"
+
+
+def test_n32_refund_webhook_links_pledge_via_capture_id(api):
+    import asyncio
+    import json
+
+    from app.escales.ledger import get_ledger, list_finance_entries
+
+    async def seed():
+        await get_ledger().insert_pledge_once(
+            {
+                "_id": "p-refund-cap",
+                "status": "captured",
+                "intent": "AUTHORIZE",
+                "payment_mode": "AUTHORIZE",
+                "currency": "EUR",
+                "amount_eur": "10.00",
+                "description": "miles",
+                "milestone_id": "dep-mayotte",
+                "kind": "mile",
+                "target_id": "mayotte",
+                "capture_id": "CAP-REF-N32",
+                "history": ["created", "captured"],
+            },
+        )
+
+    asyncio.run(seed())
+    client, _fake = api
+    resource = {
+        "id": "CAP-REF-N32",
+        "status": "REFUNDED",
+        "links": [
+            {
+                "href": "https://api.sandbox.paypal.com/v2/payments/captures/CAP-REF-N32",
+                "rel": "self",
+            },
+        ],
+    }
+    headers = dict(HEADERS)
+    headers["PAYPAL-TRANSMISSION-ID"] = "T-N32-REFUND"
+    payload = {"id": "evt-n32", "event_type": "PAYMENT.CAPTURE.REFUNDED", "resource": resource}
+    response = client.post(
+        "/api/escales/webhooks/paypal",
+        headers=headers,
+        content=json.dumps(payload),
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["pledge_id"] == "p-refund-cap"
+    entries = asyncio.run(list_finance_entries())
+    received = next(
+        row
+        for row in entries
+        if row["kind"] == "webhook_received" and row.get("event_type") == "PAYMENT.CAPTURE.REFUNDED"
+    )
+    assert received["pledge_id"] == "p-refund-cap"
+    refunded = next(row for row in entries if row["kind"] == "webhook_capture_refunded")
+    assert refunded["pledge_id"] == "p-refund-cap"
+    assert refunded["capture_id"] == "CAP-REF-N32"
+    saved = asyncio.run(get_ledger().get_pledge("p-refund-cap"))
+    assert saved["status"] == "refunded"

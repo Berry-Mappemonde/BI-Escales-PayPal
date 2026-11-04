@@ -268,7 +268,8 @@ async def _apply_event(event: dict) -> dict:
 
         vault_token_id = str(resource.get("id") or "").strip()
         if vault_token_id:
-            await mark_vault_token_deleted_for_vault_id(vault_token_id)
+            if pledge or await find_pledge_by_vault_id(vault_token_id):
+                await mark_vault_token_deleted_for_vault_id(vault_token_id)
             if pledge is None:
                 pledge = await find_pledge_by_vault_id(vault_token_id)
 
@@ -359,7 +360,7 @@ async def _apply_event(event: dict) -> dict:
 
     if event_type.startswith("CUSTOMER.DISPUTE."):
         dispute_id = str(resource.get("dispute_id") or resource.get("id") or "")
-        if dispute_id:
+        if dispute_id and await _dispute_resource_known_to_ledger(resource):
             await record_finance(
                 "paypal_dispute_snapshot",
                 dispute_id=dispute_id,
@@ -380,10 +381,10 @@ async def _apply_event(event: dict) -> dict:
             )
 
     if event_type.startswith("BILLING.SUBSCRIPTION.") or event_type == "PAYMENT.SALE.COMPLETED":
-        from .paypal_subscriptions import record_subscription
+        from .paypal_subscriptions import record_subscription, subscription_known_locally
 
         sub_id, plan_id, status = _subscription_webhook_fields(event_type, resource)
-        if sub_id:
+        if sub_id and await subscription_known_locally(sub_id):
             await record_subscription(
                 subscription_id=sub_id,
                 plan_id=plan_id,
@@ -443,6 +444,40 @@ def _resource_id(event: Any) -> Optional[str]:
     resource = _event_dict(event).get("resource")
     if isinstance(resource, dict) and resource.get("id"):
         return str(resource["id"])
+    return None
+
+
+async def _dispute_resource_known_to_ledger(resource: dict) -> bool:
+    """True when the dispute references a capture or order we already track."""
+    return await _pledge_for_dispute_resource(resource) is not None
+
+
+async def _pledge_for_dispute_resource(resource: dict) -> Optional[dict]:
+    if not isinstance(resource, dict):
+        return None
+    ledger = get_ledger()
+    order_id = _order_id_from_resource(resource)
+    if order_id:
+        found = await ledger.find_pledge_by_order_id(order_id)
+        if found:
+            return found
+    capture_id = _capture_id_from_resource(resource)
+    if capture_id:
+        found = await ledger.find_pledge_by_capture_id(capture_id)
+        if found:
+            return found
+    disputed = resource.get("disputed_transactions")
+    if isinstance(disputed, list):
+        for txn in disputed:
+            if not isinstance(txn, dict):
+                continue
+            for key in ("seller_transaction_id", "buyer_transaction_id", "transaction_id"):
+                token = str(txn.get(key) or "").strip()
+                if not token:
+                    continue
+                found = await ledger.find_pledge_by_capture_id(token)
+                if found:
+                    return found
     return None
 
 

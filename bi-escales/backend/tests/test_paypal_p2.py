@@ -228,7 +228,7 @@ def test_webhook_dispute_and_payout_batch():
         )
         finance = await get_ledger().list_finance()
         kinds = [row.get("kind") for row in finance]
-        assert "paypal_dispute_snapshot" in kinds
+        assert "paypal_dispute_snapshot" not in kinds
         assert "payout_batch_webhook" in kinds
 
     asyncio.run(run())

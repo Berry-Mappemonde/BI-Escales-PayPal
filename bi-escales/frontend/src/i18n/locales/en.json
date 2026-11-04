@@ -1,0 +1,131 @@
+{
+  "app": {
+    "title": "BI Escales — Pay Only If We Sail",
+    "tagline": "PayPal sandbox authorization; capture only after human treasurer approval.",
+    "langFr": "Français",
+    "langEn": "English",
+    "healthOk": "Backend reachable",
+    "healthFail": "Backend unreachable",
+    "escalesOff": "ESCALES_ENABLED is off: /api/escales returns 404."
+  },
+  "tabs": {
+    "voyage": "Voyage map",
+    "marinas": "Marinas"
+  },
+  "clock": {
+    "waiting": "departure in {{hours}} h",
+    "devT0": "Development departure (ISO)"
+  },
+  "sheet": {
+    "title": "Port of call sheet",
+    "close": "Close",
+    "loading": "Loading the sheet…",
+    "empty": "No list for this stop.",
+    "pick": "Pick a stop on the map for the sheet and the PayPal button."
+  },
+  "projects": {
+    "heading": "Blue Intelligence projects",
+    "empty": "No project in the snapshot.",
+    "open": "Page"
+  },
+  "marinas": {
+    "heading": "Marinas",
+    "search": "Search a marina",
+    "empty": "Pick a stop to see marinas.",
+    "truncated": "{{shown}} of {{total}}",
+    "unnamed": "Unnamed",
+    "odbl": "© OpenStreetMap contributors",
+    "pick": "Stop",
+    "reservePrice": "Reserve — 30.00 EUR / night (simulation)",
+    "reserveDescription": "Berth (simulation) — {{name}}"
+  },
+  "fund": {
+    "heading": "Common fund",
+    "line": "Association membership:",
+    "helloasso": "HelloAsso",
+    "figures": "balance {{balance}} {{currency}} (income {{income}}, spending {{spending}})",
+    "income": "Income",
+    "spending": "Spending",
+    "empty": "No entries for this stop.",
+    "missing": "No fund for this stop.",
+    "overdrawn": "The balance is negative.",
+    "spendAmount": "Spending (EUR)",
+    "spendDescription": "Spending note",
+    "spendSubmit": "Record spending"
+  },
+  "escales": {
+    "heading": "Stops & AI Captain",
+    "milestoneId": "Milestone id",
+    "evidenceMet": "Evidence met (NAVIGUIDE simulation)",
+    "postEvidence": "Record evidence",
+    "captainChat": "Message to AI Captain",
+    "sendChat": "Ask for wording",
+    "cartHeading": "Cart",
+    "chatReply": "Captain reply",
+    "suggestedPledge": "Suggested pledge",
+    "milestonesEmpty": "No milestones recorded yet."
+  },
+  "pledge": {
+    "amount": "Amount (EUR)",
+    "description": "Description",
+    "kind": "Kind",
+    "kinds": {
+      "mile": "Sponsored miles (simulation)",
+      "night": "Night aboard (simulation)",
+      "meal": "Meal (simulation)",
+      "care": "Care with Elsa (simulation)",
+      "common_fund": "Common fund"
+    },
+    "milestone": "Milestone",
+    "contributor": "Contributor (optional)",
+    "returnPending": "Approve on PayPal. On return, authorization runs by itself.",
+    "cancelled": "Approval cancelled. Nothing is authorized.",
+    "intent": "AUTHORIZE intent — PayPal sandbox",
+    "create": "Create the PayPal order",
+    "approve": "Approve on the PayPal page",
+    "authorize": "I approved — authorize",
+    "creating": "Creating pledge…",
+    "authorizing": "Authorizing on server…",
+    "authorized": "Pledge authorized",
+    "vaultHint": "Vault: approve the saved payment method on PayPal, then confirm. Nothing is captured yet.",
+    "vaultApprove": "Approve the payment method",
+    "vaultConfirm": "I approved — save it",
+    "vaulting": "Saving the payment method…",
+    "vaulted": "Payment method saved",
+    "error": "Pledge error"
+  },
+  "treasurer": {
+    "heading": "Treasurer queue",
+    "adminKey": "Treasurer key (x-admin-key)",
+    "adminKeyHint": "Held in memory only — never stored.",
+    "refresh": "Refresh queue",
+    "capture": "Capture",
+    "void": "Void authorization",
+    "queueEmpty": "No authorized, vaulted, or pending pledges on the server.",
+    "queueNeedsKey": "Enter the treasurer key to show pledges tracked in this session.",
+    "loadError": "The queue could not be refreshed. Rows already loaded were kept.",
+    "status": "Status",
+    "amount": "Amount",
+    "description": "Description",
+    "milestone": "Milestone",
+    "actions": "Actions",
+    "back": "Back to the map",
+    "screen": "Treasurer screen"
+  },
+  "grid": {
+    "heading": "Treasurer view — gauges",
+    "agGridOff": "AG Grid community is off (VITE_ENABLE_AG_GRID=0). HTML table. This is not AG Studio.",
+    "milestone": "Milestone",
+    "authorized": "Authorized",
+    "captured": "Captured",
+    "voided": "Voided",
+    "captainProposal": "AI Captain proposal",
+    "proposalCapture": "Proposal: capture listed pledges",
+    "proposalVoid": "Proposal: void listed pledges",
+    "proposalWait": "Proposal: wait",
+    "humanValidation": "Human validation required — the captain never debits alone.",
+    "applyCapture": "Capture (per proposal)",
+    "applyVoid": "Void (per proposal)",
+    "noProposal": "No proposal stored for this milestone."
+  }
+}

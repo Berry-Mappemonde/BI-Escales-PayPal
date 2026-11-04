@@ -34,19 +34,20 @@ def memory_store(monkeypatch):
 def test_escales_to_milestones_maps_ids():
     export = local_schedule_export()
     rows = escales_to_milestones(export)
-    ids = {row["_id"] for row in rows}
-    assert ids == {
-        "dep-mayotte",
-        "dep-fort-de-france",
-        "dep-dakar",
-        "dep-lorient",
-        "dep-pointe-a-pitre",
-    }
+    ids = [row["_id"] for row in rows]
+    assert ids[0] == "dep-la-rochelle" or ids[0] == "dep-saint-maur-berry-indre"
+    assert "dep-fort-de-france-martinique" in ids
+    assert "dep-dzaoudzi-mayotte" in ids
+    assert "ret-la-rochelle" in ids
+    assert ids.index("dep-fort-de-france-martinique") < ids.index("dep-dzaoudzi-mayotte")
     assert rows[0]["source"] == "local"
     by_id = {row["_id"]: row for row in rows}
-    assert by_id["dep-fort-de-france"]["display_name"] == "Fort-de-France"
-    assert "dep-" not in by_id["dep-fort-de-france"]["display_name"].lower()
-    assert by_id["dep-mayotte"]["display_name"] == "Mayotte"
+    shown = by_id["dep-fort-de-france-martinique"]
+    assert shown["display_name"] == "Fort-de-France (Martinique)"
+    assert "dep-" not in shown["display_name"].lower()
+    assert shown["arrival_iso"].startswith("2026-") or shown["arrival_iso"].startswith("2027-")
+    assert by_id["dep-la-rochelle"]["arrival_iso"].startswith("2026-11-12")
+    assert by_id["dep-dzaoudzi-mayotte"]["arrival_iso"] > shown["arrival_iso"]
 
 
 def test_fetch_naviguide_uses_local_when_flag_off():
@@ -69,7 +70,7 @@ def test_fetch_naviguide_reads_json_file(monkeypatch, tmp_path):
     async def run():
         payload = await fetch_naviguide_export()
         assert payload["provider"] == "NAVIGUIDE"
-        assert payload["escales"][0]["milestone_id"] == "dep-mayotte"
+        assert payload["escales"][0]["milestone_id"] == "dep-saint-maur-berry-indre"
 
     asyncio.run(run())
 
@@ -105,7 +106,7 @@ def test_fetch_naviguide_http_mock(monkeypatch):
 def test_sync_milestone_shells_creates_docs():
     async def run():
         docs = await sync_milestone_shells(local_schedule_export())
-        assert len(docs) == 5
+        assert len(docs) >= 16
         assert docs[0]["meta"]["title"]
 
     asyncio.run(run())
@@ -130,31 +131,55 @@ def test_clock_legs_one_per_stopover_pair(monkeypatch):
     sea = next(leg for leg in legs if leg["id"] == "leg-la-rochelle-to-ajaccio-corse")
     assert sea["kind"] == "sea"
     assert sea["capture_on"] == "departure"
-    assert sea["departure_iso"].startswith("2026-11-12T08:00:00")
+    assert sea["departure_iso"].startswith("2026-11-12T12:00:00")
+    land = legs[0]
+    assert land["arrival_iso"] > land["departure_iso"]
     assert sea["from_name"] == "La Rochelle"
     assert sea["to_name"] == "Ajaccio (Corse)"
     ajaccio = next(leg for leg in legs if leg["from_slug"] == "ajaccio-corse")
     assert ajaccio["hold_hours"] == 72
-    assert ajaccio["departure_iso"].startswith("2026-12-01T22:02:54")
+    assert ajaccio["departure_iso"].startswith("2026-12-02T02:02:54")
     assert leg_departing_from("Fort-de-France")["id"] == (
         "leg-fort-de-france-martinique-to-pointe-a-pitre-guadeloupe"
     )
     assert leg_departing_from("Mayotte")["from_slug"] == "dzaoudzi-mayotte"
     back = legs[-1]
     assert back["id"] == "leg-europa-taaf-to-la-rochelle"
+    assert back["to_slug"] == "ret-la-rochelle"
     assert back["arrival_iso"].startswith("2027-08-27")
+    assert back["arrival_iso"] > legs[0]["arrival_iso"]
 
     monkeypatch.setenv("ESCALES_ENV", "development")
     monkeypatch.setenv("ESCALES_CLOCK_START", "2026-12-01")
     shifted = next(
         leg for leg in clock_legs() if leg["id"] == "leg-la-rochelle-to-ajaccio-corse"
     )
-    assert shifted["departure_iso"].startswith("2026-12-01T08:00:00")
+    assert shifted["departure_iso"].startswith("2026-12-01T12:00:00")
 
     async def run():
         docs = await sync_leg_shells()
         assert len(docs) == 15
         assert docs[1]["meta"]["capture_on"] == "departure"
-        assert docs[1]["meta"]["departure_iso"].startswith("2026-12-01T08:00:00")
+        assert docs[1]["meta"]["departure_iso"].startswith("2026-12-01T12:00:00")
 
     asyncio.run(run())
+
+
+def test_no_milestone_is_dated_before_the_november_clock(monkeypatch):
+    """L'ancien dep-mayotte au 2026-09-01 n'est plus sur l'horloge du 12/11."""
+    from app.escales.naviguide_bridge import clock_legs
+
+    monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
+    monkeypatch.delenv("ESCALES_ENV", raising=False)
+    floor = "2026-11-12"
+    export = local_schedule_export()
+    ids = [item["milestone_id"] for item in export["escales"]]
+    assert "dep-mayotte" not in ids
+    mayotte = next(item for item in export["escales"] if item["milestone_id"] == "dep-dzaoudzi-mayotte")
+    assert not str(mayotte["arrival_iso"]).startswith("2026-09-01")
+    assert mayotte["arrival_iso"] >= floor
+    for item in export["escales"]:
+        assert item["arrival_iso"] >= floor, item["milestone_id"]
+    for leg in clock_legs():
+        assert leg["departure_iso"] >= floor, leg["id"]
+        assert leg["arrival_iso"] >= floor, leg["id"]

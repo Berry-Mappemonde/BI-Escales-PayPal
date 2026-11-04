@@ -1,14 +1,15 @@
-# Render blueprint (optional). Core runs locally without Render.
-# Enable deployment only when you set ESCALES_ENABLED on the service.
+# Un seul service Render. FastAPI sert l'API et le build Vite.
+# autoDeployTrigger off : un push ne déploie pas. Ne pas lancer le déploiement depuis la PR.
 services:
   - type: web
     name: bi-escales-api
     runtime: python
     region: frankfurt
     plan: free
-    rootDir: bi-escales/backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    autoDeployTrigger: off
+    rootDir: bi-escales
+    buildCommand: cd frontend && npm ci && npm run build && cd ../backend && pip install -r requirements.txt
+    startCommand: cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:
       - key: ESCALES_ENABLED
@@ -31,8 +32,12 @@ services:
         sync: false
       - key: ESCALES_PUBLIC_URL
         value: https://bi-escales-api.onrender.com
+      - key: ESCALES_RETURN_URL
+        value: https://bi-escales-api.onrender.com/?paypal=return
+      - key: ESCALES_CANCEL_URL
+        value: https://bi-escales-api.onrender.com/?paypal=cancel
       - key: ESCALES_CORS_ORIGINS
-        value: http://localhost:5173,http://127.0.0.1:5173,https://bi-escales.onrender.com
+        value: http://localhost:5173,http://127.0.0.1:5173
       - key: DB_NAME
         value: bi_escales
       - key: ESCALES_TOOLKIT_ENABLED

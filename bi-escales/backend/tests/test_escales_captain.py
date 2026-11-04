@@ -229,7 +229,7 @@ def test_chat_offers_membership_url_and_does_not_order(monkeypatch):
         assert pledge["amount_eur"] == "20.00"
         assert pledge["currency"] == "EUR"
         assert pledge["intent"] == "AUTHORIZE"
-        assert pledge["milestone_id"] == "mayotte"
+        assert pledge["milestone_id"] == "dep-dzaoudzi-mayotte"
         assert pledge["kind"] == "mile"
         assert pledge["simulated"] is True
         assert pledge["price_label"] == "simulated price"
@@ -450,14 +450,14 @@ def test_suggest_pledge_adds_every_item_in_the_message():
     pledge = captain.suggest_pledge("250 mi + dinner 60 € près de Dakar")
     assert pledge["amount_eur"] == "310.00"
     assert pledge["currency"] == "EUR"
-    assert pledge["milestone_id"] == "dakar"
+    assert pledge["milestone_id"] == "dep-dakar"
     assert pledge["intent"] == "AUTHORIZE"
     assert "milles parrainés" in pledge["description"]
     assert "dîner" in pledge["description"].lower()
     assert "sponsored" not in pledge["description"]
     english = captain.suggest_pledge("250 mi + dinner 60 € near Dakar", lang="en")
     assert english["amount_eur"] == "310.00"
-    assert english["milestone_id"] == "dakar"
+    assert english["milestone_id"] == "dep-dakar"
     assert english["description"] == "250 sponsored miles and port dinner"
     assert "milles" not in english["description"]
     separate = captain.suggest_pledge("100 mi et 150 miles près de Dakar")
@@ -1078,11 +1078,11 @@ def test_displayed_ports_are_capitalized():
     async def body():
         french = await chat("Je parraine 20 milles près de Dakar")
         assert "Dakar" in french["reply"]
-        assert french["suggested_pledge"]["milestone_id"] == "dakar"
+        assert french["suggested_pledge"]["milestone_id"] == "dep-dakar"
         english = await chat("I'd like to sponsor 20 nautical miles near Lorient")
         assert "Lorient" in english["reply"]
         assert "lorient" not in english["reply"]
-        assert english["suggested_pledge"]["milestone_id"] == "lorient"
+        assert english["suggested_pledge"]["milestone_id"] == "dep-lorient"
 
     asyncio.run(body())
 
@@ -1330,7 +1330,7 @@ def test_french_pledge_line_is_not_repeated(monkeypatch):
     async def body():
         result = await chat("Je parraine 120 milles près de Lorien")
         reply = result["reply"]
-        assert result["suggested_pledge"]["milestone_id"] == "lorient"
+        assert result["suggested_pledge"]["milestone_id"] == "dep-lorient"
         assert reply.count("Promesse calculée") == 1
         assert "Lorient" in reply
         assert not re.search(r"\blorien\b", reply, re.I)
@@ -1650,7 +1650,7 @@ def test_distorted_port_names_map_when_close():
     assert captain._canonical_slug("best") is None
     assert captain._canonical_slug("orain") is None
     pledge = captain.suggest_pledge("Je parraine 10 milles près de Lorain")
-    assert pledge["milestone_id"] == "lorient"
+    assert pledge["milestone_id"] == "dep-lorient"
     shown = captain._fix_port_typos("Left lorain, then Lorien, for Dakar.")
     assert shown == "Left Lorient, then Lorient, for Dakar."
     assert "best" in captain._fix_port_typos("The best evidence stands.")
@@ -1715,12 +1715,12 @@ def test_short_french_report_keeps_a_tie(monkeypatch):
 
 
 def test_schedule_display_names_drop_the_dep_prefix():
-    from app.escales.naviguide_bridge import LOCAL_SCHEDULE
+    from app.escales.naviguide_bridge import local_schedule_export
 
     assert captain.display_name("pointe-a-pitre") == "Pointe-à-Pitre"
     assert captain.display_name("dep-pointe-a-pitre") == "Pointe-à-Pitre"
     assert captain.display_name("dep-fort-de-france") == "Fort-de-France"
-    for item in LOCAL_SCHEDULE["escales"]:
+    for item in local_schedule_export()["escales"]:
         shown = captain.display_name(item["milestone_id"])
         assert shown == item["name"]
         assert captain.display_name(item["slug"]) == item["name"]
@@ -1737,7 +1737,7 @@ def test_chat_maps_pointe_a_pitre_and_asks_when_unknown():
             "Je parraine 20 milles à pointeapitre",
         ):
             result = await chat(message)
-            assert result["suggested_pledge"]["milestone_id"] == "pointe-a-pitre"
+            assert result["suggested_pledge"]["milestone_id"] == "dep-pointe-a-pitre-guadeloupe"
             assert "Pointe-à-Pitre" in result["reply"]
             assert "Unspecified" not in result["reply"]
             assert "unspecified" not in result["reply"]
@@ -1999,7 +1999,7 @@ def test_french_vocabulary_and_the_pledge_line(monkeypatch):
 def test_ui_labels_the_llm_proposal_as_advisory():
     root = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "escales"
     badge = (root / "advisoryLabel.js").read_text(encoding="utf-8")
-    screen = (root / "EscalesScheduler.js").read_text(encoding="utf-8")
+    screen = (root / "EscalesScheduler.jsx").read_text(encoding="utf-8")
     assert "Advisory" in badge
     assert 'label: "Advisory"' in badge
     assert "data-advisory" in screen
@@ -2018,9 +2018,9 @@ def test_miles_and_dinner_stay_one_pledge_and_list_two_cart_lines():
     assert [line["kind"] for line in cart["lines"]] == ["mile", "meal"]
     assert [line["amount_eur"] for line in cart["lines"]] == ["250.00", "60.00"]
     assert cart["lines"][0]["price_label"] == "simulated price"
-    assert cart["lines"][0]["target_id"] == "dakar"
-    assert cart["available"] is True
-    assert cart["eta"] == "2026-12-01T08:00:00+00:00"
+    assert cart["lines"][0]["target_id"] == "dep-dakar"
+    assert cart["available"] is False
+    assert cart["eta"] is None
     assert "order_id" not in cart
 
 
@@ -2081,7 +2081,13 @@ def test_chat_cart_keeps_authorize_and_reads_clock_and_schedule(monkeypatch):
         mayotte = await chat("2 nuits près de Mayotte")
         cart = mayotte["cart"]
         assert cart["clock_start"] == "2026-11-12"
-        assert cart["eta"] == "2026-09-01T08:00:00+00:00"
+        from app.escales.naviguide_bridge import local_schedule_export
+
+        route_mayotte = next(
+            item for item in local_schedule_export()["escales"] if "mayotte" in item["slug"]
+        )
+        assert cart["eta"] == route_mayotte["arrival_iso"]
+        assert cart["eta"] > "2026-11-12"
         assert cart["available"] is True
         assert cart["intent"] == "AUTHORIZE"
         assert cart["lines"][0]["kind"] == "night"
@@ -2122,7 +2128,7 @@ def test_cart_lines_use_the_existing_authorize_pledge():
         assert [doc["target_id"] for doc in saved] == ["dakar", "dakar"]
         authorized = await authorize_pledge(saved[0]["_id"], spy)
         assert authorized["status"] == "authorized"
-        assert [call[0] for call in spy.calls] == ["create", "create", "authorize"]
+        assert [call[0] for call in spy.calls] == ["create", "create", "orders.get", "authorize"]
 
     asyncio.run(body())
 
@@ -2212,20 +2218,21 @@ def test_code_enforces_the_fixed_treasurer_sentence(monkeypatch):
 
 
 def test_local_time_eta_for_dakar_lorient_and_pointe_a_pitre():
-    ports = (
-        ("10 milles près de Dakar", "dakar", "2026-12-01T08:00:00+00:00"),
-        ("10 milles près de Lorient", "lorient", "2026-12-15T09:00:00+01:00"),
-        ("10 milles près de Pointe-à-Pitre", "pointe-a-pitre", "2027-01-10T08:00:00-04:00"),
+    assert captain._local_eta("dakar", {"arrival_iso": "2026-12-01T08:00:00+00:00"}) == (
+        "2026-12-01T08:00:00+00:00"
     )
-    for text, slug, eta in ports:
-        pledge = captain.suggest_pledge(text)
-        assert pledge["milestone_id"] == slug
-        cart = captain.pledge_cart(text, "fr", pledge)
-        assert cart["eta"] == eta
-        assert cart["available"] is True
+    assert captain._local_eta("lorient", {"arrival_iso": "2026-12-15T08:00:00+00:00"}) == (
+        "2026-12-15T09:00:00+01:00"
+    )
+    pointe = captain.suggest_pledge("10 milles près de Pointe-à-Pitre")
+    assert pointe["milestone_id"] == "dep-pointe-a-pitre-guadeloupe"
+    cart = captain.pledge_cart("10 milles près de Pointe-à-Pitre", "fr", pointe)
+    assert cart["available"] is True
+    assert cart["eta"].endswith("-04:00")
     mayotte = captain.suggest_pledge("2 nuits près de Mayotte")
+    assert mayotte["milestone_id"] == "dep-dzaoudzi-mayotte"
     mayotte_cart = captain.pledge_cart("2 nuits près de Mayotte", "fr", mayotte)
-    assert mayotte_cart["eta"] == "2026-09-01T08:00:00+00:00"
+    assert mayotte_cart["eta"] > "2026-11-12"
 
 
 def test_treasurer_sentence_is_added_when_the_model_omits_it(monkeypatch):
@@ -2275,7 +2282,7 @@ def test_charge_claim_falls_back_to_the_rules_text(monkeypatch):
         english_reply = english["reply"]
         assert "charged" not in english_reply.casefold()
         assert "The sea is calm" not in english_reply
-        assert "The captain does not capture or void; only the treasurer can." in english_reply
+        assert "Only the treasurer decides whether the money is captured or released." in english_reply
         assert "10.00 EUR" in english_reply
         assert "10 sponsored miles" in english_reply
 

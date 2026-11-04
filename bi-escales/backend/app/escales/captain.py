@@ -184,6 +184,13 @@ _CHAT_DECIDE_RE = re.compile(
     r"|\bcapture\b|\bvoid\b|\bencaiss\w*|\bannul\w*",
     re.IGNORECASE,
 )
+_REFUSAL_RE = re.compile(
+    r"rel[èe]ve de la revue du tr[ée]sorier|ne la tranche pas|"
+    r"belongs to the treasurer review|does not decide it|"
+    r"porte sur le statut|does not suggest a pledge|"
+    r"which escale|quelle escale",
+    re.IGNORECASE,
+)
 
 
 def message_lang(text: str) -> str:
@@ -249,7 +256,13 @@ def _is_status_question(message: str) -> bool:
 
 
 def _no_pledge_suggestion(message: str) -> bool:
-    """Treasurer and status questions are not a pledge to price."""
+    """Treasurer and status questions are not a pledge to price.
+
+    A sentence that already prices a line is still a pledge: the reply
+    shows that line and does not refuse.
+    """
+    if _message_prices_a_pledge(message):
+        return False
     return _is_treasurer_question(message) or _is_status_question(message)
 
 
@@ -524,15 +537,25 @@ def _resolve_escale(token: str) -> Optional[str]:
 
 
 def _place(message: str) -> Optional[str]:
-    """Escale named in the message. None when none of the schedule matches.
+    """Canonical milestone id named in the message.
 
     Accents, dashes, spaces, and case do not matter: Pointe-à-Pitre,
-    pointe a pitre, and POINTEAPITRE are the same stop.
+    pointe a pitre, and POINTEAPITRE are the same stop. The id is the
+    route id (``dep-dzaoudzi-mayotte``), not the short chat slug.
     """
+    from .naviguide_bridge import resolve_milestone
+
     match = _PLACE.search(message or "")
-    if match:
-        return _resolve_escale(match.group(1))
-    return _resolve_escale(message or "")
+    token = match.group(1) if match else (message or "")
+    found = resolve_milestone(token)
+    if found:
+        return found
+    close = _canonical_slug(token)
+    if close:
+        found = resolve_milestone(close)
+        if found:
+            return found
+    return resolve_milestone(message or "") if match else None
 
 
 def _format_count(count: Decimal) -> str:
@@ -648,7 +671,7 @@ def _covered_miles_sentence(evidence: dict, lang: str = "fr") -> str:
 
 
 _TREASURER_DECIDES = "Seul le trésorier décide si l'argent est prélevé ou libéré."
-_TREASURER_RULES_EN = "The captain does not capture or void; only the treasurer can."
+_TREASURER_RULES_EN = "Only the treasurer decides whether the money is captured or released."
 # A model claim that money will move. The rules text replaces that reply.
 _CHARGE_CLAIM = re.compile(
     r"s(?:era(?:it|s|ient)?|erez|erons|eront)\s+d[ée]bit"
@@ -1309,7 +1332,7 @@ def _compose_chat_reply(
     French replies always end with the treasurer sentence from this module.
     A charge claim is dropped and the rules text is used instead.
     """
-    if treasurer or not suggested:
+    if not suggested:
         if treasurer:
             if lang == "en":
                 prose = "This question belongs to the treasurer review. The captain does not decide it."
@@ -1324,7 +1347,8 @@ def _compose_chat_reply(
             prose = "This question is about status. The captain does not suggest a pledge."
         else:
             prose = "Cette question porte sur le statut. Le capitaine ne propose pas de promesse."
-        return _fit_words("", [prose, _signature(lang)])
+        rules = _TREASURER_RULES_EN if lang == "en" else _TREASURER_DECIDES
+        return _fit_words("", [prose, rules, _signature(lang)])
     charged = bool(_CHARGE_CLAIM.search(model_text or ""))
     if charged:
         prose = ""
@@ -1335,6 +1359,7 @@ def _compose_chat_reply(
     prose = _clean_model_urls(prose, url)
     prose = _period_after_link(prose, url)
     prose = _drop_sentences(prose, _CHAT_DECIDE_RE)
+    prose = _drop_sentences(prose, _REFUSAL_RE)
     prose = _trim_cutoff(_normalize_dots(prose))
     if lang == "fr":
         prose = _standardise_french(_french_labels(prose))
@@ -1347,7 +1372,7 @@ def _compose_chat_reply(
     required: list[str] = [_pledge_line(suggested, lang)]
     if lang == "fr":
         required.append(_TREASURER_DECIDES)
-    elif charged:
+    else:
         required.append(_TREASURER_RULES_EN)
     joined = " ".join(required)
     if lang == "en" and not re.search(r"\bintent\s+authorize\b", f"{prose} {joined}", re.I):
@@ -1708,13 +1733,20 @@ async def review(
     lang: Optional[str] = None,
 ) -> dict:
     """Propose capture or void from evidence. Does not execute either."""
+    from .naviguide_bridge import resolve_milestone
+
     report_lang = _forced_lang(lang) or "fr"
+    canonical = resolve_milestone(milestone_id) or milestone_id
     milestone = await get_milestone(milestone_id)
+    if not latest_evidence(milestone):
+        alt = await get_milestone(canonical)
+        if alt:
+            milestone = alt
     evidence = latest_evidence(milestone)
     met = evidence.get("met") if evidence else None
     reached = met is True
     decision = decision_for_evidence(evidence, milestone)
-    related = await pledges_for_milestone(milestone_id)
+    related = await pledges_for_milestone(canonical)
     concerned = [
         pledge
         for pledge in related
@@ -1818,7 +1850,7 @@ async def chat(message: str) -> dict:
     cart = pledge_cart(text, lang, suggested)
     ask_escale = suggested is None and not treasurer and not _is_status_question(text)
     allowed = {"message": text, "suggested": suggested, "membership_url": url}
-    if treasurer or suggested is None:
+    if suggested is None:
         # Do not send this question to a model: the horizon rule stays in code.
         raw, source = "", _rules_source()
     else:
@@ -2087,6 +2119,7 @@ _PORT_LOCAL_TZ = {
     "dakar": ZoneInfo("Africa/Dakar"),
     "lorient": ZoneInfo("Europe/Paris"),
     "pointe-a-pitre": ZoneInfo("America/Guadeloupe"),
+    "pointe-a-pitre-guadeloupe": ZoneInfo("America/Guadeloupe"),
 }
 
 
@@ -2101,7 +2134,10 @@ def _local_eta(place: str, stop: Optional[dict]) -> Optional[str]:
     if not raw:
         return None
     text = str(raw).strip()
-    zone = _PORT_LOCAL_TZ.get(_escale_slug(place))
+    slug = _escale_slug(place)
+    zone = _PORT_LOCAL_TZ.get(slug)
+    if zone is None and slug.endswith("-guadeloupe"):
+        zone = _PORT_LOCAL_TZ["pointe-a-pitre"]
     if zone is None:
         return text
     parsed = text[:-1] + "+00:00" if text.endswith("Z") else text
@@ -2116,20 +2152,13 @@ def _local_eta(place: str, stop: Optional[dict]) -> Optional[str]:
 
 def _schedule_stop(place: str) -> Optional[dict]:
     """Arrival already stored on the local schedule. No partner call."""
-    from .naviguide_bridge import local_schedule_export
+    from .naviguide_bridge import local_schedule_export, resolve_milestone
 
-    slug = _escale_slug(place)
-    if not slug:
+    canonical = resolve_milestone(place)
+    if not canonical:
         return None
     for item in local_schedule_export().get("escales") or []:
-        if not isinstance(item, dict):
-            continue
-        keys = {
-            _escale_slug(str(item.get("slug") or "")),
-            _escale_slug(str(item.get("milestone_id") or "")),
-            _escale_slug(str(item.get("name") or "")),
-        }
-        if slug in keys:
+        if isinstance(item, dict) and item.get("milestone_id") == canonical:
             return item
     return None
 
@@ -2210,9 +2239,52 @@ def _extend_pledge(base: dict, message: str, lang: str) -> dict:
 _suggest_pledge_miles = suggest_pledge
 
 
+def _message_prices_a_pledge(message: str) -> bool:
+    """True when the sentence already names a catalogue line with an amount."""
+    text = message or ""
+    if _amount_near(text, _PROJECT_PLEDGE) is not None:
+        return True
+    if _amount_near(text, _COMMON_FUND) is not None and _place(text):
+        return True
+    if not _place(text):
+        return False
+    if _explicit_miles(text) > 0 or _explicit_dinners(text) > 0:
+        return True
+    if _night_quantity(text) > 0:
+        return True
+    return any(_sum_quantity(pattern, text) > 0 for pattern in (_BERTH_COUNT, _CARE_COUNT, _CABIN_COUNT))
+
+
+def _project_pledge_alone(message: str, lang: str) -> Optional[dict]:
+    """« Je donne 15 euros au projet » names no stopover and is still a project pledge."""
+    amount = _amount_near(message or "", _PROJECT_PLEDGE)
+    if amount is None:
+        return None
+    description = "project pledge" if lang == "en" else "promesse projet"
+    return {
+        "amount_eur": f"{amount:.2f}",
+        "currency": "EUR",
+        "description": description,
+        "milestone_id": "",
+        "intent": "AUTHORIZE",
+        "item": "project_pledge",
+        "kind": "project_pledge",
+        "simulated": True,
+        "price_label": SIMULATED_PRICE_LABEL,
+    }
+
+
 def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
     """Mile and dinner pledge, plus the other catalogue lines in the same total."""
     base = _suggest_pledge_miles(message, lang)
     if not base:
-        return None
-    return _extend_pledge(base, message, lang)
+        return _project_pledge_alone(message, lang)
+    resolved = _extend_pledge(base, message, lang)
+    place = str(resolved.get("milestone_id") or "")
+    if resolved.get("kind") == "cabin_leg" and place:
+        from .naviguide_bridge import leg_departing_from
+
+        leg = leg_departing_from(place)
+        if leg:
+            resolved["milestone_id"] = str(leg["id"])
+    return resolved

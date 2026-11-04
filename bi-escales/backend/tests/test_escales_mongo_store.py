@@ -93,7 +93,7 @@ def test_mongo_store_round_trip(mongo_store):
         assert spy.n == 1
         stored = await ledger.get_pledge(created["_id"])
         assert stored["order_id"] == "ORDER1"
-        assert stored["milestone_id"] == "dep-mayotte"
+        assert stored["milestone_id"] == "dep-dzaoudzi-mayotte"
         by_order = await ledger.find_pledge_by_order_id("ORDER1")
         assert by_order["_id"] == created["_id"]
         listed = await ledger.list_pledges_for_milestone("dep-mayotte")
@@ -124,7 +124,7 @@ def test_mongo_store_round_trip(mongo_store):
         saved = await mongo_store["bi_escales_test"]["escales_pledges"].find_one({"_id": created["_id"]})
         assert saved["client_key"] == "mongo-1"
         assert saved["kind"] == "mile"
-        assert saved["target_id"] == "mayotte"
+        assert saved["target_id"] == "dzaoudzi-mayotte"
 
     asyncio.run(body())
 

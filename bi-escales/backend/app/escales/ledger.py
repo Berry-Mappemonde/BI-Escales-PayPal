@@ -28,6 +28,14 @@ COLLECTIONS = (
 )
 
 
+def _milestone_ids(milestone_id: str) -> set[str]:
+    """Chat slug and the route id name the same stopover."""
+    from .naviguide_bridge import resolve_milestone
+
+    canonical = resolve_milestone(milestone_id) or milestone_id
+    return {milestone_id, canonical}
+
+
 def now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
 
@@ -111,11 +119,12 @@ class MemoryLedger:
             return None
 
     async def list_pledges_for_milestone(self, milestone_id: str) -> list[dict]:
+        wanted = _milestone_ids(milestone_id)
         with self._lock:
             return [
                 pledge_defaults(doc)
                 for doc in self._pledges.values()
-                if doc.get("milestone_id") == milestone_id
+                if doc.get("milestone_id") in wanted
             ]
 
     async def append_evidence(self, milestone_id: str, evidence: dict) -> dict:
@@ -282,7 +291,7 @@ class MongoLedger:
 
     async def list_pledges_for_milestone(self, milestone_id: str) -> list[dict]:
         await self._ensure()
-        cursor = self._pledges.find({"milestone_id": milestone_id})
+        cursor = self._pledges.find({"milestone_id": {"$in": list(_milestone_ids(milestone_id))}})
         return [pledge_defaults(doc) async for doc in cursor]
 
     async def append_evidence(self, milestone_id: str, evidence: dict) -> dict:
@@ -467,8 +476,15 @@ def _euros(value: Any) -> Decimal:
 
 
 def _stopover_slug(value: str) -> str:
+    """Canonical bare slug. ``mayotte`` and ``dep-dzaoudzi-mayotte`` are one stop."""
+    from .naviguide_bridge import resolve_milestone
     from ..escales_names import _slug
 
+    resolved = resolve_milestone(str(value or ""))
+    if resolved and str(resolved).startswith("dep-"):
+        return str(resolved)[4:]
+    if resolved:
+        return str(resolved)
     return _slug(str(value or ""))
 
 
@@ -476,7 +492,7 @@ async def _require_stopover(milestone_id: str) -> str:
     from .pledges import _known_stopover
 
     slug = _stopover_slug(milestone_id)
-    if not slug or not await _known_stopover(slug):
+    if not slug or str(slug).startswith("leg-") or not await _known_stopover(slug):
         raise LookupError("milestone not found")
     return slug
 

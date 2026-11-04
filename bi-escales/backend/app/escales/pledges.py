@@ -13,8 +13,9 @@ import re
 import uuid
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from .config import AUTH_MAX_DAYS, vault_cancel_url, vault_return_url
+from .config import AUTH_MAX_DAYS, order_cancel_url, order_return_url, vault_cancel_url, vault_return_url
 from .ledger import (
     COLLECTIONS,
     get_ledger,
@@ -114,25 +115,12 @@ def _target_slug(value: str) -> str:
 
 
 async def _known_stopover(slug: str) -> bool:
-    """True when the slug is a stopover we already show or store."""
+    """True when the single resolver knows this stopover or leg."""
     if not slug:
         return False
-    from ..escales_names import ESCALE_DISPLAY_NAMES
-    from .captain import _CANONICAL_DISPLAY
-    from .naviguide_bridge import local_schedule_export
+    from .naviguide_bridge import resolve_milestone
 
-    if slug in ESCALE_DISPLAY_NAMES or slug in _CANONICAL_DISPLAY:
-        return True
-    for item in local_schedule_export().get("escales") or []:
-        if not isinstance(item, dict):
-            continue
-        for raw in (item.get("slug"), item.get("milestone_id"), item.get("name")):
-            if _target_slug(str(raw or "")) == slug:
-                return True
-    for candidate in (slug, f"dep-{slug}"):
-        if await get_ledger().get_milestone(candidate):
-            return True
-    return False
+    return resolve_milestone(slug) is not None
 
 
 def _cabin_target(explicit: str, milestone_id: str) -> str:
@@ -150,22 +138,44 @@ def _cabin_target(explicit: str, milestone_id: str) -> str:
     return leg["id"]
 
 
+def _bare_canonical(milestone_id: str) -> str:
+    """Stored target: the route slug, without the ``dep-`` prefix."""
+    if milestone_id.startswith("dep-"):
+        return milestone_id[4:]
+    return milestone_id
+
+
 async def _resolve_target(target_id: Optional[str], milestone_id: str, kind: str) -> str:
+    from .naviguide_bridge import resolve_milestone
+
     explicit = (target_id or "").strip()
     if kind == "cabin_leg":
         return _cabin_target(explicit, milestone_id)
-    if explicit and not _TARGET_SLUG.fullmatch(explicit):
+    if explicit and not _TARGET_SLUG.fullmatch(_target_slug(explicit)):
         raise ValueError("target_id must match [a-z0-9-]+")
-    chosen = explicit or milestone_id
-    slug = _target_slug(chosen)
-    if kind in _TARGET_MUST_MATCH_MILESTONE and slug != _target_slug(milestone_id):
-        raise ValueError("target_id must match the milestone")
-    if kind in _TARGET_MUST_BE_KNOWN and not await _known_stopover(slug):
-        raise ValueError("target_id must name a known stopover")
-    # ``dep-`` is the milestone prefix. The stored target is the stopover slug.
-    if not slug:
-        raise ValueError("target_id must match [a-z0-9-]+")
-    return slug
+    milestone_resolved = resolve_milestone(milestone_id)
+    explicit_resolved = resolve_milestone(explicit) if explicit else None
+    if kind in _TARGET_MUST_MATCH_MILESTONE and explicit:
+        if not explicit_resolved or explicit_resolved != milestone_resolved:
+            raise ValueError("target_id must match the milestone")
+    if kind in _TARGET_MUST_BE_KNOWN:
+        chosen = explicit_resolved or milestone_resolved
+        if not chosen:
+            known = await get_ledger().get_milestone(explicit or milestone_id)
+            if known:
+                return _bare_canonical(explicit or milestone_id)
+            raise ValueError("target_id must name a known stopover")
+        return _bare_canonical(chosen)
+    if explicit_resolved:
+        return _bare_canonical(explicit_resolved)
+    if explicit:
+        slug = _target_slug(explicit)
+        if not slug:
+            raise ValueError("target_id must match [a-z0-9-]+")
+        return slug
+    if milestone_resolved:
+        return _bare_canonical(milestone_resolved)
+    raise ValueError("target_id must match [a-z0-9-]+")
 
 
 def _identity(doc: dict) -> dict:
@@ -178,6 +188,58 @@ def _require_text(value: str, field: str) -> str:
     if not text:
         raise ValueError(f"{field} is required")
     return text
+
+
+def _http_url(raw: Optional[str], fallback: str, field: str) -> str:
+    text = (raw or "").strip() or fallback
+    parts = urlsplit(text)
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        raise ValueError(f"{field} must be an http(s) URL")
+    if field == "return_url":
+        from .config import cors_origins
+
+        origin = f"{parts.scheme}://{parts.netloc}".rstrip("/")
+        allowed = {item.rstrip("/") for item in cors_origins()}
+        if origin not in allowed:
+            raise ValueError("return_url must use an allowed frontend origin")
+    return text
+
+
+def _callback_url(base: str, pledge_id: str, flag: str) -> str:
+    """PayPal return or cancel URL, with the pledge id the page authorizes."""
+    parts = urlsplit(base)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["paypal"] = flag
+    query["pledge_id"] = pledge_id
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _create_authorize_order(client: Any, **kwargs: Any) -> dict:
+    """Pass return URLs when the client accepts them. Older fakes do not."""
+    try:
+        return client.create_authorize_order(**kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if "return_url" not in message and "cancel_url" not in message:
+            raise
+        slim = {key: value for key, value in kwargs.items() if key not in {"return_url", "cancel_url"}}
+        return client.create_authorize_order(**slim)
+
+
+def _buyer_approved(client: Any, order_id: str) -> bool:
+    """True when PayPal shows APPROVED or COMPLETED.
+
+    A client without ``get_order`` cannot say, so the older fakes still pass.
+    An empty status fails closed: the order is not treated as approved.
+    """
+    getter = getattr(client, "get_order", None)
+    if getter is None or not order_id:
+        return True
+    current = getter(order_id) or {}
+    status = str(current.get("status") or "").strip().upper()
+    if not status:
+        return False
+    return status in {"APPROVED", "COMPLETED"}
 
 
 def _client_key(raw: Optional[str]) -> Optional[str]:
@@ -222,6 +284,8 @@ async def create_pledge(
     payment_mode: Optional[PaymentMode] = None,
     kind: Optional[str] = None,
     target_id: Optional[str] = None,
+    return_url: Optional[str] = None,
+    cancel_url: Optional[str] = None,
 ) -> dict:
     amount = normalize_amount(amount_eur)
     description = _require_text(description, "description")
@@ -232,6 +296,20 @@ async def create_pledge(
         if existing:
             return existing
     pledge_kind = _kind(kind)
+    from .naviguide_bridge import leg_departing_from, resolve_milestone
+
+    canonical = resolve_milestone(milestone_id)
+    if canonical is None:
+        known = await get_ledger().get_milestone(milestone_id)
+        if known:
+            canonical = milestone_id
+    if pledge_kind == "cabin_leg" and canonical and not str(canonical).startswith("leg-"):
+        leg = leg_departing_from(canonical)
+        if leg:
+            canonical = str(leg["id"])
+    if not canonical:
+        raise ValueError("milestone_id must name a known stopover")
+    milestone_id = str(canonical)
     resolved_target = await _resolve_target(target_id, milestone_id, pledge_kind)
     # A cabin is always an authorization. Capture waits for the departure.
     if pledge_kind == "cabin_leg":
@@ -263,6 +341,8 @@ async def create_pledge(
         contributor=contributor,
         kind=pledge_kind,
         target_id=resolved_target,
+        return_url=return_url,
+        cancel_url=cancel_url,
     )
 
 
@@ -276,6 +356,8 @@ async def _create_authorize_pledge(
     contributor: Optional[str],
     kind: str,
     target_id: str,
+    return_url: Optional[str] = None,
+    cancel_url: Optional[str] = None,
 ) -> dict:
     key = _client_key(client_key)
     ledger = get_ledger()
@@ -285,11 +367,24 @@ async def _create_authorize_pledge(
             return existing
     pledge_id = uuid.uuid4().hex
     idempotency_key = key or uuid.uuid4().hex
-    order = client.create_authorize_order(
+    back = _callback_url(
+        _http_url(return_url, order_return_url(), "return_url"),
+        pledge_id,
+        "return",
+    )
+    cancel = _callback_url(
+        _http_url(cancel_url, order_cancel_url(), "cancel_url"),
+        pledge_id,
+        "cancel",
+    )
+    order = _create_authorize_order(
+        client,
         amount_eur=amount,
         description=description,
         reference_id=pledge_id,
         idempotency_key=idempotency_key,
+        return_url=back,
+        cancel_url=cancel,
     )
     order_id = order.get("id")
     if not order_id:
@@ -449,7 +544,10 @@ def _require_status(pledge: dict, expected: str, target: str) -> None:
 async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     pledge = await require_pledge(pledge_id)
     _require_status(pledge, "created", "authorized")
-    order = client.authorize_order(pledge["order_id"])
+    order_id = str(pledge.get("order_id") or "")
+    if not _buyer_approved(client, order_id):
+        raise IllegalTransition(str(pledge.get("status")), "authorized")
+    order = client.authorize_order(order_id)
     auth_id, expiration = authorization_from(order)
     pledge["status"] = "authorized"
     pledge["authorization_id"] = auth_id
@@ -613,4 +711,14 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
 
 
 async def pledges_for_milestone(milestone_id: str) -> list[dict]:
-    return await get_ledger().list_pledges_for_milestone(milestone_id)
+    from .naviguide_bridge import resolve_milestone
+
+    canonical = resolve_milestone(milestone_id) or milestone_id
+    rows = await get_ledger().list_pledges_for_milestone(canonical)
+    if canonical == milestone_id:
+        return rows
+    seen = {row.get("_id") for row in rows}
+    for row in await get_ledger().list_pledges_for_milestone(milestone_id):
+        if row.get("_id") not in seen:
+            rows.append(row)
+    return rows

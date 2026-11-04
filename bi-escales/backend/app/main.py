@@ -1,8 +1,11 @@
 """Standalone entry point for BI Escales (python -m uvicorn app.main:app)."""
 import os
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.responses import FileResponse
 
 from app.escales.config import cors_origins
 
@@ -27,3 +30,31 @@ if _escales_on:
 
     app.include_router(escales.router)
     app.include_router(escales.webhooks_router)
+
+
+def frontend_dist() -> Path:
+    """Built Vite app, next to the backend (bi-escales/frontend/dist)."""
+    return Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+
+def attach_frontend(application: FastAPI) -> None:
+    """Serve the built page from this process. Absent dist leaves the API alone."""
+    dist = frontend_dist().resolve()
+    index = dist / "index.html"
+    if not index.is_file():
+        return
+    assets = dist / "assets"
+    if assets.is_dir():
+        application.mount("/assets", StaticFiles(directory=assets), name="frontend-assets")
+
+    @application.get("/{full_path:path}", include_in_schema=False)
+    def spa(full_path: str):
+        if full_path == "api" or full_path.startswith("api/"):
+            raise HTTPException(status_code=404)
+        candidate = (dist / full_path).resolve() if full_path else index
+        if full_path and candidate.is_file() and str(candidate).startswith(str(dist)):
+            return FileResponse(candidate)
+        return FileResponse(index)
+
+
+attach_frontend(app)

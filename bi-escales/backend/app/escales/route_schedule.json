@@ -1,0 +1,141 @@
+{
+  "t0": "2026-11-12T08:00:00.000Z",
+  "escales": [
+    {
+      "milestone_id": "dep-saint-maur-berry-indre",
+      "name": "Saint-Maur (Berry, Indre)",
+      "slug": "saint-maur-berry-indre",
+      "lat": 46.8075,
+      "lon": 1.6358,
+      "t_hours": 0
+    },
+    {
+      "milestone_id": "dep-la-rochelle",
+      "name": "La Rochelle",
+      "slug": "la-rochelle",
+      "lat": 46.1541,
+      "lon": -1.167,
+      "t_hours": 0
+    },
+    {
+      "milestone_id": "dep-ajaccio-corse",
+      "name": "Ajaccio (Corse)",
+      "slug": "ajaccio-corse",
+      "lat": 41.9192,
+      "lon": 8.7386,
+      "t_hours": 398.048
+    },
+    {
+      "milestone_id": "dep-fort-de-france-martinique",
+      "name": "Fort-de-France (Martinique)",
+      "slug": "fort-de-france-martinique",
+      "lat": 14.5887,
+      "lon": -61.0731,
+      "t_hours": 1148.58
+    },
+    {
+      "milestone_id": "dep-pointe-a-pitre-guadeloupe",
+      "name": "Pointe-à-Pitre (Guadeloupe)",
+      "slug": "pointe-a-pitre-guadeloupe",
+      "lat": 16.2365,
+      "lon": -61.5381,
+      "t_hours": 1235.623
+    },
+    {
+      "milestone_id": "dep-gustavia-saint-barthelemy",
+      "name": "Gustavia (Saint-Barthélemy)",
+      "slug": "gustavia-saint-barthelemy",
+      "lat": 17.8912,
+      "lon": -62.8548,
+      "t_hours": 1333.248
+    },
+    {
+      "milestone_id": "dep-marigot-saint-martin",
+      "name": "Marigot (Saint-Martin)",
+      "slug": "marigot-saint-martin",
+      "lat": 18.0829,
+      "lon": -63.0922,
+      "t_hours": 1413.745
+    },
+    {
+      "milestone_id": "dep-cayenne-guyane",
+      "name": "Cayenne (Guyane)",
+      "slug": "cayenne-guyane",
+      "lat": 4.9333,
+      "lon": -52.3533,
+      "t_hours": 1637.694
+    },
+    {
+      "milestone_id": "dep-saint-pierre-saint-pierre-et-miquelon",
+      "name": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
+      "slug": "saint-pierre-saint-pierre-et-miquelon",
+      "lat": 46.7761,
+      "lon": -56.1628,
+      "t_hours": 1767.053
+    },
+    {
+      "milestone_id": "dep-papeete-polynesie-francaise",
+      "name": "Papeete (Polynésie française)",
+      "slug": "papeete-polynesie-francaise",
+      "lat": -17.5116,
+      "lon": -149.5685,
+      "t_hours": 2883.022
+    },
+    {
+      "milestone_id": "dep-mata-utu-wallis-et-futuna",
+      "name": "Mata-Utu (Wallis-et-Futuna)",
+      "slug": "mata-utu-wallis-et-futuna",
+      "lat": -13.2725,
+      "lon": -176.2036,
+      "t_hours": 3236.61
+    },
+    {
+      "milestone_id": "dep-noumea-nouvelle-caledonie",
+      "name": "Nouméa (Nouvelle-Calédonie)",
+      "slug": "noumea-nouvelle-caledonie",
+      "lat": -22.2958,
+      "lon": 166.4572,
+      "t_hours": 3541.799
+    },
+    {
+      "milestone_id": "dep-dzaoudzi-mayotte",
+      "name": "Dzaoudzi (Mayotte)",
+      "slug": "dzaoudzi-mayotte",
+      "lat": -12.7921,
+      "lon": 45.27,
+      "t_hours": 5071.726
+    },
+    {
+      "milestone_id": "dep-tromelin-taaf",
+      "name": "Tromelin (TAAF)",
+      "slug": "tromelin-taaf",
+      "lat": -15.89,
+      "lon": 54.525,
+      "t_hours": 5254.596
+    },
+    {
+      "milestone_id": "dep-saint-gilles-la-reunion",
+      "name": "Saint-Gilles (La Réunion)",
+      "slug": "saint-gilles-la-reunion",
+      "lat": -21.0594,
+      "lon": 55.2242,
+      "t_hours": 5371.348
+    },
+    {
+      "milestone_id": "dep-europa-taaf",
+      "name": "Europa (TAAF)",
+      "slug": "europa-taaf",
+      "lat": -22.3685,
+      "lon": 40.3476,
+      "t_hours": 5600.074
+    },
+    {
+      "milestone_id": "ret-la-rochelle",
+      "name": "La Rochelle (retour)",
+      "slug": "ret-la-rochelle",
+      "lat": 46.1541,
+      "lon": -1.167,
+      "t_hours": 6908.392361388889
+    }
+  ]
+}

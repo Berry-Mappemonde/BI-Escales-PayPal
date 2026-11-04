@@ -85,6 +85,6 @@ def test_finance_tracks_pledge_lifecycle():
         assert captured["pledge_id"] == created["_id"]
         assert captured["actor"] == "treasurer"
         assert captured["pledge_kind"] == "mile"
-        assert captured["target_id"] == "mayotte"
+        assert captured["target_id"] == "dzaoudzi-mayotte"
 
     asyncio.run(body())

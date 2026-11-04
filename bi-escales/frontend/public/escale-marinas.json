@@ -1,0 +1,547 @@
+{
+  "escales": {
+    "La Rochelle": {
+      "name": "La Rochelle",
+      "sections": {
+        "mooring": {
+          "marinas": [
+            {
+              "name": "Bassin des Tamaris",
+              "lat": 46.1498518,
+              "lon": -1.1638941,
+              "nm": 0.29,
+              "osm_id": "way/375193263"
+            },
+            {
+              "name": "Port des Minimes",
+              "lat": 46.1467598,
+              "lon": -1.1660647,
+              "nm": 0.44,
+              "url": "https://portlarochelle.com",
+              "osm_id": "way/741789648"
+            },
+            {
+              "name": "Bassin du Bout Blanc",
+              "lat": 46.1468734,
+              "lon": -1.1645219,
+              "nm": 0.45,
+              "osm_id": "way/41585114"
+            },
+            {
+              "name": "Bassin Lazaret",
+              "lat": 46.1449451,
+              "lon": -1.1697291,
+              "nm": 0.56,
+              "osm_id": "way/41778396"
+            },
+            {
+              "name": "Bassin Marillac",
+              "lat": 46.1438092,
+              "lon": -1.1642371,
+              "nm": 0.63,
+              "osm_id": "way/41778397"
+            },
+            {
+              "name": "Havre d'échouage",
+              "lat": 46.1572499,
+              "lon": -1.1522028,
+              "nm": 0.64,
+              "osm_id": "way/136604523"
+            },
+            {
+              "name": "Bassin des Chalutiers",
+              "lat": 46.1523165,
+              "lon": -1.1511886,
+              "nm": 0.67,
+              "osm_id": "way/23003876"
+            },
+            {
+              "name": "Bassin des yachts",
+              "lat": 46.1565135,
+              "lon": -1.1508054,
+              "nm": 0.69,
+              "osm_id": "relation/8726718"
+            }
+          ]
+        }
+      }
+    },
+    "Ajaccio (Corse)": {
+      "name": "Ajaccio (Corse)",
+      "sections": {
+        "mooring": {
+          "marinas": [
+            {
+              "name": "Port de plaisance Tino Rossi",
+              "lat": 41.9187255,
+              "lon": 8.7413568,
+              "nm": 0.13,
+              "osm_id": "node/1888113301"
+            },
+            {
+              "name": "Port Charles Ornano",
+              "lat": 41.92864,
+              "lon": 8.7406736,
+              "nm": 0.57,
+              "osm_id": "way/25333889"
+            },
+            {
+              "name": "Aspretto",
+              "lat": 41.9217437,
+              "lon": 8.7635145,
+              "nm": 1.12,
+              "osm_id": "way/1089005034"
+            }
+          ]
+        }
+      }
+    },
+    "Fort-de-France (Martinique)": {
+      "name": "Fort-de-France (Martinique)",
+      "sections": {
+        "mooring": {
+          "marinas": [
+            {
+              "name": "Yacht Club de la Martinique",
+              "lat": 14.6023239,
+              "lon": -61.0658305,
+              "nm": 0.92,
+              "osm_id": "node/4748755337"
+            },
+            {
+              "name": "Marina Étang Z'Abricots",
+              "lat": 14.5965851,
+              "lon": -61.0416825,
+              "nm": 1.89,
+              "osm_id": "way/931028819"
+            },
+            {
+              "name": "Marina Trois Îlets",
+              "lat": 14.5577527,
+              "lon": -61.0509352,
+              "nm": 2.26,
+              "osm_id": "way/929619776"
+            },
+            {
+              "name": "Morne Cabri",
+              "lat": 14.6061178,
+              "lon": -61.0211218,
+              "nm": 3.2,
+              "osm_id": "way/639831094"
+            },
+            {
+              "name": "Port Cohé",
+              "lat": 14.5927734,
+              "lon": -61.0160843,
+              "nm": 3.32,
+              "osm_id": "node/10049671541"
+            },
+            {
+              "name": "Marina du Robert",
+              "lat": 14.652942,
+              "lon": -60.9284837,
+              "nm": 9.24,
+              "osm_id": "way/177892754"
+            },
+            {
+              "name": "Marina du François",
+              "lat": 14.6194972,
+              "lon": -60.8902288,
+              "nm": 10.78,
+              "osm_id": "node/9915579448"
+            },
+            {
+              "name": "Marina du François",
+              "lat": 14.6205408,
+              "lon": -60.8896592,
+              "nm": 10.83,
+              "osm_id": "node/4751071216"
+            }
+          ]
+        }
+      }
+    },
+    "Pointe-à-Pitre (Guadeloupe)": {
+      "name": "Pointe-à-Pitre (Guadeloupe)",
+      "sections": {
+        "mooring": {
+          "marinas": [
+            {
+              "name": "Port de Pêche de Bergevin",
+              "lat": 16.2510081,
+              "lon": -61.5479987,
+              "nm": 1.04,
+              "osm_id": "node/9193924972"
+            },
+            {
+              "name": "Marina de Bas-du-Fort",
+              "lat": 16.2203478,
+              "lon": -61.5297219,
+              "nm": 1.08,
+              "osm_id": "relation/5838544"
+            },
+            {
+              "name": "Bas-Du-Fort",
+              "lat": 16.2197779,
+              "lon": -61.5268191,
+              "nm": 1.2,
+              "osm_id": "way/1022333613"
+            },
+            {
+              "name": "Marina de Baie-Mahault",
+              "lat": 16.2689434,
+              "lon": -61.5881359,
+              "nm": 3.48,
+              "osm_id": "way/473381568"
+            },
+            {
+              "name": "Port de Petit-Bourg",
+              "lat": 16.1885448,
+              "lon": -61.5894309,
+              "nm": 4.13,
+              "osm_id": "node/10166411523"
+            },
+            {
+              "name": "Port de Pêche de Saint Felix",
+              "lat": 16.2014925,
+              "lon": -61.4572072,
+              "nm": 5.12,
+              "osm_id": "node/9194755814"
+            },
+            {
+              "name": "Port de Blachon",
+              "lat": 16.2766445,
+              "lon": -61.6255136,
+              "nm": 5.59,
+              "osm_id": "node/10166376244"
+            },
+            {
+              "name": "Port de Goyave",
+              "lat": 16.1372631,
+              "lon": -61.5725338,
+              "nm": 6.28,
+              "osm_id": "node/1026960317"
+            }
+          ]
+        }
+      }
+    },
+    "Gustavia (Saint-Barthélemy)": {
+      "name": "Gustavia (Saint-Barthélemy)",
+      "sections": {
+        "mooring": {
+          "marinas": [
+            {
+              "name": "Autorités portuaires",
+              "lat": 17.8978372,
+              "lon": -62.8499514,
+              "nm": 0.49,
+              "osm_id": "node/2093615690"
+            }
+          ]
+        }
+      }
+    },
+    "Marigot (Saint-Martin)": {
+      "name": "Marigot (Saint-Martin)",
+      "sections": {
+        "mooring": {
+          "marinas": [
+            {
+              "name": "Marina Fort Louis",
+              "lat": 18.0700037,
+              "lon": -63.0883209,
+              "nm": 0.81,
+              "url": "https://www.marinafortlouis.com",
+              "osm_id": "relation/9565432"
+            },
+            {
+              "name": "Marina Royale",
+              "lat": 18.064857,
+              "lon": -63.0872602,
+              "nm": 1.12,
+              "osm_id": "node/3957521204"
+            },
+            {
+              "name": "Any Way Marine",
+              "lat": 18.0641867,
+              "lon": -63.0867107,
+              "nm": 1.17,
+              "osm_id": "node/1639322581"
+            },
+            {
+              "name": "St. Maarten Ship Yard",
+              "lat": 18.0430388,
+              "lon": -63.1030289,
+              "nm": 2.47,
+              "osm_id": "way/365931027"
+            },
+            {
+              "name": "Gateway Marina",
+              "lat": 18.0461724,
+              "lon": -63.1130282,
+              "nm": 2.51,
+              "osm_id": "way/365932286"
+            },
+            {
+              "name": "Portofino Marina",
+              "lat": 18.0404457,
+              "lon": -63.0968394,
+              "nm": 2.56,
+              "osm_id": "relation/9565481"
+            },
+            {
+              "name": "Princess Yacht Club/Port de Plaisance",
+              "lat": 18.0391522,
+              "lon": -63.0890988,
+              "nm": 2.63,
+              "osm_id": "way/177955627"
+            },
+            {
+              "name": "Palapa Marina",
+              "lat": 18.0386254,
+              "lon": -63.0949014,
+              "nm": 2.66,
+              "osm_id": "relation/9565529"
+            }
+          ]
+        }
+      }
+    },
+    "Cayenne (Guyane)": {
+      "name": "Cayenne (Guyane)",
+      "sections": {
+        "mooring": {
+          "marinas": [
+            {
+              "name": "Marina de Dégrad des Cannes",
+              "lat": 4.8526462,
+              "lon": -52.2826764,
+              "nm": 6.43,
+              "osm_id": "way/500223293"
+            },
+            {
+              "name": "Marina de Roura",
+              "lat": 4.7418889,
+              "lon": -52.3270198,
+              "nm": 11.6,
+              "osm_id": "way/262400986"
+            }
+          ]
+        }
+      }
+    },
+    "Saint-Pierre (Saint-Pierre-et-Miquelon)": {
+      "name": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
+      "sections": {
+        "mooring": {
+          "marinas": [
+            {
+              "name": "Anse à Rodrigue",
+              "lat": 46.785375,
+              "lon": -56.1685818,
+              "nm": 0.61,
+              "osm_id": "way/40681893"
+            }
+          ]
+        }
+      }
+    },
+    "Papeete (Polynésie française)": {
+      "name": "Papeete (Polynésie française)",
+      "sections": {
+        "mooring": {
+          "marinas": [
+            {
+              "name": "TECHNIMARINE",
+              "lat": -17.5266208,
+              "lon": -149.5677549,
+              "nm": 0.9,
+              "url": "https://www.technimarine.pf/",
+              "osm_id": "node/13797396402"
+            },
+            {
+              "name": "Marina de Papeete",
+              "lat": -17.539732,
+              "lon": -149.5707935,
+              "nm": 1.69,
+              "osm_id": "way/1383727655"
+            },
+            {
+              "name": "Yacht Club Tahiti",
+              "lat": -17.5244421,
+              "lon": -149.5343893,
+              "nm": 2.1,
+              "osm_id": "way/1116984682"
+            },
+            {
+              "name": "Yacht Club de Tahiti",
+              "lat": -17.5243375,
+              "lon": -149.5343724,
+              "nm": 2.1,
+              "url": "https://www.yctahiti.org/",
+              "osm_id": "node/2062502770"
+            },
+            {
+              "name": "Centre de détente militaire",
+              "lat": -17.5226117,
+              "lon": -149.5277544,
+              "nm": 2.42,
+              "osm_id": "way/728937883"
+            },
+            {
+              "name": "Marina Taïna",
+              "lat": -17.5865538,
+              "lon": -149.6158751,
+              "nm": 5.25,
+              "osm_id": "node/586068352"
+            },
+            {
+              "name": "Marina de Vaiare",
+              "lat": -17.5233716,
+              "lon": -149.7772966,
+              "nm": 11.98,
+              "osm_id": "way/685548992"
+            }
+          ]
+        }
+      }
+    },
+    "Mata-Utu (Wallis-et-Futuna)": {
+      "name": "Mata-Utu (Wallis-et-Futuna)",
+      "sections": {
+        "mooring": {
+          "marinas": [
+            {
+              "name": "Marina de Fineveke",
+              "lat": -13.323284,
+              "lon": -176.2253721,
+              "nm": 3.3,
+              "osm_id": "way/346263479"
+            }
+          ]
+        }
+      }
+    },
+    "Nouméa (Nouvelle-Calédonie)": {
+      "name": "Nouméa (Nouvelle-Calédonie)",
+      "sections": {
+        "mooring": {
+          "marinas": [
+            {
+              "name": "Port Garnier",
+              "lat": -22.2892444,
+              "lon": 166.4397745,
+              "nm": 1.04,
+              "url": "https://www.sodemo.nc/port-garnier/",
+              "osm_id": "relation/13470868"
+            },
+            {
+              "name": "Marina Port du Sud",
+              "lat": -22.2846336,
+              "lon": 166.4418243,
+              "nm": 1.09,
+              "osm_id": "node/540120337"
+            },
+            {
+              "name": "Port du Sud",
+              "lat": -22.2849954,
+              "lon": 166.4413734,
+              "nm": 1.09,
+              "url": "https://www.portdusud.nc/",
+              "osm_id": "way/1005470701"
+            },
+            {
+              "name": "Cercle Nautique Calédonien",
+              "lat": -22.2928895,
+              "lon": 166.4375331,
+              "nm": 1.11,
+              "osm_id": "node/777454282"
+            },
+            {
+              "name": "Le Port de Plaisance",
+              "lat": -22.2919665,
+              "lon": 166.4375232,
+              "nm": 1.12,
+              "url": "https://cnc.asso.nc/marina/le-port-de-plaisance",
+              "osm_id": "way/1005470669"
+            },
+            {
+              "name": "Port Brunelet",
+              "lat": -22.2896071,
+              "lon": 166.437691,
+              "nm": 1.15,
+              "url": "https://www.sodemo.nc/port-brunelet/",
+              "osm_id": "way/552272613"
+            },
+            {
+              "name": "Marina de Port Moselle",
+              "lat": -22.2772482,
+              "lon": 166.4382326,
+              "nm": 1.53,
+              "osm_id": "node/481726134"
+            },
+            {
+              "name": "Marina de Boulari",
+              "lat": -22.2314142,
+              "lon": 166.5235353,
+              "nm": 5.34,
+              "osm_id": "node/558057116"
+            }
+          ]
+        }
+      }
+    },
+    "Saint-Gilles (La Réunion)": {
+      "name": "Saint-Gilles (La Réunion)",
+      "sections": {
+        "mooring": {
+          "marinas": [
+            {
+              "name": "Port de plaisance",
+              "lat": -21.0547337,
+              "lon": 55.2242502,
+              "nm": 0.28,
+              "osm_id": "way/86123650"
+            },
+            {
+              "name": "Saint-Gilles-les-Bains",
+              "lat": -21.0546284,
+              "lon": 55.2245264,
+              "nm": 0.29,
+              "osm_id": "node/3199506414"
+            },
+            {
+              "name": "Saint-Leu",
+              "lat": -21.1681891,
+              "lon": 55.2856806,
+              "nm": 7.38,
+              "osm_id": "node/1505005072"
+            },
+            {
+              "name": "Darse de plaisance",
+              "lat": -20.943509,
+              "lon": 55.2830333,
+              "nm": 7.7,
+              "osm_id": "way/1018573449"
+            },
+            {
+              "name": "Port de la Pointe des Galets",
+              "lat": -20.9416146,
+              "lon": 55.2834615,
+              "nm": 7.81,
+              "osm_id": "relation/2667360"
+            },
+            {
+              "name": "Darse de plaisance Titan",
+              "lat": -20.9397192,
+              "lon": 55.2874952,
+              "nm": 8.01,
+              "osm_id": "way/1004064446"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -110,6 +110,8 @@ class PledgeIn(BaseModel):
     contributor: Optional[str] = None
     kind: Optional[str] = None
     target_id: Optional[str] = None
+    return_url: Optional[str] = None
+    cancel_url: Optional[str] = None
 
 
 class EvidenceIn(BaseModel):
@@ -167,6 +169,9 @@ def _as_http(exc: Exception) -> HTTPException:
     if isinstance(exc, IllegalTransition):
         return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, PayPalError):
+        # 48b7f5a mapped every PayPal error to 502, including ORDER_NOT_APPROVED.
+        if "ORDER_NOT_APPROVED" in str(getattr(exc, "body", "") or ""):
+            return HTTPException(status_code=409, detail="order not approved")
         return HTTPException(status_code=502, detail="PayPal request failed")
     if isinstance(exc, ValueError):
         return HTTPException(status_code=422, detail=str(exc))
@@ -239,6 +244,7 @@ async def get_clock():
 @router.get("/schedule")
 async def get_schedule():
     export = await fetch_naviguide_export()
+    await sync_milestone_shells(export)
     legs = clock_legs()
     return {
         "export": export,
@@ -272,6 +278,8 @@ async def post_pledge(body: PledgeIn, request: Request):
             payment_mode=mode,
             kind=body.kind,
             target_id=body.target_id,
+            return_url=body.return_url,
+            cancel_url=body.cancel_url,
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
@@ -357,6 +365,8 @@ async def post_spending(milestone_id: str, body: SpendingIn, request: Request):
 @router.get("/milestones")
 async def get_milestones():
     docs = await list_milestones()
+    if not docs:
+        docs = await sync_milestone_shells()
     return [_public_milestone(doc) for doc in docs]
 
 

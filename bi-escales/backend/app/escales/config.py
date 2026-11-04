@@ -144,6 +144,21 @@ def vault_cancel_url() -> str:
     return (os.environ.get("ESCALES_VAULT_CANCEL_URL") or "https://example.com/escales/vault/cancel").strip()
 
 
+# Same Render service that serves the built frontend. The static host 404s.
+_DEFAULT_ORDER_RETURN = "https://bi-escales-api.onrender.com/?paypal=return"
+_DEFAULT_ORDER_CANCEL = "https://bi-escales-api.onrender.com/?paypal=cancel"
+
+
+def order_return_url() -> str:
+    """Where PayPal sends the buyer after approving a classic AUTHORIZE order."""
+    return (os.environ.get("ESCALES_RETURN_URL") or _DEFAULT_ORDER_RETURN).strip()
+
+
+def order_cancel_url() -> str:
+    """Where PayPal sends the buyer if they cancel a classic AUTHORIZE order."""
+    return (os.environ.get("ESCALES_CANCEL_URL") or _DEFAULT_ORDER_CANCEL).strip()
+
+
 def webhooks_enabled() -> bool:
     """PayPal inbound webhooks. Off unless ESCALES_WEBHOOKS_ENABLED is truthy."""
     return os.environ.get("ESCALES_WEBHOOKS_ENABLED", "").strip().lower() in _TRUTHY
@@ -160,11 +175,10 @@ def paypal_webhook_id() -> str:
 
 PUBLIC_API_ORIGIN = "https://bi-escales-api.onrender.com"
 PAYPAL_WEBHOOK_PATH = "/api/escales/webhooks/paypal"
-# Vite dev server from the mini-mix frontend, plus the other Render host.
+# Vite dev server, plus the Render service that serves this API and the page.
 _DEFAULT_CORS_ORIGINS = (
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://bi-escales.onrender.com",
     PUBLIC_API_ORIGIN,
 )
 

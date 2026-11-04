@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 import httpx
 
-from .config import EscalesConfig
+from .config import EscalesConfig, order_cancel_url, order_return_url
 
 
 class PayPalError(RuntimeError):
@@ -118,9 +118,24 @@ class PayPalClient:
         description: str,
         reference_id: str,
         idempotency_key: Optional[str] = None,
+        return_url: Optional[str] = None,
+        cancel_url: Optional[str] = None,
     ) -> dict:
+        """Classic AUTHORIZE order. Return and cancel URLs match the vault order."""
+        back = (return_url or "").strip() or order_return_url()
+        cancel = (cancel_url or "").strip() or order_cancel_url()
         body = {
             "intent": "AUTHORIZE",
+            "payment_source": {
+                "paypal": {
+                    "experience_context": {
+                        "return_url": back,
+                        "cancel_url": cancel,
+                        "user_action": "CONTINUE",
+                        "shipping_preference": "NO_SHIPPING",
+                    },
+                },
+            },
             "purchase_units": [{
                 "reference_id": reference_id[:256],
                 "description": description[:127],

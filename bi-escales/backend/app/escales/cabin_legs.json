@@ -197,7 +197,7 @@
       "from_name": "Europa (TAAF)",
       "to_name": "La Rochelle",
       "from_slug": "europa-taaf",
-      "to_slug": "la-rochelle",
+      "to_slug": "ret-la-rochelle",
       "kind": "sea",
       "departure_iso": "2027-07-06T16:04:24.999Z",
       "arrival_iso": "2027-08-27T04:23:32.501Z",

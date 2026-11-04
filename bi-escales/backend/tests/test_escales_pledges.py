@@ -90,7 +90,9 @@ def _names(spy: Spy) -> list[str]:
     return [call[0] for call in spy.calls]
 
 
-def test_create_authorize_order_is_eur_and_idempotent():
+def test_create_authorize_order_is_eur_and_idempotent(monkeypatch):
+    monkeypatch.delenv("ESCALES_RETURN_URL", raising=False)
+    monkeypatch.delenv("ESCALES_CANCEL_URL", raising=False)
     seen = []
 
     def handler(request: httpx.Request):
@@ -108,6 +110,10 @@ def test_create_authorize_order_is_eur_and_idempotent():
             body = json.loads(request.content)
             assert body["intent"] == "AUTHORIZE"
             assert body["purchase_units"][0]["amount"] == {"currency_code": "EUR", "value": "20.00"}
+            context = body["payment_source"]["paypal"]["experience_context"]
+            assert context["return_url"] == "https://bi-escales-api.onrender.com/?paypal=return"
+            assert context["cancel_url"] == "https://bi-escales-api.onrender.com/?paypal=cancel"
+            assert context["user_action"] == "CONTINUE"
             return httpx.Response(201, json={
                 "id": "ORDER1",
                 "status": "CREATED",
@@ -267,7 +273,8 @@ def test_state_machine_and_forbidden_transitions():
 
         assert _names(spy).count("capture") == 1
         assert _names(spy).count("void") == 1
-        assert "orders.get" not in _names(spy)
+        assert _names(spy).count("orders.get") == 2
+        assert "authorizations.get" not in _names(spy)
 
     asyncio.run(body())
 
@@ -282,7 +289,7 @@ def test_omitted_kind_stays_a_mile_and_targets_the_milestone():
             client=spy,
         )
         assert created["kind"] == "mile"
-        assert created["target_id"] == "mayotte"
+        assert created["target_id"] == "dzaoudzi-mayotte"
         assert created["intent"] == "AUTHORIZE"
         assert created["status"] == "created"
         assert _names(spy) == ["create"]
@@ -302,8 +309,8 @@ def test_kind_and_target_are_stored_and_unknown_kind_is_rejected():
             target_id="mayotte",
         )
         assert created["kind"] == "meal"
-        assert created["target_id"] == "mayotte"
-        assert created["milestone_id"] == "dep-mayotte"
+        assert created["target_id"] == "dzaoudzi-mayotte"
+        assert created["milestone_id"] == "dep-dzaoudzi-mayotte"
         prefixed = await create_pledge(
             amount_eur="20.00",
             description="20 milles",
@@ -312,11 +319,11 @@ def test_kind_and_target_are_stored_and_unknown_kind_is_rejected():
             kind="mile",
             target_id="dep-mayotte",
         )
-        assert prefixed["target_id"] == "mayotte"
-        assert prefixed["milestone_id"] == "dep-mayotte"
+        assert prefixed["target_id"] == "dzaoudzi-mayotte"
+        assert prefixed["milestone_id"] == "dep-dzaoudzi-mayotte"
         stored = await get_ledger().get_pledge(created["_id"])
         assert stored["kind"] == "meal"
-        assert stored["target_id"] == "mayotte"
+        assert stored["target_id"] == "dzaoudzi-mayotte"
         project = await create_pledge(
             amount_eur="15.00",
             description="don",
@@ -334,7 +341,7 @@ def test_kind_and_target_are_stored_and_unknown_kind_is_rejected():
             kind="common_fund",
             target_id="mayotte",
         )
-        assert fund["target_id"] == "mayotte"
+        assert fund["target_id"] == "dzaoudzi-mayotte"
         with pytest.raises(ValueError):
             await create_pledge(
                 amount_eur="8.00",
@@ -411,11 +418,20 @@ def test_cabin_leg_authorizes_and_waits_for_departure(monkeypatch):
         assert created["target_id"] == leg
         assert created["status"] == "created"
         assert _names(spy) == ["create"]
+        from_stop = await create_pledge(
+            amount_eur="80.00",
+            description="cabine depuis Mayotte",
+            milestone_id="dep-mayotte",
+            client=spy,
+            kind="cabin_leg",
+        )
+        assert from_stop["milestone_id"].startswith("leg-")
+        assert "dzaoudzi-mayotte" in from_stop["milestone_id"]
         with pytest.raises(ValueError):
             await create_pledge(
                 amount_eur="80.00",
-                description="cabine sur une escale",
-                milestone_id="dep-mayotte",
+                description="cabine inconnue",
+                milestone_id="dep-nulle-part",
                 client=spy,
                 kind="cabin_leg",
             )

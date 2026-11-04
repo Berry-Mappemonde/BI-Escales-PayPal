@@ -28,6 +28,7 @@ class FakePayPal:
     def __init__(self):
         self.calls = []
         self.n = 0
+        self.order_status = "APPROVED"
 
     def create_authorize_order(self, amount_eur, description, reference_id, idempotency_key=None):
         self.calls.append(("create", amount_eur, idempotency_key))
@@ -67,7 +68,7 @@ class FakePayPal:
 
     def get_order(self, order_id):
         self.calls.append(("orders.get", order_id))
-        return {"id": order_id, "status": "APPROVED"}
+        return {"id": order_id, "status": self.order_status}
 
     def get_authorization(self, authorization_id):
         self.calls.append(("authorizations.get", authorization_id))
@@ -153,6 +154,78 @@ def test_authorize_stores_id_and_expiration(api):
     assert fetched.json()["status"] == "authorized"
 
 
+def test_authorize_refuses_an_order_the_buyer_has_not_approved(api):
+    client, fake = api
+    created = _create(client, "not-approved")
+    assert created.status_code == 200
+    fake.order_status = "CREATED"
+    response = client.post(f"/api/escales/pledges/{created.json()['id']}/authorize")
+    assert response.status_code == 409
+    assert "authorize" not in [call[0] for call in fake.calls]
+    assert client.get(f"/api/escales/pledges/{created.json()['id']}").json()["status"] == "created"
+
+
+def test_authorize_fails_closed_on_an_empty_paypal_status(api):
+    client, fake = api
+    created = _create(client, "empty-status")
+    fake.order_status = ""
+    response = client.post(f"/api/escales/pledges/{created.json()['id']}/authorize")
+    assert response.status_code == 409
+    assert "authorize" not in [call[0] for call in fake.calls]
+
+
+def test_paypal_order_not_approved_is_409_not_502(api):
+    from app.escales.paypal_client import PayPalError
+
+    client, fake = api
+    created = _create(client, "paypal-not-approved")
+
+    def boom(order_id):
+        fake.calls.append(("authorize", order_id))
+        raise PayPalError(422, {"details": [{"issue": "ORDER_NOT_APPROVED"}]})
+
+    fake.authorize_order = boom
+    response = client.post(f"/api/escales/pledges/{created.json()['id']}/authorize")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "order not approved"
+    assert client.get(f"/api/escales/pledges/{created.json()['id']}").json()["status"] == "created"
+
+
+def test_cabin_leg_and_the_approval_gate_stay_together(api):
+    """#16 legs and the 1ed5321 approval gate, on the same service."""
+    client, fake = api
+    schedule = client.get("/api/escales/schedule")
+    assert schedule.status_code == 200
+    body = schedule.json()
+    sea = next(row for row in body["legs"] if row["id"] == "leg-la-rochelle-to-ajaccio-corse")
+    assert sea["capture_on"] == "departure"
+    assert sea["departure_iso"] >= "2026-11-12"
+    cabin = _create(client, "cabin-with-gate", {
+        "amount_eur": "80.00",
+        "milestone_id": "leg-la-rochelle-to-ajaccio-corse",
+        "kind": "cabin_leg",
+        "description": "cabine La Rochelle → Ajaccio",
+        "idempotency_key": "cabin-with-gate",
+    })
+    assert cabin.status_code == 200, cabin.text
+    assert cabin.json()["kind"] == "cabin_leg"
+    assert cabin.json()["milestone_id"] == "leg-la-rochelle-to-ajaccio-corse"
+    fake.order_status = "CREATED"
+    refused = client.post(f"/api/escales/pledges/{cabin.json()['id']}/authorize")
+    assert refused.status_code == 409
+    assert "authorize" not in [call[0] for call in fake.calls]
+
+
+def test_milestones_sync_the_route_when_the_ledger_is_empty(api):
+    client, _fake = api
+    listed = client.get("/api/escales/milestones")
+    assert listed.status_code == 200
+    ids = [row["id"] for row in listed.json()]
+    assert ids
+    assert "dep-la-rochelle" in ids
+    assert ids.index("dep-fort-de-france-martinique") < ids.index("dep-dzaoudzi-mayotte")
+
+
 def test_capture_refused_without_admin_key(api):
     client, fake = api
     _created, authorized = _ready(client, "cap-missing")
@@ -226,7 +299,7 @@ def test_fund_counts_captured_income_and_treasurer_spending(api):
     )
     assert spent.status_code == 200
     fund = spent.json()
-    assert fund["milestone_id"] == "mayotte"
+    assert fund["milestone_id"] == "dzaoudzi-mayotte"
     assert fund["currency"] == "EUR"
     assert fund["income_eur"] == "20.00"
     assert fund["spending_eur"] == "5.00"
@@ -236,7 +309,7 @@ def test_fund_counts_captured_income_and_treasurer_spending(api):
     assert fund["income"][0]["pledge_id"] == authorized["id"]
     assert fund["income"][0]["description"] == "20 milles Mayotte"
     assert fund["income"][0]["pledge_kind"] == "mile"
-    assert fund["income"][0]["target_id"] == "mayotte"
+    assert fund["income"][0]["target_id"] == "dzaoudzi-mayotte"
     assert fund["spending"][0]["description"] == "gasoil"
     assert fund["spending"][0]["amount_eur"] == "5.00"
     same = client.get("/api/escales/milestones/mayotte/fund").json()
@@ -246,7 +319,7 @@ def test_fund_counts_captured_income_and_treasurer_spending(api):
     assert dakar["income_eur"] == "60.00"
     assert dakar["spending_eur"] == "0.00"
     assert dakar["balance_eur"] == "60.00"
-    assert captured.json()["fund"]["milestone_id"] == "mayotte"
+    assert captured.json()["fund"]["milestone_id"] == "dzaoudzi-mayotte"
     assert captured.json()["fund"]["income_eur"] == "20.00"
 
 
@@ -289,7 +362,7 @@ def test_fund_rejects_bad_amounts_and_unknown_stopovers(api):
     )
     assert exact.status_code == 200, exact.text
     body = exact.json()
-    assert body["milestone_id"] == "mayotte"
+    assert body["milestone_id"] == "dzaoudzi-mayotte"
     assert body["overdrawn"] is False
     assert body["balance_eur"] == "0.00"
     assert body["income_eur"] == "20.00"
@@ -484,7 +557,7 @@ def test_pledge_defaults_to_mile_and_labels_the_simulated_price(api):
     assert response.status_code == 200
     body = response.json()
     assert body["kind"] == "mile"
-    assert body["target_id"] == "mayotte"
+    assert body["target_id"] == "dzaoudzi-mayotte"
     assert body["intent"] == "AUTHORIZE"
     assert body["status"] == "created"
     assert body["price_label"] == "simulated price"
@@ -505,8 +578,8 @@ def test_pledge_accepts_kind_and_target(api):
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["kind"] == "meal"
-    assert body["target_id"] == "mayotte"
-    assert body["milestone_id"] == "dep-mayotte"
+    assert body["target_id"] == "dzaoudzi-mayotte"
+    assert body["milestone_id"] == "dep-dzaoudzi-mayotte"
     assert body["simulated_price"]["amount_eur"] == "60.00"
     assert body["simulated_price"]["label"] == "simulated price"
 
@@ -536,7 +609,7 @@ def test_target_slug_must_be_known_for_a_stopover_kind(api):
         "amount_eur": "8.00",
     })
     assert fund.status_code == 200, fund.text
-    assert fund.json()["target_id"] == "mayotte"
+    assert fund.json()["target_id"] == "dzaoudzi-mayotte"
     fund_other = _create(client, "m0-fund-other", {
         **PLEDGE,
         "kind": "common_fund",
@@ -612,18 +685,29 @@ def test_schedule_local_fallback(api, monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["source"] == "local"
-    assert any(row["_id"] == "dep-mayotte" for row in body["milestones"])
-    shown = next(row for row in body["milestones"] if row["_id"] == "dep-fort-de-france")
-    assert shown["display_name"] == "Fort-de-France"
+    ids = [row["_id"] for row in body["milestones"]]
+    assert "dep-la-rochelle" in ids
+    assert "dep-fort-de-france-martinique" in ids
+    assert "dep-dzaoudzi-mayotte" in ids
+    assert ids.index("dep-fort-de-france-martinique") < ids.index("dep-dzaoudzi-mayotte")
+    shown = next(row for row in body["milestones"] if row["_id"] == "dep-fort-de-france-martinique")
+    assert shown["display_name"] == "Fort-de-France (Martinique)"
     assert "dep-" not in shown["display_name"].lower()
+    assert body["export"]["escales"][0]["arrival_iso"].startswith("2026-11-12")
     assert body["clock"]["start"] == "2026-11-12"
     assert len(body["legs"]) == 15
     cabin = next(row for row in body["legs"] if row["id"] == "leg-la-rochelle-to-ajaccio-corse")
     assert cabin["capture_on"] == "departure"
-    assert cabin["departure_iso"].startswith("2026-11-12T08:00:00")
+    assert cabin["departure_iso"].startswith("2026-11-12T12:00:00")
     shown = next(row for row in body["milestones"] if row["_id"] == cabin["id"])
     assert shown["display_name"] == "La Rochelle → Ajaccio (Corse)"
     assert shown["capture_on"] == "departure"
+    land = next(row for row in body["legs"] if row["id"] == "leg-saint-maur-berry-indre-to-la-rochelle")
+    assert land["departure_iso"] < land["arrival_iso"]
+    listed = client.get("/api/escales/milestones")
+    assert listed.status_code == 200
+    listed_ids = [row["id"] for row in listed.json()]
+    assert "dep-la-rochelle" in listed_ids
     assert body["prices"]["label"] == "simulated price"
     assert body["prices"]["simulated"] is True
 

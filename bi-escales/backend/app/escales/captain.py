@@ -16,6 +16,7 @@ from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
 from .config import AUTH_MAX_DAYS, membership_url, simulated_now
+from .app_i18n import DEFAULT_APP_LANGUAGE, forced_app_lang, normalize_app_lang
 from .departure_clock import CAPTURE_RULES_EN, CAPTURE_RULES_FR
 from .paypal_txn_search import default_transaction_search_window
 from .milestones import (
@@ -514,8 +515,6 @@ def _chat_system_fr() -> str:
 
 
 def _chat_system(lang: str) -> str:
-    if lang == "en":
-        return _chat_system_en()
     if lang == "fr":
         return _chat_system_fr()
     return _chat_system_en()
@@ -528,7 +527,7 @@ def resolve_chat_lang(
 ) -> str:
     """App language wins. Then the message when clear. Then Accept-Language. Unknown is English."""
     if (requested or "").strip():
-        return _forced_lang(requested) or "en"
+        return normalize_app_lang(requested)
     en = len(_EN_HINT.findall(message or ""))
     fr = len(_FR_HINT.findall(message or ""))
     if en > fr:
@@ -537,10 +536,11 @@ def resolve_chat_lang(
         return "fr"
     if en == fr == 0:
         token = (accept_language or "").split(",")[0].split(";")[0].strip()
-        header = _forced_lang(token)
+        header = forced_app_lang(token)
         if header:
             return header
-    return message_lang(message)
+    detected = message_lang(message)
+    return forced_app_lang(detected) or DEFAULT_APP_LANGUAGE
 
 
 # A distorted spelling maps onto a slug from the display table.
@@ -2265,7 +2265,7 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
     payload = dict(allowed)
     payload["authorization_age_days"] = age
     prompt = _with_known_facts(json.dumps(payload, ensure_ascii=False, default=str))
-    verdict_lang = "en" if str(allowed.get("language") or "") == "en" else "fr"
+    verdict_lang = normalize_app_lang(str(allowed.get("language") or ""))
     try:
         parsed = await llm.ask_json(
             prompt,
@@ -2291,15 +2291,6 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
     return checked
 
 
-def _forced_lang(lang: Optional[str]) -> Optional[str]:
-    token = (lang or "").strip().lower()
-    if token.startswith("en"):
-        return "en"
-    if token.startswith("fr"):
-        return "fr"
-    return None
-
-
 async def _narrative_for_language(
     prompt: str,
     milestone_id: str,
@@ -2307,7 +2298,7 @@ async def _narrative_for_language(
     reached: bool,
 ) -> tuple[str, dict[str, str], str]:
     """Up to two attempts. A forced language retries once, then the rules apply."""
-    forced = _forced_lang(lang)
+    forced = forced_app_lang(lang)
     prompt_lang = forced or "fr"
     system = _report_system(milestone_id, reached, prompt_lang)
 
@@ -2362,7 +2353,7 @@ async def review(
     """Propose capture or void from evidence. Does not execute either."""
     from .naviguide_bridge import resolve_milestone
 
-    report_lang = _forced_lang(lang) or "fr"
+    report_lang = normalize_app_lang(lang) if (lang or "").strip() else "fr"
     canonical = resolve_milestone(milestone_id) or milestone_id
     milestone = await get_milestone(milestone_id)
     if not latest_evidence(milestone):
@@ -2391,7 +2382,7 @@ async def review(
     prompt = json.dumps(allowed, ensure_ascii=False, default=str)
     known = _with_known_facts(prompt)
     usable, source, report_lang = await _narrative_for_language(
-        prompt, milestone_id, _forced_lang(lang), reached,
+        prompt, milestone_id, forced_app_lang(lang), reached,
     )
     if usable:
         usable = _without_gaps(usable, known, report_lang)

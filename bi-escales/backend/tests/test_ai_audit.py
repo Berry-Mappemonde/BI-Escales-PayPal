@@ -475,3 +475,75 @@ def test_inverted_date_sentence_is_dropped():
     assert "2026-12-02" not in dropped
     assert "2026-11-29" not in dropped
     assert "The sea is calm" in dropped
+
+
+def test_omniroute_ask_json_sends_response_format(monkeypatch):
+    monkeypatch.setenv("ESCALES_LLM_ENABLED", "1")
+    for name in (
+        "NVIDIA_API_KEY", "ANTHROPIC_API_KEY", "NEBIUS_API_KEY",
+        "OPENROUTER_API_KEY", "ESCALES_LLM_NEBIUS_ENABLED",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("OMNIROUTE_BASE_URL", "http://omniroute.local")
+    monkeypatch.setenv("OMNIROUTE_API_KEY", "test-omni-key")
+    llm.reset_hop_blocks()
+    seen, client = _transport({
+        "omniroute.local": [
+            _openai('{"proposal":"wait","reason":"Evidence pending."}', "auto"),
+        ],
+    })
+
+    async def body():
+        parsed = await llm.ask_json("advisory probe", client=client)
+        assert parsed.provider == "omniroute"
+        assert seen[0]["body"]["response_format"]["type"] == "json_schema"
+        assert "nvext" not in seen[0]["body"]
+        assert "test-omni-key" not in json.dumps(seen[0]["body"])
+        await client.aclose()
+
+    asyncio.run(body())
+
+
+def test_admin_llm_cascade_probe_returns_metadata_only(monkeypatch):
+    monkeypatch.setenv("ESCALES_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
+    reset_ledger()
+    set_paypal_client_factory(lambda: object())
+
+    async def fake_probe():
+        return {
+            "chat": {
+                "provider": "nim",
+                "model": llm.NIM_MODEL_DEFAULT,
+                "fallback_reason": {"nim_fallback": "HTTP 404"},
+            },
+            "report": {"provider": "nim_fallback", "model": llm.NIM_FALLBACK_MODEL_DEFAULT},
+            "ask_json": {
+                "provider": "nim_fallback",
+                "model": llm.NIM_FALLBACK_MODEL_DEFAULT,
+                "fallback_reason": {"nim": "HTTP 404"},
+            },
+        }
+
+    monkeypatch.setattr(llm, "probe_cascade", fake_probe)
+    app = FastAPI()
+    app.include_router(router)
+    with TestClient(app) as client:
+        denied = client.get("/api/escales/admin/llm-cascade-probe")
+        assert denied.status_code == 401
+        ok = client.get(
+            "/api/escales/admin/llm-cascade-probe",
+            headers={"x-admin-key": "test-admin-key"},
+        )
+        assert ok.status_code == 200, ok.text
+        payload = ok.json()
+        assert set(payload) == {"chat", "report", "ask_json"}
+        blob = json.dumps(payload)
+        assert "test-admin-key" not in blob
+        assert "nvapi" not in blob
+        assert payload["chat"]["provider"] == "nim"
+        assert payload["chat"]["fallback_reason"]["nim_fallback"] == "HTTP 404"
+        assert "reply" not in blob
+        assert "content" not in blob
+    set_paypal_client_factory(None)

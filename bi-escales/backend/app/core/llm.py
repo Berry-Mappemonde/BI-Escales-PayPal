@@ -906,13 +906,14 @@ async def _call_omniroute(
     client: httpx.AsyncClient,
     max_tokens: int,
     temperature: Optional[float] = None,
+    response_schema: Optional[dict[str, Any]] = None,
 ) -> LlmResult:
     url = omniroute_url()
     key = omniroute_key()
     if not url or not key:
         raise RuntimeError("omniroute disabled")
     model = omniroute_model()
-    payload = {
+    payload: dict[str, Any] = {
         "model": model,
         "messages": [
             {"role": "system", "content": system},
@@ -921,6 +922,9 @@ async def _call_omniroute(
         "max_tokens": max_tokens,
         "temperature": _temperature(temperature, 0.4),
     }
+    formatted = _json_schema_format(response_schema)
+    if formatted is not None:
+        payload["response_format"] = formatted
     data = await _post_json(
         client,
         "omniroute",
@@ -1027,6 +1031,16 @@ async def ask_text(
                     elif name == "openrouter":
                         log.info("openrouter hop sending model %s", openrouter_model())
                         result = await _call_openrouter(
+                            system_text,
+                            user,
+                            http,
+                            budget,
+                            temperature,
+                            response_schema=guided_json,
+                        )
+                    elif name == "omniroute":
+                        log.info("omniroute hop sending model %s", omniroute_model())
+                        result = await _call_omniroute(
                             system_text,
                             user,
                             http,
@@ -1175,3 +1189,80 @@ async def ask_json(
     parsed = LlmJson(data, result.provider, result.model, result.text)
     parsed.fallback_reason = result.fallback_reason
     return parsed
+
+
+def llm_result_metadata(result: LlmResult) -> dict[str, Any]:
+    """Provider and model only. No prompt text and no keys."""
+    payload: dict[str, Any] = {
+        "provider": result.provider,
+        "model": result.model,
+    }
+    if result.fallback_reason:
+        payload["fallback_reason"] = dict(result.fallback_reason)
+    if result.reason:
+        payload["reason"] = result.reason
+    return payload
+
+
+def _probe_error_metadata(exc: BaseException) -> dict[str, Any]:
+    return {
+        "provider": "none",
+        "model": "",
+        "error": type(exc).__name__,
+    }
+
+
+async def probe_cascade(client: Optional[httpx.AsyncClient] = None) -> dict[str, Any]:
+    """One hop through each call shape (chat, report, ask_json). Metadata only."""
+    if not has_llm():
+        empty = {"provider": "rules", "model": ""}
+        return {"chat": empty, "report": empty, "ask_json": empty}
+
+    chat_system = "Reply with the single word ok."
+    report_system = "Reply with the single word ok."
+
+    try:
+        chat_result = await ask_text(
+            "cascade probe chat",
+            system=chat_system,
+            max_tokens=8,
+            client=client,
+            temperature=0.3,
+            order=HTTP_CASCADE,
+        )
+        chat_meta = llm_result_metadata(chat_result)
+    except Exception as exc:
+        chat_meta = _probe_error_metadata(exc)
+
+    try:
+        report_result = await ask_text(
+            "cascade probe report",
+            system=report_system,
+            max_tokens=8,
+            client=client,
+            temperature=0.2,
+            order=HTTP_CASCADE,
+        )
+        report_meta = llm_result_metadata(report_result)
+    except Exception as exc:
+        report_meta = _probe_error_metadata(exc)
+
+    try:
+        advisory = await ask_json(
+            '{"decision":"wait","language":"en"}',
+            system=_JSON_SYSTEM,
+            max_tokens=180,
+            client=client,
+            temperature=0,
+        )
+        ask_meta = {
+            "provider": advisory.provider,
+            "model": advisory.model,
+        }
+        fallback = getattr(advisory, "fallback_reason", None)
+        if fallback:
+            ask_meta["fallback_reason"] = dict(fallback)
+    except Exception as exc:
+        ask_meta = _probe_error_metadata(exc)
+
+    return {"chat": chat_meta, "report": report_meta, "ask_json": ask_meta}

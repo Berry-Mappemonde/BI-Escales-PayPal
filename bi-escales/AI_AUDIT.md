@@ -17,7 +17,7 @@ Money paths (capture, void, settle, Vault, 29-day rule, capture rule) are unchan
 | P1-7 | NIM payload: no `reasoning_effort`, no `nvext`; `top_p` if temp>0 | **Done** | `test_llm_cascade.py`, test 14 |
 | P1-8 | `ask_json` Lightning first; schema validation | **Done** | `JSON_HTTP_CASCADE`, `ADVISORY_PROPOSAL_SCHEMA`; test 13 |
 | P1-9 | OpenRouter free default; Referer/Title; 402/429 skip | **Done** | `OPENROUTER_DEFAULT_MODEL`; `test_openrouter_defaults_to_the_free_model_and_skips_402` |
-| P2-10 | OmniRoute optional hop | **Done** | `test_omniroute_is_off_until_its_url_is_set` |
+| P2-10 | OmniRoute optional hop | **Coded, inactive (off by default)** | Client + tests; `OMNIROUTE_*` in `render.yaml` (sync: false, no values). Live gateway tests still to do. |
 | P2-11 | `.env.example` + README provider limits | **Done** | `bi-escales/.env.example`, README § AI |
 
 ## Findings addressed

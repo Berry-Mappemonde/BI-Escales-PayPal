@@ -68,6 +68,12 @@ services:
       # lightning means the nim_fallback hop ran; model_source.reason says why (404 or timeout).
       - key: NIM_MODEL
         sync: false
+      - key: OMNIROUTE_BASE_URL
+        sync: false
+      - key: OMNIROUTE_API_KEY
+        sync: false
+      - key: OMNIROUTE_MODEL
+        sync: false
       - key: ESCALES_VAULT_ENABLED
         value: "true"
       - key: ESCALES_VAULT_RETURN_URL

@@ -15,6 +15,7 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 from starlette.responses import Response
 
+from app.core import llm
 from app.escales.captain import SIMULATED_PRICE_LABEL
 from app.escales.captain import chat as captain_chat
 from app.escales.captain import review as captain_review
@@ -934,6 +935,13 @@ async def post_chat(body: ChatIn, request: Request):
         )
     except ValueError as exc:
         raise _as_http(exc) from exc
+
+
+@router.get("/admin/llm-cascade-probe")
+async def get_llm_cascade_probe(request: Request):
+    """Treasurer-only: which provider answered chat, report, and ask_json. No bodies or keys."""
+    _require_treasurer(request)
+    return await llm.probe_cascade()
 
 
 @webhooks_router.get("/webhooks/recent")

@@ -111,12 +111,15 @@
     "venmoNote": "PayPal wallet or card (EUR). Venmo is not available — USD only.",
     "error": "Pledge error",
     "crewSubscribeHint": "Monthly Crew supporter subscription (EUR, sandbox).",
-    "crewSubscribeSaved": "Crew supporter subscription recorded. Thank you."
+    "crewSubscribeSaved": "Crew supporter subscription recorded. Thank you.",
+    "crewSubscribeLoading": "Loading Crew supporter plan…",
+    "crewSubscribePlanTimeout": "Could not load the Crew supporter plan. Try again in a moment.",
+    "crewSubscribePlanMissing": "Crew supporter plan is not set up yet. Ask the treasurer to run setup.",
+    "crewSubscribeConfirmed": "Crew supporter subscription confirmed. Thank you.",
+    "crewSubscribeCancelled": "Crew supporter subscription cancelled. Nothing was charged."
   },
   "treasurer": {
     "panelTitle": "Treasurer",
-    "panelExpand": "Show treasurer tools",
-    "panelCollapse": "Hide treasurer tools",
     "heading": "Treasurer queue",
     "adminKey": "Treasurer key (x-admin-key)",
     "adminKeyHint": "Held in memory only — never stored.",

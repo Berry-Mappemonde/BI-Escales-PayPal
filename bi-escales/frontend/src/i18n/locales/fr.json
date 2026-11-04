@@ -111,12 +111,15 @@
     "venmoNote": "PayPal ou carte (EUR). Venmo indisponible — USD uniquement.",
     "error": "Erreur promesse",
     "crewSubscribeHint": "Abonnement mensuel Équipage (EUR, sandbox).",
-    "crewSubscribeSaved": "Abonnement Équipage enregistré. Merci."
+    "crewSubscribeSaved": "Abonnement Équipage enregistré. Merci.",
+    "crewSubscribeLoading": "Chargement du plan Équipage…",
+    "crewSubscribePlanTimeout": "Impossible de charger le plan Équipage. Réessayez dans un instant.",
+    "crewSubscribePlanMissing": "Le plan Équipage n'est pas encore configuré. Demandez au trésorier de lancer la configuration.",
+    "crewSubscribeConfirmed": "Abonnement Équipage confirmé. Merci.",
+    "crewSubscribeCancelled": "Abonnement Équipage annulé. Aucun prélèvement."
   },
   "treasurer": {
     "panelTitle": "Trésorier",
-    "panelExpand": "Afficher les outils trésorier",
-    "panelCollapse": "Masquer les outils trésorier",
     "heading": "File trésorier",
     "adminKey": "Clé trésorier (x-admin-key)",
     "adminKeyHint": "Saisie en mémoire uniquement — jamais enregistrée.",

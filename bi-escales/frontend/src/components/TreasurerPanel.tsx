@@ -102,12 +102,13 @@ export function TreasurerPanel({
         className="treasurer-panel-toggle"
         data-testid="treasurer-panel-toggle"
         aria-expanded={open}
+        aria-controls="treasurer-panel-body"
         onClick={() => onOpenChange(!open)}
       >
         {t("treasurer.panelTitle")}
       </button>
       {open ? (
-        <div className="treasurer-panel-body" data-testid="treasurer-panel-body">
+        <div className="treasurer-panel-body" id="treasurer-panel-body" data-testid="treasurer-panel-body">
           <p className="hint">{t("treasurer.adminKeyHint")}</p>
           <label className="admin-key shared-admin">
             {t("treasurer.adminKey")}

@@ -844,6 +844,145 @@ def test_reached_leg_prompt_says_there_is_no_remaining_distance(monkeypatch):
     asyncio.run(body())
 
 
+def test_reached_sentence_follows_the_report_language(monkeypatch):
+    import app.core.llm as llm
+
+    sparse_english = "Arrival recorded at Lorient. Simulation flag stands."
+    assert captain.message_lang(sparse_english) == "fr"
+    replies = [
+        sparse_english,
+        "L'arrivée est enregistrée à Lorient. La preuve est une simulation.",
+    ]
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return replies.pop(0)
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "capture", "reason": "met"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence("lorient", met=True, facts={"distance_nm": 120})
+        english = await review("lorient", reader=None)
+        assert "was reached" in english["report"]
+        assert "no remaining distance" in english["report"]
+        assert "L'escale" not in english["report"]
+        assert "atteinte" not in english["report"]
+        assert "L'escale" not in english["justification"]
+        await record_evidence("dakar", met=True, facts={"distance_nm": 80})
+        french = await review("dakar", reader=None)
+        assert "L'escale dakar est atteinte" in french["report"]
+        assert "sans distance restante" in french["report"]
+        assert "was reached" not in french["report"]
+        assert "no remaining distance" not in french["report"]
+        assert "Milestone" not in french["report"]
+
+    asyncio.run(body())
+
+
+def test_chat_punctuation_is_one_stop_in_both_languages(monkeypatch):
+    import app.core.llm as llm
+
+    replies = [
+        "Funds will be released.. — The captain. I am the.",
+        "Les fonds sont libérés.. — Le capitaine. Je suis le.",
+    ]
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return replies.pop(0)
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        english = await chat("I'd like to sponsor 10 nautical miles near Brest")
+        reply = english["reply"]
+        assert ".." not in reply
+        assert "I am the" not in reply
+        assert "released." in reply
+        assert reply.count("— The captain") == 1
+        assert not reply.endswith("..")
+        french = await chat("Je parraine 10 milles près de Brest")
+        french_reply = french["reply"]
+        assert ".." not in french_reply
+        assert "Je suis le" not in french_reply
+        assert "libérés." in french_reply
+        assert french_reply.count("— Le capitaine") == 1
+
+    asyncio.run(body())
+
+
+def test_report_strips_echoed_instructions_in_both_languages(monkeypatch):
+    import app.core.llm as llm
+
+    seen = {}
+    replies = [
+        (
+            "The decision field is fixed as capture. "
+            "This advisory is not executed. "
+            "Arrival recorded at Lorient. The boat is. "
+            "Decision: capture. Decision: capture."
+        ),
+        (
+            "Le champ de décision est fixé sur capture. "
+            "Ceci est consultatif et n'est pas exécuté. "
+            "L'arrivée est enregistrée à Lorient. Le bateau est. "
+            "Décision : capture. Décision : capture."
+        ),
+    ]
+
+    async def fake_ask_text(*_args, **kwargs):
+        seen["max_tokens"] = kwargs.get("max_tokens")
+        seen["system"] = kwargs.get("system")
+        return replies.pop(0)
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "wait", "reason": "echo"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+    prompt = captain._report_system("lorient", reached=True)
+    assert "Never stop mid-sentence." in prompt
+    assert "decision field is fixed" not in prompt.lower()
+    assert "not executed" not in prompt.lower()
+    assert "do not write a Decision line." in prompt
+
+    async def body():
+        await record_evidence("lorient", met=True, facts={"distance_nm": 120})
+        english = await review("lorient", reader=None)
+        assert seen["max_tokens"] == 400
+        report = english["report"]
+        justification = english["justification"]
+        assert "decision field" not in report.lower()
+        assert "not executed" not in report.lower()
+        assert "advisory" not in report.lower()
+        assert "The boat is" not in report
+        assert "Arrival recorded at Lorient" in report
+        assert ".." not in report and ".." not in justification
+        assert report.lower().count("decision:") == 0
+        assert justification.lower().count("decision:") == 1
+        assert "Décision" not in justification
+        await record_evidence("brest", met=True, facts={"distance_nm": 40})
+        french = await review("brest", reader=None)
+        french_report = french["report"]
+        french_justification = french["justification"]
+        assert "champ de décision" not in french_report.lower()
+        assert "consultatif" not in french_report.lower()
+        assert "pas exécuté" not in french_report.lower()
+        assert "Le bateau est" not in french_report
+        assert "L'arrivée est enregistrée à Lorient" in french_report
+        assert ".." not in french_report and ".." not in french_justification
+        assert french_report.lower().count("décision") == 0
+        assert french_justification.lower().count("décision") == 1
+        assert "Decision:" not in french_justification
+
+    asyncio.run(body())
+
+
 def test_ui_labels_the_llm_proposal_as_advisory():
     root = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "escales"
     badge = (root / "advisoryLabel.js").read_text(encoding="utf-8")

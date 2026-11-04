@@ -42,6 +42,9 @@ _PLACE = re.compile(
 _REPORT_TEMPERATURE = 0.2
 _CHAT_TEMPERATURE = 0.3
 _CHAT_WORD_LIMIT = 80
+# Room for two finished sentences. A short budget cuts the model off mid-phrase.
+_REPORT_MAX_TOKENS = 400
+_CHAT_MAX_TOKENS = 400
 
 _EN_HINT = re.compile(
     r"\b(?:i|i'd|i’m|i'm|would|like|sponsor|please|the|near|miles?|nautical|dinner|and"
@@ -126,6 +129,46 @@ def message_lang(text: str) -> str:
     return "fr"
 
 
+# Reports use a wider lexicon than chat. A tie in message_lang is French,
+# which appended a French sentence onto English reports that avoid "the" and "is".
+_EN_REPORT = re.compile(
+    r"\b(?:the|this|that|is|are|was|were|with|and|from|for|not|only|"
+    r"reached|milestone|evidence|proposal|treasurer|capture|void|wait|"
+    r"away|distance|arrival|recorded|flag|stands|marked|supports|"
+    r"complete|boat|funds|released)\b",
+    re.IGNORECASE,
+)
+_FR_REPORT = re.compile(
+    r"\b(?:le|la|les|un|une|des|du|est|sont|cette|avec|pour|dans|"
+    r"atteinte?|jalon|preuve|proposition|tr[ée]sorier|escale|arriv[ée]e|"
+    r"enregistr\w*|marqu[ée]e|consultatif|bateau|fonds|lib[ée]r\w*)\b",
+    re.IGNORECASE,
+)
+_ECHO_RE = re.compile(
+    r"decision field"
+    r"|champ (?:de la |de )?d[ée]cision est fix"
+    r"|this advisory is not executed"
+    r"|this is advisory"
+    r"|advisory only"
+    r"|anything you write is advisory"
+    r"|n['’]est pas ex[ée]cut"
+    r"|est consultatif"
+    r"|these instructions"
+    r"|ces instructions"
+    r"|^\s*decision\s*:"
+    r"|^\s*d[ée]cision\s*:",
+    re.IGNORECASE,
+)
+_DANGLING_WORD = {
+    "the", "a", "an", "of", "to", "for", "and", "or", "but", "with", "from", "by",
+    "as", "at", "in", "on", "my", "your", "this", "that", "am", "is", "are", "was",
+    "were", "be", "been", "its",
+    "le", "la", "les", "un", "une", "de", "du", "des", "et", "ou", "au", "aux",
+    "en", "pour", "avec", "dans", "sur", "ce", "cette", "mon", "ma", "mes",
+    "je", "tu", "il", "est", "suis", "son", "sa", "ses", "que", "qui",
+}
+
+
 def _is_treasurer_question(message: str) -> bool:
     return bool(_TREASURER_Q.search(message or ""))
 
@@ -142,11 +185,12 @@ def _no_pledge_suggestion(message: str) -> bool:
 def _report_system(milestone_id: str, reached: bool = False) -> str:
     text = (
         "You are the Blue Intelligence Escales captain. "
-        "Write exactly 2 or 3 sentences. No title, no heading, no list. "
+        "Write exactly 2 short, complete sentences. "
+        "End each sentence with one period. Never stop mid-sentence. "
+        "No title, no heading, no list. "
         f"Keep this leg name verbatim: {milestone_id}. "
         "Use only numbers present in the evidence JSON. Do not invent a figure. "
-        "The decision field is fixed by the program. "
-        "Anything you write is advisory and is not executed."
+        "Do not repeat these instructions and do not write a Decision line."
     )
     if reached:
         text += (
@@ -165,6 +209,7 @@ def _chat_system(lang: str) -> str:
         "If the message asks whether money will be taken or released, say that only the treasurer review decides. "
         "Mention membership only by repeating the HelloAsso URL you were given. "
         "If no URL was given, do not mention membership and do not write any URL. "
+        "Write complete sentences and never stop mid-sentence. "
         "Sign once, and do not repeat your name. At most 80 words."
     )
 
@@ -284,6 +329,78 @@ def _drop_sentences(text: str, pattern: re.Pattern) -> str:
     return " ".join(kept).strip()
 
 
+def _report_language(text: str) -> str:
+    """Language of a report. English wins when the report is in English."""
+    en = len(_EN_REPORT.findall(text or ""))
+    fr = len(_FR_REPORT.findall(text or ""))
+    if en > fr:
+        return "en"
+    if fr > en:
+        return "fr"
+    if re.search(r"\b(?:the|is|was|this|reached|milestone|treasurer|arrival)\b", text or "", re.I):
+        return "en"
+    return "fr"
+
+
+def _normalize_dots(text: str) -> str:
+    """One period where the model left '..' or a space before the stop."""
+    cleaned = re.sub(r"\.{2,}", ".", text or "")
+    cleaned = re.sub(r"\s+([.!?…])", r"\1", cleaned)
+    cleaned = re.sub(r"([.!?…])(?:\s*[.!?…])+", r"\1", cleaned)
+    return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
+
+
+def _sentence_words(sentence: str) -> list[str]:
+    return re.findall(r"[A-Za-zÀ-ÿ0-9']+", sentence or "")
+
+
+def _is_cutoff(sentence: str) -> bool:
+    """A last sentence cut off on a function word, such as 'I am the.'
+
+    A figure after that word, including a filtered ``[?]``, is a finished claim.
+    """
+    body = re.sub(r"[.!?…]+$", "", (sentence or "").strip()).strip()
+    if re.search(r"(?:\[\?\]|\d+)\s*$", body):
+        return False
+    words = _sentence_words(body)
+    if not words:
+        return True
+    return words[-1].casefold() in _DANGLING_WORD
+
+
+def _trim_cutoff(text: str) -> str:
+    sentences = _split_sentences(text)
+    while sentences and _is_cutoff(sentences[-1]):
+        sentences.pop()
+    return " ".join(sentences).strip()
+
+
+def _dedupe_sentences(text: str) -> str:
+    kept: list[str] = []
+    seen: set[str] = set()
+    for sentence in _split_sentences(text):
+        key = re.sub(r"\s*:\s*", ":", sentence.casefold())
+        key = re.sub(r"\s+", " ", key).strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        kept.append(sentence)
+    return " ".join(kept).strip()
+
+
+def _prepare_model_narrative(text: str) -> str:
+    """Drop echoed instructions, a repeated Decision line, and a cut-off tail."""
+    cleaned = _strip_signatures(text or "")
+    cleaned = _normalize_dots(cleaned)
+    cleaned = _drop_sentences(cleaned, _ECHO_RE)
+    cleaned = _drop_sentences(cleaned, _POLICY_RE)
+    return _trim_cutoff(cleaned)
+
+
+def _finish_text(text: str) -> str:
+    return _dedupe_sentences(_normalize_dots(text or ""))
+
+
 def _signature(lang: str) -> str:
     return "— The captain" if lang == "en" else "— Le capitaine"
 
@@ -397,18 +514,25 @@ def _word_count(text: str) -> int:
 
 
 def _fit_words(prose: str, required: list[str], limit: int = _CHAT_WORD_LIMIT) -> str:
-    prose = (prose or "").strip()
+    """Keep the required tail. Drop a whole sentence rather than cut one off."""
+    prose = _trim_cutoff(_normalize_dots(prose or ""))
     tail = [part.strip() for part in required if part and part.strip()]
     tail_text = " ".join(tail)
-    while prose and _word_count(f"{prose} {tail_text}".strip()) > limit:
-        words = prose.split()
-        if len(words) <= 1:
-            prose = ""
-            break
-        prose = " ".join(words[:-1]).rstrip(" ,;:")
+
+    def too_long(body: str) -> bool:
+        return _word_count(f"{body} {tail_text}".strip()) > limit
+
+    while prose and too_long(prose):
+        sentences = _split_sentences(prose)
+        if len(sentences) > 1:
+            prose = " ".join(sentences[:-1]).strip()
+            continue
+        prose = ""
+        break
+    prose = _trim_cutoff(prose)
     parts = [prose] if prose else []
     parts.extend(tail)
-    return " ".join(parts).strip()
+    return _finish_text(" ".join(parts))
 
 
 def _compose_chat_reply(
@@ -431,10 +555,10 @@ def _compose_chat_reply(
         else:
             prose = "Cette question porte sur le statut. Le capitaine ne propose pas de promesse."
         return _fit_words("", [prose, _signature(lang)])
-    prose = _strip_signatures(model_text)
+    prose = _prepare_model_narrative(model_text)
     prose = _clean_model_urls(prose, url)
-    prose = _drop_sentences(prose, _POLICY_RE)
     prose = _drop_sentences(prose, _CHAT_DECIDE_RE)
+    prose = _trim_cutoff(_normalize_dots(prose))
     required: list[str] = []
     if not _has_exact_pledge(prose, suggested):
         required.append(_pledge_line(suggested, lang))
@@ -717,25 +841,29 @@ async def review(milestone_id: str, reader: Optional[ReadOnlyTools] = None) -> d
     narrative, source = await _llm_text(
         prompt,
         _report_system(milestone_id, reached=reached),
-        max_tokens=220,
+        max_tokens=_REPORT_MAX_TOKENS,
         temperature=_REPORT_TEMPERATURE,
     )
-    if not narrative:
+    usable = _prepare_model_narrative(narrative) if narrative else ""
+    if not usable:
         narrative = _fallback_report(milestone_id, decision, evidence, lang="fr")
         source = _rules_source()
         report_lang = "fr"
     else:
-        report_lang = message_lang(narrative)
-        narrative = _shape_report(narrative, milestone_id, report_lang)
+        report_lang = _report_language(usable)
+        narrative = _shape_report(usable, milestone_id, report_lang)
     if reached:
         narrative = _assert_reached(narrative, milestone_id, report_lang)
+    narrative = _finish_text(narrative)
     narrative = _without_jalon(filter_numbers(narrative, allowed, lang=report_lang), report_lang)
     decision_line = (
         f" Decision: {decision}." if report_lang == "en" else f" Décision : {decision}."
     )
-    justification = _without_jalon(
-        filter_numbers(f"{narrative}{decision_line}", allowed, lang=report_lang),
-        report_lang,
+    justification = _finish_text(
+        _without_jalon(
+            filter_numbers(f"{narrative}{decision_line}", allowed, lang=report_lang),
+            report_lang,
+        )
     )
     age = _known_authorization_age(concerned)
     advisory = await _advisory_proposal(allowed, age)
@@ -782,7 +910,7 @@ async def chat(message: str) -> dict:
     else:
         prompt = json.dumps(allowed, ensure_ascii=False, default=str)
         raw, source = await _llm_text(
-            prompt, _chat_system(lang), max_tokens=220, temperature=_CHAT_TEMPERATURE,
+            prompt, _chat_system(lang), max_tokens=_CHAT_MAX_TOKENS, temperature=_CHAT_TEMPERATURE,
         )
         if raw:
             raw = filter_numbers(raw, allowed, lang=lang)

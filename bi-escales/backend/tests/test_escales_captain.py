@@ -2431,14 +2431,17 @@ def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
         asked = await chat("Quel est le solde du fonds commun ?")
         assert asked["suggested_pledge"] is None
         assert asked["cart"] is None
-        assert asked["fund"] == boat_fund
-        assert asked["fund"]["income_eur"] == "12.00"
-        assert "12,00" in asked["reply"]
+        assert asked["fund"] is None
+        assert "12,00" not in asked["reply"]
+        assert "12.00" not in asked["reply"]
         assert "20,00" not in asked["reply"]
-        assert "999" not in asked["reply"]
+        assert "Seul le trésorier peut les voir." in asked["reply"]
         assert asked["model_source"] == {"provider": "rules", "model": ""}
-        assert "Seul le trésorier" in asked["reply"]
         assert "— Le capitaine" in asked["reply"]
+        opened = await chat("Quel est le solde du fonds commun ?", treasurer=True)
+        assert opened["fund"] == boat_fund
+        assert opened["fund"]["income_eur"] == "12.00"
+        assert "12,00" in opened["reply"]
         local = await chat("Quel est le solde du fonds commun à Mayotte ?")
         assert local["fund"] == mayotte_fund
         assert "20,00" in local["reply"]
@@ -2448,14 +2451,16 @@ def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
         project = await chat("How much money is in the project fund?")
         assert project["suggested_pledge"] is None
         assert project["cart"] is None
+        assert project["fund"] is None
         assert "Which escale" not in project["reply"]
-        assert project["fund"]["milestone_id"] == "projet"
-        assert "the project fund" in project["reply"].casefold()
-        assert "0.00 EUR" in project["reply"]
+        assert "Only the treasurer can see them." in project["reply"]
+        assert "0.00" not in project["reply"]
+        assert "EUR" not in project["reply"]
         assert project["model_source"] == {"provider": "rules", "model": ""}
         english = await chat("What is the common fund balance?")
-        assert "12.00 EUR" in english["reply"]
-        assert english["fund"]["balance_eur"] == "12.00"
+        assert english["fund"] is None
+        assert "12.00" not in english["reply"]
+        assert "Only the treasurer can see them." in english["reply"]
         assert english["model_source"] == {"provider": "rules", "model": ""}
         gift = await chat("15 euros au fonds commun")
         assert gift["suggested_pledge"]["kind"] == "common_fund"
@@ -2483,12 +2488,12 @@ def test_fund_question_filters_invented_numbers(monkeypatch):
     async def body():
         spy = Spy()
         await _captured_common_fund(spy, "12.00", "qa-filter")
-        kept = await chat("What is the common fund balance?")
+        kept = await chat("What is the common fund balance?", treasurer=True)
         assert kept["model_source"] == {"provider": "nim", "model": "nvidia/super"}
         assert "12.00 EUR" in kept["reply"]
         assert "999" not in kept["reply"]
         answers["text"] = "The balance is 999 EUR."
-        fallen = await chat("What is the common fund balance?")
+        fallen = await chat("What is the common fund balance?", treasurer=True)
         assert "999" not in fallen["reply"]
         assert "[?]" not in fallen["reply"]
         assert "12.00 EUR" in fallen["reply"]

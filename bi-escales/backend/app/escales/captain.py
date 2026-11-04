@@ -1954,9 +1954,28 @@ def _compose_fund_reply(prose: str, lang: str) -> str:
     return reply
 
 
-async def _answer_fund(message: str, lang: str) -> tuple[str, dict[str, str], Optional[dict]]:
-    """NIM only when its flag is on. The rules sentence is the fallback."""
+def _hidden_fund_reply(lang: str) -> str:
+    """Project and boat-fund totals stay with the treasurer."""
+    if lang == "en":
+        return "Only the treasurer can see them."
+    return "Seul le trésorier peut les voir."
+
+
+async def _answer_fund(
+    message: str, lang: str, *, treasurer: bool = False,
+) -> tuple[str, dict[str, str], Optional[dict]]:
+    """NIM only when its flag is on. The rules sentence is the fallback.
+
+    A stopover fund is public. The project fund and the boat's common fund
+    are the same totals as the treasurer routes: without a valid key the
+    reply names no amount and the payload is empty.
+    """
+    from .ledger import _unplaced_bucket
+
     fund = await _fund_for_question(message)
+    if _unplaced_bucket(str(fund.get("milestone_id") or "")) and not treasurer:
+        reply = _compose_fund_reply(_hidden_fund_reply(lang), lang)
+        return reply, _rules_source(), None
     public = None if fund.get("missing") else fund
     allowed = {"fund": public or fund, "message": message}
     rules = _fund_rules_text(fund, lang)
@@ -1988,15 +2007,18 @@ async def _answer_fund(message: str, lang: str) -> tuple[str, dict[str, str], Op
     return reply, source, public
 
 
-async def chat(message: str) -> dict:
-    """Help a contributor phrase a pledge and offer the HelloAsso membership URL."""
+async def chat(message: str, *, treasurer: bool = False) -> dict:
+    """Help a contributor phrase a pledge and offer the HelloAsso membership URL.
+
+    ``treasurer`` is true only when the request carried a valid ``x-admin-key``.
+    """
     text = (message or "").strip()
     if not text:
         raise ValueError("message is required")
     url = membership_url()
     lang = message_lang(text)
     if _is_fund_question(text):
-        reply, source, fund = await _answer_fund(text, lang)
+        reply, source, fund = await _answer_fund(text, lang, treasurer=treasurer)
         return {
             "reply": reply,
             "membership_url": url,

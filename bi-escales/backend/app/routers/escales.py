@@ -444,7 +444,7 @@ async def post_review(milestone_id: str, request: Request):
 async def post_chat(body: ChatIn, request: Request):
     _enforce_captain_rate(request, body.message)
     try:
-        return await captain_chat(body.message)
+        return await captain_chat(body.message, treasurer=_valid_admin_key(request))
     except ValueError as exc:
         raise _as_http(exc) from exc
 

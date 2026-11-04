@@ -817,6 +817,101 @@ def test_unplaced_project_and_fund_totals_are_readable(api):
     assert client.get("/api/escales/milestones/nulle-part/fund").status_code == 404
 
 
+def _capture_open_and_stopover(client):
+    """15.00 on the project, 12.00 on the boat fund, 9.00 on Mayotte."""
+    _created_p, project = _ready(client, "chat-project", {
+        "amount_eur": "15.00",
+        "description": "promesse projet",
+        "milestone_id": "",
+        "kind": "project_pledge",
+    })
+    assert client.post(
+        f"/api/escales/pledges/{project['id']}/capture", headers=ADMIN
+    ).status_code == 200
+    _created_f, boat = _ready(client, "chat-boat", {
+        "amount_eur": "12.00",
+        "description": "fonds commun",
+        "milestone_id": "",
+        "kind": "common_fund",
+    })
+    assert client.post(
+        f"/api/escales/pledges/{boat['id']}/capture", headers=ADMIN
+    ).status_code == 200
+    _created_s, stop = _ready(client, "chat-stop", {
+        **PLEDGE,
+        "kind": "common_fund",
+        "amount_eur": "9.00",
+        "description": "caisse de l'escale",
+    })
+    assert client.post(
+        f"/api/escales/pledges/{stop['id']}/capture", headers=ADMIN
+    ).status_code == 200
+
+
+def test_public_chat_withholds_project_and_common_fund_totals(api):
+    """The chat must not repeat the totals the fund route already locks."""
+    client, _fake = api
+    _capture_open_and_stopover(client)
+    project = client.post(
+        "/api/escales/captain/chat",
+        json={"message": "How much money is in the project fund?"},
+    )
+    assert project.status_code == 200, project.text
+    assert project.json()["fund"] is None
+    assert "Only the treasurer can see them." in project.json()["reply"]
+    assert "15.00" not in project.text
+    assert "15,00" not in project.text
+    assert "income_eur" not in project.text
+    boat = client.post(
+        "/api/escales/captain/chat",
+        json={"message": "Quel est le solde du fonds commun ?"},
+    )
+    assert boat.status_code == 200, boat.text
+    assert boat.json()["fund"] is None
+    assert "Seul le trésorier peut les voir." in boat.json()["reply"]
+    assert "12.00" not in boat.text
+    assert "12,00" not in boat.text
+    wrong = client.post(
+        "/api/escales/captain/chat",
+        json={"message": "How much money is in the project fund?"},
+        headers={"x-admin-key": "not-the-key"},
+    )
+    assert wrong.status_code == 403
+    assert "15.00" not in wrong.text
+    assert "income_eur" not in wrong.text
+    local = client.post(
+        "/api/escales/captain/chat",
+        json={"message": "Quel est le solde du fonds commun à Mayotte ?"},
+    )
+    assert local.status_code == 200, local.text
+    assert local.json()["fund"]["income_eur"] == "9.00"
+    assert "9,00" in local.json()["reply"]
+    assert "la caisse de Dzaoudzi (Mayotte)" in local.json()["reply"]
+
+
+def test_treasurer_chat_returns_project_and_common_fund_totals(api):
+    client, _fake = api
+    _capture_open_and_stopover(client)
+    project = client.post(
+        "/api/escales/captain/chat",
+        json={"message": "How much money is in the project fund?"},
+        headers=ADMIN,
+    )
+    assert project.status_code == 200, project.text
+    assert project.json()["fund"]["milestone_id"] == "projet"
+    assert project.json()["fund"]["balance_eur"] == "15.00"
+    assert "15.00 EUR" in project.json()["reply"]
+    boat = client.post(
+        "/api/escales/captain/chat",
+        json={"message": "Quel est le solde du fonds commun ?"},
+        headers=ADMIN,
+    )
+    assert boat.status_code == 200, boat.text
+    assert boat.json()["fund"]["milestone_id"] == "fonds-commun"
+    assert boat.json()["fund"]["balance_eur"] == "12.00"
+    assert "12,00" in boat.json()["reply"]
+
+
 def test_project_and_fund_accept_an_empty_milestone(api):
     client, _fake = api
     project = _create(client, "proj-empty", {

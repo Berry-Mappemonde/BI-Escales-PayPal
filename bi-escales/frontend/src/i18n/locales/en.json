@@ -1,0 +1,73 @@
+{
+  "app": {
+    "title": "BI Escales — Pay Only If We Sail",
+    "tagline": "PayPal sandbox authorization; capture only after human treasurer approval.",
+    "langFr": "Français",
+    "langEn": "English",
+    "healthOk": "Backend reachable",
+    "healthFail": "Backend unreachable",
+    "escalesOff": "ESCALES_ENABLED is off: /api/escales returns 404."
+  },
+  "escales": {
+    "heading": "Stops & AI Captain",
+    "milestoneId": "Milestone id",
+    "loadMilestones": "Refresh milestones",
+    "evidenceMet": "Evidence met (NAVIGUIDE simulation)",
+    "postEvidence": "Record evidence",
+    "captainChat": "Message to AI Captain",
+    "sendChat": "Ask for wording",
+    "chatReply": "Captain reply",
+    "suggestedPledge": "Suggested pledge",
+    "milestonesEmpty": "No milestones recorded yet."
+  },
+  "pledge": {
+    "amount": "Amount (EUR)",
+    "description": "Description",
+    "milestone": "Milestone",
+    "contributor": "Contributor (optional)",
+    "intent": "AUTHORIZE intent — PayPal sandbox",
+    "missingClientId": "VITE_PAYPAL_CLIENT_ID missing: PayPal button unavailable.",
+    "creating": "Creating pledge…",
+    "authorizing": "Authorizing on server…",
+    "authorized": "Pledge authorized",
+    "vaultHint": "Vault: approve the saved payment method on PayPal, then confirm. Nothing is captured yet.",
+    "vaultApprove": "Approve the payment method",
+    "vaultConfirm": "I approved — save it",
+    "vaulting": "Saving the payment method…",
+    "vaulted": "Payment method saved",
+    "error": "Pledge error"
+  },
+  "treasurer": {
+    "heading": "Treasurer queue",
+    "adminKey": "Treasurer key (x-admin-key)",
+    "adminKeyHint": "Held in memory only — never stored.",
+    "refresh": "Refresh queue",
+    "capture": "Capture",
+    "void": "Void authorization",
+    "queueEmpty": "No authorized, vaulted, or pending pledges on the server.",
+    "queueNeedsKey": "Enter the treasurer key to load pledges from the server.",
+    "loadError": "The queue could not be refreshed. Rows already loaded were kept.",
+    "status": "Status",
+    "amount": "Amount",
+    "description": "Description",
+    "milestone": "Milestone",
+    "actions": "Actions"
+  },
+  "grid": {
+    "heading": "Treasurer view — gauges",
+    "agGridOff": "AG Grid community is off (VITE_ENABLE_AG_GRID=0). HTML table. This is not AG Studio.",
+    "milestone": "Milestone",
+    "authorized": "Authorized",
+    "captured": "Captured",
+    "voided": "Voided",
+    "captainProposal": "AI Captain proposal",
+    "requestReview": "Request captain review",
+    "proposalCapture": "Proposal: capture listed pledges",
+    "proposalVoid": "Proposal: void listed pledges",
+    "proposalWait": "Proposal: wait",
+    "humanValidation": "Human validation required — the captain never debits alone.",
+    "applyCapture": "Capture (per proposal)",
+    "applyVoid": "Void (per proposal)",
+    "noProposal": "No proposal stored for this milestone."
+  }
+}

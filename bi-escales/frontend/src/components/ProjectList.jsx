@@ -10,6 +10,7 @@ import {
   isBelowProjectPledgeMinimum,
   normalizeEuroAmountForApi,
 } from "../projects/projectPledgeAmount.js";
+import { visibleProjectFeatures } from "../projects/visibleProjectFeatures.js";
 import { PledgeButton } from "./PledgeButton";
 
 /** Même plafond que ProjectList.js BI (slice 0, 100). */
@@ -85,7 +86,10 @@ export default function ProjectList({
     [projects, query],
   );
 
-  const features = filtered.slice(0, LIST_CAP);
+  const features = useMemo(
+    () => visibleProjectFeatures(projects?.features || [], filtered, selectedProjectId, LIST_CAP),
+    [projects, filtered, selectedProjectId],
+  );
   const truncated = filtered.length > LIST_CAP;
 
   return (

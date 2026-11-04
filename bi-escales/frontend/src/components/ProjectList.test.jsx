@@ -23,6 +23,21 @@ const projects = {
   ],
 };
 
+const mixedProjects = {
+  features: [
+    {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [1, 1] },
+      properties: { id: "visible", title: "Alpha visible", funder: "A" },
+    },
+    {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [2, 2] },
+      properties: { id: "map-pick", title: "Zulu map only", funder: "Z" },
+    },
+  ],
+};
+
 function Harness() {
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   return (
@@ -70,5 +85,23 @@ describe("ProjectList", () => {
     );
     fireEvent.change(screen.getByTestId("project-pledge-amount"), { target: { value: "" } });
     expect(screen.getByText(/Minimum 1.00 EUR/)).toBeInTheDocument();
+  });
+
+  it("épinglé depuis la carte : formulaire visible malgré le filtre recherche", async () => {
+    await i18n.changeLanguage("fr");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProjectList
+          projects={mixedProjects}
+          selectedProjectId="map-pick"
+          onSelectProject={() => {}}
+          onFlyTo={() => {}}
+        />
+      </I18nextProvider>,
+    );
+    fireEvent.change(screen.getByTestId("projects-search-input"), { target: { value: "ZZZNOmatch" } });
+    expect(screen.getByTestId("project-row-map-pick")).toBeInTheDocument();
+    expect(screen.getByTestId("project-pledge")).toHaveAttribute("data-project-id", "map-pick");
+    expect(screen.queryByTestId("project-row-visible")).toBeNull();
   });
 });

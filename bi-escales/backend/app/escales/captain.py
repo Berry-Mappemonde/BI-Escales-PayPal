@@ -1588,7 +1588,7 @@ def _compose_chat_reply(
     elif lang == "en":
         reply = _english_labels(reply)
     reply = _strip_wrong_common_fund_claim(reply, suggested, lang)
-    return _fix_sentence_starts(reply)
+    return _finish_text(reply)
 
 
 def _without_unknown_marks(text: str) -> str:

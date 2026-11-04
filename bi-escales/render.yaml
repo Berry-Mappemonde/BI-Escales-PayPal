@@ -72,3 +72,5 @@ services:
         value: https://bi-escales-api.onrender.com/?vault=return
       - key: ESCALES_VAULT_CANCEL_URL
         value: https://bi-escales-api.onrender.com/?vault=cancel
+      - key: VITE_PAYPAL_CLIENT_ID
+        sync: false

@@ -2215,6 +2215,7 @@ async def review(
         "justification": justification,
         "pledge_ids": [row["pledge_id"] for row in pending],
         "pending_authorizations": pending,
+        "paypal_tool_calls": list(getattr(reader, "call_log", []) or []),
         "evidence_flag": evidence.get("flag"),
         "model_source": source,
         "llm_proposal": advisory,

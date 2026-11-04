@@ -52,7 +52,7 @@ class Spy:
             "links": [{"rel": "approve", "href": f"https://www.sandbox.paypal.com/checkoutnow?token={order_id}"}],
         }
 
-    def authorize_order(self, order_id):
+    def authorize_order(self, order_id, **kwargs):
         self.calls.append(("authorize", order_id))
         return {
             "id": order_id,
@@ -61,11 +61,11 @@ class Spy:
             }],
         }
 
-    def capture_authorization(self, authorization_id, final=True):
+    def capture_authorization(self, authorization_id, final=True, **kwargs):
         self.calls.append(("capture", authorization_id))
         return {"status": "COMPLETED"}
 
-    def void_authorization(self, authorization_id):
+    def void_authorization(self, authorization_id, **kwargs):
         self.calls.append(("void", authorization_id))
         return {}
 
@@ -76,6 +76,18 @@ class Spy:
     def get_authorization(self, authorization_id):
         self.calls.append(("authorizations.get", authorization_id))
         return {"id": authorization_id, "status": "CREATED"}
+
+    def list_disputes(self, **kwargs):
+        self.calls.append(("disputes.list", kwargs))
+        return {"items": []}
+
+    def search_transactions(self, *, start_date, end_date):
+        self.calls.append(("transactions.search", start_date, end_date))
+        return {"transaction_details": []}
+
+    def list_invoices(self, *, page=1, page_size=20):
+        self.calls.append(("invoices.list", page))
+        return {"items": []}
 
 
 def test_filter_numbers_drops_figures_absent_from_evidence():
@@ -127,7 +139,9 @@ def test_captain_source_has_no_capture_or_void():
 
 
 def test_toolkit_exposes_only_readonly_gets():
-    assert exposed_tools() == ALLOWED_TOOLS == ("orders.get", "authorizations.get")
+    assert exposed_tools() == ALLOWED_TOOLS
+    assert "orders.get" in ALLOWED_TOOLS
+    assert "disputes.list" in ALLOWED_TOOLS
     assert TOOLKIT_ORDER_ACTIONS == {"orders": {"get": True}}
     assert "capture" not in TOOLKIT_ORDER_ACTIONS["orders"]
     methods = enabled_toolkit_methods()
@@ -138,11 +152,12 @@ def test_toolkit_exposes_only_readonly_gets():
     assert not any("capture" in name or "void" in name for name in methods)
     spy = Spy()
     reader = ReadOnlyTools(spy)
-    assert reader.allowed() == ("orders.get", "authorizations.get")
+    assert reader.allowed() == ALLOWED_TOOLS
     assert not hasattr(reader, "capture_authorization")
     assert not hasattr(reader, "void_authorization")
     assert reader.get("orders.get", "ORDER1")["status"] == "APPROVED"
     assert reader.get("authorizations.get", "AUTH1")["id"] == "AUTH1"
+    assert reader.call_log[-1]["tool"] == "authorizations.get"
     with pytest.raises(ToolNotAllowed):
         reader.get("orders.capture", "ORDER1")
     with pytest.raises(ToolNotAllowed):

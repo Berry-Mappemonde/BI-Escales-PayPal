@@ -29,6 +29,7 @@ export function TreasurerQueue({
 
   const queue = pledges.filter((p) => isQueuedPledge(p.status));
   const [verdicts, setVerdicts] = useState<Record<string, string>>({});
+  const [toolCalls, setToolCalls] = useState<{ tool: string; resource_id?: string }[]>([]);
   const milestoneKey = queue.map((pledge) => pledge.milestone_id).join("|");
 
   useEffect(() => {
@@ -45,6 +46,9 @@ export function TreasurerQueue({
         try {
           const row = await captainReview(id, key);
           next[id] = String(row.proposal || "");
+          if (row.paypal_tool_calls?.length) {
+            setToolCalls(row.paypal_tool_calls);
+          }
         } catch {
           next[id] = "";
         }
@@ -84,6 +88,16 @@ export function TreasurerQueue({
         {t("treasurer.refresh")}
       </button>
       {error ? <p className="notice error">{t("treasurer.loadError")}: {error}</p> : null}
+      {toolCalls.length ? (
+        <ul className="tool-call-log" data-testid="paypal-tool-calls">
+          {toolCalls.map((row, index) => (
+            <li key={`${row.tool}-${index}`}>
+              {row.tool}
+              {row.resource_id ? ` — ${row.resource_id}` : ""}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {actionError ? <p className="notice error">{actionError}</p> : null}
 
       {needsKey ? (

@@ -78,6 +78,7 @@ export interface ScheduleResponse {
 export interface FeatureFlags {
   bryntum?: boolean;
   vault?: boolean;
+  paypal_client_id?: string;
 }
 
 export interface MilestoneEvidence {
@@ -117,6 +118,7 @@ export interface CaptainProposal {
   justification?: string;
   pledge_ids: string[];
   pending_authorizations?: PendingAuthorization[];
+  paypal_tool_calls?: { tool: string; resource_id?: string }[];
   evidence_flag?: string;
   at?: string;
 }

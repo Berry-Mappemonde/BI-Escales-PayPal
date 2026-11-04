@@ -31,11 +31,19 @@ export function readPaypalReturn(search: string): { action: "return" | "cancel";
   return { action, pledgeId: params.get("pledge_id") || "" };
 }
 
-export function readVaultReturn(search: string): { action: "return" | "cancel"; pledgeId: string } | null {
+export function readVaultReturn(
+  search: string,
+): { action: "return" | "cancel"; pledgeId: string; approvalTokenId?: string } | null {
   const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   const action = params.get("vault");
   if (action !== "return" && action !== "cancel") return null;
-  return { action, pledgeId: params.get("pledge_id") || "" };
+  const approvalTokenId =
+    params.get("approval_token_id") || params.get("approval_session_id") || params.get("token") || undefined;
+  return {
+    action,
+    pledgeId: params.get("pledge_id") || "",
+    approvalTokenId: approvalTokenId || undefined,
+  };
 }
 
 async function parseError(res: Response): Promise<string> {
@@ -125,11 +133,11 @@ export async function listPledges(adminKey: string): Promise<PublicPledge[]> {
   return res.json();
 }
 
-export async function registerVault(pledgeId: string): Promise<PublicPledge> {
+export async function registerVault(pledgeId: string, setupTokenId?: string): Promise<PublicPledge> {
   const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}/vault`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
+    body: JSON.stringify({ setup_token_id: setupTokenId || undefined }),
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();

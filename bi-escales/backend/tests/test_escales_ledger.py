@@ -33,7 +33,7 @@ class Spy:
             "links": [{"rel": "approve", "href": f"https://sandbox.paypal.com/checkoutnow?token={order_id}"}],
         }
 
-    def authorize_order(self, order_id):
+    def authorize_order(self, order_id, **kwargs):
         return {
             "id": order_id,
             "purchase_units": [{
@@ -41,10 +41,10 @@ class Spy:
             }],
         }
 
-    def capture_authorization(self, authorization_id, final=True):
+    def capture_authorization(self, authorization_id, final=True, **kwargs):
         return {"status": "COMPLETED"}
 
-    def void_authorization(self, authorization_id):
+    def void_authorization(self, authorization_id, **kwargs):
         return {}
 
 

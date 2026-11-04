@@ -69,7 +69,7 @@ class FakePayPal:
             }],
         }
 
-    def authorize_order(self, order_id):
+    def authorize_order(self, order_id, **kwargs):
         self.calls.append(("authorize", order_id))
         return {
             "id": order_id,
@@ -83,11 +83,11 @@ class FakePayPal:
             }],
         }
 
-    def capture_authorization(self, authorization_id, final=True):
+    def capture_authorization(self, authorization_id, final=True, **kwargs):
         self.calls.append(("capture", authorization_id))
         return {"id": "CAP", "status": "COMPLETED"}
 
-    def void_authorization(self, authorization_id):
+    def void_authorization(self, authorization_id, **kwargs):
         self.calls.append(("void", authorization_id))
         return {}
 

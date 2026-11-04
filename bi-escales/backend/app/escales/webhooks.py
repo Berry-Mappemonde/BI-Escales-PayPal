@@ -23,7 +23,21 @@ class WebhookRejected(Exception):
 _PENDING_CAPTURE = {
     "PAYMENT.CAPTURE.COMPLETED": "captured",
     "PAYMENT.CAPTURE.DENIED": "capture_failed",
+    "PAYMENT.CAPTURE.PENDING": "pending",
+    "PAYMENT.CAPTURE.REFUNDED": "refunded",
 }
+
+_AUDITED_EVENTS = frozenset({
+    "VAULT.PAYMENT-TOKEN.CREATED",
+    "VAULT.PAYMENT-TOKEN.DELETED",
+    "PAYMENT.AUTHORIZATION.CREATED",
+    "PAYMENT.AUTHORIZATION.VOIDED",
+    "PAYMENT.CAPTURE.COMPLETED",
+    "PAYMENT.CAPTURE.DENIED",
+    "PAYMENT.CAPTURE.REFUNDED",
+    "PAYMENT.CAPTURE.PENDING",
+    "CHECKOUT.ORDER.APPROVED",
+})
 
 
 class WebhookDuplicate(Exception):
@@ -164,6 +178,32 @@ async def _apply_event(event: dict) -> dict:
         pledge_kind=identity.get("kind") if identity else None,
         target_id=identity.get("target_id") if identity else None,
     )
+    if event_type in _AUDITED_EVENTS:
+        await record_finance(
+            "webhook_event",
+            event_type=event_type,
+            order_id=order_id,
+            pledge_id=pledge.get("_id") if pledge else None,
+            resource_id=resource.get("id"),
+            status=resource.get("status"),
+        )
+    if event_type == "VAULT.PAYMENT-TOKEN.CREATED" and pledge:
+        pledge["history"] = list(pledge.get("history") or []) + ["webhook_vault_token_created"]
+        pledge = await get_ledger().save_pledge(pledge)
+    if event_type == "VAULT.PAYMENT-TOKEN.DELETED" and pledge:
+        pledge["history"] = list(pledge.get("history") or []) + ["webhook_vault_token_deleted"]
+        pledge = await get_ledger().save_pledge(pledge)
+    if event_type == "PAYMENT.AUTHORIZATION.CREATED" and pledge and pledge.get("status") == "created":
+        auth_id = resource.get("id")
+        if auth_id and not pledge.get("authorization_id"):
+            pledge["authorization_id"] = str(auth_id)
+            pledge = await get_ledger().save_pledge(pledge)
+    if event_type == "PAYMENT.AUTHORIZATION.VOIDED" and pledge:
+        pledge["history"] = list(pledge.get("history") or []) + ["webhook_authorization_voided"]
+        pledge = await get_ledger().save_pledge(pledge)
+    if event_type == "CHECKOUT.ORDER.APPROVED" and pledge:
+        pledge["history"] = list(pledge.get("history") or []) + ["webhook_order_approved"]
+        pledge = await get_ledger().save_pledge(pledge)
     target = _PENDING_CAPTURE.get(event_type)
     if pledge and target and pledge.get("status") == "pending":
         pledge["status"] = target

@@ -44,7 +44,7 @@ class FakePayPal:
             }],
         }
 
-    def authorize_order(self, order_id):
+    def authorize_order(self, order_id, **kwargs):
         self.calls.append(("authorize", order_id))
         return {
             "id": order_id,
@@ -58,11 +58,11 @@ class FakePayPal:
             }],
         }
 
-    def capture_authorization(self, authorization_id, final=True):
+    def capture_authorization(self, authorization_id, final=True, **kwargs):
         self.calls.append(("capture", authorization_id))
         return {"id": "CAP", "status": "COMPLETED"}
 
-    def void_authorization(self, authorization_id):
+    def void_authorization(self, authorization_id, **kwargs):
         self.calls.append(("void", authorization_id))
         return {}
 
@@ -180,7 +180,7 @@ def test_paypal_order_not_approved_is_409_not_502(api):
     client, fake = api
     created = _create(client, "paypal-not-approved")
 
-    def boom(order_id):
+    def boom(order_id, **kwargs):
         fake.calls.append(("authorize", order_id))
         raise PayPalError(422, {"details": [{"issue": "ORDER_NOT_APPROVED"}]})
 
@@ -473,7 +473,7 @@ def test_void_records_void_id_and_voided_at(api):
     client, fake = api
     _created, authorized = _ready(client, "void-stamp")
 
-    def void_authorization(authorization_id):
+    def void_authorization(authorization_id, **kwargs):
         fake.calls.append(("void", authorization_id))
         return {"id": "VOID-1", "status": "VOIDED"}
 
@@ -486,7 +486,7 @@ def test_void_records_void_id_and_voided_at(api):
     assert body["voided_at"].endswith("Z") or "+" in body["voided_at"]
 
     _other, second = _ready(client, "void-fallback")
-    fake.void_authorization = lambda authorization_id: {}
+    fake.void_authorization = lambda authorization_id, **kwargs: {}
     fallback = client.post(f"/api/escales/pledges/{second['id']}/void", headers=ADMIN)
     assert fallback.status_code == 200, fallback.text
     assert fallback.json()["void_id"] == second["authorization_id"]
@@ -532,7 +532,7 @@ def test_declined_or_expired_capture_is_a_conflict(api, monkeypatch):
 
     _created_d, declined_pledge = _ready(client, "cap-declined")
 
-    def declined_capture(authorization_id, final=True):
+    def declined_capture(authorization_id, final=True, **kwargs):
         fake.calls.append(("capture", authorization_id))
         return {"id": "CAP-D", "status": "DECLINED"}
 
@@ -545,7 +545,7 @@ def test_declined_or_expired_capture_is_a_conflict(api, monkeypatch):
     stored = client.get(f"/api/escales/pledges/{declined_pledge['id']}")
     assert stored.json()["status"] == "capture_failed"
 
-    def failed_capture(authorization_id, final=True):
+    def failed_capture(authorization_id, final=True, **kwargs):
         fake.calls.append(("capture", authorization_id))
         return {"id": "CAP-F", "status": "FAILED"}
 
@@ -968,7 +968,7 @@ def test_declined_capture_does_not_stop_the_clock(api, monkeypatch):
         "description": "la suivante",
     })[1]
 
-    def capture_authorization(authorization_id, final=True):
+    def capture_authorization(authorization_id, final=True, **kwargs):
         fake.calls.append(("capture", authorization_id))
         if authorization_id == first.json()["authorization_id"]:
             return {"id": "CAP-D", "status": "DECLINED"}

@@ -41,8 +41,8 @@ class VaultPayPal:
             "links": [{"rel": "approve", "href": f"https://sandbox.paypal.com/checkoutnow?token={order_id}"}],
         }
 
-    def create_setup_token(self, return_url, cancel_url):
-        self.calls.append(("setup_token", return_url, cancel_url))
+    def create_setup_token(self, *args, **kwargs):
+        self.calls.append(("setup_token", args, kwargs))
         self.n += 1
         token = f"SETUP{self.n}"
         return {
@@ -54,11 +54,11 @@ class VaultPayPal:
         self.calls.append(("get_setup_token", setup_token_id))
         return {"status": "APPROVED", "id": setup_token_id}
 
-    def create_payment_token(self, setup_token_id):
-        self.calls.append(("payment_token", setup_token_id))
+    def create_payment_token(self, setup_token_id, **kwargs):
+        self.calls.append(("payment_token", setup_token_id, kwargs))
         return {"id": f"VAULT-{setup_token_id}"}
 
-    def charge_vaulted(self, vault_id, amount_eur, reference_id, source="paypal"):
+    def charge_vaulted(self, vault_id, amount_eur, reference_id, source="paypal", **kwargs):
         self.calls.append(("charge_vaulted", vault_id, amount_eur, reference_id, source))
         return {"id": "CAP-V", "status": "COMPLETED"}
 
@@ -66,13 +66,13 @@ class VaultPayPal:
         self.calls.append(("delete_token", vault_id))
         return {}
 
-    def authorize_order(self, order_id):
+    def authorize_order(self, order_id, **kwargs):
         raise AssertionError("authorize_order should not run for vault pledges")
 
-    def capture_authorization(self, authorization_id, final=True):
+    def capture_authorization(self, authorization_id, final=True, **kwargs):
         self.calls.append(("capture_auth", authorization_id))
 
-    def void_authorization(self, authorization_id):
+    def void_authorization(self, authorization_id, **kwargs):
         self.calls.append(("void_auth", authorization_id))
 
 
@@ -147,8 +147,8 @@ def test_card_token_is_charged_with_card_source():
             client_key="vault-card",
         )
 
-        def card_token(setup_token_id):
-            client.calls.append(("payment_token", setup_token_id))
+        def card_token(setup_token_id, **kwargs):
+            client.calls.append(("payment_token", setup_token_id, kwargs))
             return {"id": "CARDTOK", "payment_source": {"card": {"last_digits": "1881"}}}
 
         client.create_payment_token = card_token
@@ -182,7 +182,9 @@ def test_vault_register_uses_the_stored_token_and_requires_approved():
         vaulted = await register_vault_pledge(created["_id"], client)
         assert vaulted["status"] == "vaulted"
         assert vaulted["setup_token_id"] == created["setup_token_id"]
-        assert ("payment_token", created["setup_token_id"]) in client.calls
+        assert any(
+            call[0] == "payment_token" and call[1] == created["setup_token_id"] for call in client.calls
+        )
 
     asyncio.run(body())
 

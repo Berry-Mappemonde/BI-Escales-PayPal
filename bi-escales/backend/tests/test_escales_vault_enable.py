@@ -29,18 +29,18 @@ class _VaultClockFake:
     def __init__(self) -> None:
         self.calls: list[tuple] = []
 
-    def create_setup_token(self, return_url: str, cancel_url: str) -> dict:
+    def create_setup_token(self, return_url: str, cancel_url: str, **kwargs) -> dict:
         self.calls.append(("setup", return_url, cancel_url))
         return {"id": "SETUP1", "links": [{"rel": "approve", "href": "https://sandbox.paypal.com/setup"}]}
 
-    def create_payment_token(self, setup_token_id: str) -> dict:
-        self.calls.append(("payment_token", setup_token_id))
+    def create_payment_token(self, setup_token_id: str, **kwargs) -> dict:
+        self.calls.append(("payment_token", setup_token_id, kwargs))
         return {"id": "VAULT-1", "payment_source": {"paypal": {}}}
 
     def get_setup_token(self, setup_token_id: str) -> dict:
         return {"id": setup_token_id, "status": "APPROVED"}
 
-    def charge_vaulted(self, vault_id, amount_eur, reference_id, source="paypal"):
+    def charge_vaulted(self, vault_id, amount_eur, reference_id, source="paypal", **kwargs):
         self.calls.append(("charge_vaulted", vault_id, amount_eur, reference_id, source))
         return {"id": "ORD1", "status": "COMPLETED", "purchase_units": [{"payments": {"captures": [{"id": "CAP1", "status": "COMPLETED"}]}}]}
 

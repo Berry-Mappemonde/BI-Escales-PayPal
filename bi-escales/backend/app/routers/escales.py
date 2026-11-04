@@ -287,6 +287,7 @@ def _public_pledge_summary(doc: dict, fund: Optional[dict]) -> dict:
 
 @router.get("/features")
 async def get_features():
+    cfg = load_config()
     return {
         "naviguide_bridge": naviguide_bridge_enabled(),
         "elastic": elastic_evidence_enabled(),
@@ -296,6 +297,7 @@ async def get_features():
         "vault": vault_enabled(),
         "webhooks_enabled": webhooks_enabled(),
         "webhook_url": paypal_webhook_url(),
+        "paypal_client_id": cfg.client_id if cfg.configured else "",
     }
 
 

@@ -55,7 +55,7 @@ class Spy:
             }],
         }
 
-    def authorize_order(self, order_id):
+    def authorize_order(self, order_id, **kwargs):
         self.calls.append(("authorize", order_id))
         return {
             "id": order_id,
@@ -69,11 +69,11 @@ class Spy:
             }],
         }
 
-    def capture_authorization(self, authorization_id, final=True):
+    def capture_authorization(self, authorization_id, final=True, **kwargs):
         self.calls.append(("capture", authorization_id))
         return {"id": "CAP", "status": "COMPLETED"}
 
-    def void_authorization(self, authorization_id):
+    def void_authorization(self, authorization_id, **kwargs):
         self.calls.append(("void", authorization_id))
         return {}
 
@@ -511,7 +511,7 @@ def test_pending_capture_is_recorded_and_can_be_retried():
             super().__init__()
             self.capture_body = {"id": "CAP-P", "status": "PENDING"}
 
-        def capture_authorization(self, authorization_id, final=True):
+        def capture_authorization(self, authorization_id, final=True, **kwargs):
             self.calls.append(("capture", authorization_id))
             return self.capture_body
 

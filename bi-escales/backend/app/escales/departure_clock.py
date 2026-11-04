@@ -11,7 +11,8 @@ from typing import Any, Optional
 
 from .config import AUTH_MAX_DAYS, simulated_now
 from .ledger import get_ledger
-from .pledges import capture_pledge, void_pledge
+from .paypal_client import PayPalError
+from .pledges import capture_pledge, mark_vault_charge_failed, void_pledge
 
 
 def _parse_moment(value: Optional[str]) -> Optional[dt.datetime]:
@@ -88,8 +89,17 @@ async def refuse_early_authorization(pledge: dict, *, now: Optional[dt.datetime]
         raise ValueError("authorization is more than 29 days before departure")
 
 
+def _vault_failure_detail(exc: Exception) -> str:
+    if isinstance(exc, PayPalError):
+        blob = f"{exc.body}".upper()
+        if "PAYER_ACTION_REQUIRED" in blob:
+            return "PAYER_ACTION_REQUIRED"
+        return str(exc.body or exc)[:200]
+    return str(exc)[:200]
+
+
 async def run_departure_clock(client: Any, *, now: Optional[dt.datetime] = None) -> dict:
-    """Settle authorized departure pledges against the simulated clock."""
+    """Settle authorized or vaulted departure pledges against the simulated clock."""
     moment = now or simulated_now()
     actions: list[dict] = []
     for pledge in await get_ledger().list_pledges():
@@ -118,7 +128,12 @@ async def run_departure_clock(client: Any, *, now: Optional[dt.datetime] = None)
             saved = await capture_pledge(pledge_id, client)
             actions.append({"pledge_id": saved["_id"], "action": "capture"})
         except Exception as exc:
-            actions.append({"pledge_id": pledge_id, "action": "error", "detail": str(exc)})
+            if mode == "VAULT":
+                detail = _vault_failure_detail(exc)
+                await mark_vault_charge_failed(pledge_id, detail)
+                actions.append({"pledge_id": pledge_id, "action": "charge_failed", "detail": detail})
+            else:
+                actions.append({"pledge_id": pledge_id, "action": "error", "detail": str(exc)})
     return {
         "now": moment.replace(microsecond=0).isoformat(),
         "actions": actions,

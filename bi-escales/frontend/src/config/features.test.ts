@@ -29,7 +29,11 @@ describe("readPaypalReturn", () => {
 
 describe("readVaultReturn", () => {
   it("lit le retour Vault PayPal", () => {
-    expect(readVaultReturn("?vault=return&pledge_id=v1")).toEqual({ action: "return", pledgeId: "v1" });
+    expect(readVaultReturn("?vault=return&pledge_id=v1&approval_token_id=tok1")).toEqual({
+      action: "return",
+      pledgeId: "v1",
+      approvalTokenId: "tok1",
+    });
     expect(readVaultReturn("?vault=cancel&pledge_id=v1")).toEqual({ action: "cancel", pledgeId: "v1" });
     expect(readVaultReturn("?paypal=return&pledge_id=abc")).toBeNull();
   });

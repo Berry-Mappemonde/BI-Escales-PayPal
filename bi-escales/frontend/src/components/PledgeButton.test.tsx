@@ -8,6 +8,7 @@ import { PledgeButton } from "./PledgeButton";
 vi.mock("../api/escales", () => ({
   createPledge: vi.fn(),
   registerVault: vi.fn(),
+  fetchFeatures: vi.fn().mockResolvedValue({ vault: true, paypal_client_id: "" }),
   isVaultPledge: (pledge: { payment_mode?: string; intent?: string }) =>
     pledge.payment_mode === "VAULT" || pledge.intent === "VAULT",
 }));
@@ -56,6 +57,9 @@ describe("PledgeButton", () => {
   });
 
   it("affiche le bouton d’enregistrement Vault", async () => {
+    const assign = vi.fn();
+    Object.defineProperty(window, "location", { value: { assign }, writable: true });
+
     vi.mocked(createPledge).mockResolvedValue({
       id: "vault-1",
       status: "created",
@@ -76,6 +80,6 @@ describe("PledgeButton", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Créer l’ordre PayPal" }));
     expect(await screen.findByTestId("pledge-authorize")).toBeInTheDocument();
-    expect(screen.getByText(/Vault : approuvez/)).toBeInTheDocument();
+    expect(screen.getByText(/Redirection vers PayPal/)).toBeInTheDocument();
   });
 });

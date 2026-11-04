@@ -1,15 +1,5 @@
-"""Read-only tools for the Captain.
+"""Read-only PayPal toolkit wrappers for the Captain."""
 
-``paypal-agent-toolkit`` is an optional partner module. It is imported only
-when ``ESCALES_TOOLKIT_ENABLED`` is truthy. With the flag off (the default),
-orders.get and authorizations.get call the plain REST client and this module
-does not import ``paypal_agent_toolkit``.
-
-With the flag on, orders.get is the toolkit's read-only order tool. The
-toolkit has no authorization read, so authorizations.get stays on the REST
-client. Capture, void, and pay are never exposed. The Captain receives this
-object, not the PayPal client.
-"""
 from __future__ import annotations
 
 import json
@@ -17,10 +7,14 @@ from typing import Any, Callable, Optional
 
 from .config import toolkit_enabled
 
-ALLOWED_TOOLS = ("orders.get", "authorizations.get")
+ALLOWED_TOOLS = (
+    "orders.get",
+    "authorizations.get",
+    "disputes.list",
+    "transactions.search",
+    "invoices.list",
+)
 
-# Passed to paypal-agent-toolkit when the flag is on and the package is installed.
-# capture / create / void stay off.
 TOOLKIT_ORDER_ACTIONS = {"orders": {"get": True}}
 
 _WRITE_WORDS = ("capture", "void", "pay", "create", "refund", "delete")
@@ -34,8 +28,6 @@ class ToolNotAllowed(PermissionError):
 
 
 class _OrderGetAdapter:
-    """GET /v2/checkout/orders/{id} only. The toolkit never receives capture or void."""
-
     def __init__(self, get_order: Callable[[str], dict]) -> None:
         self._get_order = get_order
 
@@ -63,10 +55,6 @@ def _readonly_order_tool(tool: Any) -> bool:
 
 
 def _toolkit_tools() -> Optional[list]:
-    """Toolkit tool list, or None when the flag is off or the package is absent.
-
-    Does not import ``paypal_agent_toolkit`` unless the flag is on.
-    """
     if not toolkit_enabled():
         return None
     try:
@@ -77,7 +65,6 @@ def _toolkit_tools() -> Optional[list]:
 
 
 def _order_payload(result: Any) -> dict:
-    """Order document from a toolkit tool result. The REST client already returns one."""
     if isinstance(result, str):
         try:
             result = json.loads(result)
@@ -104,7 +91,7 @@ def _orders_get_via_toolkit(
 
 
 class ReadOnlyTools:
-    """orders.get and authorizations.get. The client object is not retained."""
+    """Read-only PayPal lookups. Never capture, void, or refund."""
 
     def __init__(self, client: Any) -> None:
         orders_get: Callable[[str], dict] = client.get_order
@@ -117,26 +104,31 @@ class ReadOnlyTools:
                 continue
             orders_get = _orders_get_via_toolkit(orders_get, execute)
             break
-        self._calls = {
-            "orders.get": orders_get,
-            "authorizations.get": authorizations_get,
+        self.call_log: list[dict[str, str]] = []
+        self._calls: dict[str, Callable[..., dict]] = {
+            "orders.get": lambda resource_id: orders_get(resource_id),
+            "authorizations.get": lambda resource_id: authorizations_get(resource_id),
+            "disputes.list": lambda resource_id="": client.list_disputes(),
+            "transactions.search": lambda resource_id: client.search_transactions(
+                start_date=resource_id.split("|", 1)[0],
+                end_date=resource_id.split("|", 1)[1] if "|" in resource_id else resource_id,
+            ),
+            "invoices.list": lambda resource_id="1": client.list_invoices(page=int(resource_id or "1")),
         }
 
     def allowed(self) -> tuple[str, ...]:
         return ALLOWED_TOOLS
 
-    def get(self, tool: str, resource_id: str) -> dict:
+    def get(self, tool: str, resource_id: str = "") -> dict:
         call = self._calls.get(tool)
         if call is None:
             raise ToolNotAllowed(tool)
-        return call(resource_id)
+        result = call(resource_id)
+        self.call_log.append({"tool": tool, "resource_id": resource_id})
+        return result
 
 
 def toolkit_installed() -> bool:
-    """True when the flag is on and paypal-agent-toolkit imports.
-
-    The flag-off path does not import the package, even if it is installed.
-    """
     if not toolkit_enabled():
         return False
     try:
@@ -147,7 +139,6 @@ def toolkit_installed() -> bool:
 
 
 def readonly_toolkit_configuration() -> Optional[Any]:
-    """Toolkit configuration limited to orders.get, or None when the flag is off."""
     if not toolkit_enabled():
         return None
     try:
@@ -158,10 +149,6 @@ def readonly_toolkit_configuration() -> Optional[Any]:
 
 
 def enabled_toolkit_methods() -> list[str]:
-    """Toolkit method names this configuration would expose. Writes are dropped.
-
-    Returns an empty list without importing the toolkit when the flag is off.
-    """
     tools = _toolkit_tools()
     if not tools:
         return []
@@ -174,5 +161,4 @@ def enabled_toolkit_methods() -> list[str]:
 
 
 def exposed_tools() -> tuple[str, ...]:
-    """The only tools the Captain can call."""
     return ALLOWED_TOOLS

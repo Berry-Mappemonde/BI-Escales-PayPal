@@ -17,6 +17,7 @@ to ``projet`` or ``fonds-commun``.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import re
 import uuid
 from decimal import Decimal, InvalidOperation
@@ -44,6 +45,17 @@ from .paypal_client import (
 )
 
 HONOR_DAYS = 3
+
+
+def sponsor_customer_id(pledge_id: str, contributor: Optional[str]) -> str:
+    """Stable PayPal Vault customer id per sponsor (or per pledge when anonymous)."""
+    label = (contributor or "").strip().lower()
+    if label:
+        digest = hashlib.sha256(label.encode("utf-8")).hexdigest()[:32]
+        return f"sponsor-{digest}"
+    return f"pledge-{pledge_id}"
+
+
 PLEDGES_COLLECTION = "escales_pledges"
 MILESTONES_COLLECTION = "escales_milestones"
 AUDIT_COLLECTION = "escales_audit"
@@ -614,6 +626,8 @@ async def _create_vault_pledge(
     setup = client.create_setup_token(
         _vault_callback_url(vault_return_url(), pledge_id, "return"),
         _vault_callback_url(vault_cancel_url(), pledge_id, "cancel"),
+        customer_id=sponsor_customer_id(pledge_id, contributor),
+        idempotency_key=idempotency_key,
     )
     setup_id = setup.get("id")
     if not setup_id:
@@ -683,7 +697,7 @@ async def register_vault_pledge(
     shown = client.get_setup_token(token_id)
     if str((shown or {}).get("status") or "").upper() != "APPROVED":
         raise ValueError("setup token is not approved")
-    payment_token = client.create_payment_token(token_id)
+    payment_token = client.create_payment_token(token_id, pledge_id=pledge_id)
     vault_id = vault_id_from_token(payment_token)
     pledge["status"] = "vaulted"
     pledge["vault_id"] = vault_id
@@ -719,7 +733,7 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     from .departure_clock import refuse_cancelled_departure
 
     await refuse_cancelled_departure(pledge)
-    order = client.authorize_order(order_id)
+    order = client.authorize_order(order_id, pledge_id=pledge_id)
     auth_id, expiration = authorization_from(order)
     pledge["status"] = "authorized"
     pledge["authorized_at"] = now_iso()
@@ -827,13 +841,41 @@ async def _finish_capture(pledge: dict, payload: Any, *, finance: dict) -> dict:
         await record_finance("pledge_capture_pending", status="pending", **base)
         return saved
 
-    if status in {"DECLINED", "FAILED", "EXPIRED"}:
-        pledge["status"] = "capture_failed"
-    pledge["history"] = list(pledge.get("history") or []) + ["capture_failed"]
+    failed_status = "charge_failed" if mode == "VAULT" else "capture_failed"
+    pledge["status"] = failed_status
+    pledge["history"] = list(pledge.get("history") or []) + [failed_status]
     saved = await get_ledger().save_pledge(pledge)
-    await record("capture_failed", status=saved.get("status"), **audit_fields)
-    await record_finance("pledge_capture_failed", status=saved.get("status"), **base)
+    await record(failed_status, status=saved.get("status"), **audit_fields)
+    finance_event = "pledge_charge_failed" if mode == "VAULT" else "pledge_capture_failed"
+    await record_finance(finance_event, status=saved.get("status"), **base)
     raise ValueError(f"PayPal capture status {recorded} is not COMPLETED or PENDING")
+
+
+async def mark_vault_charge_failed(pledge_id: str, detail: str) -> dict:
+    """Vault charge declined or requires payer action — do not retry on every settle."""
+    from .audit import record
+
+    pledge = await require_pledge(pledge_id)
+    pledge["status"] = "charge_failed"
+    pledge["paypal_status"] = str(detail or "")[:120]
+    pledge["history"] = list(pledge.get("history") or []) + ["charge_failed"]
+    saved = await get_ledger().save_pledge(pledge)
+    await record(
+        "charge_failed",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        detail=str(detail or "")[:200],
+        **_identity(saved),
+    )
+    await record_finance(
+        "pledge_charge_failed",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        amount_eur=saved.get("amount_eur"),
+        status="charge_failed",
+        **_identity(saved),
+    )
+    return saved
 
 
 async def capture_pledge(pledge_id: str, client: Any) -> dict:
@@ -849,6 +891,7 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
             pledge["amount_eur"],
             pledge_id,
             source=pledge.get("vault_source") or "paypal",
+            description=str(pledge.get("description") or ""),
         )
         return await _finish_capture(
             pledge,
@@ -859,7 +902,7 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "captured")
     _prepare_authorization_capture(pledge, client)
-    payload = client.capture_authorization(pledge["authorization_id"])
+    payload = client.capture_authorization(pledge["authorization_id"], pledge_id=pledge_id)
     return await _finish_capture(
         pledge,
         payload,
@@ -922,7 +965,7 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
     _require_status(pledge, "authorized", "voided")
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "voided")
-    released = client.void_authorization(pledge["authorization_id"])
+    released = client.void_authorization(pledge["authorization_id"], pledge_id=pledge_id)
     _stamp_void(pledge, released, str(pledge["authorization_id"]))
     saved = await get_ledger().save_pledge(pledge)
     from .audit import record

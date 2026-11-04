@@ -12,6 +12,10 @@ from typing import Any, Optional
 import httpx
 
 from .config import EscalesConfig, order_cancel_url, order_return_url
+from .paypal_idempotency import paypal_request_id
+
+SOFT_DESCRIPTOR = "BERRYMAPPEMONDE"
+VAULT_BRAND_NAME = "Berry-Mappemonde"
 
 
 class PayPalError(RuntimeError):
@@ -113,6 +117,17 @@ class PayPalClient:
         self._token: Optional[str] = None
         self._token_exp = 0.0
 
+    def _purchase_unit(self, reference_id: str, description: str, amount_eur: str) -> dict:
+        ref = str(reference_id or "")[:256]
+        return {
+            "reference_id": ref,
+            "description": str(description or "")[:127],
+            "custom_id": ref[:127],
+            "invoice_id": ref[:127],
+            "soft_descriptor": SOFT_DESCRIPTOR,
+            "amount": {"currency_code": self.cfg.currency, "value": amount_eur},
+        }
+
     def _access_token(self) -> str:
         if self._token and time.time() < self._token_exp - 60:
             return self._token
@@ -141,7 +156,7 @@ class PayPalClient:
             "Content-Type": "application/json",
         }
         if method in ("POST", "PATCH"):
-            headers["PayPal-Request-Id"] = idempotency_key or str(uuid.uuid4())
+            headers["PayPal-Request-Id"] = (idempotency_key or str(uuid.uuid4()))[:127]
             # Sandbox create/authorize omit intent and purchase_units unless asked.
             headers["Prefer"] = "return=representation"
         if content is None:
@@ -176,17 +191,13 @@ class PayPalClient:
                     },
                 },
             },
-            "purchase_units": [{
-                "reference_id": reference_id[:256],
-                "description": description[:127],
-                "amount": {"currency_code": self.cfg.currency, "value": amount_eur},
-            }],
+            "purchase_units": [self._purchase_unit(reference_id, description, amount_eur)],
         }
         return self._req(
             "POST",
             "/v2/checkout/orders",
             body,
-            idempotency_key=idempotency_key or f"order-{reference_id}",
+            idempotency_key=idempotency_key or paypal_request_id(reference_id, "order"),
         )
 
     def create_authorize_vault_order(
@@ -208,49 +219,49 @@ class PayPalClient:
                     "experience_context": {"return_url": return_url, "cancel_url": cancel_url},
                 },
             },
-            "purchase_units": [{
-                "reference_id": reference_id[:256],
-                "description": description[:127],
-                "amount": {"currency_code": self.cfg.currency, "value": amount_eur},
-            }],
+            "purchase_units": [self._purchase_unit(reference_id, description, amount_eur)],
         }
         return self._req(
             "POST",
             "/v2/checkout/orders",
             body,
-            idempotency_key=idempotency_key or f"vault-order-{reference_id}",
+            idempotency_key=idempotency_key or paypal_request_id(reference_id, "vault-order"),
         )
 
-    def authorize_order(self, order_id: str) -> dict:
+    def authorize_order(self, order_id: str, *, pledge_id: Optional[str] = None) -> dict:
+        ref = pledge_id or order_id
         return self._req(
             "POST",
             f"/v2/checkout/orders/{order_id}/authorize",
             {},
-            idempotency_key=f"authorize-{order_id}",
+            idempotency_key=paypal_request_id(ref, "authorize"),
         )
 
-    def capture_authorization(self, authorization_id: str, final: bool = True) -> dict:
+    def capture_authorization(self, authorization_id: str, final: bool = True, *, pledge_id: Optional[str] = None) -> dict:
+        ref = pledge_id or authorization_id
         return self._req(
             "POST",
             f"/v2/payments/authorizations/{authorization_id}/capture",
             {"final_capture": final},
-            idempotency_key=f"cap-{authorization_id}",
+            idempotency_key=paypal_request_id(ref, "capture"),
         )
 
-    def void_authorization(self, authorization_id: str) -> dict:
+    def void_authorization(self, authorization_id: str, *, pledge_id: Optional[str] = None) -> dict:
+        ref = pledge_id or authorization_id
         return self._req(
             "POST",
             f"/v2/payments/authorizations/{authorization_id}/void",
             None,
-            idempotency_key=f"void-{authorization_id}",
+            idempotency_key=paypal_request_id(ref, "void"),
         )
 
-    def reauthorize(self, authorization_id: str) -> dict:
+    def reauthorize(self, authorization_id: str, *, pledge_id: Optional[str] = None) -> dict:
+        ref = pledge_id or authorization_id
         return self._req(
             "POST",
             f"/v2/payments/authorizations/{authorization_id}/reauthorize",
             {},
-            idempotency_key=f"reauth-{authorization_id}",
+            idempotency_key=paypal_request_id(ref, "reauthorize"),
         )
 
     def get_order(self, order_id: str) -> dict:
@@ -262,16 +273,46 @@ class PayPalClient:
     def get_setup_token(self, setup_token_id: str) -> dict:
         return self._req("GET", f"/v3/vault/setup-tokens/{setup_token_id}")
 
-    def create_setup_token(self, return_url: str, cancel_url: str) -> dict:
-        body = {"payment_source": {"paypal": {
-            "usage_type": "MERCHANT",
-            "experience_context": {"return_url": return_url, "cancel_url": cancel_url},
-        }}}
-        return self._req("POST", "/v3/vault/setup-tokens", body)
+    def create_setup_token(
+        self,
+        return_url: str,
+        cancel_url: str,
+        *,
+        customer_id: str,
+        idempotency_key: Optional[str] = None,
+    ) -> dict:
+        body = {
+            "customer": {"id": str(customer_id)[:127]},
+            "payment_source": {
+                "paypal": {
+                    "usage_type": "MERCHANT",
+                    "usage_pattern": "UNSCHEDULED_POSTPAID",
+                    "permit_multiple_payment_tokens": False,
+                    "experience_context": {
+                        "return_url": return_url,
+                        "cancel_url": cancel_url,
+                        "brand_name": VAULT_BRAND_NAME,
+                        "shipping_preference": "NO_SHIPPING",
+                    },
+                },
+            },
+        }
+        return self._req(
+            "POST",
+            "/v3/vault/setup-tokens",
+            body,
+            idempotency_key=idempotency_key or paypal_request_id(customer_id, "setup-token"),
+        )
 
-    def create_payment_token(self, setup_token_id: str) -> dict:
+    def create_payment_token(self, setup_token_id: str, *, pledge_id: Optional[str] = None) -> dict:
+        ref = pledge_id or setup_token_id
         body = {"payment_source": {"token": {"id": setup_token_id, "type": "SETUP_TOKEN"}}}
-        return self._req("POST", "/v3/vault/payment-tokens", body)
+        return self._req(
+            "POST",
+            "/v3/vault/payment-tokens",
+            body,
+            idempotency_key=paypal_request_id(ref, "payment-token"),
+        )
 
     def charge_vaulted(
         self,
@@ -279,18 +320,45 @@ class PayPalClient:
         amount_eur: str,
         reference_id: str,
         source: str = "paypal",
+        *,
+        description: str = "",
     ) -> dict:
         """Charge a saved payment token. ``source`` is ``paypal`` or ``card``."""
         kind = "card" if source == "card" else "paypal"
         body = {
             "intent": "CAPTURE",
             "payment_source": {kind: {"vault_id": vault_id}},
-            "purchase_units": [{
-                "reference_id": reference_id,
-                "amount": {"currency_code": self.cfg.currency, "value": amount_eur},
-            }],
+            "purchase_units": [self._purchase_unit(reference_id, description or "Escales pledge", amount_eur)],
         }
-        return self._req("POST", "/v2/checkout/orders", body, idempotency_key=f"vault-{reference_id}")
+        return self._req(
+            "POST",
+            "/v2/checkout/orders",
+            body,
+            idempotency_key=paypal_request_id(reference_id, "vault-charge"),
+        )
+
+    def list_disputes(self, *, start_time: Optional[str] = None) -> dict:
+        path = "/v1/customer/disputes"
+        if start_time:
+            path = f"{path}?start_time={start_time}"
+        return self._req("GET", path)
+
+    def search_transactions(self, *, start_date: str, end_date: str) -> dict:
+        body = {
+            "start_date": start_date,
+            "end_date": end_date,
+            "fields": "all",
+            "page_size": 100,
+        }
+        return self._req(
+            "POST",
+            "/v1/reporting/transactions",
+            body,
+            idempotency_key=paypal_request_id(f"{start_date}-{end_date}", "txn-search"),
+        )
+
+    def list_invoices(self, *, page: int = 1, page_size: int = 20) -> dict:
+        return self._req("GET", f"/v2/invoicing/invoices?page={page}&page_size={page_size}&total_required=true")
 
     def delete_payment_token(self, vault_id: str) -> dict:
         return self._req("DELETE", f"/v3/vault/payment-tokens/{vault_id}")

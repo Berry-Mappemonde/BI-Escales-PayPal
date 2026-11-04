@@ -9,6 +9,7 @@ vi.mock("../api/escales", () => ({
   captainChat: vi.fn(),
   createPledge: vi.fn(),
   authorizePledge: vi.fn(),
+  fetchFeatures: vi.fn().mockResolvedValue({ paypal_client_id: "" }),
 }));
 
 describe("EscalesPanel cart", () => {

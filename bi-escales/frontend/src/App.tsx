@@ -226,15 +226,15 @@ export default function App() {
       next.searchParams.delete("token");
       window.history.replaceState({}, "", `${next.pathname}${next.search}${next.hash}`);
       if (vaultParsed.action === "cancel") {
-        setPaypalNote("vaultCancel");
+        setPaypalNote("vaultRetry");
         return undefined;
       }
       if (!vaultParsed.pledgeId) return undefined;
       setPaypalNote("vaulting");
-      void registerVault(vaultParsed.pledgeId)
+      void registerVault(vaultParsed.pledgeId, vaultParsed.approvalTokenId)
         .then((pledge) => {
           onAuthorized(pledge);
-          setPaypalNote("vaulted");
+          setPaypalNote("vaultSaved");
           setHealthOk(true);
         })
         .catch((err: unknown) => {
@@ -412,17 +412,21 @@ export default function App() {
       {healthOk === false ? <p className="notice error">{t("app.healthFail")}</p> : null}
       {paypalNote === "cancel" ? <p className="notice warn">{t("pledge.cancelled")}</p> : null}
       {paypalNote === "vaultCancel" ? <p className="notice warn">{t("pledge.vaultCancelled")}</p> : null}
+      {paypalNote === "vaultRetry" ? <p className="notice warn">{t("pledge.vaultRetry")}</p> : null}
       {paypalNote === "authorizing" ? <p className="status">{t("pledge.authorizing")}</p> : null}
       {paypalNote === "vaulting" ? <p className="status">{t("pledge.vaulting")}</p> : null}
       {paypalNote === "authorized" ? <p className="status">{t("pledge.authorized")}</p> : null}
-      {paypalNote === "vaulted" ? <p className="status">{t("pledge.vaulted")}</p> : null}
+      {paypalNote === "vaulted" ? <p className="status">{t("pledge.vaultSaved")}</p> : null}
+      {paypalNote === "vaultSaved" ? <p className="status">{t("pledge.vaultSaved")}</p> : null}
       {paypalNote &&
       paypalNote !== "cancel" &&
       paypalNote !== "vaultCancel" &&
+      paypalNote !== "vaultRetry" &&
       paypalNote !== "authorizing" &&
       paypalNote !== "vaulting" &&
       paypalNote !== "authorized" &&
-      paypalNote !== "vaulted" ? (
+      paypalNote !== "vaulted" &&
+      paypalNote !== "vaultSaved" ? (
         <p className="notice error">{paypalNote}</p>
       ) : null}
 

@@ -339,8 +339,8 @@ def simulated_unit(kind: str) -> dict:
     """One catalogue line. The figure is indicative, never the charged amount.
 
     ``project_pledge`` and ``common_fund`` have no unit price: the visitor's
-    amount stays as written. The other kinds show a simulated price the
-    pledge does not have to copy.
+    amount stays as written. The other kinds show a simulated unit. A pledge
+    of that kind must be at least that unit.
     """
     row = {
         "kind": kind,
@@ -2097,11 +2097,7 @@ def _catalogue_lines(text: str, lang: str, place: str) -> list[dict]:
         if quantity > 0:
             line_place = place
             if kind == "cabin_leg":
-                from .naviguide_bridge import leg_departing_from
-
-                leg = leg_departing_from(place)
-                if leg:
-                    line_place = str(leg["id"])
+                line_place = _cabin_milestone(text, place)
             lines.append(_fixed_line(kind, quantity, line_place, lang))
     for kind, pattern in (
         ("project_pledge", _PROJECT_PLEDGE),
@@ -2244,7 +2240,7 @@ def _message_prices_a_pledge(message: str) -> bool:
     text = message or ""
     if _amount_near(text, _PROJECT_PLEDGE) is not None:
         return True
-    if _amount_near(text, _COMMON_FUND) is not None and _place(text):
+    if _amount_near(text, _COMMON_FUND) is not None:
         return True
     if not _place(text):
         return False
@@ -2255,20 +2251,83 @@ def _message_prices_a_pledge(message: str) -> bool:
     return any(_sum_quantity(pattern, text) > 0 for pattern in (_BERTH_COUNT, _CARE_COUNT, _CABIN_COUNT))
 
 
-def _project_pledge_alone(message: str, lang: str) -> Optional[dict]:
-    """« Je donne 15 euros au projet » names no stopover and is still a project pledge."""
-    amount = _amount_near(message or "", _PROJECT_PLEDGE)
+def _cabin_milestone(message: str, place: str) -> str:
+    """Direction wins over the first port named in the sentence."""
+    from .naviguide_bridge import leg_by_id, leg_departing_from, leg_for_message
+
+    directed = leg_for_message(message)
+    if directed:
+        return str(directed["id"])
+    if place.startswith("leg-") and leg_by_id(place):
+        return place
+    leg = leg_departing_from(place)
+    if leg:
+        return str(leg["id"])
+    return place
+
+
+def _open_pledge(
+    message: str,
+    lang: str,
+    pattern: re.Pattern,
+    kind: str,
+    description_fr: str,
+    description_en: str,
+    target_id: str,
+) -> Optional[dict]:
+    """Project and common-fund lines need no stopover. The milestone stays empty."""
+    amount = _amount_near(message or "", pattern)
     if amount is None:
         return None
-    description = "project pledge" if lang == "en" else "promesse projet"
+    return {
+        "amount_eur": f"{amount:.2f}",
+        "currency": "EUR",
+        "description": description_en if lang == "en" else description_fr,
+        "milestone_id": "",
+        "target_id": target_id,
+        "intent": "AUTHORIZE",
+        "item": kind,
+        "kind": kind,
+        "simulated": True,
+        "price_label": SIMULATED_PRICE_LABEL,
+    }
+
+
+def _project_pledge_alone(message: str, lang: str) -> Optional[dict]:
+    """« Je donne 15 euros au projet » names no stopover and is still a project pledge."""
+    return _open_pledge(
+        message, lang, _PROJECT_PLEDGE, "project_pledge", "promesse projet", "project pledge", "projet",
+    )
+
+
+def _fund_pledge_alone(message: str, lang: str) -> Optional[dict]:
+    """« 15 euros au fonds commun » without a port is still the common fund."""
+    if _place(message or ""):
+        return None
+    return _open_pledge(
+        message, lang, _COMMON_FUND, "common_fund", "fonds commun", "common fund", "fonds-commun",
+    )
+
+
+def _cabin_pledge_alone(message: str, lang: str) -> Optional[dict]:
+    """A cabin named by direction, with no ``près de`` port."""
+    if _sum_quantity(_CABIN_COUNT, message or "") <= 0:
+        return None
+    milestone = _cabin_milestone(message, "")
+    if not milestone.startswith("leg-"):
+        return None
+    quantity = _sum_quantity(_CABIN_COUNT, message or "")
+    amount = (quantity * _SIMULATED_EUR["cabin_leg"]).quantize(Decimal("0.01"))
+    description = _kind_description("cabin_leg", quantity, lang)
     return {
         "amount_eur": f"{amount:.2f}",
         "currency": "EUR",
         "description": description,
-        "milestone_id": "",
+        "milestone_id": milestone,
+        "target_id": milestone,
         "intent": "AUTHORIZE",
-        "item": "project_pledge",
-        "kind": "project_pledge",
+        "item": "cabin_leg",
+        "kind": "cabin_leg",
         "simulated": True,
         "price_label": SIMULATED_PRICE_LABEL,
     }
@@ -2278,13 +2337,14 @@ def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
     """Mile and dinner pledge, plus the other catalogue lines in the same total."""
     base = _suggest_pledge_miles(message, lang)
     if not base:
-        return _project_pledge_alone(message, lang)
+        return (
+            _cabin_pledge_alone(message, lang)
+            or _project_pledge_alone(message, lang)
+            or _fund_pledge_alone(message, lang)
+        )
     resolved = _extend_pledge(base, message, lang)
-    place = str(resolved.get("milestone_id") or "")
-    if resolved.get("kind") == "cabin_leg" and place:
-        from .naviguide_bridge import leg_departing_from
-
-        leg = leg_departing_from(place)
-        if leg:
-            resolved["milestone_id"] = str(leg["id"])
+    if resolved.get("kind") == "cabin_leg":
+        resolved["milestone_id"] = _cabin_milestone(message, str(resolved.get("milestone_id") or ""))
+    if resolved.get("kind") in {"project_pledge", "common_fund"} and not str(resolved.get("milestone_id") or ""):
+        resolved["target_id"] = "projet" if resolved["kind"] == "project_pledge" else "fonds-commun"
     return resolved

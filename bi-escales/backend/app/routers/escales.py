@@ -106,10 +106,27 @@ webhooks_router = APIRouter(prefix="/api/escales", route_class=_WebhooksRoute, t
 class PledgeIn(BaseModel):
     amount_eur: str
     description: str
-    milestone_id: str
+    milestone_id: str = Field(
+        "",
+        description=(
+            "Where the pledge sits on the route: a stop id (dep-… or ret-…) or a "
+            "cabin leg id (leg-…). Empty for project_pledge and common_fund when "
+            "no stopover is named. target_id is what the money is for and can "
+            "differ: the bare stop slug, the same leg id, or the default projet "
+            "or fonds-commun."
+        ),
+    )
     contributor: Optional[str] = None
     kind: Optional[str] = None
-    target_id: Optional[str] = None
+    target_id: Optional[str] = Field(
+        None,
+        description=(
+            "What the money is for. A stopover kind stores the bare slug of "
+            "milestone_id. A cabin stores the leg id, the same value as "
+            "milestone_id. project_pledge defaults to projet and common_fund to "
+            "fonds-commun when milestone_id is empty."
+        ),
+    )
     return_url: Optional[str] = None
     cancel_url: Optional[str] = None
 
@@ -280,6 +297,7 @@ async def post_pledge(body: PledgeIn, request: Request):
             target_id=body.target_id,
             return_url=body.return_url,
             cancel_url=body.cancel_url,
+            caller_origin=f"{request.url.scheme}://{request.url.netloc}",
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc

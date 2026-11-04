@@ -712,6 +712,91 @@ def test_schedule_local_fallback(api, monkeypatch):
     assert body["prices"]["simulated"] is True
 
 
+def test_project_and_fund_accept_an_empty_milestone(api):
+    client, _fake = api
+    project = _create(client, "proj-empty", {
+        "amount_eur": "15.00",
+        "description": "promesse projet",
+        "milestone_id": "",
+        "kind": "project_pledge",
+    })
+    assert project.status_code == 200, project.text
+    assert project.json()["milestone_id"] == ""
+    assert project.json()["target_id"] == "projet"
+    fund = _create(client, "fund-empty", {
+        "amount_eur": "12.00",
+        "description": "fonds commun",
+        "milestone_id": "",
+        "kind": "common_fund",
+    })
+    assert fund.status_code == 200, fund.text
+    assert fund.json()["milestone_id"] == ""
+    assert fund.json()["target_id"] == "fonds-commun"
+
+
+def test_return_and_cancel_allow_the_public_url_and_this_service(api, monkeypatch):
+    monkeypatch.setenv("ESCALES_PUBLIC_URL", "https://public.example/escales")
+    client, _fake = api
+    allowed = _create(client, "urls-ok", {
+        **PLEDGE,
+        "return_url": "https://public.example/back",
+        "cancel_url": "https://public.example/cancel",
+    })
+    assert allowed.status_code == 200, allowed.text
+    own = _create(client, "urls-own", {
+        **PLEDGE,
+        "return_url": "http://testserver/done",
+        "cancel_url": "http://testserver/stop",
+    })
+    assert own.status_code == 200, own.text
+    bad_return = _create(client, "urls-bad-return", {**PLEDGE, "return_url": "https://evil.example/back"})
+    assert bad_return.status_code == 422
+    bad_cancel = _create(client, "urls-bad-cancel", {**PLEDGE, "cancel_url": "https://evil.example/cancel"})
+    assert bad_cancel.status_code == 422
+    assert "cancel_url" in bad_cancel.json()["detail"]
+
+
+def test_priced_kind_requires_its_unit_price(api):
+    client, _fake = api
+    low = _create(client, "cabin-50", {
+        **PLEDGE,
+        "kind": "cabin_leg",
+        "amount_eur": "50.00",
+        "milestone_id": "leg-la-rochelle-to-ajaccio-corse",
+        "description": "cabine",
+    })
+    assert low.status_code == 422
+    assert "80.00" in low.json()["detail"]
+    priced = _create(client, "cabin-80", {
+        **PLEDGE,
+        "kind": "cabin_leg",
+        "amount_eur": "80.00",
+        "milestone_id": "leg-la-rochelle-to-ajaccio-corse",
+        "description": "cabine",
+    })
+    assert priced.status_code == 200, priced.text
+    gift = _create(client, "project-small", {
+        "amount_eur": "5.00",
+        "description": "promesse projet",
+        "milestone_id": "",
+        "kind": "project_pledge",
+    })
+    assert gift.status_code == 200, gift.text
+
+
+def test_target_id_and_milestone_id_are_documented():
+    from app.routers.escales import PledgeIn
+
+    schema = PledgeIn.model_json_schema()
+    milestone = schema["properties"]["milestone_id"]["description"]
+    target = schema["properties"]["target_id"]["description"]
+    assert "target_id" in milestone
+    assert "milestone_id" in target
+    assert "leg" in target
+    assert "projet" in target
+    assert "fonds-commun" in target
+
+
 def test_features_flags_off_by_default(api):
     client, _fake = api
     flags = client.get("/api/escales/features").json()

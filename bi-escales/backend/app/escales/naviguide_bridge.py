@@ -268,6 +268,104 @@ def leg_departing_from(place: str) -> Optional[dict[str, Any]]:
     return None
 
 
+def _bare_port(value: str) -> str:
+    text = (value or "").strip()
+    for prefix in ("dep-", "ret-"):
+        if text.startswith(prefix):
+            text = text[len(prefix):]
+    return text
+
+
+def _leg_links(leg: dict[str, Any], origin: str, dest: str) -> bool:
+    """True when the leg runs from ``origin`` to ``dest``, return stop included.
+
+    ``La Rochelle`` and ``ret-la-rochelle`` are the same port on arrival.
+    """
+    return _bare_port(str(leg.get("from_slug") or "")) == _bare_port(origin) and (
+        _bare_port(str(leg.get("to_slug") or "")) == _bare_port(dest)
+    )
+
+
+_DIRECTION_STOP = {
+    "vers", "depuis", "from", "to", "toward", "jusqu", "jusqua", "return", "retour", "the", "a",
+}
+
+
+def _place_fragment(fragment: str) -> Optional[str]:
+    """First place in a direction phrase. Later ports stay out of the match."""
+    words: list[str] = []
+    for word in re.split(r"\s+", (fragment or "").strip(" .,;:")):
+        if not word:
+            continue
+        token = _slug(word)
+        if token in _DIRECTION_STOP:
+            break
+        words.append(word)
+        if len(words) == 4:
+            break
+    for size in range(len(words), 0, -1):
+        chunk = " ".join(words[:size])
+        found = resolve_milestone(chunk)
+        if not found or str(found).startswith("leg-"):
+            continue
+        head = resolve_milestone(words[0])
+        if head and head != found and size > 1:
+            continue
+        return found
+    return None
+
+
+_FROM_CUE = re.compile(
+    r"\b(?:depuis|from|return\s+from|retour\s+d['’]|retour\s+de)\s*"
+    r"([A-Za-zÀ-ÿ][^.,;]{0,48})",
+    re.IGNORECASE,
+)
+_TO_CUE = re.compile(
+    r"\b(?:vers|jusqu['’]à|jusqu['’]a|to|toward)\s+([A-Za-zÀ-ÿ][^.,;]{0,48})",
+    re.IGNORECASE,
+)
+_RETURN_WORD = re.compile(r"\b(?:retour|return)\b", re.IGNORECASE)
+
+
+def leg_for_message(message: str) -> Optional[dict[str, Any]]:
+    """Pick a cabin leg from direction, not from the first port named.
+
+    ``depuis`` / ``from`` / ``retour de`` name the departure. ``vers`` names
+    the arrival. ``retour`` prefers the leg that comes home (Europa →
+    ``ret-la-rochelle``) over the outbound La Rochelle → Ajaccio leg.
+    """
+    text = message or ""
+    origin_match = _FROM_CUE.search(text)
+    origin = _place_fragment(origin_match.group(1)) if origin_match else None
+    dest_match = _TO_CUE.search(text)
+    dest = _place_fragment(dest_match.group(1)) if dest_match else None
+    if origin and dest:
+        for leg in clock_legs():
+            if _leg_links(leg, origin, dest):
+                return leg
+    if origin:
+        departed = leg_departing_from(origin)
+        if departed:
+            return departed
+    if not _RETURN_WORD.search(text):
+        return None
+    mentioned: list[str] = []
+    words = re.findall(r"[A-Za-zÀ-ÿ0-9'’\-]+", text)
+    for size in (3, 2, 1):
+        for index in range(0, max(0, len(words) - size + 1)):
+            found = resolve_milestone(" ".join(words[index:index + size]))
+            if found and found not in mentioned and not str(found).startswith("leg-"):
+                mentioned.append(found)
+    homeward = [
+        leg for leg in clock_legs()
+        if str(leg.get("to_slug") or "").startswith("ret-")
+        and any(_bare_port(str(leg.get("from_slug") or "")) == _bare_port(place) for place in mentioned)
+    ]
+    if len(homeward) == 1:
+        return homeward[0]
+    return None
+
+
 # Chat names that are not the route slug. The canonical id stays ``dep-<slug>``.
 _CHAT_ALIASES = {
     "mayotte": "dzaoudzi-mayotte",

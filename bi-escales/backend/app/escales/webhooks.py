@@ -1,8 +1,11 @@
 """PayPal webhook ingestion: signature verification and idempotent processing."""
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 from typing import Any, Optional
+from urllib.parse import urlsplit
 
 from .config import paypal_webhook_id, zapiper_enabled
 from .ledger import get_ledger, now_iso, pledge_defaults, record_finance, record_webhook_outcome
@@ -29,6 +32,35 @@ def _header(headers: Any, name: str) -> str:
     return str(value).strip()
 
 
+def _signature_is_malformed(signature: str) -> bool:
+    """A transmission signature is base64. Anything else is a client error."""
+    try:
+        raw = base64.b64decode(signature, validate=True)
+    except (binascii.Error, ValueError):
+        return True
+    return not raw
+
+
+def _cert_url_is_malformed(cert_url: str) -> bool:
+    """PayPal publishes the webhook cert on paypal.com over https."""
+    parts = urlsplit(cert_url)
+    host = (parts.hostname or "").lower()
+    paypal = host == "paypal.com" or host.endswith(".paypal.com")
+    return parts.scheme != "https" or not paypal or not parts.path
+
+
+def _rejected_signature_status(exc: PayPalError) -> Optional[int]:
+    """PayPal 400/401 on a bad signature or cert stays 400/401, not 502."""
+    if exc.status in {400, 401}:
+        return exc.status
+    blob = f"{exc} {exc.body}".upper()
+    if "SIGNATURE" in blob:
+        return 401
+    if "CERT" in blob:
+        return 400
+    return None
+
+
 async def verify_and_process(
     *,
     raw_body: bytes,
@@ -47,6 +79,10 @@ async def verify_and_process(
 
     if not all([transmission_id, transmission_time, transmission_sig, cert_url, auth_algo]):
         raise WebhookRejected(400, "PayPal webhook headers are incomplete")
+    if _signature_is_malformed(transmission_sig):
+        raise WebhookRejected(400, "PayPal webhook signature is malformed")
+    if _cert_url_is_malformed(cert_url):
+        raise WebhookRejected(400, "PayPal webhook certificate URL is malformed")
 
     try:
         event = json.loads(raw_body.decode("utf-8"))
@@ -67,6 +103,9 @@ async def verify_and_process(
         )
     except PayPalError as exc:
         await _record_outcome(transmission_id, event, "rejected", None)
+        rejected = _rejected_signature_status(exc)
+        if rejected:
+            raise WebhookRejected(rejected, "PayPal webhook signature or certificate was rejected") from exc
         raise WebhookRejected(502, "PayPal signature verification failed") from exc
 
     status = (verification.get("verification_status") or "").upper()

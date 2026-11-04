@@ -6,6 +6,13 @@ VAULT pledges (ESCALES_VAULT_ENABLED): created -> vaulted -> captured | voided.
 Nothing is captured or voided until a treasurer calls the matching route.
 Forbidden transitions raise ``IllegalTransition`` (HTTP 409 at the edge).
 Storage is ``escales_pledges`` when Mongo is configured, otherwise memory.
+
+``milestone_id`` is where the pledge sits on the route: a stop (``dep-…`` or
+``ret-…``) or a cabin leg (``leg-…``). ``target_id`` is what the money is for.
+For a stopover kind the target is the bare slug of that same stop. For a cabin
+the target is the leg id, the same string as ``milestone_id``. A project pledge
+or the common fund may leave ``milestone_id`` empty; the target then defaults
+to ``projet`` or ``fonds-commun``.
 """
 from __future__ import annotations
 
@@ -106,6 +113,17 @@ _TARGET_SLUG = re.compile(r"^[a-z0-9-]+$")
 _TARGET_MUST_BE_KNOWN = {"mile", "berth", "night", "meal", "care"}
 # Escale kinds and the common fund name this stopover. A project pledge does not.
 _TARGET_MUST_MATCH_MILESTONE = _TARGET_MUST_BE_KNOWN | {"common_fund"}
+# No stopover required. An empty milestone keeps this default target.
+_UNPLACED_TARGET = {"project_pledge": "projet", "common_fund": "fonds-commun"}
+# Same figures as the captain catalogue. A priced kind cannot go under one unit.
+_UNIT_FLOOR = {
+    "mile": Decimal("1.00"),
+    "berth": Decimal("30.00"),
+    "night": Decimal("60.00"),
+    "meal": Decimal("60.00"),
+    "care": Decimal("40.00"),
+    "cabin_leg": Decimal("80.00"),
+}
 
 
 def _target_slug(value: str) -> str:
@@ -149,6 +167,14 @@ async def _resolve_target(target_id: Optional[str], milestone_id: str, kind: str
     from .naviguide_bridge import resolve_milestone
 
     explicit = (target_id or "").strip()
+    if kind in _UNPLACED_TARGET and not (milestone_id or "").strip():
+        if not explicit:
+            return _UNPLACED_TARGET[kind]
+        slug = _target_slug(explicit)
+        if not slug or not _TARGET_SLUG.fullmatch(slug):
+            raise ValueError("target_id must match [a-z0-9-]+")
+        resolved = resolve_milestone(explicit)
+        return _bare_canonical(resolved) if resolved else slug
     if kind == "cabin_leg":
         return _cabin_target(explicit, milestone_id)
     if explicit and not _TARGET_SLUG.fullmatch(_target_slug(explicit)):
@@ -190,18 +216,47 @@ def _require_text(value: str, field: str) -> str:
     return text
 
 
-def _http_url(raw: Optional[str], fallback: str, field: str) -> str:
+def _origin_of(raw: str) -> str:
+    parts = urlsplit((raw or "").strip())
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        return ""
+    return f"{parts.scheme}://{parts.netloc}".rstrip("/")
+
+
+def _allowed_return_origins(caller_origin: Optional[str] = None) -> set[str]:
+    """CORS list, plus ESCALES_PUBLIC_URL and the origin serving this request."""
+    import os
+
+    from .config import PUBLIC_API_ORIGIN, cors_origins, public_base_url
+
+    allowed = {item.rstrip("/") for item in cors_origins()}
+    for raw in (
+        public_base_url(),
+        os.environ.get("ESCALES_PUBLIC_URL") or "",
+        PUBLIC_API_ORIGIN,
+        caller_origin or "",
+    ):
+        origin = _origin_of(raw)
+        if origin:
+            allowed.add(origin)
+    return allowed
+
+
+def _http_url(
+    raw: Optional[str],
+    fallback: str,
+    field: str,
+    *,
+    caller_origin: Optional[str] = None,
+) -> str:
     text = (raw or "").strip() or fallback
     parts = urlsplit(text)
     if parts.scheme not in {"http", "https"} or not parts.netloc:
         raise ValueError(f"{field} must be an http(s) URL")
-    if field == "return_url":
-        from .config import cors_origins
-
+    if field in {"return_url", "cancel_url"}:
         origin = f"{parts.scheme}://{parts.netloc}".rstrip("/")
-        allowed = {item.rstrip("/") for item in cors_origins()}
-        if origin not in allowed:
-            raise ValueError("return_url must use an allowed frontend origin")
+        if origin not in _allowed_return_origins(caller_origin):
+            raise ValueError(f"{field} must use an allowed frontend origin")
     return text
 
 
@@ -286,30 +341,40 @@ async def create_pledge(
     target_id: Optional[str] = None,
     return_url: Optional[str] = None,
     cancel_url: Optional[str] = None,
+    caller_origin: Optional[str] = None,
 ) -> dict:
     amount = normalize_amount(amount_eur)
     description = _require_text(description, "description")
-    milestone_id = _require_text(milestone_id, "milestone_id")
+    pledge_kind = _kind(kind)
+    floor = _UNIT_FLOOR.get(pledge_kind)
+    if floor is not None and Decimal(amount) < floor:
+        raise ValueError(f"{pledge_kind} amount must be at least {floor:.2f} EUR")
+    if pledge_kind in _UNPLACED_TARGET and not (milestone_id or "").strip():
+        milestone_id = ""
+    else:
+        milestone_id = _require_text(milestone_id, "milestone_id")
     replay_key = _client_key(client_key)
     if replay_key:
         existing = await get_ledger().find_by_client_key(replay_key)
         if existing:
             return existing
-    pledge_kind = _kind(kind)
     from .naviguide_bridge import leg_departing_from, resolve_milestone
 
-    canonical = resolve_milestone(milestone_id)
-    if canonical is None:
-        known = await get_ledger().get_milestone(milestone_id)
-        if known:
-            canonical = milestone_id
-    if pledge_kind == "cabin_leg" and canonical and not str(canonical).startswith("leg-"):
-        leg = leg_departing_from(canonical)
-        if leg:
-            canonical = str(leg["id"])
-    if not canonical:
-        raise ValueError("milestone_id must name a known stopover")
-    milestone_id = str(canonical)
+    if pledge_kind in _UNPLACED_TARGET and milestone_id == "":
+        canonical = ""
+    else:
+        canonical = resolve_milestone(milestone_id)
+        if canonical is None:
+            known = await get_ledger().get_milestone(milestone_id)
+            if known:
+                canonical = milestone_id
+        if pledge_kind == "cabin_leg" and canonical and not str(canonical).startswith("leg-"):
+            leg = leg_departing_from(canonical)
+            if leg:
+                canonical = str(leg["id"])
+        if not canonical:
+            raise ValueError("milestone_id must name a known stopover")
+        milestone_id = str(canonical)
     resolved_target = await _resolve_target(target_id, milestone_id, pledge_kind)
     # A cabin is always an authorization. Capture waits for the departure.
     if pledge_kind == "cabin_leg":
@@ -343,6 +408,7 @@ async def create_pledge(
         target_id=resolved_target,
         return_url=return_url,
         cancel_url=cancel_url,
+        caller_origin=caller_origin,
     )
 
 
@@ -358,6 +424,7 @@ async def _create_authorize_pledge(
     target_id: str,
     return_url: Optional[str] = None,
     cancel_url: Optional[str] = None,
+    caller_origin: Optional[str] = None,
 ) -> dict:
     key = _client_key(client_key)
     ledger = get_ledger()
@@ -368,12 +435,12 @@ async def _create_authorize_pledge(
     pledge_id = uuid.uuid4().hex
     idempotency_key = key or uuid.uuid4().hex
     back = _callback_url(
-        _http_url(return_url, order_return_url(), "return_url"),
+        _http_url(return_url, order_return_url(), "return_url", caller_origin=caller_origin),
         pledge_id,
         "return",
     )
     cancel = _callback_url(
-        _http_url(cancel_url, order_cancel_url(), "cancel_url"),
+        _http_url(cancel_url, order_cancel_url(), "cancel_url", caller_origin=caller_origin),
         pledge_id,
         "cancel",
     )

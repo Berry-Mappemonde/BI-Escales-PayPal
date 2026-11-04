@@ -2303,3 +2303,32 @@ def test_to_the_project_and_au_projet_are_project_pledges():
         assert [line["kind"] for line in cart["lines"]] == ["project_pledge"]
         assert cart["lines"][0]["amount_eur"] == amount
         assert cart["lines"][0]["pledge"]["kind"] == "project_pledge"
+
+
+def test_return_from_europa_is_the_homeward_leg():
+    """Direction, not the first port named, picks the Europa return."""
+    expected = "leg-europa-taaf-to-la-rochelle"
+    phrases = (
+        "1 cabine pour le retour d'Europa",
+        "1 cabine depuis Europa",
+        "une cabine pour le retour Europa La Rochelle",
+        "cabine depuis Europa vers La Rochelle",
+        "1 cabin for the return from Europa",
+    )
+    for phrase in phrases:
+        pledge = captain.suggest_pledge(phrase)
+        assert pledge["kind"] == "cabin_leg", phrase
+        assert pledge["milestone_id"] == expected, phrase
+    outbound = captain.suggest_pledge("1 cabine près de La Rochelle")
+    assert outbound["milestone_id"] == "leg-la-rochelle-to-ajaccio-corse"
+
+
+def test_project_and_fund_without_a_port_keep_an_empty_milestone():
+    project = captain.suggest_pledge("Je donne 15 euros au projet")
+    assert project["kind"] == "project_pledge"
+    assert project["milestone_id"] == ""
+    assert project["target_id"] == "projet"
+    fund = captain.suggest_pledge("15 euros au fonds commun")
+    assert fund["kind"] == "common_fund"
+    assert fund["milestone_id"] == ""
+    assert fund["target_id"] == "fonds-commun"

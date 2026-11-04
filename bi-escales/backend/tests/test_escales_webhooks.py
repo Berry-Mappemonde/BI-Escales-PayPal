@@ -28,7 +28,7 @@ PAYLOAD = {
 HEADERS = {
     "PAYPAL-TRANSMISSION-ID": "T-123",
     "PAYPAL-TRANSMISSION-TIME": "2026-11-04T00:00:00Z",
-    "PAYPAL-TRANSMISSION-SIG": "sig",
+    "PAYPAL-TRANSMISSION-SIG": "c2lnbmF0dXJl",
     "PAYPAL-CERT-URL": "https://api.sandbox.paypal.com/v1/notifications/certs/CERT",
     "PAYPAL-AUTH-ALGO": "SHA256withRSA",
     "Content-Type": "application/json",
@@ -290,3 +290,40 @@ def test_authorization_and_capture_read_related_order_id(api):
     assert capture_events[0]["event_type"] == "PAYMENT.CAPTURE.COMPLETED"
     assert capture_events[0]["resource_id"] == "CAP-1"
     assert capture_events[0]["outcome"] == "accepted"
+
+
+def test_malformed_signature_or_cert_is_not_a_502(api):
+    from app.escales.paypal_client import PayPalError
+
+    client, fake = api
+    bad_sig = dict(HEADERS)
+    bad_sig["PAYPAL-TRANSMISSION-SIG"] = "not a signature!!"
+    response = client.post(
+        "/api/escales/webhooks/paypal", headers=bad_sig, content=json.dumps(PAYLOAD),
+    )
+    assert response.status_code == 400
+    assert fake.verify_calls == 0
+
+    bad_cert = dict(HEADERS)
+    bad_cert["PAYPAL-TRANSMISSION-ID"] = "T-cert"
+    bad_cert["PAYPAL-CERT-URL"] = "http://evil.example/cert.pem"
+    response = client.post(
+        "/api/escales/webhooks/paypal", headers=bad_cert, content=json.dumps(PAYLOAD),
+    )
+    assert response.status_code == 400
+    assert fake.verify_calls == 0
+
+    class BrokenPayPal(FakePayPal):
+        def verify_webhook_signature(self, **kwargs):
+            self.verify_calls += 1
+            raise PayPalError(400, {"name": "INVALID_REQUEST", "message": "malformed signature"})
+
+    broken = BrokenPayPal()
+    set_paypal_client_factory(lambda: broken)
+    paypal_headers = dict(HEADERS)
+    paypal_headers["PAYPAL-TRANSMISSION-ID"] = "T-paypal-400"
+    response = client.post(
+        "/api/escales/webhooks/paypal", headers=paypal_headers, content=json.dumps(PAYLOAD),
+    )
+    assert response.status_code == 400
+    assert response.status_code != 502

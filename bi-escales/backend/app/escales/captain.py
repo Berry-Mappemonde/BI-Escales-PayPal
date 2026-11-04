@@ -642,6 +642,18 @@ def _covered_miles_sentence(evidence: dict, lang: str = "fr") -> str:
 
 
 _TREASURER_DECIDES = "Seul le trésorier décide si l'argent est prélevé ou libéré."
+_TREASURER_RULES_EN = "The captain does not capture or void; only the treasurer can."
+# A model claim that money will move. The rules text replaces that reply.
+_CHARGE_CLAIM = re.compile(
+    r"s(?:era(?:it|s|ient)?|erez|erons|eront)\s+d[ée]bit"
+    r"|va(?:s|ont)?\s+(?:être\s+)?d[ée]bit"
+    r"|vous\s+(?:ser(?:ez|a)|allez\s+être)\s+d[ée]bit"
+    r"|s(?:era(?:it|s|ient)?|erez|erons|eront)\s+(?:pr[ée]lev|encaiss)"
+    r"|will\s+be\s+(?:charg|debit)"
+    r"|(?:you(?:'|’)ll|you\s+will|going\s+to)\s+be\s+(?:charg|debit)"
+    r"|will\s+charge\b",
+    re.IGNORECASE,
+)
 
 
 def _fallback_report(milestone_id: str, decision: str, evidence: dict, lang: str = "fr") -> str:
@@ -653,13 +665,15 @@ def _fallback_report(milestone_id: str, decision: str, evidence: dict, lang: str
         return (
             f"Milestone {port}: {provider} evidence marked {flag} "
             f"(source {source}). Proposal: {decision}. "
-            "The captain does not capture or void; only the treasurer can."
+            f"{_TREASURER_RULES_EN}"
         )
     return (
         f"Jalon {port} : preuve {provider} marquée {flag} "
         f"(source {source}). Proposition : {decision}. "
         f"{_TREASURER_DECIDES}"
     )
+
+
 _BARE_DISTANCE = re.compile(
     r"\b\d+(?:[.,]\d+)?\b(?!\s*(?:nautical\s+miles?|nm|milles?(?:\s+nautiques?)?)\b)",
     re.IGNORECASE,
@@ -1284,7 +1298,11 @@ def _compose_chat_reply(
     treasurer: bool,
     ask_escale: bool = False,
 ) -> str:
-    """Pledge repeated exactly, one signature, at most 80 words."""
+    """Pledge repeated exactly, one signature, at most 80 words.
+
+    French replies always end with the treasurer sentence from this module.
+    A charge claim is dropped and the rules text is used instead.
+    """
     if treasurer or not suggested:
         if treasurer:
             if lang == "en":
@@ -1301,7 +1319,11 @@ def _compose_chat_reply(
         else:
             prose = "Cette question porte sur le statut. Le capitaine ne propose pas de promesse."
         return _fit_words("", [prose, _signature(lang)])
-    prose = _prepare_model_narrative(model_text, lang)
+    charged = bool(_CHARGE_CLAIM.search(model_text or ""))
+    if charged:
+        prose = ""
+    else:
+        prose = _prepare_model_narrative(model_text, lang)
     port_id = str(suggested.get("milestone_id") or "")
     prose = _fix_port_typos(prose, port_id)
     prose = _clean_model_urls(prose, url)
@@ -1317,6 +1339,10 @@ def _compose_chat_reply(
     prose = _drop_milestone_intent_labels(prose, suggested)
     prose = _drop_standalone_intent(prose)
     required: list[str] = [_pledge_line(suggested, lang)]
+    if lang == "fr":
+        required.append(_TREASURER_DECIDES)
+    elif charged:
+        required.append(_TREASURER_RULES_EN)
     joined = " ".join(required)
     if lang == "en" and not re.search(r"\bintent\s+authorize\b", f"{prose} {joined}", re.I):
         required.append("intent AUTHORIZE.")
@@ -1832,7 +1858,9 @@ _CABIN_COUNT = re.compile(
     re.IGNORECASE,
 )
 _PROJECT_PLEDGE = re.compile(
-    r"\bpour\s+le\s+projets?\b|\b(?:promesse\s+)?projets?\b|\bfor\s+the\s+project\b|\bproject\s+pledges?\b",
+    r"\bpour\s+le\s+projets?\b|\bau\s+projets?\b|\b(?:promesse\s+)?projets?\b"
+    r"|\bfor\s+the\s+project\b|\btowards?\s+the\s+project\b|\bto\s+the\s+project\b"
+    r"|\bproject\s+pledges?\b",
     re.IGNORECASE,
 )
 # « cette nuit » et « tonight » sont un moment, pas une nuit à bord.

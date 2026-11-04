@@ -10,9 +10,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 pytest.importorskip("motor")
-pytest.importorskip("mongomock_motor")
-
-from mongomock_motor import AsyncMongoMockClient
 
 from app.escales.ledger import MongoLedger, get_ledger, record_finance, reset_ledger
 from app.escales.pledges import create_pledge
@@ -20,6 +17,9 @@ from app.escales.pledges import create_pledge
 
 @pytest.fixture
 def mongo_store(monkeypatch):
+    pytest.importorskip("mongomock_motor")
+    from mongomock_motor import AsyncMongoMockClient
+
     monkeypatch.setenv("ESCALES_STORE", "mongo")
     monkeypatch.setenv("MONGO_URL", "mongodb://mongomock")
     monkeypatch.setenv("DB_NAME", "bi_escales_test")

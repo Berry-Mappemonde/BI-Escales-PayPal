@@ -5,6 +5,8 @@ Authorize then capture: https://developer.paypal.com/docs/checkout/standard/cust
 """
 from __future__ import annotations
 
+import json
+import logging
 import time
 import uuid
 from typing import Any, Optional
@@ -17,12 +19,50 @@ from .paypal_idempotency import paypal_request_id
 SOFT_DESCRIPTOR = "BERRYMAPPEMONDE"
 VAULT_BRAND_NAME = "Berry-Mappemonde"
 
+log = logging.getLogger("escales.paypal")
+
+
+def _paypal_api_error_fields(body: Any) -> Optional[dict[str, Any]]:
+    parsed: Any = body
+    if isinstance(body, str):
+        text = body.strip()
+        if not text.startswith("{"):
+            return None
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(parsed, dict):
+        return None
+    if not any(key in parsed for key in ("name", "debug_id", "details")):
+        return None
+    return {
+        "name": parsed.get("name"),
+        "debug_id": parsed.get("debug_id"),
+        "details": parsed.get("details"),
+    }
+
+
+def _log_paypal_api_error(status: int, body: Any) -> None:
+    fields = _paypal_api_error_fields(body)
+    if not fields:
+        return
+    log.error(
+        "PayPal HTTP %s name=%s debug_id=%s details=%s",
+        status,
+        fields.get("name"),
+        fields.get("debug_id"),
+        fields.get("details"),
+    )
+
 
 class PayPalError(RuntimeError):
     def __init__(self, status: int, body: Any):
         super().__init__(f"PayPal HTTP {status}")
         self.status = status
         self.body = body
+        if status >= 400:
+            _log_paypal_api_error(status, body)
 
 
 def read_capture_result(payload: dict) -> tuple[str, Optional[str], Optional[str]]:

@@ -85,6 +85,17 @@ class Spy:
         self.calls.append(("authorizations.get", authorization_id))
         return {"id": authorization_id, "status": "CREATED"}
 
+    def create_setup_token(self, return_url, cancel_url, **kwargs):
+        self.calls.append(("setup_token", kwargs))
+        return {
+            "id": "SETUP1",
+            "status": "CREATED",
+            "links": [{
+                "rel": "approve",
+                "href": "https://www.sandbox.paypal.com/ag/v1/vault/setup-token/SETUP1",
+            }],
+        }
+
 
 def _names(spy: Spy) -> list[str]:
     return [call[0] for call in spy.calls]
@@ -400,7 +411,7 @@ def test_cabin_leg_authorizes_and_waits_for_departure(monkeypatch):
 
     monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
     monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
-    leg = "leg-ajaccio-corse-to-fort-de-france-martinique"
+    leg = "leg-la-rochelle-to-ajaccio-corse"
 
     async def body():
         await sync_leg_shells()
@@ -426,16 +437,17 @@ def test_cabin_leg_authorizes_and_waits_for_departure(monkeypatch):
             kind="cabin_leg",
         )
         assert from_stop["milestone_id"] == "leg-la-rochelle-to-ajaccio-corse"
-        before_far = list(spy.calls)
-        with pytest.raises(ValueError, match="29"):
-            await create_pledge(
-                amount_eur="80.00",
-                description="cabine depuis Mayotte",
-                milestone_id="dep-mayotte",
-                client=spy,
-                kind="cabin_leg",
-            )
-        assert spy.calls == before_far
+        far_cabin = await create_pledge(
+            amount_eur="80.00",
+            description="cabine depuis Mayotte",
+            milestone_id="dep-mayotte",
+            client=spy,
+            kind="cabin_leg",
+        )
+        assert far_cabin["payment_mode"] == "VAULT"
+        assert far_cabin["intent"] == "VAULT"
+        assert far_cabin["setup_token_id"] == "SETUP1"
+        assert _names(spy)[-1] == "setup_token"
         with pytest.raises(ValueError):
             await create_pledge(
                 amount_eur="80.00",

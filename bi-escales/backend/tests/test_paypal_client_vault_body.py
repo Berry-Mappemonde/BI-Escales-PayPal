@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import httpx
+import pytest
 
 from app.escales.config import vault_cancel_url, vault_return_url
-from app.escales.paypal_client import PayPalClient, SOFT_DESCRIPTOR, VAULT_BRAND_NAME
+from app.escales.paypal_client import PayPalClient, PayPalError, SOFT_DESCRIPTOR, VAULT_BRAND_NAME
 from app.escales.config import EscalesConfig
 
 
@@ -72,3 +74,33 @@ def test_authorize_order_includes_custom_id_and_descriptor():
     assert unit["custom_id"] == "pledge-42"
     assert unit["invoice_id"] == "pledge-42"
     assert unit["soft_descriptor"] == SOFT_DESCRIPTOR
+
+
+def test_paypal_http_error_logs_name_debug_id_and_details(caplog):
+    def handler(request: httpx.Request):
+        if request.url.path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "T", "expires_in": 3600})
+        return httpx.Response(
+            400,
+            json={
+                "name": "INVALID_REQUEST",
+                "details": [{"issue": "INVALID_STRING_LENGTH", "field": "/customer/id"}],
+                "debug_id": "test-debug-1",
+            },
+        )
+
+    client = PayPalClient(
+        EscalesConfig("cid", "secret"),
+        transport=httpx.MockTransport(handler),
+    )
+    with caplog.at_level(logging.ERROR, logger="escales.paypal"):
+        with pytest.raises(PayPalError):
+            client.create_setup_token(
+                vault_return_url(),
+                vault_cancel_url(),
+                customer_id="s" + "a" * 30,
+            )
+    assert "INVALID_REQUEST" in caplog.text
+    assert "test-debug-1" in caplog.text
+    assert "INVALID_STRING_LENGTH" in caplog.text
+    assert "PayPal request failed" not in caplog.text

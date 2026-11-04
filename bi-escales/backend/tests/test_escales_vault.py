@@ -18,12 +18,23 @@ from app.escales.pledges import (
     create_pledge,
     register_vault_pledge,
     reset_ledger,
+    sponsor_customer_id,
     void_pledge,
 )
 from app.routers.escales import router, set_paypal_client_factory
 
 ADMIN = {"x-admin-key": "vault-admin"}
 FAR_ARRIVAL = "2027-05-15T08:00:00+00:00"
+
+
+def test_sponsor_customer_id_respects_paypal_max_length():
+    long_label = "patron@" + ("x" * 120)
+    named = sponsor_customer_id("abc" * 10, long_label)
+    assert len(named) == 22
+    assert named.startswith("s")
+    anonymous = sponsor_customer_id("abcdef0123456789abcdef0123456789", None)
+    assert len(anonymous) == 22
+    assert anonymous.startswith("p")
 
 
 class VaultPayPal:

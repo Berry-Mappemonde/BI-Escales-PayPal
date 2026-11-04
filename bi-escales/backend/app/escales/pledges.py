@@ -56,12 +56,13 @@ HONOR_DAYS = 3
 
 
 def sponsor_customer_id(pledge_id: str, contributor: Optional[str]) -> str:
-    """Stable PayPal Vault customer id per sponsor (or per pledge when anonymous)."""
+    """Stable PayPal Vault customer.id (PayPal max length 22)."""
     label = (contributor or "").strip().lower()
     if label:
-        digest = hashlib.sha256(label.encode("utf-8")).hexdigest()[:32]
-        return f"sponsor-{digest}"
-    return f"pledge-{pledge_id}"
+        digest = hashlib.sha256(label.encode("utf-8")).hexdigest()[:21]
+        return f"s{digest}"
+    pid = str(pledge_id or "").strip()
+    return f"p{pid[:21]}"
 
 
 PLEDGES_COLLECTION = "escales_pledges"
@@ -470,16 +471,13 @@ async def create_pledge(
             raise ValueError("milestone_id must name a known stopover")
         milestone_id = str(canonical)
     resolved_target = await _resolve_target(target_id, milestone_id, pledge_kind)
-    # A cabin is always an authorization. Capture waits for the departure.
+    mode = payment_mode or await resolve_payment_mode(milestone_id)
     if pledge_kind == "cabin_leg":
-        mode = "AUTHORIZE"
         from .naviguide_bridge import leg_by_id, leg_milestone_meta
 
         leg = leg_by_id(resolved_target)
         if leg:
             await get_ledger().ensure_milestone(leg["id"], meta=leg_milestone_meta(leg))
-    else:
-        mode = payment_mode or await resolve_payment_mode(milestone_id)
     from .departure_clock import refuse_cancelled_departure, refuse_early_authorization
 
     draft = {
@@ -494,7 +492,7 @@ async def create_pledge(
         try:
             await refuse_early_authorization(draft)
         except ValueError as exc:
-            if vault_enabled() and pledge_kind != "cabin_leg" and "29 days" in str(exc):
+            if vault_enabled() and "29 days" in str(exc):
                 mode = "VAULT"
             else:
                 raise

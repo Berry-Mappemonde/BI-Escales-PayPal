@@ -408,22 +408,22 @@ def test_router_uses_app_language_only(monkeypatch):
         )
         assert english.status_code == 200, english.text
         assert "120 sponsored miles (120.00 EUR)" in english.json()["reply"]
-        default_en = client.post(
+        default_fr = client.post(
             "/api/escales/captain/chat",
             json={"message": FRENCH},
-            headers={"accept-language": "fr-FR,fr;q=0.9"},
+            headers={"accept-language": "en-US,en;q=0.9"},
         )
-        assert "120 sponsored miles (120.00 EUR)" in default_en.json()["reply"]
+        assert "milles parrain" in default_fr.json()["reply"]
+        unknown = client.post(
+            "/api/escales/captain/chat",
+            json={"message": FRENCH, "lang": "de"},
+        )
+        assert "milles parrain" in unknown.json()["reply"]
         french = client.post(
             "/api/escales/captain/chat",
             json={"message": "I'd like to sponsor 120 miles near Ajaccio", "lang": "fr"},
         )
         assert "milles parrain" in french.json()["reply"]
-        unknown = client.post(
-            "/api/escales/captain/chat",
-            json={"message": FRENCH, "lang": "de"},
-        )
-        assert "120 sponsored miles (120.00 EUR)" in unknown.json()["reply"]
     set_paypal_client_factory(None)
 
 

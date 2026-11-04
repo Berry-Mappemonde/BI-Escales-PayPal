@@ -10,14 +10,26 @@ import datetime as dt
 from decimal import Decimal
 from typing import Any, Optional
 
+from .app_i18n import normalize_app_lang
 from .paypal_txn_search import clamp_transaction_search_range
 
 SANDBOX_REPORTING_LAG_HOURS = 3
-RECONCILE_NOTE = (
+_RECONCILE_NOTE_EN = (
     "Matching uses PayPal capture_id = transaction_id. Ledger rows are not filtered by "
     "simulated finance timestamps; Transaction Search uses the clamped real UTC window only. "
     "Sandbox Transaction Search often lags the finance journal by about 3 hours."
 )
+_RECONCILE_NOTE_FR = (
+    "La conciliation utilise capture_id PayPal = transaction_id. Le journal local n'est pas "
+    "filtré par l'horloge simulée ; la recherche PayPal utilise seulement la fenêtre UTC réelle "
+    "bornée. Dans le bac à sable, la recherche de transactions accuse souvent ~3 h de retard."
+)
+
+
+def reconcile_note(lang: Optional[str] = None) -> str:
+    if normalize_app_lang(lang) == "en":
+        return _RECONCILE_NOTE_EN
+    return _RECONCILE_NOTE_FR
 
 
 def _ledger_captures(entries: list[dict]) -> list[dict]:
@@ -100,6 +112,7 @@ async def reconcile_paypal_ledger(
     end_date: str,
     client: Any,
     finance_entries: list[dict],
+    lang: Optional[str] = None,
 ) -> dict:
     """Compare captured pledges in ``escales_finance`` to PayPal reporting (read-only)."""
     ledger_all = _ledger_captures(finance_entries)
@@ -143,7 +156,7 @@ async def reconcile_paypal_ledger(
         "requested_end_date": end_date,
         "match_key": "capture_id",
         "sandbox_reporting_lag_hours": SANDBOX_REPORTING_LAG_HOURS,
-        "note": RECONCILE_NOTE,
+        "note": reconcile_note(lang),
         "ledger_capture_count": len(ledger),
         "paypal_transaction_count": len(paypal),
         "matched": matched,

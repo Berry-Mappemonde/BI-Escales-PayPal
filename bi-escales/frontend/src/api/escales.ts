@@ -358,8 +358,11 @@ export async function setupCrewSubscription(adminKey: string): Promise<{
   return res.json();
 }
 
-export async function fetchCrewSupporterPlan(): Promise<{ plan_id: string | null }> {
-  const res = await fetch(url("/api/escales/paypal/subscriptions/plan"));
+export async function fetchCrewSupporterPlan(lang?: string): Promise<{ plan_id: string | null; lang?: string }> {
+  const params = new URLSearchParams();
+  if (lang?.trim()) params.set("lang", lang.trim());
+  const qs = params.toString();
+  const res = await fetch(url(`/api/escales/paypal/subscriptions/plan${qs ? `?${qs}` : ""}`));
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
@@ -368,6 +371,7 @@ export async function createCrewSubscriptionCheckout(body?: {
   return_url?: string;
   cancel_url?: string;
   clientRequestId?: string;
+  lang?: string;
 }): Promise<{
   plan_id: string;
   subscription_id?: string;
@@ -379,6 +383,7 @@ export async function createCrewSubscriptionCheckout(body?: {
   const payload = {
     return_url: body?.return_url ?? defaults.return_url,
     cancel_url: body?.cancel_url ?? defaults.cancel_url,
+    lang: body?.lang,
   };
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const clientRequestId = body?.clientRequestId?.trim() || crypto.randomUUID();

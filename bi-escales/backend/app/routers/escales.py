@@ -96,12 +96,15 @@ from app.escales.project_payouts import (
     approve_project_payout,
     propose_project_payout,
 )
-from app.escales.app_i18n import resolve_app_language
+from app.escales.app_i18n import (
+    error_payload,
+    resolve_app_language,
+    validation_code_from_message,
+)
 from app.escales.rate_limit import (
     RateLimited,
     client_ip,
     hit as hit_captain_rate,
-    lang_for,
     limit_message,
 )
 from app.escales.pledges import (
@@ -246,11 +249,13 @@ class InvoiceCreateIn(BaseModel):
     description: str
     reference: str = ""
     invoice_number: Optional[str] = None
+    lang: Optional[str] = None
 
 
 class DisputeEvidenceIn(BaseModel):
     milestone_id: str
     notes: Optional[str] = None
+    lang: Optional[str] = None
 
 
 class DisputeAcceptIn(BaseModel):
@@ -267,6 +272,7 @@ class SubscriptionRecordIn(BaseModel):
 class SubscriptionCreateIn(BaseModel):
     return_url: Optional[str] = None
     cancel_url: Optional[str] = None
+    lang: Optional[str] = None
 
 
 class SubscriptionApproveIn(BaseModel):
@@ -274,11 +280,16 @@ class SubscriptionApproveIn(BaseModel):
     plan_id: str
 
 
-def _paypal() -> Any:
+def _paypal(lang: Optional[str] = None) -> Any:
     if _client_factory is not None:
         return _client_factory()
     cfg = load_config()
     if not cfg.configured:
+        if lang is not None:
+            raise HTTPException(
+                status_code=503,
+                detail=error_payload("paypal_not_configured", lang),
+            )
         raise HTTPException(status_code=503, detail="PayPal sandbox is not configured")
     return PayPalClient(cfg)
 
@@ -370,31 +381,66 @@ def _paypal_client_error_detail(exc: PayPalError) -> str:
     return "PayPal request rejected"
 
 
-def _money_http(exc: Exception) -> HTTPException:
+def _money_http(exc: Exception, lang: Optional[str] = None) -> HTTPException:
     if isinstance(exc, ValueError):
         if str(exc) == "order not approved yet":
+            if lang is not None:
+                return HTTPException(
+                    status_code=409,
+                    detail=error_payload("order_not_approved", lang),
+                )
             return HTTPException(status_code=409, detail=str(exc))
         if _capture_conflict(exc):
             return HTTPException(status_code=409, detail=str(exc))
-    return _as_http(exc)
+    return _as_http(exc, lang=lang)
 
 
-def _as_http(exc: Exception) -> HTTPException:
+def _as_http(exc: Exception, lang: Optional[str] = None) -> HTTPException:
+    localized = lang is not None
+    app_lang = resolve_app_language(lang) if localized else None
+
     if isinstance(exc, PledgeNotFound):
+        if localized:
+            return HTTPException(
+                status_code=404,
+                detail=error_payload("pledge_not_found", app_lang),
+            )
         return HTTPException(status_code=404, detail="Pledge not found")
     if isinstance(exc, IllegalTransition):
         return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, PayPalError):
         if _paypal_order_not_approved(exc):
+            if localized:
+                return HTTPException(
+                    status_code=409,
+                    detail=error_payload("order_not_approved", app_lang),
+                )
             return HTTPException(status_code=409, detail="order not approved yet")
         if 400 <= exc.status < 500:
             return HTTPException(
                 status_code=exc.status,
                 detail=_paypal_client_error_detail(exc),
             )
+        if localized:
+            return HTTPException(
+                status_code=502,
+                detail=error_payload("paypal_request_failed", app_lang),
+            )
         return HTTPException(status_code=502, detail="PayPal request failed")
     if isinstance(exc, ValueError):
-        return HTTPException(status_code=422, detail=str(exc))
+        msg = str(exc)
+        if localized:
+            code = validation_code_from_message(msg)
+            if code:
+                return HTTPException(
+                    status_code=422,
+                    detail=error_payload(code, app_lang),
+                )
+            return HTTPException(
+                status_code=422,
+                detail={"code": "validation_error", "detail": msg},
+            )
+        return HTTPException(status_code=422, detail=msg)
     raise exc
 
 
@@ -419,7 +465,7 @@ def _public_milestone(doc: dict) -> dict:
     }
 
 
-def _public_pledge(doc: dict, *, lang: str = "en") -> dict:
+def _public_pledge(doc: dict, *, lang: Optional[str] = None) -> dict:
     """Same shape as ``to_public``, plus the simulated catalogue line.
 
     ``approve_link`` is the buyer step. A stored order without one still
@@ -444,7 +490,7 @@ async def _fund_aggregate(milestone_id: str) -> Optional[dict]:
         return None
 
 
-async def _public_pledge_with_fund(doc: dict, *, lang: str = "en") -> dict:
+async def _public_pledge_with_fund(doc: dict, *, lang: Optional[str] = None) -> dict:
     """Pledge the buyer needs, with the public fund aggregate and no pledge list."""
     public = _public_pledge(doc, lang=lang)
     public["fund"] = await _fund_aggregate(fund_milestone_for_pledge(doc))
@@ -554,7 +600,7 @@ async def post_pledge(body: PledgeIn, request: Request):
             description=body.description,
             milestone_id=body.milestone_id,
             contributor=body.contributor,
-            client=_paypal(),
+            client=_paypal(body.lang),
             client_key=client_key,
             kind=body.kind,
             target_id=body.target_id,
@@ -565,7 +611,7 @@ async def post_pledge(body: PledgeIn, request: Request):
             checkout_method=body.checkout_method,
         )
     except (PayPalError, ValueError) as exc:
-        raise _as_http(exc) from exc
+        raise _as_http(exc, lang=body.lang) from exc
     return await _public_pledge_with_fund(doc, lang=resolve_app_language(body.lang))
 
 
@@ -676,18 +722,26 @@ async def post_admin_reauthorize(
 
 
 @router.get("/paypal/reconcile")
-async def get_paypal_reconcile(request: Request, start_date: str, end_date: str):
+async def get_paypal_reconcile(
+    request: Request,
+    start_date: str,
+    end_date: str,
+    lang: Optional[str] = None,
+):
     """Read-only ledger vs PayPal Transaction Search. Treasurer key required."""
     _require_treasurer(request)
+    app_lang = resolve_app_language(lang)
     try:
-        return await reconcile_paypal_ledger(
+        report = await reconcile_paypal_ledger(
             start_date=start_date,
             end_date=end_date,
-            client=_paypal(),
+            client=_paypal(app_lang),
             finance_entries=await list_finance_entries(),
+            lang=app_lang,
         )
+        return report
     except PayPalError as exc:
-        raise _as_http(exc) from exc
+        raise _as_http(exc, lang=app_lang) from exc
 
 
 @router.get("/paypal/disputes")
@@ -721,15 +775,17 @@ async def post_dispute_accept(dispute_id: str, body: DisputeAcceptIn, request: R
 @router.post("/paypal/disputes/{dispute_id}/provide-evidence")
 async def post_dispute_evidence(dispute_id: str, body: DisputeEvidenceIn, request: Request):
     _require_treasurer(request)
+    app_lang = resolve_app_language(body.lang)
     try:
         return await provide_dispute_evidence(
-            _paypal(),
+            _paypal(app_lang),
             dispute_id,
             milestone_id=body.milestone_id,
             notes=body.notes,
+            lang=app_lang,
         )
     except PayPalError as exc:
-        raise _as_http(exc) from exc
+        raise _as_http(exc, lang=app_lang) from exc
 
 
 @router.get("/paypal/invoices")
@@ -744,17 +800,19 @@ async def get_paypal_invoices(request: Request, page: int = 1):
 @router.post("/paypal/invoices")
 async def post_paypal_invoice(body: InvoiceCreateIn, request: Request):
     _require_treasurer(request)
+    app_lang = resolve_app_language(body.lang)
     try:
         return await create_partner_invoice(
-            _paypal(),
+            _paypal(app_lang),
             recipient_email=body.recipient_email,
             amount_eur=body.amount_eur,
             description=body.description,
             reference=body.reference or body.description,
             invoice_number=body.invoice_number,
+            lang=app_lang,
         )
     except PayPalError as exc:
-        raise _as_http(exc) from exc
+        raise _as_http(exc, lang=app_lang) from exc
 
 
 @router.post("/paypal/invoices/{invoice_id}/send")
@@ -767,12 +825,17 @@ async def post_invoice_send(invoice_id: str, request: Request):
 
 
 @router.post("/paypal/invoices/{invoice_id}/remind")
-async def post_invoice_remind(invoice_id: str, request: Request):
+async def post_invoice_remind(
+    invoice_id: str,
+    request: Request,
+    lang: Optional[str] = None,
+):
     _require_treasurer(request)
+    app_lang = resolve_app_language(lang)
     try:
-        return await remind_invoice(_paypal(), invoice_id)
+        return await remind_invoice(_paypal(app_lang), invoice_id, lang=app_lang)
     except PayPalError as exc:
-        raise _as_http(exc) from exc
+        raise _as_http(exc, lang=app_lang) from exc
 
 
 @router.post("/paypal/invoices/{invoice_id}/cancel")
@@ -805,18 +868,20 @@ async def post_subscription_setup(request: Request):
 
 
 @router.get("/paypal/subscriptions/plan")
-async def get_crew_subscription_plan():
+async def get_crew_subscription_plan(lang: Optional[str] = None):
     """Public read-only Crew supporter billing plan id (hydrates from PayPal when needed)."""
+    app_lang = resolve_app_language(lang)
     try:
-        plan_id = await resolve_crew_supporter_plan_id(_paypal())
+        plan_id = await resolve_crew_supporter_plan_id(_paypal(app_lang), lang=app_lang)
     except PayPalError as exc:
-        raise _as_http(exc) from exc
-    return {"plan_id": plan_id}
+        raise _as_http(exc, lang=app_lang) from exc
+    return {"plan_id": plan_id, "lang": app_lang}
 
 
 @router.post("/paypal/subscriptions/create")
 async def post_subscription_create(request: Request, body: SubscriptionCreateIn = SubscriptionCreateIn()):
     """Buyer checkout: catalog + PayPal subscription (public)."""
+    app_lang = resolve_app_language(body.lang)
     caller = f"{request.url.scheme}://{request.url.netloc}"
     try:
         back = _http_url(
@@ -832,13 +897,14 @@ async def post_subscription_create(request: Request, body: SubscriptionCreateIn 
             caller_origin=caller,
         )
         return await create_crew_subscription(
-            _paypal(),
+            _paypal(app_lang),
             return_url=back,
             cancel_url=cancel,
             client_key=request.headers.get("paypal-request-id"),
+            lang=app_lang,
         )
     except (PayPalError, ValueError) as exc:
-        raise _as_http(exc) from exc
+        raise _as_http(exc, lang=app_lang) from exc
 
 
 @router.get("/paypal/subscriptions")
@@ -906,11 +972,12 @@ async def post_project_payout(project_id: str, body: PayoutProposeIn, request: R
 
 
 @router.post("/payouts/{payout_id}/approve")
-async def post_payout_approve(payout_id: str, request: Request):
+async def post_payout_approve(payout_id: str, request: Request, lang: Optional[str] = None):
     """Second human step: send a proposed payout to PayPal sandbox."""
     _require_treasurer(request)
+    app_lang = resolve_app_language(lang)
     try:
-        return await approve_project_payout(payout_id, _paypal())
+        return await approve_project_payout(payout_id, _paypal(app_lang), lang=app_lang)
     except PayoutNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except PayoutStateError as exc:
@@ -991,27 +1058,32 @@ async def post_evidence(milestone_id: str, body: EvidenceIn, request: Request):
     return {"milestone_id": milestone_id, **evidence}
 
 
-def _enforce_captain_rate(request: Request, text: str = "") -> None:
+def _enforce_captain_rate(
+    request: Request,
+    text: str = "",
+    *,
+    lang: Optional[str] = None,
+) -> None:
     forwarded = request.headers.get("x-forwarded-for", "")
     host = request.client.host if request.client else ""
+    app_lang = resolve_app_language(lang)
     try:
         hit_captain_rate(client_ip(forwarded, host))
     except RateLimited as exc:
-        lang = lang_for(request.headers.get("accept-language", ""), text)
         raise HTTPException(
             status_code=429,
-            detail=limit_message(exc.kind, lang, exc.limit),
+            detail=limit_message(exc.kind, app_lang, exc.limit),
         ) from exc
 
 
 @router.post("/captain/review/{milestone_id}")
 async def post_review(milestone_id: str, request: Request, lang: Optional[str] = None):
-    _enforce_captain_rate(request)
     app_lang = resolve_app_language(lang)
+    _enforce_captain_rate(request, lang=app_lang)
     try:
         proposal = await captain_review(milestone_id, reader=_reader(), lang=app_lang)
     except (PayPalError, ValueError) as exc:
-        raise _as_http(exc) from exc
+        raise _as_http(exc, lang=app_lang) from exc
     if not _valid_admin_key(request):
         proposal = {
             key: value
@@ -1023,7 +1095,8 @@ async def post_review(milestone_id: str, request: Request, lang: Optional[str] =
 
 @router.post("/captain/chat")
 async def post_chat(body: ChatIn, request: Request):
-    _enforce_captain_rate(request, body.message)
+    app_lang = resolve_app_language(body.lang)
+    _enforce_captain_rate(request, body.message, lang=app_lang)
     try:
         return await captain_chat(
             body.message,
@@ -1033,7 +1106,7 @@ async def post_chat(body: ChatIn, request: Request):
             reader=_treasurer_reader(request),
         )
     except ValueError as exc:
-        raise _as_http(exc) from exc
+        raise _as_http(exc, lang=body.lang) from exc
 
 
 @router.get("/admin/llm-cascade-probe")

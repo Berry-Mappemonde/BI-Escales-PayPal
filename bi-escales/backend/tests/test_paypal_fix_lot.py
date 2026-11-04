@@ -306,7 +306,7 @@ def test_treasurer_chat_english_without_lang_param():
     client = TestClient(app)
     body = client.post(
         "/api/escales/captain/chat",
-        json={"message": "List PayPal transactions for the treasurer"},
+        json={"message": "List PayPal transactions for the treasurer", "lang": "en"},
         headers={"x-admin-key": "fix-admin", "Accept-Language": "fr-FR,fr;q=0.9"},
     ).json()
     assert body["model_source"] == "paypal_readonly_tools"

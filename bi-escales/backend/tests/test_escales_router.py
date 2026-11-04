@@ -796,7 +796,7 @@ def test_review_route_passes_the_app_language_query(api, monkeypatch):
         headers={"accept-language": "fr-FR,fr;q=0.9"},
     )
     assert default_en.status_code == 200
-    assert seen["lang"] == "en"
+    assert seen["lang"] == "fr"
     french = client.post(
         "/api/escales/captain/review/dakar",
         params={"lang": "fr"},
@@ -876,8 +876,8 @@ def test_pledge_defaults_to_mile_and_labels_the_simulated_price(api):
     assert body["milestone_id"] == "dep-la-rochelle"
     assert body["intent"] == "AUTHORIZE"
     assert body["status"] == "created"
-    assert body["price_label"] == "simulated price"
-    assert body["simulated_price"]["label"] == "simulated price"
+    assert body["price_label"] == "prix simulé"
+    assert body["simulated_price"]["label"] == "prix simulé"
     assert body["simulated_price"]["simulated"] is True
     assert body["simulated_price"]["amount_eur"] == "1.00"
     assert "capture" not in [call[0] for call in fake.calls]
@@ -898,7 +898,7 @@ def test_pledge_accepts_kind_and_target(api, monkeypatch):
     assert body["target_id"] == "dzaoudzi-mayotte"
     assert body["milestone_id"] == "dep-dzaoudzi-mayotte"
     assert body["simulated_price"]["amount_eur"] == "60.00"
-    assert body["simulated_price"]["label"] == "simulated price"
+    assert body["simulated_price"]["label"] == "prix simulé"
 
 
 def test_target_slug_must_be_known_for_a_stopover_kind(api, monkeypatch):
@@ -956,12 +956,12 @@ def test_prices_and_clock(api, monkeypatch):
     assert prices.status_code == 200
     catalogue = prices.json()
     assert catalogue["simulated"] is True
-    assert catalogue["label"] == "simulated price"
+    assert catalogue["label"] == "prix simulé"
     kinds = [row["kind"] for row in catalogue["prices"]]
     assert kinds == [
         "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "common_fund",
     ]
-    assert all(row["label"] == "simulated price" and row["simulated"] is True for row in catalogue["prices"])
+    assert all(row["label"] == "prix simulé" and row["simulated"] is True for row in catalogue["prices"])
     by_kind = {row["kind"]: row for row in catalogue["prices"]}
     assert by_kind["mile"]["amount_eur"] == "1.00"
     assert by_kind["berth"]["amount_eur"] == "30.00"
@@ -975,7 +975,7 @@ def test_prices_and_clock(api, monkeypatch):
     assert by_kind["mile"]["free_amount"] is False
     assert by_kind["mile"]["indicative"] is True
     assert catalogue["indicative"] is True
-    assert "indicative" in catalogue["note"].lower()
+    assert "indicatif" in catalogue["note"].lower()
     clock = client.get("/api/escales/clock")
     assert clock.status_code == 200
     assert clock.json()["start"] == "2026-11-12"
@@ -1218,7 +1218,7 @@ def test_schedule_local_fallback(api, monkeypatch):
     assert listed.status_code == 200
     listed_ids = [row["id"] for row in listed.json()]
     assert "dep-la-rochelle" in listed_ids
-    assert body["prices"]["label"] == "simulated price"
+    assert body["prices"]["label"] == "prix simulé"
     assert body["prices"]["simulated"] is True
 
 

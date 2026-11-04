@@ -48,18 +48,24 @@ def api(monkeypatch):
     llm.reset_llm_budget()
 
 
-def _chat(client, message, ip="203.0.113.10", accept_language=""):
+def _chat(client, message, ip="203.0.113.10", accept_language="", lang=None):
     headers = {"x-forwarded-for": ip}
     if accept_language:
         headers["accept-language"] = accept_language
-    return client.post("/api/escales/captain/chat", json={"message": message}, headers=headers)
+    payload = {"message": message}
+    if lang:
+        payload["lang"] = lang
+    return client.post("/api/escales/captain/chat", json=payload, headers=headers)
 
 
-def _review(client, ip="203.0.113.10", accept_language=""):
+def _review(client, ip="203.0.113.10", accept_language="", lang=None):
     headers = {"x-forwarded-for": ip}
     if accept_language:
         headers["accept-language"] = accept_language
-    return client.post("/api/escales/captain/review/dep-mayotte", headers=headers)
+    params = {}
+    if lang:
+        params["lang"] = lang
+    return client.post("/api/escales/captain/review/dep-mayotte", headers=headers, params=params)
 
 
 def test_limits_follow_production_unless_overridden(monkeypatch):
@@ -117,16 +123,16 @@ def test_production_minute_cap_is_localized(api, monkeypatch):
     blocked = _chat(api, FR, accept_language="en")
     assert blocked.status_code == 429
     assert blocked.json()["detail"] == "Trop de requêtes. Le capitaine accepte 2 par minute."
-    english = _review(api, ip="203.0.113.11", accept_language="en-GB,en;q=0.8")
+    english = _review(api, ip="203.0.113.11", accept_language="en-GB,en;q=0.8", lang="en")
     assert english.status_code == 200
-    assert _review(api, ip="203.0.113.11", accept_language="en-GB").status_code == 200
-    again = _review(api, ip="203.0.113.11", accept_language="en-GB,en;q=0.8")
+    assert _review(api, ip="203.0.113.11", accept_language="en-GB", lang="en").status_code == 200
+    again = _review(api, ip="203.0.113.11", accept_language="en-GB,en;q=0.8", lang="en")
     assert again.status_code == 429
     assert again.json()["detail"] == "Too many requests. The captain accepts 2 per minute."
-    chat_en = _chat(api, EN, ip="203.0.113.12")
+    chat_en = _chat(api, EN, ip="203.0.113.12", lang="en")
     assert chat_en.status_code == 200
-    assert _chat(api, EN, ip="203.0.113.12").status_code == 200
-    third = _chat(api, EN, ip="203.0.113.12", accept_language="fr")
+    assert _chat(api, EN, ip="203.0.113.12", lang="en").status_code == 200
+    third = _chat(api, EN, ip="203.0.113.12", accept_language="fr", lang="en")
     assert third.status_code == 429
     assert third.json()["detail"] == "Too many requests. The captain accepts 2 per minute."
 

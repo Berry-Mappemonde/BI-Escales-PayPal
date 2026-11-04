@@ -5,7 +5,21 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
+from .app_i18n import normalize_app_lang
 from .ledger import record_finance
+
+_INVOICE_DEFAULT_DESC = {
+    "en": "Escales partner invoice",
+    "fr": "Facture partenaire Escales",
+}
+_REMIND_SUBJECT = {
+    "en": "Reminder: Escales invoice",
+    "fr": "Rappel : facture Escales",
+}
+_REMIND_NOTE = {
+    "en": "Please complete payment.",
+    "fr": "Merci de finaliser le paiement.",
+}
 
 
 class InvoiceNotFound(LookupError):
@@ -30,12 +44,14 @@ async def create_partner_invoice(
     description: str,
     reference: str,
     invoice_number: Optional[str] = None,
+    lang: Optional[str] = None,
 ) -> dict:
+    app_lang = normalize_app_lang(lang)
     email = (recipient_email or "").strip()
     if not email or "@" not in email:
         raise ValueError("recipient_email is required")
     value = _amount(amount_eur)
-    desc = (description or "Escales partner invoice")[:127]
+    desc = (description or _INVOICE_DEFAULT_DESC[app_lang])[:127]
     ref = (reference or desc)[:127]
     payload = client.create_invoice(
         recipient_email=email,
@@ -43,6 +59,7 @@ async def create_partner_invoice(
         description=desc,
         reference=ref,
         invoice_number=invoice_number,
+        lang=app_lang,
     )
     invoice_id = str(payload.get("id") or payload.get("href", "").split("/")[-1] or "")
     await record_finance(
@@ -66,11 +83,16 @@ async def send_invoice(client: Any, invoice_id: str) -> dict:
     return result
 
 
-async def remind_invoice(client: Any, invoice_id: str) -> dict:
+async def remind_invoice(client: Any, invoice_id: str, *, lang: Optional[str] = None) -> dict:
     invoice_id = str(invoice_id or "").strip()
     if not invoice_id:
         raise ValueError("invoice_id is required")
-    result = client.remind_invoice(invoice_id)
+    app_lang = normalize_app_lang(lang)
+    result = client.remind_invoice(
+        invoice_id,
+        subject=_REMIND_SUBJECT[app_lang],
+        note=_REMIND_NOTE[app_lang],
+    )
     await record_finance("paypal_invoice_action", invoice_id=invoice_id, action="remind")
     return result
 

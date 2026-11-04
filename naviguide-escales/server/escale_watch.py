@@ -56,6 +56,11 @@ WATCH_SYSTEM = (
     "Aucun chiffre qui n'est pas déjà dans les extraits. "
     "Pas d'invention. Thinking OFF."
 )
+WATCH_SYSTEM_EN = (
+    "Summarize port watch findings in ONE sentence. "
+    "No numbers that are not already in the excerpts. "
+    "No invention. Thinking OFF."
+)
 ROUND2_SYSTEM = (
     "Lot TV1. Tu lis des extraits Tavily d'escale. "
     "Si une phrase d'avis, de travaux ou de fermeture est déjà possible, "
@@ -64,12 +69,35 @@ ROUND2_SYSTEM = (
     '(JSON {"question": "travaux"}). Jamais d\'id hors liste. '
     "Jamais de question inventée. Thinking OFF."
 )
+ROUND2_SYSTEM_EN = (
+    "TV1 batch. You read Tavily port excerpts. "
+    "If an advisory, works, or closure sentence is already supported, reply "
+    '{"question": null}. '
+    "If an answer is missing, pick ONE id from remaining "
+    '(JSON {"question": "travaux"}). Never pick an id outside the list. '
+    "Never invent a question. Thinking OFF."
+)
 ENRICH_SYSTEM = (
     "Tu extraits UNE phrase factuelle sur cette station ou ce projet, "
     "d'après l'extrait officiel seulement. "
     "Aucun chiffre qui n'est pas déjà dans l'extrait. "
     "Pas d'invention. Thinking OFF."
 )
+ENRICH_SYSTEM_EN = (
+    "Extract ONE factual sentence about this stop or project from the official excerpt only. "
+    "No numbers that are not already in the excerpt. "
+    "No invention. Thinking OFF."
+)
+
+def _watch_system(name: str, lang: str | None) -> str:
+    en = str(lang or "fr").lower().startswith("en")
+    table = {
+        "watch": WATCH_SYSTEM_EN if en else WATCH_SYSTEM,
+        "round2": ROUND2_SYSTEM_EN if en else ROUND2_SYSTEM,
+        "enrich": ENRICH_SYSTEM_EN if en else ENRICH_SYSTEM,
+    }
+    return table[name]
+
 
 # Domaines officiels connus (ports du voyage Berry). Sinon : pas de filtre.
 _KNOWN_DOMAINS: dict[str, tuple[str, ...]] = {
@@ -503,6 +531,7 @@ async def _summarize(
     fallback: str,
     *,
     client: httpx.AsyncClient | None,
+    lang: str = "fr",
 ) -> tuple[str, str]:
     if not llm_budget.allow("fast"):
         text, _ = filter_numbers(fallback, facts)
@@ -510,7 +539,7 @@ async def _summarize(
     try:
         text, source = await cascade_text(
             system, user, client, tier="fast", fallback=fallback or "",
-            facts=facts, max_tokens=80,
+            facts=facts, max_tokens=80, lang=lang,
         )
     except Exception as exc:
         log.debug("résumé veille/enrich : %s", exc)
@@ -643,6 +672,7 @@ async def decide_second_question(
     *,
     client: httpx.AsyncClient | None = None,
     cascade: Any = None,
+    lang: str = "fr",
 ) -> str | None:
     """Nano choisit un id de remaining, ou None. Hors liste → refusée."""
     left = [q for q in WATCH_QUESTION_IDS if q in {str(x) for x in remaining}]
@@ -657,7 +687,8 @@ async def decide_second_question(
     )
     try:
         text, _src = await fn(
-            ROUND2_SYSTEM, user, client, tier="nano", fallback="", facts=user, max_tokens=40,
+            _watch_system("round2", lang), user, client, tier="nano", fallback="", facts=user, max_tokens=40,
+            lang=lang,
         )
     except Exception as exc:
         log.debug("tour 2 veille : %s", exc)
@@ -689,6 +720,7 @@ async def watch_stop(
     include_domains: Iterable[str] | None = None,
     client: httpx.AsyncClient | None = None,
     cascade: Any = None,
+    lang: str = "fr",
 ) -> dict[str, Any] | None:
     """Veille d'une escale : deux tours max, questions de la liste, phrase + URL.
 
@@ -703,7 +735,7 @@ async def watch_stop(
         if watch_done(name) or not watch_enabled():
             return None
         return await _watch_stop_locked(
-            stop, now, include_domains=include_domains, client=client, cascade=cascade,
+            stop, now, include_domains=include_domains, client=client, cascade=cascade, lang=lang,
         )
 
 
@@ -714,6 +746,7 @@ async def _watch_stop_locked(
     include_domains: Iterable[str] | None,
     client: httpx.AsyncClient | None,
     cascade: Any,
+    lang: str = "fr",
 ) -> dict[str, Any] | None:
     name = str(stop.get("name") or "").strip()
     when = _utc(now)
@@ -747,7 +780,7 @@ async def _watch_stop_locked(
         if len(used) >= MAX_WATCH_ROUNDS or not remaining:
             break
         nxt = await decide_second_question(
-            all_results, remaining, client=client, cascade=cascade,
+            all_results, remaining, client=client, cascade=cascade, lang=lang,
         )
         qid = nxt
     results = all_results
@@ -768,7 +801,7 @@ async def _watch_stop_locked(
         "Une phrase, sans chiffre nouveau."
     )
     sentence, source = await _summarize(
-        WATCH_SYSTEM, user, facts, fallback, client=client,
+        _watch_system("watch", lang), user, facts, fallback, client=client, lang=lang,
     )
     if not sentence:
         return None
@@ -857,6 +890,7 @@ async def enrich_entity(
     *,
     client: httpx.AsyncClient | None = None,
     extract: bool = True,
+    lang: str = "fr",
 ) -> dict[str, Any] | None:
     """Phrase sourcée, une fois, cache définitif. Sans URL : rien."""
     url = enrich_key(item)
@@ -886,7 +920,7 @@ async def enrich_entity(
         "Une phrase sourcée, sans chiffre nouveau."
     )
     sentence, source = await _summarize(
-        ENRICH_SYSTEM, user, facts, fallback or "", client=client,
+        _watch_system("enrich", lang), user, facts, fallback or "", client=client, lang=lang,
     )
     if not sentence:
         return None

@@ -63,17 +63,12 @@ class P2Spy:
         self.calls.append(("send", invoice_id))
         return {"id": invoice_id}
 
-    def remind_invoice(self, invoice_id):
-        self.calls.append(("remind", invoice_id))
+    def remind_invoice(self, invoice_id, *, subject="", note=""):
+        self.calls.append(("remind", invoice_id, subject, note))
         return {"id": invoice_id}
 
-    def cancel_invoice(self, invoice_id):
-        self.calls.append(("cancel", invoice_id))
-        return {"id": invoice_id}
-
-    def create_billing_product(self, **kwargs):
-        self.calls.append(("product", kwargs.get("name")))
-        return {"id": "PROD-1"}
+    def iter_billing_product_pages(self):
+        yield self.list_billing_products()
 
     def list_billing_products(self, **kwargs):
         self.calls.append(("list_products", kwargs))
@@ -83,9 +78,19 @@ class P2Spy:
         self.calls.append(("list_plans", kwargs))
         return {"plans": []}
 
+    def create_billing_product(self, **kwargs):
+        self.calls.append(("product", kwargs.get("name")))
+        pid = f"PROD-{len([c for c in self.calls if c[0] == 'product'])}"
+        return {"id": pid}
+
     def create_billing_plan(self, **kwargs):
         self.calls.append(("plan", kwargs.get("product_id")))
-        return {"id": "PLAN-1"}
+        plan_id = f"PLAN-{len([c for c in self.calls if c[0] == 'plan'])}"
+        return {"id": plan_id}
+
+    def cancel_invoice(self, invoice_id):
+        self.calls.append(("cancel", invoice_id))
+        return {"id": invoice_id}
 
     def verify_webhook_signature(self, **kwargs):
         return {"verification_status": "SUCCESS"}
@@ -165,9 +170,11 @@ def test_subscription_setup_is_idempotent():
         spy = P2Spy()
         first = await ensure_crew_supporter_catalog(spy)
         second = await ensure_crew_supporter_catalog(spy)
-        assert first["plan_id"] == "PLAN-1"
+        assert first["plan_id_en"]
+        assert first["plan_id_fr"]
         assert second["idempotent"] is True
         assert spy.calls.count(("product", "Crew supporter")) == 1
+        assert spy.calls.count(("product", "Soutien d'équipage")) == 1
 
     asyncio.run(run())
 

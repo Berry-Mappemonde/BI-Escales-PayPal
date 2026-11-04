@@ -106,7 +106,7 @@ def test_n24_public_plan_route_is_read_only_and_paginates_products():
         app = FastAPI()
         app.include_router(router)
         client = TestClient(app)
-        body = client.get("/api/escales/paypal/subscriptions/plan").json()
+        body = client.get("/api/escales/paypal/subscriptions/plan", params={"lang": "en"}).json()
         assert body.get("plan_id") == "PLAN-CREW"
         assert spy.create_product_calls == 0
         assert spy.pages_seen == [1, 2]

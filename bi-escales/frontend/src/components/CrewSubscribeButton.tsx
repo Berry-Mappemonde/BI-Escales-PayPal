@@ -13,6 +13,7 @@ const PLAN_LOAD_TIMEOUT_MS = 20_000;
 
 export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscribeButtonProps) {
   const { t, i18n } = useTranslation();
+  const appLang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const host = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -35,7 +36,7 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
         setError(t("pledge.crewSubscribePlanTimeout"));
       }
     }, PLAN_LOAD_TIMEOUT_MS);
-    void fetchCrewSupporterPlan()
+    void fetchCrewSupporterPlan(appLang)
       .then((body) => {
         if (cancelled) return;
         const id = String(body.plan_id || "").trim();
@@ -58,7 +59,7 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [planId, t]);
+  }, [planId, t, appLang]);
 
   useEffect(() => {
     return subscribeCrewSubscribeReturn(() => {
@@ -72,7 +73,7 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
     const clientId = String(import.meta.env.VITE_PAYPAL_CLIENT_ID ?? "").trim();
     if (!clientId || !planId.trim()) return;
     let cancelled = false;
-    void loadPayPalSubscriptionSdk(clientId)
+    void loadPayPalSubscriptionSdk(clientId, appLang)
       .then(() => {
         if (!cancelled) setReady(true);
       })
@@ -82,7 +83,7 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
     return () => {
       cancelled = true;
     };
-  }, [planId]);
+  }, [planId, appLang]);
 
   useEffect(() => {
     if (!ready || !host.current || !window.paypal?.Buttons || !planId.trim()) return;

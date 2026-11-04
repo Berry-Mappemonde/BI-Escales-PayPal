@@ -55,6 +55,7 @@ DISTANCE_CAP_RATIO = 1.20
 JALON_STEP_NM = 180.0
 GC_STEP_NM = 30.0
 CORRIDOR_LABEL_FR = {"reference": "référence", "north": "nord", "south": "sud"}
+CORRIDOR_LABEL_EN = {"reference": "reference", "north": "north", "south": "south"}
 MONTHS_FR = (
     "", "janvier", "février", "mars", "avril", "mai", "juin",
     "juillet", "août", "septembre", "octobre", "novembre", "décembre",
@@ -510,29 +511,58 @@ def advice_sentence(
     alerts_after: int,
     extra_nm: float,
     corridor: str = CORRIDOR_REFERENCE,
+    lang: str = "fr",
 ) -> str:
     """Phrase gabarit : jambe, décalage, corridor, alertes avant/après, cascade. Nombres ⊂ facts."""
+    en = str(lang or "fr").lower().startswith("en")
+    corridor_labels = CORRIDOR_LABEL_EN if en else CORRIDOR_LABEL_FR
     via = ""
     if corridor in ("north", "south"):
-        via = f" par le corridor {CORRIDOR_LABEL_FR[corridor]}"
+        label = corridor_labels[corridor]
+        via = f" via the {label} corridor" if en else f" par le corridor {label}"
     if int(days) == 0:
-        head = f"Rester au départ de {frm} le {_day_fr(depart_was)}{via}"
+        if en:
+            head = f"Stay at {frm} on {_day_fr(depart_was)}{via}"
+        else:
+            head = f"Rester au départ de {frm} le {_day_fr(depart_was)}{via}"
     else:
-        head = f"Partir de {frm} le {_day_fr(depart_now)} plutôt que le {_day_fr(depart_was)}{via}"
+        if en:
+            head = (
+                f"Leave {frm} on {_day_fr(depart_now)} instead of {_day_fr(depart_was)}{via}"
+            )
+        else:
+            head = f"Partir de {frm} le {_day_fr(depart_now)} plutôt que le {_day_fr(depart_was)}{via}"
     if int(alerts_before) == int(alerts_after):
-        mid = f"{int(alerts_after)} alertes sur cette jambe"
+        mid = (
+            f"{int(alerts_after)} alerts on this leg"
+            if en
+            else f"{int(alerts_after)} alertes sur cette jambe"
+        )
     else:
-        mid = f"{int(alerts_after)} alertes au lieu de {int(alerts_before)} sur cette jambe"
+        if en:
+            mid = (
+                f"{int(alerts_after)} alerts instead of {int(alerts_before)} on this leg"
+            )
+        else:
+            mid = f"{int(alerts_after)} alertes au lieu de {int(alerts_before)} sur cette jambe"
     extra = int(round(float(extra_nm)))
     if extra:
         mid += f" (+{extra} nm)"
     abs_d = abs(int(days))
     if int(days) > 0:
-        tail = f"toutes les escales suivantes reculent de {abs_d} jours"
+        tail = (
+            f"all following stops slip by {abs_d} days"
+            if en
+            else f"toutes les escales suivantes reculent de {abs_d} jours"
+        )
     elif int(days) < 0:
-        tail = f"toutes les escales suivantes avancent de {abs_d} jours"
+        tail = (
+            f"all following stops move up by {abs_d} days"
+            if en
+            else f"toutes les escales suivantes avancent de {abs_d} jours"
+        )
     else:
-        tail = "aucun décalage des escales suivantes"
+        tail = "no shift of following stops" if en else "aucun décalage des escales suivantes"
     return f"{head} : {mid} ; {tail}."
 
 
@@ -555,6 +585,7 @@ def _pack_candidate(
     days: int,
     extra_nm: float,
     corridor: str = CORRIDOR_REFERENCE,
+    lang: str = "fr",
 ) -> dict:
     legs = src.get("legs") or []
     chosen = legs[leg_idx]
@@ -577,6 +608,7 @@ def _pack_candidate(
         frm=frm, days=days, depart_was=depart_was, depart_now=depart_now,
         alerts_before=alerts_before, alerts_after=alerts_after, extra_nm=extra_nm,
         corridor=corridor,
+        lang=lang,
     )
     return {
         "shiftDays": int(days),
@@ -604,6 +636,7 @@ def advise(
     polar_raw: dict | None = None,
     wind_max_kt: float | None = None,
     hs_max_m: float | None = None,
+    lang: str = "fr",
 ) -> dict:
     """Meilleur décalage × corridor + 3 alternatives. Déterministe, sans LLM."""
     src = prepare_plan(plan, now=now)
@@ -643,11 +676,13 @@ def advise(
             packed.append(_pack_candidate(
                 src=src, shifted=shifted_c, evaluated=evaluated, baseline=baseline,
                 leg_idx=int(leg_idx), days=int(days), extra_nm=extra_nm, corridor=corridor,
+                lang=lang,
             ))
     if not packed:
         packed.append(_pack_candidate(
             src=src, shifted=src, evaluated=baseline, baseline=baseline,
             leg_idx=int(leg_idx), days=0, extra_nm=0.0, corridor=CORRIDOR_REFERENCE,
+            lang=lang,
         ))
     packed.sort(key=lambda c: (
         c["score"], abs(c["shiftDays"]), c["extraNm"],

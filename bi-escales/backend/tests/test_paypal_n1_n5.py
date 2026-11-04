@@ -1,4 +1,4 @@
-"""Follow-up lot N1–N5: subscription upsert, draft invoice delete, Pay Later scope, chat tools, crew plan."""
+"""Follow-up lot N1–N7: subscription upsert, draft invoice delete, Pay Later scope, chat tools, crew plan."""
 from __future__ import annotations
 
 import asyncio
@@ -14,7 +14,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.escales.paypal_client import PayPalError
 from app.escales.paypal_reconcile import reconcile_paypal_ledger
-from app.escales.paypal_subscriptions import ensure_crew_supporter_catalog, list_subscriptions_local
+from app.escales.paypal_subscriptions import (
+    ensure_crew_supporter_catalog,
+    list_subscriptions_local,
+)
 from app.escales.pledges import reset_ledger
 from app.escales.webhooks import verify_and_process
 from app.routers.escales import router, set_paypal_client_factory
@@ -36,6 +39,21 @@ class NSpy:
     def verify_webhook_signature(self, **kwargs):
         return {"verification_status": "SUCCESS"}
 
+    def get_order(self, order_id):
+        return {"id": order_id}
+
+    def get_authorization(self, auth_id):
+        return {"id": auth_id}
+
+    def list_disputes(self, **kwargs):
+        return {"items": []}
+
+    def search_transactions(self, **kwargs):
+        return {"transaction_details": []}
+
+    def list_invoices(self, **kwargs):
+        return {"items": []}
+
     def delete_invoice(self, invoice_id):
         return {"id": invoice_id, "status": "DELETED"}
 
@@ -53,6 +71,22 @@ class NSpy:
 
     def create_billing_plan(self, **kwargs):
         return {"id": "PLAN-N"}
+
+    def create_billing_subscription(self, **kwargs):
+        return {
+            "id": "I-BUYER-1",
+            "status": "APPROVAL_PENDING",
+            "plan_id": kwargs.get("plan_id"),
+            "links": [{"rel": "approve", "href": "https://www.sandbox.paypal.com/agreements/approve?token=I-BUYER-1"}],
+        }
+
+    def get_subscription(self, subscription_id):
+        return {
+            "id": subscription_id,
+            "plan_id": "PLAN-N",
+            "status": "ACTIVE",
+            "subscriber": {"email_address": "buyer@example.com"},
+        }
 
 
 def _webhook_headers(transmission_id: str) -> dict:
@@ -201,3 +235,51 @@ def test_reconcile_reports_searched_window():
         assert report["searched_start_date"] != report["requested_start_date"]
 
     asyncio.run(run())
+
+
+def test_n6_create_subscription_route_and_public_approve():
+    async def run():
+        spy = NSpy()
+        set_paypal_client_factory(lambda: spy)
+        app = FastAPI()
+        app.include_router(router)
+        client = TestClient(app)
+        created = client.post(
+            "/api/escales/paypal/subscriptions/create",
+            json={
+                "return_url": "https://app.example/return",
+                "cancel_url": "https://app.example/cancel",
+            },
+        )
+        assert created.status_code == 200
+        body = created.json()
+        assert body["plan_id"] == "PLAN-N"
+        assert body["subscription_id"] == "I-BUYER-1"
+        assert "approve" in str(body.get("approve_link") or "")
+        approved = client.post(
+            "/api/escales/paypal/subscriptions/approve",
+            json={"subscription_id": "I-BUYER-1", "plan_id": "PLAN-N"},
+        )
+        assert approved.status_code == 200
+        rows = await list_subscriptions_local()
+        assert len(rows) == 1
+        assert rows[0]["subscription_id"] == "I-BUYER-1"
+        assert rows[0]["status"] == "ACTIVE"
+
+    asyncio.run(run())
+
+
+def test_n7_treasurer_chat_compose_path_english_without_lang():
+    spy = NSpy()
+    set_paypal_client_factory(lambda: spy)
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+    body = client.post(
+        "/api/escales/captain/chat",
+        json={"message": "Should the treasurer void this PayPal authorization?"},
+        headers={"x-admin-key": "n-admin", "Accept-Language": "fr-FR,fr;q=0.9"},
+    ).json()
+    assert body.get("model_source") != "paypal_readonly_tools"
+    assert "treasurer review" in body["reply"]
+    assert "Cette question relève" not in body["reply"]

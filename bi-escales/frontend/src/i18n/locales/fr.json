@@ -107,7 +107,8 @@
     "vaultCancelled": "Enregistrement Vault annulé. Rien n’a été enregistré.",
     "venmoNote": "PayPal ou carte (EUR). Venmo indisponible — USD uniquement.",
     "error": "Erreur promesse",
-    "crewSubscribeHint": "Abonnement mensuel Équipage (EUR, sandbox)."
+    "crewSubscribeHint": "Abonnement mensuel Équipage (EUR, sandbox).",
+    "crewSubscribeSaved": "Abonnement Équipage enregistré. Merci."
   },
   "treasurer": {
     "heading": "File trésorier",

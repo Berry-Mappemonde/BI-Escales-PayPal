@@ -561,6 +561,31 @@ class PayPalClient:
     def get_subscription(self, subscription_id: str) -> dict:
         return self._req("GET", f"/v1/billing/subscriptions/{subscription_id}")
 
+    def create_billing_subscription(
+        self,
+        *,
+        plan_id: str,
+        return_url: str,
+        cancel_url: str,
+        idempotency_key: str,
+    ) -> dict:
+        body = {
+            "plan_id": plan_id,
+            "application_context": {
+                "brand_name": "BI Escales",
+                "shipping_preference": "NO_SHIPPING",
+                "user_action": "SUBSCRIBE_NOW",
+                "return_url": return_url,
+                "cancel_url": cancel_url,
+            },
+        }
+        return self._req(
+            "POST",
+            "/v1/billing/subscriptions",
+            body,
+            idempotency_key=idempotency_key,
+        )
+
     def refund_capture(
         self,
         capture_id: str,

@@ -70,7 +70,7 @@ _EN_HINT = re.compile(
     r"\b(?:i|i'd|i’m|i'm|would|like|sponsor|please|the|near|miles?|nautical|dinner|and"
     r"|my|you|your|will|is|are|was|old|days?|authorization|it|this"
     r"|how|much|price|cost|costs|cabin|show|me|what|we|have|our|paypal|transactions?"
-    r"|disputes?|invoices?|treasurer)\b",
+    r"|disputes?|invoices?|treasurer|should|void|cancel)\b",
     re.IGNORECASE,
 )
 _FR_HINT = re.compile(
@@ -538,10 +538,11 @@ def resolve_chat_lang(
         return "en"
     if fr > en:
         return "fr"
-    token = (accept_language or "").split(",")[0].split(";")[0].strip()
-    header = _forced_lang(token)
-    if header:
-        return header
+    if en == fr == 0:
+        token = (accept_language or "").split(",")[0].split(";")[0].strip()
+        header = _forced_lang(token)
+        if header:
+            return header
     return message_lang(message)
 
 

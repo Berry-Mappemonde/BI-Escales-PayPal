@@ -61,6 +61,67 @@ async def public_crew_supporter_plan_id() -> Optional[str]:
     return plan_id or None
 
 
+def _subscription_approve_link(payload: dict) -> Optional[str]:
+    for link in payload.get("links") or []:
+        if not isinstance(link, dict):
+            continue
+        if str(link.get("rel") or "").lower() == "approve":
+            href = str(link.get("href") or "").strip()
+            if href:
+                return href
+    return None
+
+
+async def create_crew_subscription(
+    client: Any,
+    *,
+    return_url: str,
+    cancel_url: str,
+) -> dict:
+    """Public buyer checkout: ensure catalog + create PayPal subscription."""
+    catalog = await ensure_crew_supporter_catalog(client)
+    plan_id = str(catalog.get("plan_id") or "")
+    if not plan_id:
+        raise ValueError("crew supporter plan is not configured")
+    payload = client.create_billing_subscription(
+        plan_id=plan_id,
+        return_url=return_url,
+        cancel_url=cancel_url,
+        idempotency_key=paypal_request_id(f"{CREW_SETUP_KEY}:{return_url}", "sub-create"),
+    )
+    subscription_id = str(payload.get("id") or "")
+    return {
+        "product_id": catalog.get("product_id"),
+        "plan_id": plan_id,
+        "subscription_id": subscription_id,
+        "approve_link": _subscription_approve_link(payload),
+        "status": payload.get("status"),
+    }
+
+
+async def approve_crew_subscription(
+    client: Any,
+    *,
+    subscription_id: str,
+    plan_id: str,
+) -> dict:
+    """Record a buyer subscription after PayPal approval (verified read)."""
+    sub_id = str(subscription_id or "").strip()
+    if not sub_id:
+        raise ValueError("subscription_id is required")
+    remote = client.get_subscription(sub_id)
+    remote_plan = str(remote.get("plan_id") or plan_id or "").strip()
+    status = str(remote.get("status") or "ACTIVE")
+    subscriber = remote.get("subscriber") if isinstance(remote.get("subscriber"), dict) else {}
+    email = subscriber.get("email_address") if isinstance(subscriber, dict) else None
+    return await record_subscription(
+        subscription_id=sub_id,
+        plan_id=remote_plan or plan_id,
+        status=status,
+        subscriber_email=str(email) if email else None,
+    )
+
+
 async def record_subscription(
     *,
     subscription_id: str,

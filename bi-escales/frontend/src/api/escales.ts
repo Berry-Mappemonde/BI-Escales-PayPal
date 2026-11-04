@@ -304,6 +304,44 @@ export async function setupCrewSubscription(adminKey: string): Promise<{
   return res.json();
 }
 
+export async function createCrewSubscriptionCheckout(body?: {
+  return_url?: string;
+  cancel_url?: string;
+}): Promise<{
+  plan_id: string;
+  subscription_id?: string;
+  approve_link?: string | null;
+  product_id?: string;
+  status?: string;
+}> {
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://example.com";
+  const path = typeof window !== "undefined" ? window.location.pathname : "/";
+  const payload = {
+    return_url: body?.return_url ?? `${origin}${path}#crew-subscribe=return`,
+    cancel_url: body?.cancel_url ?? `${origin}${path}#crew-subscribe=cancel`,
+  };
+  const res = await fetch(url("/api/escales/paypal/subscriptions/create"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function approveCrewSubscription(body: {
+  subscription_id: string;
+  plan_id: string;
+}): Promise<Record<string, unknown>> {
+  const res = await fetch(url("/api/escales/paypal/subscriptions/approve"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
 export async function recordSubscription(
   adminKey: string,
   body: { subscription_id: string; plan_id: string; status?: string; subscriber_email?: string },

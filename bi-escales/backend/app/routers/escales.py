@@ -73,6 +73,8 @@ from app.escales.paypal_invoicing import (
 from app.escales.paypal_p2_eligibility import PAY_LATER_UI_MIN_EUR, p2_eligibility_report
 from app.escales.paypal_reconcile import reconcile_paypal_ledger
 from app.escales.paypal_subscriptions import (
+    approve_crew_subscription,
+    create_crew_subscription,
     ensure_crew_supporter_catalog,
     list_subscriptions_local,
     public_crew_supporter_plan_id,
@@ -227,6 +229,16 @@ class SubscriptionRecordIn(BaseModel):
     plan_id: str
     status: str = "ACTIVE"
     subscriber_email: Optional[str] = None
+
+
+class SubscriptionCreateIn(BaseModel):
+    return_url: str = Field(default="https://example.com/crew/subscribe/return")
+    cancel_url: str = Field(default="https://example.com/crew/subscribe/cancel")
+
+
+class SubscriptionApproveIn(BaseModel):
+    subscription_id: str
+    plan_id: str
 
 
 def _paypal() -> Any:
@@ -699,6 +711,19 @@ async def post_subscription_setup(request: Request):
         raise _as_http(exc) from exc
 
 
+@router.post("/paypal/subscriptions/create")
+async def post_subscription_create(body: SubscriptionCreateIn):
+    """Buyer checkout: catalog + PayPal subscription (public)."""
+    try:
+        return await create_crew_subscription(
+            _paypal(),
+            return_url=body.return_url.strip(),
+            cancel_url=body.cancel_url.strip(),
+        )
+    except (PayPalError, ValueError) as exc:
+        raise _as_http(exc) from exc
+
+
 @router.get("/paypal/subscriptions")
 async def get_paypal_subscriptions(request: Request):
     _require_treasurer(request)
@@ -716,6 +741,19 @@ async def post_subscription_record(body: SubscriptionRecordIn, request: Request)
             subscriber_email=body.subscriber_email,
         )
     except ValueError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.post("/paypal/subscriptions/approve")
+async def post_subscription_approve(body: SubscriptionApproveIn):
+    """Record buyer subscription after SDK approval (public)."""
+    try:
+        return await approve_crew_subscription(
+            _paypal(),
+            subscription_id=body.subscription_id,
+            plan_id=body.plan_id,
+        )
+    except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
 
 

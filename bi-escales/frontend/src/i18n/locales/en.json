@@ -107,7 +107,8 @@
     "vaultCancelled": "Vault setup cancelled. Nothing was saved.",
     "venmoNote": "PayPal wallet or card (EUR). Venmo is not available — USD only.",
     "error": "Pledge error",
-    "crewSubscribeHint": "Monthly Crew supporter subscription (EUR, sandbox)."
+    "crewSubscribeHint": "Monthly Crew supporter subscription (EUR, sandbox).",
+    "crewSubscribeSaved": "Crew supporter subscription recorded. Thank you."
   },
   "treasurer": {
     "heading": "Treasurer queue",

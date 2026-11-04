@@ -2435,7 +2435,7 @@ def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
         assert "12,00" not in asked["reply"]
         assert "12.00" not in asked["reply"]
         assert "20,00" not in asked["reply"]
-        assert "Seul le trésorier peut les voir." in asked["reply"]
+        assert "Seul le trésorier peut voir les totaux de cette caisse." in asked["reply"]
         assert asked["model_source"] == {"provider": "rules", "model": ""}
         assert "— Le capitaine" in asked["reply"]
         opened = await chat("Quel est le solde du fonds commun ?", treasurer=True)
@@ -2453,14 +2453,14 @@ def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
         assert project["cart"] is None
         assert project["fund"] is None
         assert "Which escale" not in project["reply"]
-        assert "Only the treasurer can see them." in project["reply"]
+        assert "Only the treasurer can see this fund's totals." in project["reply"]
         assert "0.00" not in project["reply"]
         assert "EUR" not in project["reply"]
         assert project["model_source"] == {"provider": "rules", "model": ""}
         english = await chat("What is the common fund balance?")
         assert english["fund"] is None
         assert "12.00" not in english["reply"]
-        assert "Only the treasurer can see them." in english["reply"]
+        assert "Only the treasurer can see this fund's totals." in english["reply"]
         assert english["model_source"] == {"provider": "rules", "model": ""}
         gift = await chat("15 euros au fonds commun")
         assert gift["suggested_pledge"]["kind"] == "common_fund"

@@ -858,7 +858,7 @@ def test_public_chat_withholds_project_and_common_fund_totals(api):
     )
     assert project.status_code == 200, project.text
     assert project.json()["fund"] is None
-    assert "Only the treasurer can see them." in project.json()["reply"]
+    assert "Only the treasurer can see this fund's totals." in project.json()["reply"]
     assert "15.00" not in project.text
     assert "15,00" not in project.text
     assert "income_eur" not in project.text
@@ -868,7 +868,7 @@ def test_public_chat_withholds_project_and_common_fund_totals(api):
     )
     assert boat.status_code == 200, boat.text
     assert boat.json()["fund"] is None
-    assert "Seul le trésorier peut les voir." in boat.json()["reply"]
+    assert "Seul le trésorier peut voir les totaux de cette caisse." in boat.json()["reply"]
     assert "12.00" not in boat.text
     assert "12,00" not in boat.text
     wrong = client.post(

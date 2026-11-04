@@ -1957,8 +1957,8 @@ def _compose_fund_reply(prose: str, lang: str) -> str:
 def _hidden_fund_reply(lang: str) -> str:
     """Project and boat-fund totals stay with the treasurer."""
     if lang == "en":
-        return "Only the treasurer can see them."
-    return "Seul le trésorier peut les voir."
+        return "Only the treasurer can see this fund's totals."
+    return "Seul le trésorier peut voir les totaux de cette caisse."
 
 
 async def _answer_fund(

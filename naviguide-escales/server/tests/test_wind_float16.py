@@ -30,11 +30,7 @@ import numpy as np
 os.environ.setdefault("MONGO_URL", "mongodb://127.0.0.1:27017")
 os.environ.setdefault("DB_NAME", "bi_test_wind_float16")
 
-BACKEND = Path(__file__).resolve().parents[3] / "backend"
-if str(BACKEND) not in sys.path:
-    sys.path.insert(0, str(BACKEND))
-
-from app.services import climatology_wind as wind_mod  # noqa: E402
+import climatology_wind as wind_mod  # noqa: E402
 
 from climatology_atlas import rose_speed_percentiles  # noqa: E402
 from isochrone import haversine, run_leg_isochrone  # noqa: E402

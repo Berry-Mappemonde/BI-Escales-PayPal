@@ -17,7 +17,8 @@ export function EscalesPanel({
   onSuggested,
   onAuthorized,
 }: EscalesPanelProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const [chatMessage, setChatMessage] = useState("20 milles près de Mayotte");
   const [chatResult, setChatResult] = useState<CaptainChatResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -28,7 +29,7 @@ export function EscalesPanel({
     setBusy(true);
     setError(null);
     try {
-      const res = await captainChat(chatMessage);
+      const res = await captainChat(chatMessage, lang);
       setChatResult(res);
       if (res.suggested_pledge) {
         onSuggested?.(res.suggested_pledge);

@@ -67,11 +67,13 @@ _CHAT_MAX_TOKENS = 400
 
 _EN_HINT = re.compile(
     r"\b(?:i|i'd|i’m|i'm|would|like|sponsor|please|the|near|miles?|nautical|dinner|and"
-    r"|my|you|your|will|is|are|was|old|days?|authorization|it|this)\b",
+    r"|my|you|your|will|is|are|was|old|days?|authorization|it|this"
+    r"|how|much|price|cost|costs|cabin)\b",
     re.IGNORECASE,
 )
 _FR_HINT = re.compile(
-    r"\b(?:je|j'|voudrais|parrain\w*|milles?|près|pres|pour|dîner|diner|une|des|autorisation|est-ce)\b",
+    r"\b(?:je|j'|voudrais|parrain\w*|milles?|près|pres|pour|dîner|diner|une|des|autorisation|est-ce"
+    r"|combien|co[uû]te|prix|cabine)\b",
     re.IGNORECASE,
 )
 _TREASURER_Q = re.compile(
@@ -82,8 +84,13 @@ _TREASURER_Q = re.compile(
 _CAPTURE_RULE_Q = re.compile(
     r"\bwhen\b.{0,80}\bcaptur"
     r"|\bquand\b.{0,80}\bcaptur"
-    r"|\bwhen\b.{0,40}\bmoney\b.{0,40}\b(?:taken|charged)"
-    r"|\bquand\b.{0,40}\bargent\b.{0,40}\b(?:pr[ée]lev|encaiss)",
+    r"|\bwhen\b.{0,40}\bmoney\b.{0,40}\b(?:taken|charged|captured)"
+    r"|\bwill\b.{0,60}\bmoney\b.{0,40}\b(?:taken|charged|captured)"
+    r"|\bmoney\b.{0,40}\b(?:taken|captured)\b.{0,40}\bdeparture"
+    r"|\bquand\b.{0,40}\bargent\b.{0,40}\b(?:pr[ée]lev|encaiss|pris)"
+    r"|\bargent\b.{0,50}\b(?:pris|pr[ée]lev|encaiss).{0,40}\bd[ée]part"
+    r"|\bmon argent\b.{0,40}\bd[ée]part"
+    r"|\bmy money\b.{0,40}\bdeparture",
     re.IGNORECASE | re.DOTALL,
 )
 _STATUS_Q = re.compile(
@@ -263,21 +270,24 @@ def _is_capture_rule_question(message: str) -> bool:
     return bool(_CAPTURE_RULE_Q.search(text))
 
 
-def _capture_rule_reply(lang: str) -> str:
-    """The public rule. It does not send the reader only to the treasurer."""
+def _public_rule(lang: str) -> str:
+    """Authorize near departure, capture that day, void if the stopover is cancelled."""
     if lang == "en":
-        prose = (
+        return (
             "A pledge is authorized as close to departure as possible. "
             "The money is captured on the departure day. "
             "If the stopover is cancelled, the authorization is voided."
         )
-    else:
-        prose = (
-            "Une promesse est autorisée au plus près du départ. "
-            "L'argent est capturé le jour du départ. "
-            "Si l'escale est annulée, l'autorisation est annulée."
-        )
-    return _fit_words("", [prose, _signature(lang)])
+    return (
+        "Une promesse est autorisée au plus près du départ. "
+        "L'argent est capturé le jour du départ. "
+        "Si l'escale est annulée, l'autorisation est annulée."
+    )
+
+
+def _capture_rule_reply(lang: str) -> str:
+    """The public rule. It does not send the reader only to the treasurer."""
+    return _fit_words("", [_public_rule(lang), _signature(lang)])
 
 
 def _is_treasurer_question(message: str) -> bool:
@@ -464,20 +474,68 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
     return text
 
 
-def _chat_system(lang: str) -> str:
-    language = "English" if lang == "en" else "French"
+def _chat_system_en() -> str:
     return (
-        f"You are the Blue Intelligence Escales captain. Reply in {language}. "
-        "Repeat the computed pledge exactly: amount, currency, description, milestone and intent. "
+        "You are the Blue Intelligence Escales captain. Reply in English only. "
+        "Repeat the computed pledge exactly: amount, currency, description, stopover and intent. "
         "Do not propose to take or release money. Do not create an order. Do not invent a price. "
-        "State only facts present in the JSON: the stopover, its dates, the fund, and the computed pledge. "
+        "State only facts present in the JSON: the stopover, the fund, and the computed pledge. "
+        "Do not invent a date. Do not write a date. The code appends the schedule dates. "
         "If a fact is absent, say you do not know. Do not describe the place. "
-        "If the message asks whether money will be taken or released, say that only the treasurer review decides. "
+        "A pledge is authorized as close to departure as possible. "
+        "The money is captured on the departure day. "
+        "If the stopover is cancelled, the authorization is voided. "
+        "Do not send the reader to the treasurer for that rule. "
         "Mention membership only by repeating the HelloAsso URL you were given. "
         "If no URL was given, do not mention membership and do not write any URL. "
         "Write complete sentences and never stop mid-sentence. "
         "Sign once, and do not repeat your name. At most 80 words."
     )
+
+
+def _chat_system_fr() -> str:
+    return (
+        "Tu es le capitaine de Blue Intelligence Escales. Réponds uniquement en français. "
+        "Répète la promesse calculée telle quelle : montant, devise, description et escale. "
+        "Ne propose pas de prendre ou de libérer l'argent. Ne crée pas d'ordre. N'invente pas de prix. "
+        "Énonce seulement les faits présents dans le JSON : l'escale, la caisse et la promesse calculée. "
+        "N'invente pas de date. N'écris aucune date. Le code ajoute les dates de l'escale. "
+        "Si un fait manque, dis que tu ne sais pas. Ne décris pas le lieu. "
+        "Une promesse est autorisée au plus près du départ. "
+        "L'argent est capturé le jour du départ. "
+        "Si l'escale est annulée, l'autorisation est annulée. "
+        "N'envoie pas le lecteur vers le trésorier pour cette règle. "
+        "Mentionne l'adhésion seulement en répétant l'URL HelloAsso qu'on t'a donnée. "
+        "Sans URL, ne parle pas d'adhésion et n'écris aucune URL. "
+        "Écris des phrases complètes et ne t'arrête jamais au milieu d'une phrase. "
+        "Signe une seule fois, sans répéter ton nom. Au plus 80 mots."
+    )
+
+
+def _chat_system(lang: str) -> str:
+    if lang == "en":
+        return _chat_system_en()
+    if lang == "fr":
+        return _chat_system_fr()
+    return _chat_system_en()
+
+
+def resolve_chat_lang(
+    message: str,
+    requested: Optional[str] = None,
+    accept_language: str = "",
+) -> str:
+    """App language wins. Then Accept-Language. Then the message. Unknown is English."""
+    if (requested or "").strip():
+        return _forced_lang(requested) or "en"
+    token = (accept_language or "").split(",")[0].split(";")[0].strip()
+    header = _forced_lang(token)
+    if header:
+        return header
+    detected = message_lang(message)
+    if detected in {"fr", "en"}:
+        return detected
+    return "en"
 
 
 # A distorted spelling maps onto a slug from the display table.
@@ -713,6 +771,14 @@ def _covered_miles_sentence(evidence: dict, lang: str = "fr") -> str:
 
 _TREASURER_DECIDES = "Seul le trésorier décide si l'argent est prélevé ou libéré."
 _TREASURER_RULES_EN = "Only the treasurer decides whether the money is captured or released."
+# The model still writes this. Ordinary replies use the public capture rule instead.
+_TREASURER_ONLY = re.compile(
+    r"only the treasurer decides"
+    r"|the treasurer (?:will |must )?decides?"
+    r"|seul le tr[ée]sorier d[ée]cide"
+    r"|(?:le\s+)?tr[ée]sorier\s+(?:doit\s+|va\s+)?(?:d[ée]cid|tranch)",
+    re.IGNORECASE,
+)
 # A model claim that money will move. The rules text replaces that reply.
 _CHARGE_CLAIM = re.compile(
     r"s(?:era(?:it|s|ient)?|erez|erons|eront)\s+d[ée]bit"
@@ -1022,8 +1088,16 @@ def _french_lightning_labels(text: str) -> str:
 
 
 def _french_labels(text: str) -> str:
-    """French replies say jalon and intention, for the main model and for Lightning."""
-    return _french_lightning_labels(text)
+    """French replies say jalon, escale and étape, for the main model and for Lightning."""
+    cleaned = _french_lightning_labels(text)
+    cleaned = re.sub(r"\bstopovers?\b", "escale", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\blegs?\b", "étape", cleaned, flags=re.IGNORECASE)
+    return cleaned
+
+
+def _english_labels(text: str) -> str:
+    """English replies say stopover. The project name Escales stays."""
+    return re.sub(r"\bescale\b", "stopover", text or "", flags=re.IGNORECASE)
 
 
 def _fix_port_typos(text: str, milestone_id: str = "") -> str:
@@ -1120,7 +1194,6 @@ def _fix_french_vocabulary(text: str) -> str:
     """One treasurer sentence. Refunds and the feminine title do not stay."""
     cleaned = re.sub(r"€\s*en\s+euros\b", "€", text or "", flags=re.IGNORECASE)
     kept: list[str] = []
-    said = False
     for sentence in _split_sentences(cleaned):
         if re.search(r"remboursement|trésorière", sentence, re.IGNORECASE):
             continue
@@ -1130,9 +1203,6 @@ def _fix_french_vocabulary(text: str) -> str:
             re.IGNORECASE,
         )
         if decides:
-            if not said:
-                kept.append(_TREASURER_DECIDES)
-                said = True
             continue
         kept.append(sentence)
     return " ".join(kept).strip()
@@ -1370,7 +1440,8 @@ def _compose_chat_reply(
 ) -> str:
     """Pledge repeated exactly, one signature, at most 80 words.
 
-    French replies always end with the treasurer sentence from this module.
+    Ordinary replies end with the public capture rule.
+    A question about one authorization still belongs to the treasurer review.
     A charge claim is dropped and the rules text is used instead.
     """
     if not suggested:
@@ -1379,17 +1450,17 @@ def _compose_chat_reply(
                 prose = "This question belongs to the treasurer review. The captain does not decide it."
             else:
                 prose = "Cette question relève de la revue du trésorier. Le capitaine ne la tranche pas."
+            return _fit_words("", [prose, _signature(lang)])
         elif ask_escale:
             if lang == "en":
-                prose = "Which escale? Name the stop and I will compute the pledge."
+                prose = "Which stopover? Name the stop and I will compute the pledge."
             else:
                 prose = "Quelle escale ? Indiquez son nom pour que je calcule la promesse."
         elif lang == "en":
             prose = "This question is about status. The captain does not suggest a pledge."
         else:
             prose = "Cette question porte sur le statut. Le capitaine ne propose pas de promesse."
-        rules = _TREASURER_RULES_EN if lang == "en" else _TREASURER_DECIDES
-        return _fit_words("", [prose, rules, _signature(lang)])
+        return _fit_words("", [prose, _public_rule(lang), _signature(lang)])
     charged = bool(_CHARGE_CLAIM.search(model_text or ""))
     if charged:
         prose = ""
@@ -1401,17 +1472,21 @@ def _compose_chat_reply(
     prose = _period_after_link(prose, url)
     prose = _drop_sentences(prose, _CHAT_DECIDE_RE)
     prose = _drop_sentences(prose, _REFUSAL_RE)
+    prose = _drop_sentences(prose, _TREASURER_ONLY)
     prose = _trim_cutoff(_normalize_dots(prose))
     if lang == "fr":
         prose = _standardise_french(_french_labels(prose))
     elif lang == "en":
-        prose = _heading_toward(prose)
+        prose = _heading_toward(_english_labels(prose))
     prose = _drop_amount_without_port(prose, suggested)
     prose = _drop_model_pledge(prose)
     prose = _drop_milestone_intent_labels(prose, suggested)
     prose = _drop_standalone_intent(prose)
     required: list[str] = [_pledge_line(suggested, lang)]
-    rules = _TREASURER_RULES_EN if lang == "en" else _TREASURER_DECIDES
+    dates = _code_dates_sentence(str(suggested.get("milestone_id") or ""), lang)
+    if dates and dates.casefold() not in (prose or "").casefold():
+        required.append(dates)
+    rules = _public_rule(lang)
     if rules.casefold() not in (prose or "").casefold():
         required.append(rules)
     joined = " ".join(required)
@@ -1426,6 +1501,11 @@ def _compose_chat_reply(
     reply = _period_after_link(reply, url)
     if lang == "fr":
         reply = _standardise_french(reply)
+    elif lang == "en":
+        reply = _english_labels(reply)
+    if suggested and not _TREASURER_ONLY.search(reply):
+        sentence = _TREASURER_RULES_EN if lang == "en" else _TREASURER_DECIDES
+        reply = _fix_sentence_starts(f"{reply} {sentence}".strip())
     return _fix_sentence_starts(reply)
 
 
@@ -1564,8 +1644,37 @@ def _milestone_in_payload(data: dict) -> str:
     return milestone
 
 
+def _schedule_slice(milestone_id: str) -> dict[str, str]:
+    """Arrival and departure that GET /schedule publishes for this stop or leg.
+
+    The stop arrival is the export row. A leg uses that leg's own pair.
+    The next port's arrival is not included.
+    """
+    from .naviguide_bridge import leg_by_id, leg_departing_from
+
+    if not milestone_id:
+        return {}
+    arrival = _schedule_arrival(milestone_id)
+    departure = ""
+    leg = leg_by_id(milestone_id)
+    if leg:
+        departure = str(leg.get("departure_iso") or "")
+        if not arrival:
+            arrival = str(leg.get("arrival_iso") or "")
+    else:
+        outgoing = leg_departing_from(milestone_id)
+        if outgoing:
+            departure = str(outgoing.get("departure_iso") or "")
+    block: dict[str, str] = {}
+    if arrival:
+        block["arrival_iso"] = arrival
+    if departure:
+        block["departure_iso"] = departure
+    return block
+
+
 def _with_known_facts(prompt: str) -> str:
-    """Add the schedule arrival and the evidence distance. Nothing else is invented."""
+    """Add the /schedule dates and the evidence distance. Nothing else is invented."""
     try:
         data = json.loads(prompt)
     except (TypeError, ValueError):
@@ -1573,14 +1682,13 @@ def _with_known_facts(prompt: str) -> str:
     if not isinstance(data, dict):
         return prompt
     milestone = _milestone_in_payload(data)
-    if milestone and not data.get("arrival_iso"):
-        arrival = _schedule_arrival(milestone)
-        if arrival:
-            data["arrival_iso"] = arrival
-    if milestone and not data.get("departure_iso"):
-        departure = _schedule_departure(milestone)
-        if departure:
-            data["departure_iso"] = departure
+    schedule = _schedule_slice(milestone) if milestone else {}
+    if schedule:
+        data["schedule"] = schedule
+        if not data.get("arrival_iso") and schedule.get("arrival_iso"):
+            data["arrival_iso"] = schedule["arrival_iso"]
+        if not data.get("departure_iso") and schedule.get("departure_iso"):
+            data["departure_iso"] = schedule["departure_iso"]
     evidence = data.get("evidence") if isinstance(data.get("evidence"), dict) else {}
     facts = evidence.get("facts") if isinstance(evidence.get("facts"), dict) else {}
     for key in ("distance_nm", "planned_nm"):
@@ -1663,61 +1771,152 @@ def _labeled_moments(milestone_id: str) -> list[tuple[str, dt.datetime]]:
     return unique
 
 
-def _date_allowance(known: str) -> tuple[set[str], set[int], set[str], Optional[dt.datetime]]:
-    """Years, months and civil dates the schedule (or the payload) actually has."""
-    milestone = ""
+def _known_payload(known: str) -> dict:
     try:
         data = json.loads(known or "")
     except (TypeError, ValueError):
-        data = None
-    if isinstance(data, dict):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _schedule_moments(known: str) -> tuple[list[dt.datetime], Optional[dt.datetime], Optional[dt.datetime]]:
+    """Civil instants injected from /schedule, plus arrival and departure."""
+    data = _known_payload(known)
+    schedule = data.get("schedule") if isinstance(data.get("schedule"), dict) else {}
+    source = schedule or data
+    moments: list[dt.datetime] = []
+    arrival = _parse_clock(str(source.get("arrival_iso") or ""))
+    departure = _parse_clock(str(source.get("departure_iso") or ""))
+    if arrival:
+        moments.append(arrival)
+    if departure:
+        moments.append(departure)
+    if not moments:
         milestone = _milestone_in_payload(data)
-    moments = [moment for _kind, moment in _labeled_moments(milestone)]
-    for match in re.finditer(r"\d{4}-\d{2}-\d{2}", known or ""):
-        parsed = _parse_clock(match.group(0))
-        if parsed:
-            moments.append(parsed)
+        moments = [moment for _kind, moment in _labeled_moments(milestone)]
+        if arrival is None:
+            arrival = next((moment for kind, moment in _labeled_moments(milestone) if kind == "arrival"), None)
+        if departure is None:
+            departure = _primary_moment(milestone)
+    return moments, arrival, departure
+
+
+def _date_allowance(known: str) -> tuple[set[str], set[int], set[str], Optional[dt.datetime]]:
+    """Years, months and civil dates injected from /schedule for this stop or leg."""
+    moments, arrival, _departure = _schedule_moments(known)
     years = {str(moment.year) for moment in moments}
     months = {moment.month for moment in moments}
     days = {moment.date().isoformat() for moment in moments}
-    primary = _primary_moment(milestone)
-    return years, months, days, primary
+    return years, months, days, arrival or (moments[0] if moments else None)
+
+
+def _month_in_phrase(phrase: str) -> Optional[int]:
+    for name, number in _MONTH_INDEX.items():
+        if name and re.search(rf"\b{re.escape(name)}\b", phrase or "", re.IGNORECASE):
+            return number
+    return None
+
+
+def _civil_day(phrase: str) -> Optional[str]:
+    """YYYY-MM-DD when the phrase names a day, else nothing."""
+    iso = re.search(r"(\d{4})-(\d{2})-(\d{2})", phrase or "")
+    if iso:
+        return f"{iso.group(1)}-{iso.group(2)}-{iso.group(3)}"
+    month = _month_in_phrase(phrase)
+    day_match = re.search(r"\b(\d{1,2})(?:er)?\b", phrase or "")
+    year_match = re.search(r"\b(1[89]\d{2}|20\d{2})\b", phrase or "")
+    if month and day_match and year_match:
+        day = int(day_match.group(1))
+        if 1 <= day <= 31:
+            return f"{year_match.group(0)}-{month:02d}-{day:02d}"
+    return None
 
 
 def _phrase_allowed(phrase: str, years: set[str], months: set[int], days: set[str]) -> bool:
-    iso = re.search(r"\d{4}-\d{2}-\d{2}", phrase or "")
-    if iso:
-        return iso.group(0) in days
+    civil = _civil_day(phrase)
+    if civil:
+        return civil in days
+    if _month_in_phrase(phrase) is not None:
+        return False
     year_match = re.search(r"\b(1[89]\d{2}|20\d{2})\b", phrase or "")
-    year = year_match.group(0) if year_match else ""
-    month = None
-    for name, number in _MONTH_INDEX.items():
-        if re.search(rf"\b{re.escape(name)}\b", phrase or "", re.IGNORECASE):
-            month = number
-            break
-    if year and year not in years:
-        return False
-    if month is not None and month not in months:
-        return False
-    return bool(year or month is not None)
+    if year_match:
+        return year_match.group(0) in years
+    return False
 
 
 def _spoken_date(moment: dt.datetime, lang: str) -> str:
     return arrival_phrase({"facts": {"arrival_iso": moment.date().isoformat()}}, lang)
 
 
+def _code_dates_sentence(milestone_id: str, lang: str) -> str:
+    """One schedule sentence. An inverted range is never written."""
+    block = _schedule_slice(milestone_id)
+    departure = str(block.get("departure_iso") or "")[:10]
+    arrival = str(block.get("arrival_iso") or "")[:10]
+    if departure and arrival and departure <= arrival:
+        moment = _parse_clock(arrival)
+        spoken = _spoken_date(moment, "en" if lang == "en" else "fr") if moment else ""
+        if lang == "en":
+            extra = f", {spoken}" if spoken else ""
+            return f"Schedule dates: {departure} -> {arrival}{extra}."
+        extra = f", {spoken}" if spoken else ""
+        return f"Dates de l'escale : {departure} -> {arrival}{extra}."
+    day = arrival or departure
+    moment = _parse_clock(day) if day else None
+    if moment is None:
+        return ""
+    spoken = _spoken_date(moment, "en" if lang == "en" else "fr")
+    if lang == "en":
+        return f"The schedule date is {spoken}."
+    return f"La date de l'escale est {spoken}."
+
+
+def _drop_inverted_ranges(text: str) -> str:
+    """Drop a sentence whose last ISO date is earlier than its first."""
+    kept: list[str] = []
+    for sentence in _split_sentences(text or ""):
+        found = re.findall(r"\d{4}-\d{2}-\d{2}", sentence)
+        if len(found) >= 2 and found[-1] < found[0]:
+            continue
+        year = re.search(r"\b(1[89]\d{2}|20\d{2})\b", sentence)
+        if year and int(year.group(0)) < 2026:
+            continue
+        kept.append(sentence)
+    return " ".join(kept).strip()
+
+
+_ARRIVAL_CUE = re.compile(r"\barriv|\breach", re.IGNORECASE)
+_DEPARTURE_CUE = re.compile(
+    r"\bdepart|\bd[ée]part|\bleav|\bpartons\b|\bquitt",
+    re.IGNORECASE,
+)
+
+
 def _ground_schedule_dates(text: str, known: str, lang: str = "") -> str:
-    """Replace a date or a year that is not on this stop or leg."""
-    years, months, days, primary = _date_allowance(known)
-    if not years and primary is None:
+    """Keep a date only when its day is one injected from /schedule.
+
+    Any other day or year is replaced by the schedule arrival, or by the
+    schedule departure when the sentence is about leaving. The model cannot
+    swap 12 November and 29 November: only the injected day is kept.
+    """
+    years, _months, days, _primary = _date_allowance(known)
+    _moments, arrival, departure = _schedule_moments(known)
+    if not days and arrival is None and departure is None:
         return text or ""
-    spoken = _spoken_date(primary, "en" if lang == "en" else "fr") if primary else ""
+    spoken_lang = "en" if lang == "en" else "fr"
 
     def replace(match: re.Match) -> str:
         phrase = match.group(0)
-        if _phrase_allowed(phrase, years, months, days):
+        if _phrase_allowed(phrase, years, set(), days):
             return phrase
-        return spoken
+        window = (text or "")[max(0, match.start() - 60):match.end() + 40]
+        if _DEPARTURE_CUE.search(window) and not _ARRIVAL_CUE.search(window) and departure:
+            return _spoken_date(departure, spoken_lang)
+        if arrival:
+            return _spoken_date(arrival, spoken_lang)
+        if departure:
+            return _spoken_date(departure, spoken_lang)
+        return ""
 
     return re.sub(r"[ \t]{2,}", " ", _DATE_PHRASE.sub(replace, text or "")).strip()
 
@@ -1803,12 +2002,25 @@ def _without_gaps(text: str, known: str, lang: str = "") -> str:
     return " ".join(kept).strip()
 
 
-def _source_of(raw: Any, text: str) -> dict[str, str]:
-    """Provider and model from the cascade. A bare string has no model id."""
+def _source_of(raw: Any, text: str) -> dict[str, Any]:
+    """Provider and model from the cascade. A bare string has no model id.
+
+    ``reason`` is copied when the hop explains a fallback or a refused model id.
+    ``fallback_reason`` is the status or exception class of each earlier hop.
+    """
     provider = getattr(raw, "provider", None)
     model = getattr(raw, "model", None)
     if isinstance(provider, str) and provider.strip():
-        return {"provider": provider.strip(), "model": str(model or "").strip()}
+        source: dict[str, Any] = {"provider": provider.strip(), "model": str(model or "").strip()}
+        reason = getattr(raw, "reason", "") or ""
+        if isinstance(reason, str) and reason.strip():
+            source["reason"] = reason.strip()
+        fallback = getattr(raw, "fallback_reason", None)
+        if isinstance(fallback, dict) and fallback:
+            source["fallback_reason"] = {
+                str(key): str(value) for key, value in fallback.items() if str(value).strip()
+            }
+        return source
     if text:
         return {"provider": "llm", "model": ""}
     return _rules_source()
@@ -2336,7 +2548,7 @@ async def _fund_for_question(message: str) -> dict:
 
 
 def _compose_fund_reply(prose: str, lang: str) -> str:
-    rules = _TREASURER_RULES_EN if lang == "en" else _TREASURER_DECIDES
+    rules = _public_rule(lang)
     reply = _fit_words(_strip_signatures(prose or ""), [rules, _signature(lang)])
     if lang == "fr":
         reply = _standardise_french(reply)
@@ -2396,16 +2608,47 @@ async def _answer_fund(
     return reply, source, public
 
 
-async def chat(message: str, *, treasurer: bool = False) -> dict:
+def _is_cabin_price_question(message: str) -> bool:
+    """A catalogue price, not a fund total. ``How much is a cabin?`` is one."""
+    text = message or ""
+    if _is_fund_question(text):
+        return False
+    if not re.search(
+        r"\bhow\s+much\b|\bcombien\b|\bprix\b|\bprices?\b|\bcosts?\b|\bco[uû]te",
+        text,
+        re.IGNORECASE,
+    ):
+        return False
+    return _sum_quantity(_CABIN_COUNT, text) > 0
+
+
+def _cabin_price_reply(lang: str) -> str:
+    unit = _SIMULATED_EUR["cabin_leg"].quantize(Decimal("0.01"))
+    shown = f"{unit:.2f}".rstrip("0").rstrip(".")
+    if lang == "en":
+        prose = f"A cabin is {shown} € per leg."
+    else:
+        prose = f"Une cabine coûte {shown} € par jambe."
+    return _fit_words("", [prose, _signature(lang)])
+
+
+async def chat(
+    message: str,
+    *,
+    treasurer: bool = False,
+    lang: Optional[str] = None,
+    accept_language: str = "",
+) -> dict:
     """Help a contributor phrase a pledge and offer the HelloAsso membership URL.
 
     ``treasurer`` is true only when the request carried a valid ``x-admin-key``.
+    ``lang`` is the app language. It wins over Accept-Language and the message.
     """
     text = (message or "").strip()
     if not text:
         raise ValueError("message is required")
     url = membership_url()
-    lang = message_lang(text)
+    lang = resolve_chat_lang(text, lang, accept_language)
     if _is_capture_rule_question(text):
         return {
             "reply": _capture_rule_reply(lang),
@@ -2425,6 +2668,31 @@ async def chat(message: str, *, treasurer: bool = False) -> dict:
             "model_source": source,
             "fund": fund,
         }
+    if _is_cabin_price_question(text):
+        suggested = suggest_pledge(text, lang)
+        milestone = str((suggested or {}).get("milestone_id") or "")
+        if not milestone.startswith("leg-"):
+            if lang == "en":
+                prose = "Which stopover? Name the stop and I will compute the pledge."
+            else:
+                prose = "Quelle escale ? Indiquez son nom pour que je calcule la promesse."
+            return {
+                "reply": _fit_words("", [prose, _signature(lang)]),
+                "membership_url": url,
+                "suggested_pledge": None,
+                "cart": None,
+                "model_source": _rules_source(),
+                "fund": None,
+            }
+        reply = _compose_chat_reply("", suggested, url, lang, treasurer=False, ask_escale=False)
+        return {
+            "reply": reply,
+            "membership_url": url,
+            "suggested_pledge": suggested,
+            "cart": pledge_cart(text, lang, suggested),
+            "model_source": _rules_source(),
+            "fund": None,
+        }
     treasurer = _is_treasurer_question(text)
     suggested = suggest_pledge(text, lang)
     cart = pledge_cart(text, lang, suggested)
@@ -2441,7 +2709,10 @@ async def chat(message: str, *, treasurer: bool = False) -> dict:
         if raw:
             if lang == "fr":
                 raw = _french_labels(raw)
+            elif lang == "en":
+                raw = _english_labels(raw)
             known = _with_known_facts(prompt)
+            raw = _drop_inverted_ranges(raw)
             raw = _ground_schedule_dates(raw, known, lang)
             raw = filter_numbers(raw, _with_schedule_numbers(allowed, known), lang=lang)
             raw = _without_gaps(raw, known, lang)
@@ -2896,13 +3167,31 @@ def _fund_pledge_alone(message: str, lang: str) -> Optional[dict]:
     )
 
 
+def _cabin_only(message: str) -> bool:
+    """A cabin, and not also miles, a dinner, or another catalogue line."""
+    text = message or ""
+    if _sum_quantity(_CABIN_COUNT, text) <= 0:
+        return False
+    if _explicit_miles(text) > 0 or _explicit_dinners(text) > 0:
+        return False
+    if _night_quantity(text) > 0:
+        return False
+    if any(_sum_quantity(pattern, text) > 0 for pattern in (_BERTH_COUNT, _CARE_COUNT)):
+        return False
+    if _amount_near(text, _PROJECT_PLEDGE) is not None:
+        return False
+    if _amount_near(text, _COMMON_FUND) is not None:
+        return False
+    return True
+
+
 def _cabin_pledge_alone(message: str, lang: str) -> Optional[dict]:
-    """A cabin named by direction, with no ``près de`` port."""
+    """A cabin, with its leg when the sentence names one. Never one mile."""
     if _sum_quantity(_CABIN_COUNT, message or "") <= 0:
         return None
-    milestone = _cabin_milestone(message, "")
-    if not milestone.startswith("leg-"):
-        return None
+    milestone = _cabin_milestone(message, _place(message) or "")
+    if not str(milestone).startswith("leg-"):
+        milestone = ""
     quantity = _sum_quantity(_CABIN_COUNT, message or "")
     amount = (quantity * _SIMULATED_EUR["cabin_leg"]).quantize(Decimal("0.01"))
     description = _kind_description("cabin_leg", quantity, lang)
@@ -2921,7 +3210,15 @@ def _cabin_pledge_alone(message: str, lang: str) -> Optional[dict]:
 
 
 def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
-    """Mile and dinner pledge, plus the other catalogue lines in the same total."""
+    """Mile and dinner pledge, plus the other catalogue lines in the same total.
+
+    A cabin is not the one-mile default. The cabin line wins when the
+    message names a cabin and no other catalogue amount.
+    """
+    if _cabin_only(message):
+        cabin = _cabin_pledge_alone(message, lang)
+        if cabin:
+            return cabin
     base = _suggest_pledge_miles(message, lang)
     if not base:
         return (

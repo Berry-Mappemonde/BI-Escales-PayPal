@@ -9,9 +9,27 @@ A supporter's PayPal pledge is **authorized** (Orders v2 `intent=AUTHORIZE`), an
 
 Status: in development. PayPal **sandbox only**; no real money moves. Planned departure: 15 May 2027.
 
+## Void id
+
+PayPal's void of an authorization usually returns no id (HTTP 204). `void_id` is then the authorization id, `void_id_source` is `authorization`, and `void_note` says so. A vault release with no id uses the vault id the same way. When the void body contains an `id`, that value is stored and `void_id_source` is `paypal`, even if it is the same string as the authorization id. `voided_at` is the voyage clock (`ESCALES_CLOCK_NOW`, or real UTC when that variable is unset), not a second clock.
+
 ## NIM model
 
-`NIM_MODEL` defaults to `private/nvidia/nemotron-3.5-super-120b-a12b`. The old id `nvidia/nemotron-3.5-super-vl-120b-a12b` returns 404 at NVIDIA, and so does `nvidia/nemotron-3.5-super-120b-a12b` (the same new id without the `private/` prefix). That 404 is logged and the cascade answers with `nvidia/nemotron-3.5-lightning-30b-a3b`. `model_source.model` is the model that answered, so a lightning value means the fallback hop ran. It does not mean the private id was ignored when `NIM_MODEL` is set.
+`NIM_MODEL` defaults to `private/nvidia/nemotron-3.5-super-120b-a12b`. On Render the variable is `sync: false`, so the dashboard value overrides that default and is the id sent on the primary hop. The old id `nvidia/nemotron-3.5-super-vl-120b-a12b` returns 404 at NVIDIA, and so does `nvidia/nemotron-3.5-super-120b-a12b` (the same id without the `private/` prefix). The code refuses those two ids, and also refuses `nvidia/nemotron-3.5-lightning-30b-a3b` when it is set as `NIM_MODEL`, and sends the private Super id instead. The log and `model_source.reason` name the refused id. They never include the API key. If the primary hop still fails (HTTP 404 or a timeout), the `nim_fallback` hop answers with `nvidia/nemotron-3.5-lightning-30b-a3b`. `model_source.provider` is then `nim_fallback`, and `model_source.reason` says which id was sent and whether the cause was `http_404` or `timeout`. Set Render `NIM_MODEL` to `private/nvidia/nemotron-3.5-super-120b-a12b`, or unset it.
+
+`model_source.fallback_reason` names each earlier hop that failed, for example `{"nim": "HTTP 404"}`. The value is the status or the exception class. The response body and the API key are not included. The process log names the model id sent on each hop. At startup it logs the effective Super and Lightning ids, and nothing else.
+
+A Super call waits 20 s (`ESCALES_LLM_TIMEOUT_NIM_S`). Lightning waits 10 s (`ESCALES_LLM_TIMEOUT_NIM_FALLBACK_S`). After HTTP 429 the same NIM model is tried once. The pause follows `Retry-After`, capped at 3 s, and is at least the gap between NIM calls. HTTP 404 or 403 logs `model unavailable for this key` and skips that hop for 10 minutes.
+
+Chat and the milestone report ask Super first. The JSON advisory asks Lightning first, then Super. The payload has no `reasoning_effort` and no `nvext`. `top_p` is sent only when the temperature is above 0. `guided_json` stays at the root of the NIM request. OpenRouter receives `response_format` with the same JSON schema.
+
+## Provider limits
+
+NVIDIA API Catalog is a free trial, rate-limited per account (about 40 requests per minute is what operators report; per-model limits are not published). It is for trial use only.
+
+OpenRouter free models allow 20 requests per minute and 50 per day (1,000 per day after at least 10 USD of lifetime credits). The default model is `openrouter/free`, not a paid model. `OPENROUTER_MODEL` can name another id. The OpenRouter terms forbid more than one account, so this project does not add a second one. HTTP 402 skips OpenRouter. HTTP 429 waits for `Retry-After` (capped at 3 s) and then skips it. Requests send `HTTP-Referer` and `X-Title`.
+
+OmniRoute is an optional MIT self-hosted gateway (`OMNIROUTE_BASE_URL`, `OMNIROUTE_API_KEY`, `OMNIROUTE_MODEL`, default `auto`). It speaks OpenAI `/v1/chat/completions` and sits after OpenRouter and before Anthropic. An empty URL leaves it off. Its quotas are the upstream providers' quotas.
 
 ## Optional partners (feature flags)
 

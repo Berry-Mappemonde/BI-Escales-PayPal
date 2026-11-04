@@ -468,8 +468,25 @@ def test_capture_ok_with_admin_key(api):
     assert ("capture", "AUTH-ORDER1") in fake.calls
 
 
+def test_get_pledge_returns_captured_at_with_the_capture_id(api):
+    """A completed capture stores captured_at. GET returns it next to capture_id."""
+    client, _fake = api
+    _created, authorized = _ready(client, "cap-when")
+    captured = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
+    assert captured.status_code == 200, captured.text
+    body = captured.json()
+    assert body["capture_id"] == "CAP"
+    assert body["captured_at"]
+    listed = client.get(f"/api/escales/pledges/{authorized['id']}", headers=ADMIN)
+    assert listed.status_code == 200, listed.text
+    got = listed.json()
+    assert got["capture_id"] == "CAP"
+    assert got["captured_at"] == body["captured_at"]
+    assert "T" in got["captured_at"]
+
+
 def test_void_records_void_id_and_voided_at(api):
-    """A void keeps PayPal's id when the body has one, else the authorization id."""
+    """PayPal's void id is kept. An empty body stores the authorization id and says so."""
     client, fake = api
     _created, authorized = _ready(client, "void-stamp")
 
@@ -483,14 +500,41 @@ def test_void_records_void_id_and_voided_at(api):
     body = stamped.json()
     assert body["status"] == "voided"
     assert body["void_id"] == "VOID-1"
+    assert body["void_id_source"] == "paypal"
+    assert "void_note" not in body
     assert body["voided_at"].endswith("Z") or "+" in body["voided_at"]
 
     _other, second = _ready(client, "void-fallback")
     fake.void_authorization = lambda authorization_id, **kwargs: {}
     fallback = client.post(f"/api/escales/pledges/{second['id']}/void", headers=ADMIN)
     assert fallback.status_code == 200, fallback.text
-    assert fallback.json()["void_id"] == second["authorization_id"]
-    assert fallback.json()["voided_at"]
+    empty = fallback.json()
+    assert empty["void_id"] == second["authorization_id"]
+    assert empty["void_id_source"] == "authorization"
+    assert empty["void_note"] == "PayPal's void returned no id. void_id is the authorization id."
+    assert empty["voided_at"]
+    listed = client.get(f"/api/escales/pledges/{second['id']}", headers=ADMIN)
+    assert listed.json()["void_id"] == second["authorization_id"]
+    assert "authorization id" in listed.json()["void_note"]
+
+    _third, same = _ready(client, "void-same-id")
+    fake.void_authorization = lambda authorization_id, **kwargs: {"id": authorization_id, "status": "VOIDED"}
+    echoed = client.post(f"/api/escales/pledges/{same['id']}/void", headers=ADMIN)
+    assert echoed.status_code == 200, echoed.text
+    assert echoed.json()["void_id"] == same["authorization_id"]
+    assert echoed.json()["void_id_source"] == "paypal"
+
+
+def test_voided_at_follows_the_simulated_clock(api, monkeypatch):
+    """voided_at is ESCALES_CLOCK_NOW, the same clock as the voyage, not wall time."""
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-01-15T08:00:00Z")
+    client, _fake = api
+    _created, authorized = _ready(client, "void-clock")
+    response = client.post(f"/api/escales/pledges/{authorized['id']}/void", headers=ADMIN)
+    assert response.status_code == 200, response.text
+    assert response.json()["voided_at"] == "2026-01-15T08:00:00+00:00"
+    listed = client.get(f"/api/escales/pledges/{authorized['id']}", headers=ADMIN)
+    assert listed.json()["voided_at"] == "2026-01-15T08:00:00+00:00"
 
 
 def test_void_with_admin_key(api):

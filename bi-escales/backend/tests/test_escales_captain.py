@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import re
 import sys
 from pathlib import Path
@@ -274,6 +275,41 @@ def test_chat_replaces_an_invented_date_and_drops_a_broken_fragment(monkeypatch)
         assert "As the" not in reply
         assert "12 November 2026" in reply
         assert "La Rochelle" in reply
+
+    asyncio.run(body())
+
+
+def test_arrival_dates_stay_on_the_injected_schedule_day(monkeypatch):
+    """12 November and 29 November are both real, but not for the same stop."""
+    import app.core.llm as llm
+
+    answers = {"text": "We arrive on 12 November 2026."}
+    seen = {}
+
+    async def fake_ask_text(prompt, system=None, **_kwargs):
+        seen["prompt"] = prompt
+        seen["system"] = system or ""
+        return answers["text"]
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        ajaccio = await chat("I'd like to sponsor 10 nautical miles near Ajaccio")
+        schedule = json.loads(seen["prompt"])["schedule"]
+        assert schedule["arrival_iso"].startswith("2026-11-29")
+        assert "departure_iso" in schedule
+        assert "Do not invent a date" in seen["system"]
+        assert "12 November" not in ajaccio["reply"]
+        assert "29 November 2026" in ajaccio["reply"]
+        answers["text"] = "We arrive on 29 November 2026."
+        again = await chat("I'd like to sponsor 10 nautical miles near Ajaccio")
+        assert "29 November 2026" in again["reply"]
+        assert "12 November" not in again["reply"]
+        answers["text"] = "We arrive on 29 November 2026."
+        rochelle = await chat("I'd like to sponsor 10 nautical miles near La Rochelle")
+        assert "12 November 2026" in rochelle["reply"]
+        assert "29 November" not in rochelle["reply"]
 
     asyncio.run(body())
 
@@ -1819,7 +1855,7 @@ def test_chat_maps_pointe_a_pitre_and_asks_when_unknown():
         assert "AUTHORIZE" not in missing["reply"]
         unknown = await chat("I'd like to sponsor 20 miles near Atlantis")
         assert unknown["suggested_pledge"] is None
-        assert "Which escale" in unknown["reply"]
+        assert "Which stopover" in unknown["reply"]
         assert "Unspecified" not in unknown["reply"]
         assert "20.00" not in unknown["reply"]
 
@@ -2059,7 +2095,8 @@ def test_french_vocabulary_and_the_pledge_line(monkeypatch):
         assert "trésorière" not in reply.casefold()
         assert "en euros" not in reply.casefold()
         assert "10,00 €" in reply
-        assert "Seul le trésorier décide si l'argent est prélevé ou libéré." in reply
+        assert "au plus près du départ" in reply
+        assert reply.count("Seul le trésorier décide") == 1
         assert reply.count("Promesse calculée") == 1
 
     asyncio.run(body())
@@ -2124,6 +2161,66 @@ def test_other_kinds_use_the_simulated_catalogue():
     english = captain.suggest_pledge("2 nights near Mayotte", lang="en")
     assert english["description"] == "2 nights"
     assert english["amount_eur"] == "120.00"
+
+
+def test_cabin_price_is_eighty_euros_per_leg_in_the_question_language(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        raise AssertionError("a cabin price is a catalogue fact, not a model answer")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        english = await chat("How much is a cabin?")
+        assert "Which stopover" in english["reply"]
+        assert "80" not in english["reply"]
+        assert "Seul le trésorier" not in english["reply"]
+        assert "— The captain" in english["reply"]
+        assert "— Le capitaine" not in english["reply"]
+        french = await chat("Combien coûte une cabine ?")
+        assert "Quelle escale" in french["reply"]
+        assert "80" not in french["reply"]
+        assert "stopover" not in french["reply"].casefold()
+        assert "Only the treasurer" not in french["reply"]
+        assert "— Le capitaine" in french["reply"]
+        near = await chat("How much is a cabin near La Rochelle?")
+        assert "1 cabin leg (80.00 EUR)" in near["reply"]
+        assert near["suggested_pledge"]["kind"] == "cabin_leg"
+        assert near["suggested_pledge"]["amount_eur"] == "80.00"
+
+    asyncio.run(body())
+
+
+def test_a_cabin_is_suggested_instead_of_one_mile():
+    bare = captain.suggest_pledge("How much is a cabin?", "en")
+    assert bare["kind"] == "cabin_leg"
+    assert bare["amount_eur"] == "80.00"
+    assert bare["item"] == "cabin_leg"
+    french = captain.suggest_pledge("une cabine")
+    assert french["kind"] == "cabin_leg"
+    assert french["amount_eur"] == "80.00"
+    assert french["description"].startswith("1 cabine")
+    near = captain.suggest_pledge("I want a cabin near La Rochelle", "en")
+    assert near["kind"] == "cabin_leg"
+    assert near["amount_eur"] == "80.00"
+    assert near["milestone_id"].startswith("leg-")
+    miles = captain.suggest_pledge("près de Dakar")
+    assert miles["kind"] == "mile"
+    assert miles["amount_eur"] == "1.00"
+
+    async def body():
+        price = await chat("How much is a cabin?")
+        assert price["suggested_pledge"] is None
+        assert "Which stopover" in price["reply"]
+        assert "80" not in price["reply"]
+        wanted = await chat("I want a cabin near La Rochelle")
+        assert wanted["suggested_pledge"]["kind"] == "cabin_leg"
+        assert wanted["suggested_pledge"]["amount_eur"] == "80.00"
+        assert "1.00" not in wanted["suggested_pledge"]["amount_eur"]
+
+    asyncio.run(body())
 
 
 def test_cabin_cart_line_is_the_leg_and_stays_authorize():
@@ -2268,6 +2365,9 @@ def test_euros_for_the_project_is_a_project_pledge_line():
 def test_code_enforces_the_fixed_treasurer_sentence(monkeypatch):
     import app.core.llm as llm
 
+    assert "as close to departure as possible" in captain._chat_system("en")
+    assert "only the treasurer decides" not in captain._chat_system("en").lower()
+
     async def fake_ask_text(*_args, **_kwargs):
         return "The treasurer will decide. Le trésorier doit trancher."
 
@@ -2277,8 +2377,10 @@ def test_code_enforces_the_fixed_treasurer_sentence(monkeypatch):
     async def body():
         result = await chat("Je parraine 10 milles près de Dakar")
         reply = result["reply"]
-        sentence = "Seul le trésorier décide si l'argent est prélevé ou libéré."
-        assert reply.count(sentence) == 1
+        assert reply.count("au plus près du départ") == 1
+        assert "jour du départ" in reply
+        assert "annulée" in reply
+        assert reply.count("Seul le trésorier décide") == 1
         assert "will decide" not in reply.casefold()
         assert "trancher" not in reply.casefold()
         assert "The treasurer" not in reply
@@ -2316,8 +2418,9 @@ def test_treasurer_sentence_is_added_when_the_model_omits_it(monkeypatch):
     async def body():
         result = await chat("Je parraine 10 milles près de Dakar")
         reply = result["reply"]
-        sentence = "Seul le trésorier décide si l'argent est prélevé ou libéré."
-        assert reply.count(sentence) == 1
+        assert "au plus près du départ" in reply
+        assert "jour du départ" in reply
+        assert reply.count("Seul le trésorier décide") == 1
         assert "La mer est calme" in reply
         assert len(reply.split()) <= 80
 
@@ -2344,14 +2447,17 @@ def test_charge_claim_falls_back_to_the_rules_text(monkeypatch):
         assert "sera débit" not in reply.casefold()
         assert "Votre carte" not in reply
         assert "La mer est calme" not in reply
-        assert "Seul le trésorier décide si l'argent est prélevé ou libéré." in reply
+        assert "au plus près du départ" in reply
+        assert reply.count("Seul le trésorier décide") == 1
         assert "10,00 €" in reply
         assert "10 milles parrainés" in reply
         english = await chat("I'd like to sponsor 10 nautical miles near Lorient")
         english_reply = english["reply"]
         assert "charged" not in english_reply.casefold()
         assert "The sea is calm" not in english_reply
-        assert "Only the treasurer decides whether the money is captured or released." in english_reply
+        assert "as close to departure as possible" in english_reply
+        assert "captured on the departure day" in english_reply
+        assert english_reply.count("Only the treasurer decides") == 1
         assert "10.00 EUR" in english_reply
         assert "10 sponsored miles" in english_reply
 
@@ -2611,9 +2717,10 @@ def test_nim_reply_does_not_repeat_the_treasurer_sentence(monkeypatch):
 
     async def body():
         result = await chat("Je parraine 10 milles près de Dakar")
-        sentence = "Seul le trésorier décide si l'argent est prélevé ou libéré."
-        assert result["reply"].count(sentence) == 1
-        assert result["reply"].count("Promesse calculée") == 1
+        reply = result["reply"]
+        assert reply.count("Seul le trésorier décide") == 1
+        assert reply.count("au plus près du départ") == 1
+        assert reply.count("Promesse calculée") == 1
 
     asyncio.run(body())
 

@@ -19,7 +19,8 @@
   },
   "optionalDependencies": {
     "ag-grid-community": "^34.3.0",
-    "ag-grid-react": "^34.3.0"
+    "ag-grid-react": "^34.3.0",
+    "@bryntum/scheduler": "npm:@bryntum/scheduler-trial@7.3.8"
   },
     "devDependencies": {
     "@testing-library/dom": "^10.4.1",

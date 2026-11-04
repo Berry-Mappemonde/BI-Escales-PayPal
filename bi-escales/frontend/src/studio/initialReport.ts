@@ -1,10 +1,12 @@
 import type { AgReportState } from "ag-studio";
 import { VALIDATION_WIDGET_TYPE } from "./agentPlan";
+import { studioT } from "./locale";
 
 const PLEDGES = "pledges";
 
 /** Opening treasurer report: custom scoreboard, status chart, pledge grid. */
-export function treasurerInitialState(): AgReportState {
+export function treasurerInitialState(language?: string): AgReportState {
+  const t = studioT(language);
   return {
     selectedPageId: "tresorerie",
     panels: {
@@ -24,7 +26,7 @@ export function treasurerInitialState(): AgReportState {
               status: [{ id: `${PLEDGES}.status` }],
               amount: [{ id: `${PLEDGES}.amount_eur`, aggregation: "sum" }],
             },
-            format: { title: { enabled: true, text: "Validation humaine" } },
+            format: { title: { enabled: true, text: t("studio.scoreTitle") } },
           },
           "status-chart": {
             type: "column-chart-grouped",
@@ -32,7 +34,7 @@ export function treasurerInitialState(): AgReportState {
               categoryKey: [{ id: `${PLEDGES}.status` }],
               valueKey: [{ id: `${PLEDGES}.amount_eur`, aggregation: "sum" }],
             },
-            format: { title: { enabled: true, text: "Montants par statut" } },
+            format: { title: { enabled: true, text: t("studio.chartTitle") } },
           },
           "pledge-grid": {
             type: "grid",
@@ -46,7 +48,7 @@ export function treasurerInitialState(): AgReportState {
                 { id: `${PLEDGES}.description` },
               ],
             },
-            format: { title: { enabled: true, text: "Promesses" } },
+            format: { title: { enabled: true, text: t("studio.gridTitle") } },
           },
         },
         widgetLayout: {

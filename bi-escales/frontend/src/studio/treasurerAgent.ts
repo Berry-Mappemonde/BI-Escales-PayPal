@@ -5,13 +5,13 @@ import {
   createAiHarness,
   directLlmRunner,
 } from "ag-studio";
-import i18n from "../i18n";
 import {
   nextDataAgentAction,
   nextTreasurerAction,
   VALIDATION_NOTE_ID,
   VALIDATION_WIDGET_TYPE,
 } from "./agentPlan";
+import { studioT } from "./locale";
 import { proxyLlmAdapter } from "./llmAdapter";
 
 export { AgStudioAiModule };
@@ -48,12 +48,39 @@ function* callTool(toolCallId: string, name: string, args: unknown): Generator<A
   yield { type: "TOOL_CALL_END", toolCallId };
 }
 
+export function treasurerSpeech(userText: string, toolMessageCount: number, language?: string): string {
+  const t = studioT(language);
+  const action = nextTreasurerAction(userText, toolMessageCount, language);
+  if (action.kind === "delegate-data") return t("studio.agentDelegating");
+  if (action.kind === "add-validation-widget") return t("studio.agentAdding");
+  const added = userText.length > 0 && toolMessageCount > 1;
+  return added ? t("studio.agentReplyAdded") : t("studio.agentReply");
+}
+
+export function treasurerPromptStarters(language?: string) {
+  const t = studioT(language);
+  return [
+    { label: t("studio.promptTotals"), prompt: t("studio.promptTotalsText") },
+    { label: t("studio.promptWidget"), prompt: t("studio.promptWidgetText") },
+  ];
+}
+
+export function treasurerAgentProfile(language?: string) {
+  const t = studioT(language);
+  return {
+    id: "tresorier",
+    name: t("studio.agentName"),
+    description: t("studio.agentDescription"),
+  };
+}
+
 async function* runTreasurer(input: AgAiRunInput): AsyncGenerator<AgAiEvent> {
   const userText = lastUserText(input.messages);
-  const action = nextTreasurerAction(userText, toolMessageCount(input.messages));
+  const toolCount = toolMessageCount(input.messages);
+  const action = nextTreasurerAction(userText, toolCount);
   const stamp = `${input.runId}-${input.messages.length}`;
   if (action.kind === "delegate-data") {
-    yield* say(stamp, i18n.t("studio.agentDelegating"));
+    yield* say(stamp, treasurerSpeech(userText, toolCount));
     yield* callTool(`delegate-${stamp}`, "delegate_to", {
       type: { id: "data" },
       instructions: action.instructions,
@@ -61,7 +88,7 @@ async function* runTreasurer(input: AgAiRunInput): AsyncGenerator<AgAiEvent> {
     return;
   }
   if (action.kind === "add-validation-widget") {
-    yield* say(stamp, i18n.t("studio.agentAdding"));
+    yield* say(stamp, treasurerSpeech(userText, toolCount));
     yield* callTool(`add-${stamp}`, "add_widget", {
       widgetId: VALIDATION_NOTE_ID,
       type: VALIDATION_WIDGET_TYPE,
@@ -72,8 +99,21 @@ async function* runTreasurer(input: AgAiRunInput): AsyncGenerator<AgAiEvent> {
     });
     return;
   }
-  const added = userText.length > 0 && action.kind === "reply" && toolMessageCount(input.messages) > 1;
-  yield* say(stamp, added ? i18n.t("studio.agentReplyAdded") : i18n.t("studio.agentReply"));
+  yield* say(stamp, treasurerSpeech(userText, toolCount));
+}
+
+/** Runs one treasurer turn and returns the text the reader sees. */
+export async function spokenTreasurerReply(userText: string, priorToolMessages = 0): Promise<string> {
+  const messages = [
+    ...(userText ? [{ role: "user" as const, content: userText }] : []),
+    ...Array.from({ length: priorToolMessages }, () => ({ role: "tool" as const, content: "schema" })),
+  ];
+  const input = { runId: "preview", messages } as AgAiRunInput;
+  let text = "";
+  for await (const event of runTreasurer(input)) {
+    if (event.type === "TEXT_MESSAGE_CONTENT") text += event.delta;
+  }
+  return text;
 }
 
 async function* runBuiltInData(input: AgAiRunInput): AsyncGenerator<AgAiEvent> {
@@ -86,7 +126,7 @@ async function* runBuiltInData(input: AgAiRunInput): AsyncGenerator<AgAiEvent> {
   yield* callTool(`done-${stamp}`, "complete_task", { summary: action.summary, artifacts: [] });
 }
 
-export function createTreasurerHarness(endpoint: string | undefined): AgAiHarnessSetup {
+export function createTreasurerHarness(endpoint: string | undefined, language?: string): AgAiHarnessSetup {
   const adapter: AgLlmAdapter | undefined = endpoint ? proxyLlmAdapter(endpoint) : undefined;
   return ({ api }) =>
     createAiHarness(api, ({ builtIn, tools }) => {
@@ -103,11 +143,11 @@ export function createTreasurerHarness(endpoint: string | undefined): AgAiHarnes
             directLlmRunner({ ...builtIn[id], adapter }),
           )
         : [];
+      const profile = treasurerAgentProfile(language);
       const tresorier = clientToolRunner({
-        id: "tresorier",
-        name: "Trésorier",
-        description:
-          "BI Escales treasurer. Delegates data questions to Studio's data agent and never captures a pledge.",
+        id: profile.id,
+        name: profile.name,
+        description: profile.description,
         schema: (shape) => shape.undefined(),
         maxTurns: 6,
         tools: () => [
@@ -121,10 +161,7 @@ export function createTreasurerHarness(endpoint: string | undefined): AgAiHarnes
       return {
         agents: [tresorier, dataAgent, ...llmSpecialists],
         primary: "tresorier",
-        promptStarters: [
-          { label: i18n.t("studio.promptTotals"), prompt: i18n.t("studio.promptTotalsText") },
-          { label: i18n.t("studio.promptWidget"), prompt: i18n.t("studio.promptWidgetText") },
-        ],
+        promptStarters: treasurerPromptStarters(language),
       };
     });
 }

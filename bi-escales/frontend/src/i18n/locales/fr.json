@@ -78,6 +78,26 @@
     "promptTotals": "Totaux par statut",
     "promptTotalsText": "Quels sont les montants autorisés, encaissés et annulés ? Rappelle que seul un humain peut encaisser.",
     "promptWidget": "Ajouter la jauge",
-    "promptWidgetText": "Ajoute la jauge de validation humaine sur le tableau de bord."
+    "promptWidgetText": "Ajoute la jauge de validation humaine sur le tableau de bord.",
+    "chartTitle": "Montants par statut",
+    "gridTitle": "Promesses",
+    "colPledge": "Promesse",
+    "colStatus": "Statut",
+    "colMilestone": "Jalon",
+    "colAmount": "Montant",
+    "colContributor": "Contributeur",
+    "colDescription": "Description",
+    "sourceName": "Promesses",
+    "datasetDescription": "Promesses PayPal sandbox BI Escales. Une autorisation n’est encaissée qu’après validation humaine du trésorier. Départ prévu le 15 mai 2027.",
+    "sourceDescription": "Une ligne par promesse. Le montant est en euros. Le statut vaut créée, autorisée, encaissée ou annulée.",
+    "widgetLabel": "Validation humaine",
+    "widgetAiDescription": "Jauge des totaux autorisés, encaissés et annulés. Rappelle qu’un trésorier humain doit valider avant tout encaissement.",
+    "widgetAiUsage": "À utiliser pour la règle de validation humaine BI Escales. Associer le statut et le montant (somme).",
+    "agentName": "Trésorier",
+    "agentDescription": "Trésorier BI Escales. Délègue les questions de données à l’agent data de Studio et n’encaisse jamais une promesse.",
+    "statusCreated": "Créées",
+    "delegateFallback": "Résume les montants des promesses par statut.",
+    "dataAgentSummary": "Schéma lu. La validation humaine est requise avant tout encaissement. {{excerpt}}",
+    "dataAgentSummaryEmpty": "Schéma lu. La validation humaine est requise avant tout encaissement."
   }
 }

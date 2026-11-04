@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { AgStudio, AgStudioProvider } from "ag-studio-react";
 import { enableStudioDevValidations } from "ag-studio";
 import type { PublicPledge } from "../api/types";
@@ -14,10 +15,13 @@ if (import.meta.env.DEV) {
 }
 
 export default function TreasurerStudio({ pledges }: { pledges: PublicPledge[] }) {
-  const data = useMemo(() => pledgeStudioData(pledges), [pledges]);
-  const initialState = useMemo(() => treasurerInitialState(), []);
+  const { i18n } = useTranslation();
+  const language = i18n.resolvedLanguage ?? i18n.language;
+  const data = useMemo(() => pledgeStudioData(pledges, language), [pledges, language]);
+  const initialState = useMemo(() => treasurerInitialState(language), [language]);
+  const widgets = useMemo(() => (config: Parameters<typeof escalesWidgets>[0]) => escalesWidgets(config, language), [language]);
   const licenseKey = agGridLicenseKey();
-  const ai = useMemo(() => createTreasurerHarness(agStudioLlmEndpoint()), []);
+  const ai = useMemo(() => createTreasurerHarness(agStudioLlmEndpoint(), language), [language]);
 
   return (
     <div
@@ -32,7 +36,7 @@ export default function TreasurerStudio({ pledges }: { pledges: PublicPledge[] }
           theme={escalesStudioTheme}
           data={data}
           initialState={initialState}
-          widgets={escalesWidgets}
+          widgets={widgets}
           ai={ai}
           mode="edit"
         />

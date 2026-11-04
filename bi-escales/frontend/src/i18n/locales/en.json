@@ -78,6 +78,26 @@
     "promptTotals": "Totals by status",
     "promptTotalsText": "What are the authorized, captured and voided amounts? Remind me that only a human can capture.",
     "promptWidget": "Add the gauge",
-    "promptWidgetText": "Add the human-validation gauge to the dashboard."
+    "promptWidgetText": "Add the human-validation gauge to the dashboard.",
+    "chartTitle": "Amounts by status",
+    "gridTitle": "Pledges",
+    "colPledge": "Pledge",
+    "colStatus": "Status",
+    "colMilestone": "Milestone",
+    "colAmount": "Amount",
+    "colContributor": "Contributor",
+    "colDescription": "Description",
+    "sourceName": "Pledges",
+    "datasetDescription": "BI Escales PayPal sandbox pledges. An authorization is captured only after the treasurer's human validation. Planned departure 15 May 2027.",
+    "sourceDescription": "One row per pledge. The amount is in euros. Status is created, authorized, captured or voided.",
+    "widgetLabel": "Human validation",
+    "widgetAiDescription": "Scoreboard of authorized, captured and voided pledge totals. States that a human treasurer must validate before any capture.",
+    "widgetAiUsage": "Use for the BI Escales human-validation rule. Map status and amount (sum).",
+    "agentName": "Treasurer",
+    "agentDescription": "BI Escales treasurer. Delegates data questions to Studio's data agent and never captures a pledge.",
+    "statusCreated": "Created",
+    "delegateFallback": "Summarise pledge amounts by status.",
+    "dataAgentSummary": "Schema read. Human validation is required before any capture. {{excerpt}}",
+    "dataAgentSummaryEmpty": "Schema read. Human validation is required before any capture."
   }
 }

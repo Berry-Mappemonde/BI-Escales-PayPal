@@ -1,6 +1,7 @@
 import type { AgDefaultRegistry, AgWidgetFormParams, AgWidgetsConfig } from "ag-studio";
 import { createWidgets } from "ag-studio-react";
 import { VALIDATION_WIDGET_TYPE } from "./agentPlan";
+import { studioT } from "./locale";
 import { ValidationScoreboard } from "./validationWidget";
 
 const ICON =
@@ -11,46 +12,49 @@ const ICON =
  * The helper's registry generic only lists stock widget ids, so the extra id is
  * passed through at the call boundary.
  */
+export function humanValidationWidget(language?: string) {
+  const t = studioT(language);
+  return {
+    id: VALIDATION_WIDGET_TYPE,
+    label: t("studio.widgetLabel"),
+    icon: ICON,
+    dataMapping: {
+      status: {
+        type: "field" as const,
+        supportedRoles: ["category" as const],
+        requires: { cardinality: "many" as const },
+        required: false,
+      },
+      amount: {
+        type: "field" as const,
+        supportedRoles: ["numeric" as const],
+        requires: { per: "dataMapping.status", cardinality: "one" as const },
+        required: false,
+      },
+    },
+    form: (params: AgWidgetFormParams) =>
+      params.createDefaults({
+        dataMappingItems: [
+          { key: "status", label: t("studio.colStatus") },
+          { key: "amount", label: t("studio.colAmount") },
+        ],
+      }),
+    comp: ValidationScoreboard,
+    defaultSize: { width: 480, height: 220 },
+    minSize: { width: 220, height: 140 },
+    ai: {
+      description: t("studio.widgetAiDescription"),
+      usage: t("studio.widgetAiUsage"),
+    },
+  };
+}
+
 export function escalesWidgets(
   widgetConfig: AgWidgetsConfig<AgDefaultRegistry>,
+  language?: string,
 ): AgWidgetsConfig<AgDefaultRegistry> {
   const params = {
-    additionalTypes: [
-      {
-        id: VALIDATION_WIDGET_TYPE,
-        label: "Validation humaine",
-        icon: ICON,
-        dataMapping: {
-          status: {
-            type: "field" as const,
-            supportedRoles: ["category" as const],
-            requires: { cardinality: "many" as const },
-            required: false,
-          },
-          amount: {
-            type: "field" as const,
-            supportedRoles: ["numeric" as const],
-            requires: { per: "dataMapping.status", cardinality: "one" as const },
-            required: false,
-          },
-        },
-        form: (params: AgWidgetFormParams) =>
-          params.createDefaults({
-            dataMappingItems: [
-              { key: "status", label: "Statut" },
-              { key: "amount", label: "Montant" },
-            ],
-          }),
-        comp: ValidationScoreboard,
-        defaultSize: { width: 480, height: 220 },
-        minSize: { width: 220, height: 140 },
-        ai: {
-          description:
-            "Scoreboard of authorized, captured and voided pledge totals. States that a human treasurer must validate before any capture.",
-          usage: "Use for the BI Escales human-validation rule. Map status and amount (sum).",
-        },
-      },
-    ],
+    additionalTypes: [humanValidationWidget(language)],
     menu: [
       { label: "BI Escales", widgetIds: [VALIDATION_WIDGET_TYPE] },
       ...widgetConfig.menu,

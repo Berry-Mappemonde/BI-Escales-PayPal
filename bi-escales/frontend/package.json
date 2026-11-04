@@ -21,7 +21,7 @@
     "ag-grid-community": "^34.3.0",
     "ag-grid-react": "^34.3.0"
   },
-    "devDependencies": {
+  "devDependencies": {
     "@testing-library/dom": "^10.4.1",
     "@types/leaflet": "^1.9.20",
     "@testing-library/jest-dom": "^6.9.1",

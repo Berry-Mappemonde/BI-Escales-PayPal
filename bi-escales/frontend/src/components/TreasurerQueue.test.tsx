@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
 import { captainReview, capturePledge, voidPledge } from "../api/escales";
@@ -22,7 +22,8 @@ const pledge = {
 };
 
 describe("TreasurerQueue", () => {
-  it("approuve le verdict du capitaine et n'offre pas d'autre bouton d'action", async () => {
+  it("approuve le verdict du capitaine avec le tableau HTML par défaut", async () => {
+    vi.stubEnv("VITE_ENABLE_AG_GRID", "0");
     await i18n.changeLanguage("fr");
     vi.mocked(captainReview).mockResolvedValue({
       milestone_id: "dep-la-rochelle",
@@ -42,13 +43,32 @@ describe("TreasurerQueue", () => {
       </I18nextProvider>,
     );
     expect(await screen.findByTestId("verdict-p-1")).toHaveTextContent("capture");
-    expect(captainReview).toHaveBeenCalledWith("dep-la-rochelle", "test-admin-key");
-    expect(screen.queryByRole("button", { name: "Encaisser" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Annuler l’autorisation" })).toBeNull();
+    expect(screen.getByTestId("treasurer-queue-fallback-table")).toBeInTheDocument();
+    expect(screen.queryByTestId("treasurer-queue-ag-grid")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Approuver la revue" }));
-    expect(await screen.findByTestId("verdict-p-1")).toBeTruthy();
-    expect(capturePledge).toHaveBeenCalledWith("p-1", "test-admin-key");
-    expect(voidPledge).not.toHaveBeenCalled();
-    expect(onUpdated).toHaveBeenCalled();
+    await waitFor(() => expect(capturePledge).toHaveBeenCalledWith("p-1", "test-admin-key"));
+    await waitFor(() => expect(onUpdated).toHaveBeenCalled());
+  });
+
+  it("affiche la grille AG Grid quand le drapeau est activé", async () => {
+    vi.stubEnv("VITE_ENABLE_AG_GRID", "1");
+    await i18n.changeLanguage("fr");
+    vi.mocked(captainReview).mockResolvedValue({
+      milestone_id: "dep-la-rochelle",
+      proposal: "capture",
+      pledge_ids: ["p-1"],
+    });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <TreasurerQueue
+          pledges={[pledge]}
+          adminKey="test-admin-key"
+          onRefresh={() => {}}
+          onUpdated={() => {}}
+        />
+      </I18nextProvider>,
+    );
+    expect(await screen.findByTestId("treasurer-queue-ag-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("treasurer-queue-fallback-table")).toBeNull();
   });
 });

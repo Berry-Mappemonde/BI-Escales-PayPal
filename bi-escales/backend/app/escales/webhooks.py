@@ -165,6 +165,11 @@ async def _append_pledge_webhook(pledge_id: str, row: dict) -> None:
     if not doc:
         return
     events = list(doc.get("webhook_events") or [])
+    transmission_id = row.get("transmission_id")
+    if transmission_id and any(
+        event.get("transmission_id") == transmission_id for event in events
+    ):
+        return
     events.append(
         {
             "transmission_id": row.get("transmission_id"),

@@ -206,7 +206,8 @@ def test_recent_webhooks_list_outcomes_for_the_treasurer(api, monkeypatch):
         return await get_ledger().get_pledge("pledge-order")
 
     doc = asyncio.run(saved())
-    assert [row["outcome"] for row in doc["webhook_events"]] == ["accepted", "duplicate"]
+    assert [row["outcome"] for row in doc["webhook_events"]] == ["accepted"]
+    assert doc["webhook_events"][0]["transmission_id"] == "T-123"
     assert doc["webhook_events"][0]["resource_id"] == "ORDER1"
     assert doc["webhook_events"][0]["event_type"] == "CHECKOUT.ORDER.APPROVED"
     assert doc["webhook_events"][0]["time"]

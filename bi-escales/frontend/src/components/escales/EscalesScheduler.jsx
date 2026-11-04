@@ -5,6 +5,7 @@
 import { useMemo } from "react";
 import { PledgeButton } from "../PledgeButton";
 import { advisoryView } from "./advisoryLabel.js";
+import BryntumTimeline from "./BryntumTimeline.jsx";
 
 export function AdvisoryBadge({ llmProposal }) {
   const view = advisoryView(llmProposal);
@@ -109,7 +110,7 @@ function LocalScheduleList({ events, onSelect }) {
     return <p className="escales-scheduler-empty">Aucune escale planifiée.</p>;
   }
   return (
-    <ul className="escales-scheduler-list">
+    <ul className="escales-scheduler-list" data-testid="escales-scheduler-local">
       {events.map((event) => (
         <li key={event.id}>
           <button type="button" onClick={() => onSelect?.(event)}>
@@ -125,6 +126,7 @@ function LocalScheduleList({ events, onSelect }) {
 
 export default function EscalesScheduler({
   schedule,
+  features,
   onSelectEscale,
   onAuthorized,
   captainReview = null,
@@ -132,12 +134,15 @@ export default function EscalesScheduler({
   const escales = schedule?.export?.escales || schedule?.escales || localFallbackEscales();
   const events = useMemo(() => buildEvents(escales), [escales]);
   const legs = schedule?.legs || [];
+  const useBryntum = Boolean(features?.bryntum);
 
   return (
     <section className="escales-scheduler" data-source={schedule?.source || "local"}>
       <header>
         <h2>Calendrier des escales</h2>
-        <p>Pay Only If We Sail</p>
+        <p>
+          {useBryntum ? "Timeline Bryntum (lecture seule)" : "Liste locale"} — Pay Only If We Sail
+        </p>
         {schedule?.clock?.start ? (
           <p className="escales-clock" data-clock-start={schedule.clock.start}>
             Horloge du voyage : {schedule.clock.start}
@@ -147,7 +152,11 @@ export default function EscalesScheduler({
       <SimulatedPrices prices={schedule?.prices} />
       <AdvisoryBadge llmProposal={captainReview?.llm_proposal} />
       <LegList legs={legs} amount={cabinAmount(schedule?.prices)} onAuthorized={onAuthorized} />
-      <LocalScheduleList events={events} onSelect={onSelectEscale} />
+      {useBryntum ? (
+        <BryntumTimeline events={events} onSelect={onSelectEscale} />
+      ) : (
+        <LocalScheduleList events={events} onSelect={onSelectEscale} />
+      )}
     </section>
   );
 }

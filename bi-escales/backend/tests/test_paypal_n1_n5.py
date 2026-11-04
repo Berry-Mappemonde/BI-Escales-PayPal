@@ -240,6 +240,25 @@ def test_reconcile_reports_searched_window():
     asyncio.run(run())
 
 
+def test_subscription_create_defaults_use_escales_public_url(monkeypatch):
+    monkeypatch.setenv("ESCALES_PUBLIC_URL", "https://public.example/escales")
+    captured: dict = {}
+
+    class SubSpy(NSpy):
+        def create_billing_subscription(self, **kwargs):
+            captured.update(kwargs)
+            return super().create_billing_subscription(**kwargs)
+
+    set_paypal_client_factory(lambda: SubSpy())
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+    created = client.post("/api/escales/paypal/subscriptions/create", json={})
+    assert created.status_code == 200
+    assert captured["return_url"] == "https://public.example/escales/?sub=return"
+    assert captured["cancel_url"] == "https://public.example/escales/?sub=cancel"
+
+
 def test_n6_create_subscription_route_and_public_approve():
     async def run():
         spy = NSpy()

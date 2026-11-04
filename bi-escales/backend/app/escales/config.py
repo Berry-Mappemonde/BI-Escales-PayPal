@@ -196,6 +196,18 @@ def order_cancel_url() -> str:
     return (os.environ.get("ESCALES_CANCEL_URL") or _DEFAULT_ORDER_CANCEL).strip()
 
 
+def subscription_return_url() -> str:
+    """Crew supporter subscription approval return (PayPal billing subscribe)."""
+    default = f"{public_base_url()}/?sub=return"
+    return (os.environ.get("ESCALES_SUBSCRIPTION_RETURN_URL") or default).strip()
+
+
+def subscription_cancel_url() -> str:
+    """Crew supporter subscription checkout cancel."""
+    default = f"{public_base_url()}/?sub=cancel"
+    return (os.environ.get("ESCALES_SUBSCRIPTION_CANCEL_URL") or default).strip()
+
+
 def webhooks_enabled() -> bool:
     """PayPal inbound webhooks. Off unless ESCALES_WEBHOOKS_ENABLED is truthy."""
     return os.environ.get("ESCALES_WEBHOOKS_ENABLED", "").strip().lower() in _TRUTHY

@@ -28,6 +28,8 @@ from app.escales.config import (
     simulated_now,
     elastic_evidence_enabled,
     escales_enabled,
+    subscription_cancel_url,
+    subscription_return_url,
     kernel_evidence_enabled,
     load_config,
     naviguide_bridge_enabled,
@@ -237,8 +239,8 @@ class SubscriptionRecordIn(BaseModel):
 
 
 class SubscriptionCreateIn(BaseModel):
-    return_url: str = Field(default="https://example.com/crew/subscribe/return")
-    cancel_url: str = Field(default="https://example.com/crew/subscribe/cancel")
+    return_url: Optional[str] = None
+    cancel_url: Optional[str] = None
 
 
 class SubscriptionApproveIn(BaseModel):
@@ -741,13 +743,15 @@ async def post_subscription_setup(request: Request):
 
 
 @router.post("/paypal/subscriptions/create")
-async def post_subscription_create(body: SubscriptionCreateIn):
+async def post_subscription_create(body: SubscriptionCreateIn = SubscriptionCreateIn()):
     """Buyer checkout: catalog + PayPal subscription (public)."""
+    back = (body.return_url or "").strip() or subscription_return_url()
+    cancel = (body.cancel_url or "").strip() or subscription_cancel_url()
     try:
         return await create_crew_subscription(
             _paypal(),
-            return_url=body.return_url.strip(),
-            cancel_url=body.cancel_url.strip(),
+            return_url=back,
+            cancel_url=cancel,
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc

@@ -21,7 +21,8 @@
     "close": "Fermer",
     "loading": "Chargement de la fiche…",
     "empty": "Pas de liste pour cette escale.",
-    "pick": "Choisissez une escale sur la carte pour la fiche et le bouton PayPal."
+    "pick": "Choisissez une escale sur la carte pour la fiche et le bouton PayPal.",
+    "captainReview": "Revue du capitaine"
   },
   "projects": {
     "heading": "Projets Blue Intelligence",

@@ -4,7 +4,7 @@
  */
 import { EscaleSheet } from "./EscaleSheet.jsx";
 
-export function EscalePopup({ stop, fiche, loading, error, onClose, pledge, onPledgeAuthorized, fund, fundError }) {
+export function EscalePopup({ stop, fiche, loading, error, onClose, pledge, onPledgeAuthorized, fund, fundError, adminKey }) {
   if (!stop) return null;
   return (
     <div data-testid="escale-popup" className="escale-popup-card">
@@ -18,6 +18,7 @@ export function EscalePopup({ stop, fiche, loading, error, onClose, pledge, onPl
         onPledgeAuthorized={onPledgeAuthorized}
         fund={fund}
         fundError={fundError}
+        adminKey={adminKey}
       />
     </div>
   );

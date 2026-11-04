@@ -460,6 +460,7 @@ export default function App() {
                 onPledgeAuthorized={onAuthorized}
                 fund={fund}
                 fundError={fundError}
+                adminKey={adminKey}
               />
             ) : <p className="hint">{t("sheet.pick")}</p>}
           </div>

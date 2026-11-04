@@ -21,7 +21,8 @@
     "close": "Close",
     "loading": "Loading the sheet…",
     "empty": "No list for this stop.",
-    "pick": "Pick a stop on the map for the sheet and the PayPal button."
+    "pick": "Pick a stop on the map for the sheet and the PayPal button.",
+    "captainReview": "Captain's review"
   },
   "projects": {
     "heading": "Blue Intelligence projects",

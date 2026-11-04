@@ -4,8 +4,9 @@
  * Le bouton PayPal (PledgeButton, PR #2) est hébergé ici.
  * googleMapsUrl est la fonction du même nom dans engine/briefingLinks.js.
  */
-import { memo } from "react";
+import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { captainReview } from "../api/escales";
 import { HELLOASSO_MEMBERSHIP_URL } from "../config/helloasso.js";
 import { PledgeButton } from "./PledgeButton";
 
@@ -72,12 +73,34 @@ export const EscaleSheet = memo(function EscaleSheet({
   onPledgeAuthorized,
   fund,
   fundError,
+  adminKey,
 }) {
   const { t, i18n } = useTranslation();
+  const [review, setReview] = useState(null);
+  const [reviewError, setReviewError] = useState(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
   if (!stop) return null;
   const lang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const sections = visibleSections(fiche?.sections);
   const keys = Object.keys(sections);
+  const reviewMilestone = stop.milestoneId || pledge?.milestoneId || "";
+  const treasurerKey = (adminKey || "").trim();
+
+  const onCaptainReview = async () => {
+    if (!reviewMilestone) return;
+    setReviewBusy(true);
+    setReviewError(null);
+    try {
+      const row = await captainReview(reviewMilestone, treasurerKey || undefined);
+      const stored = treasurerKey ? row : { ...row, pending_authorizations: undefined };
+      setReview(stored);
+    } catch (err) {
+      setReview(null);
+      setReviewError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setReviewBusy(false);
+    }
+  };
 
   return (
     <div data-testid="escale-sheet" className="escale-sheet">
@@ -144,6 +167,30 @@ export const EscaleSheet = memo(function EscaleSheet({
           <a href={HELLOASSO_MEMBERSHIP_URL} target="_blank" rel="noreferrer">{t("fund.helloasso")}</a>
         </p>
       </section>
+      <button
+        type="button"
+        data-testid="captain-review"
+        onClick={() => void onCaptainReview()}
+        disabled={reviewBusy || !reviewMilestone}
+      >
+        {t("sheet.captainReview")}
+      </button>
+      {reviewError ? <p className="notice error">{reviewError}</p> : null}
+      {review ? (
+        <div data-testid="captain-review-result">
+          <p>{review.proposal}</p>
+          {review.justification ? <p>{review.justification}</p> : null}
+          {review.pending_authorizations?.length ? (
+            <ul data-testid="pending-authorizations">
+              {review.pending_authorizations.map((row) => (
+                <li key={row.authorization_id || row.pledge_id}>
+                  {row.authorization_id} {row.amount_eur} {row.currency}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
       {pledge ? (
         <div className="pledge-form">
           <p className="hint">{t("pledge.intent")}</p>

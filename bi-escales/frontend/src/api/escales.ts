@@ -180,9 +180,13 @@ export async function postEvidence(
   return res.json();
 }
 
-export async function captainReview(milestoneId: string): Promise<CaptainProposal> {
+export async function captainReview(milestoneId: string, adminKey?: string): Promise<CaptainProposal> {
+  const headers: Record<string, string> = {};
+  const key = (adminKey || "").trim();
+  if (key) headers["x-admin-key"] = key;
   const res = await fetch(url(`/api/escales/captain/review/${encodeURIComponent(milestoneId)}`), {
     method: "POST",
+    headers,
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();

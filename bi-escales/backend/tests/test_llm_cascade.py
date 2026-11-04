@@ -501,7 +501,7 @@ def test_captain_strips_invented_figures_and_keeps_the_source(monkeypatch):
         await record_evidence("dep-mayotte", met=True, facts={"port": "Mayotte"})
         result = await review("dep-mayotte", reader=None)
         assert "999" not in result["report"]
-        assert "[?]" in result["justification"]
+        assert "[?]" not in result["justification"]
         assert result["proposal"] == "capture"
         assert result["model_source"] == {"provider": "nim", "model": llm.NIM_MODEL_DEFAULT}
 

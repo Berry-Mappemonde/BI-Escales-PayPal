@@ -208,7 +208,7 @@ def test_review_strips_numbers_not_in_the_evidence(monkeypatch):
         text = result["justification"]
         assert "12" in text
         assert "999" not in text
-        assert "[?]" in text
+        assert "[?]" not in text
         assert result["proposal"] == "capture"
         assert result["model_source"] == {"provider": "llm", "model": ""}
 
@@ -2574,7 +2574,9 @@ def test_french_review_instructs_in_french_and_drops_unknown_marks(monkeypatch):
         assert "80" in result["report"]
         assert "français" in seen["system"].casefold()
         assert '"language": "fr"' in seen["prompt"]
-        assert "Pour " in captain._fallback_report("dakar", "wait", {"flag": "simulation"}, "fr")
+        assert "La proposition est wait." in captain._fallback_report(
+            "dakar", "wait", {"flag": "simulation"}, "fr",
+        )
 
     asyncio.run(body())
 

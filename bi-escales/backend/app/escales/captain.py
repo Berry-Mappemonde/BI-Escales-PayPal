@@ -701,7 +701,7 @@ def _fallback_report(milestone_id: str, decision: str, evidence: dict, lang: str
             f"{_TREASURER_RULES_EN}"
         )
     return (
-        f"Pour {port}, la preuve {provider} porte la marque {flag} (source {source}). "
+        f"Jalon {port} : la preuve {provider} porte la marque {flag} (source {source}). "
         f"La proposition est {decision}. "
         f"{_TREASURER_DECIDES}"
     )
@@ -1393,9 +1393,11 @@ def _compose_chat_reply(
 
 
 def _without_unknown_marks(text: str) -> str:
-    """Drop a sentence whose figure was replaced by ``[?]``."""
-    kept = [sentence for sentence in _split_sentences(text) if "[?]" not in sentence]
-    return " ".join(kept).strip()
+    """Remove ``[?]`` left by the number filter. Allowed figures stay."""
+    cleaned = (text or "").replace("[?]", "")
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r"\s+([.,;])", r"\1", cleaned)
+    return cleaned.strip()
 
 
 def _without_jalon(text: str, lang: str) -> str:

@@ -76,7 +76,7 @@ export function TreasurerPanel({
   onSettleAtChange,
   onSettleAt,
   milestoneId,
-  onMilestoneIdChange,
+  onMilestoneIdChange: _onMilestoneIdChange,
   projectFund,
   boatFund,
   pledges,
@@ -120,6 +120,9 @@ export function TreasurerPanel({
               data-testid="admin-key-input"
             />
           </label>
+          <p className="hint" data-testid="treasurer-milestone-hint">
+            {t("treasurer.milestoneFromStop", { id: milestoneId.trim() || "—" })}
+          </p>
           <button
             type="button"
             data-testid="departure-settle"
@@ -154,10 +157,6 @@ export function TreasurerPanel({
               </button>
             </div>
           ) : null}
-          <label>
-            {t("pledge.milestone")}
-            <input value={milestoneId} onChange={(event) => onMilestoneIdChange(event.target.value)} />
-          </label>
           <section className="panel" data-testid="treasurer-open-funds">
             <h2>{t("fund.openHeading")}</h2>
             <OpenFundTotals title={t("fund.projectTotals")} fund={projectFund} testId="project-fund-totals" />

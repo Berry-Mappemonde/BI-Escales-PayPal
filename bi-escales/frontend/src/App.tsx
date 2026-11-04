@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchHealthRetrying, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchHealthRetrying, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { emitCrewSubscribeReturn } from "./paypal/crewSubscribeReturnEvents";
 import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
 import { nextStopover } from "./voyage/nextStopover.js";
-import type { CaptainChatResponse, FundView, PublicPledge } from "./api/types";
+import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
 import { EscalePopup } from "./components/EscalePopup.jsx";
 import MarinasPanel from "./components/MarinasPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
 import { TreasurerPanel } from "./components/TreasurerPanel";
 import { CrewSubscribeButton } from "./components/CrewSubscribeButton";
+import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { useTheme } from "./hooks/useTheme";
 import { setLanguage } from "./i18n";
@@ -80,6 +81,8 @@ export default function App() {
   const [crewSubscribeNote, setCrewSubscribeNote] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [treasurerOpen, setTreasurerOpen] = useState(false);
+  const [bryntumEnabled, setBryntumEnabled] = useState(false);
+  const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
 
   const prod = Boolean(import.meta.env.PROD);
   const t0 = resolveDepartureT0(prod, devT0 || undefined);
@@ -110,10 +113,35 @@ export default function App() {
       });
     void fetchJson("/route.geojson").then(setRouteFc).catch(() => setRouteFc(null));
     void fetchJson("/bi-projects.geojson").then(setProjects).catch(() => setProjects({ features: [] }));
+    void fetchFeatures()
+      .then((flags) => {
+        if (!cancelled) setBryntumEnabled(Boolean(flags.bryntum));
+      })
+      .catch(() => {
+        if (!cancelled) setBryntumEnabled(false);
+      });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!bryntumEnabled) {
+      setSchedule(null);
+      return undefined;
+    }
+    let cancelled = false;
+    void fetchSchedule()
+      .then((row) => {
+        if (!cancelled) setSchedule(row);
+      })
+      .catch(() => {
+        if (!cancelled) setSchedule(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bryntumEnabled]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 30000);
@@ -180,6 +208,21 @@ export default function App() {
     if (Number.isFinite(next.lat) && Number.isFinite(next.lon)) {
       setFlyTo({ lat: next.lat, lon: next.lon, ts: Date.now() });
     }
+  };
+
+  const onSchedulePick = (event: { milestoneId?: string; lat?: number; lon?: number; name?: string }) => {
+    if (!event?.milestoneId) return;
+    const match = (voyage?.stops || []).find((row: VoyageStop) => row.milestoneId === event.milestoneId);
+    if (match) {
+      chooseStop(match);
+      return;
+    }
+    chooseStop({
+      name: event.name || event.milestoneId,
+      lat: Number(event.lat) || 0,
+      lon: Number(event.lon) || 0,
+      milestoneId: event.milestoneId,
+    });
   };
 
   const onAuthorized = useCallback((pledge: PublicPledge) => {
@@ -497,6 +540,7 @@ export default function App() {
           className="ng-sidebar-toggle"
           data-testid="ng-sidebar-toggle"
           aria-expanded={sidebarOpen}
+          aria-label={sidebarOpen ? t("app.sidebarCollapse") : t("app.sidebarExpand")}
           onClick={() => setSidebarOpen((open) => !open)}
         >
           {sidebarOpen ? "◀" : "▶"}
@@ -571,6 +615,14 @@ export default function App() {
               onSuggested={onSuggested}
               onAuthorized={onAuthorized}
             />
+            {bryntumEnabled && schedule ? (
+              <EscalesScheduler
+                schedule={schedule}
+                planningEnabled
+                onSelectEscale={onSchedulePick}
+                onAuthorized={onAuthorized}
+              />
+            ) : null}
           </>
         ) : (
           <div className="panel">

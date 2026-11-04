@@ -7,7 +7,9 @@
     "themeLight": "Light",
     "themeDark": "Dark",
     "healthFail": "Backend unreachable",
-    "escalesOff": "ESCALES_ENABLED is off: /api/escales returns 404."
+    "escalesOff": "ESCALES_ENABLED is off: /api/escales returns 404.",
+    "sidebarCollapse": "Collapse sidebar",
+    "sidebarExpand": "Expand sidebar"
   },
   "tabs": {
     "voyage": "Voyage map",
@@ -25,7 +27,18 @@
     "loading": "Loading the sheet…",
     "empty": "No list for this stop.",
     "pick": "Pick a stop on the map for the sheet and the PayPal button.",
-    "captainReview": "Captain's review"
+    "sections": {
+      "mooring": "Mooring",
+      "marinas": "Marinas",
+      "capitaineries": "Harbour master",
+      "wpi": "WPI ports",
+      "anchorages": "Anchorages",
+      "services": "Services",
+      "fuel": "Fuel",
+      "water": "Water",
+      "around": "Around",
+      "projects": "Projects"
+    }
   },
   "projects": {
     "heading": "Blue Intelligence projects",
@@ -67,7 +80,11 @@
     "boatTotals": "Common fund"
   },
   "scheduler": {
-    "empty": "No stopovers scheduled."
+    "heading": "Stopover calendar",
+    "empty": "No stopovers scheduled.",
+    "cabinLeg": "{{from}} → {{to}}",
+    "cabinPrice": "{{amount}} EUR",
+    "cabinDescription": "Cabin {{from}} → {{to}}"
   },
   "escales": {
     "heading": "Stops & AI Captain",
@@ -91,6 +108,7 @@
     },
     "milestone": "Milestone",
     "contributor": "Contributor (optional)",
+    "simulatedPrice": "simulated price",
     "returnPending": "Approve on PayPal. On return, authorization runs by itself.",
     "cancelled": "Approval cancelled. Nothing is authorized.",
     "intent": "AUTHORIZE intent — PayPal sandbox",
@@ -138,6 +156,7 @@
     "status": "Status",
     "amount": "Amount",
     "description": "Description",
+    "milestoneFromStop": "Spending and fund use the selected stop milestone: {{id}}",
     "milestone": "Milestone",
     "actions": "Actions",
     "back": "Back to the map",

@@ -230,3 +230,72 @@ body.ng-naviguide-shell {
   margin-left: 0;
   font-size: 0.85rem;
 }
+
+.ng-sidebar .panel,
+.ng-tools-panel .panel,
+.ng-tools-panel .escale-popup-card {
+  border: 1px solid var(--shell-border);
+  border-radius: 8px;
+  padding: 0.65rem;
+  background: var(--shell-control-bg);
+  box-sizing: border-box;
+}
+
+.ng-sidebar .panel + .panel,
+.ng-tools-panel .panel + .panel {
+  margin-top: 0.5rem;
+}
+
+.ng-sidebar .panel h2,
+.ng-tools-panel .panel h2,
+.escales-scheduler h2 {
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+}
+
+.ng-sidebar .lang-switch button,
+.ng-sidebar .theme-switch button,
+.ng-sidebar .panel button,
+.ng-tools-panel .panel button,
+.ng-tab-bar button {
+  font-family: inherit;
+}
+
+.ng-sidebar .lang-switch {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.ng-sidebar .lang-switch button {
+  flex: 1;
+  min-width: 5rem;
+  border-radius: 8px;
+  border: 1px solid var(--shell-control-border);
+  background: var(--shell-tab-bg);
+  color: var(--shell-tab-text);
+  padding: 0.4rem 0.55rem;
+  cursor: pointer;
+}
+
+.ng-sidebar .lang-switch button.active {
+  border-color: var(--shell-border);
+  background: var(--shell-tab-active-bg);
+  color: var(--shell-tab-active-text);
+}
+
+.escale-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.escale-kicker {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}

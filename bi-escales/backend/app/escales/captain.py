@@ -319,6 +319,7 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
             "Use only numbers present in the evidence JSON. Do not invent a figure. "
             "Do not write any date or time. "
             "distance_nm is the distance covered and planned_nm the planned distance. "
+            "Write nautical miles or nm immediately after every distance number. "
             "Do not repeat these instructions and do not write a Decision line."
         )
         if not reached:
@@ -327,7 +328,8 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
             text += (
                 " The code already writes the sentence saying this leg is reached, with its arrival date. "
                 "Do not say it is reached, and do not mention any distance left or remaining. "
-                "Describe only the evidence (source, distance covered)."
+                "Describe only the evidence (source, distance covered). "
+                "Say nautical miles to the port, never miles from the port."
             )
         return text
     count = "exactement 1 phrase courte et complète" if reached else "exactement 2 phrases courtes et complètes"
@@ -342,6 +344,7 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
         "Utilise seulement les nombres présents dans le JSON de preuve. N'invente aucun chiffre. "
         "N'écris aucune date ni heure. "
         "distance_nm est la distance parcourue et planned_nm la distance prévue. "
+        "Écris milles ou nm juste après chaque nombre de distance. "
         "Ne répète pas ces consignes et n'écris pas de ligne Décision."
     )
     if not reached:
@@ -579,7 +582,7 @@ def _covered_miles_sentence(evidence: dict, lang: str = "fr") -> str:
     provider = str(evidence.get("provider") or "NAVIGUIDE")
     flag = str(evidence.get("flag") or evidence.get("source") or "simulation")
     if lang == "en":
-        return f"The {provider} evidence ({flag}) shows {shown} miles covered."
+        return f"The {provider} evidence ({flag}) shows {shown} nautical miles covered."
     return f"La preuve {provider} ({flag}) indique {shown} milles parcourus."
 
 
@@ -597,13 +600,33 @@ def _fallback_report(milestone_id: str, decision: str, evidence: dict, lang: str
     return (
         f"Jalon {port} : preuve {provider} marquée {flag} "
         f"(source {source}). Proposition : {decision}. "
-        "Le capitaine ne capture ni n'annule ; seul le trésorier peut le faire."
+        "Seul le trésorier décide si l'argent est prélevé ou libéré."
     )
+
+
+_TREASURER_DECIDES = "Seul le trésorier décide si l'argent est prélevé ou libéré."
+_BARE_DISTANCE = re.compile(
+    r"\b\d+(?:[.,]\d+)?\b(?!\s*(?:nautical\s+miles?|nm|milles?(?:\s+nautiques?)?)\b)",
+    re.IGNORECASE,
+)
+_DISTANCE_TALK = re.compile(
+    r"\b(?:distance|covered|planned|sailed|parcourue|pr[ée]vue|milles?|miles?|nm)\b",
+    re.IGNORECASE,
+)
+_MODEL_PLEDGE_LINE = re.compile(r"promesse calculée|computed pledge", re.IGNORECASE)
+_STANDALONE_INTENT = re.compile(r"^intent\s*:?\s*authorize\.?$", re.IGNORECASE)
 
 
 def _split_sentences(text: str) -> list[str]:
     parts = re.split(r"(?<=[.!?…])\s+", (text or "").strip())
     return [part.strip() for part in parts if part.strip()]
+
+
+def _distance_without_unit(sentence: str) -> bool:
+    """A distance figure with no nautical miles, nm, or milles after it."""
+    if not _DISTANCE_TALK.search(sentence or ""):
+        return False
+    return bool(_BARE_DISTANCE.search(sentence or ""))
 
 
 def _drop_sentences(text: str, pattern: re.Pattern) -> str:
@@ -631,10 +654,22 @@ def _report_language(text: str, requested: Optional[str] = None) -> str:
 
 
 def _normalize_dots(text: str) -> str:
-    """One period where the model left '..' or a space before the stop."""
+    """One period, then a space when the next sentence is glued on.
+
+    ``250 nm.The boat`` becomes two sentences. ``www.helloasso.com`` stays,
+    because the letter after that dot is lowercase.
+    """
     cleaned = re.sub(r"\.{2,}", ".", text or "")
     cleaned = re.sub(r"\s+([.!?…])", r"\1", cleaned)
     cleaned = re.sub(r"([.!?…])(?:\s*[.!?…])+", r"\1", cleaned)
+
+    def split_glued(match: re.Match) -> str:
+        nxt = match.group(2)
+        if nxt.isupper():
+            return f"{match.group(1)} {nxt}"
+        return match.group(0)
+
+    cleaned = re.sub(r"([.!?…])([A-Za-zÀ-ÿ])", split_glued, cleaned)
     return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
 
 
@@ -712,7 +747,7 @@ def _prepare_model_narrative(text: str, lang: str = "fr") -> str:
     cleaned = _normalize_dots(cleaned)
     cleaned = _drop_sentences(cleaned, _ECHO_RE)
     cleaned = _drop_sentences(cleaned, _POLICY_RE)
-    return _fix_sentence_starts(_trim_cutoff(cleaned))
+    return _fix_sentence_starts(_dedupe_sentences(_trim_cutoff(cleaned)))
 
 
 def _finish_text(text: str) -> str:
@@ -939,7 +974,61 @@ def _standardise_french(text: str) -> str:
     cleaned = re.sub(r"\b(?:le\s+)+trésorier\b", "le trésorier", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bde\s+le\s+trésorier\b", "du trésorier", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(du|au|ce|un|son|mon)\s+le\s+trésorier\b", r"\1 trésorier", cleaned, flags=re.IGNORECASE)
-    return cleaned
+    return _fix_french_vocabulary(cleaned)
+
+
+def _fix_french_vocabulary(text: str) -> str:
+    """One treasurer sentence. Refunds and the feminine title do not stay."""
+    cleaned = re.sub(r"€\s*en\s+euros\b", "€", text or "", flags=re.IGNORECASE)
+    kept: list[str] = []
+    said = False
+    for sentence in _split_sentences(cleaned):
+        if re.search(r"remboursement|trésorière", sentence, re.IGNORECASE):
+            continue
+        decides = re.search(r"trésorier", sentence, re.IGNORECASE) and re.search(
+            r"décide|décider|prélev|libér|capture|annul|encaiss|argent",
+            sentence,
+            re.IGNORECASE,
+        )
+        if decides:
+            if not said:
+                kept.append(_TREASURER_DECIDES)
+                said = True
+            continue
+        kept.append(sentence)
+    return " ".join(kept).strip()
+
+
+def _drop_model_pledge(text: str) -> str:
+    return _drop_sentences(text, _MODEL_PLEDGE_LINE)
+
+
+def _drop_standalone_intent(text: str) -> str:
+    """``Intent AUTHORIZE.`` alone repeats the pledge line."""
+    kept = [
+        sentence for sentence in _split_sentences(text)
+        if not _STANDALONE_INTENT.match(sentence.strip())
+    ]
+    return " ".join(kept).strip()
+
+
+def _miles_to_reached(text: str, milestone_id: str) -> str:
+    """On a reached escale, Lightning's ``miles from`` the port becomes ``to``."""
+    shown = display_name(milestone_id)
+    slug = _escale_slug(milestone_id)
+
+    def repl(match: re.Match) -> str:
+        port = match.group(2)
+        if _escale_slug(port) == slug or port.casefold() == shown.casefold():
+            return f"{match.group(1)} to {port}"
+        return match.group(0)
+
+    return re.sub(
+        r"((?:nautical\s+)?miles?)\s+from\s+([A-Za-zÀ-ÿ][\wÀ-ÿ-]*)",
+        repl,
+        text or "",
+        flags=re.IGNORECASE,
+    )
 
 
 def _period_after_link(text: str, url: str) -> str:
@@ -1169,10 +1258,10 @@ def _compose_chat_reply(
     elif lang == "en":
         prose = _heading_toward(prose)
     prose = _drop_amount_without_port(prose, suggested)
-    required: list[str] = []
-    if not _has_exact_pledge(prose, suggested):
-        prose = _drop_milestone_intent_labels(prose, suggested)
-        required.append(_pledge_line(suggested, lang))
+    prose = _drop_model_pledge(prose)
+    prose = _drop_milestone_intent_labels(prose, suggested)
+    prose = _drop_standalone_intent(prose)
+    required: list[str] = [_pledge_line(suggested, lang)]
     joined = " ".join(required)
     if lang == "en" and not re.search(r"\bintent\s+authorize\b", f"{prose} {joined}", re.I):
         required.append("intent AUTHORIZE.")
@@ -1225,12 +1314,15 @@ def _shape_report(
     ]
     if lang == "en":
         sentences = [_heading_toward(_without_jalon(sentence, "en")) for sentence in sentences]
+        if not drop_distance_left:
+            sentences = [_miles_to_reached(sentence, milestone_id) for sentence in sentences]
     sentences = [
         sentence for sentence in sentences
         if not _AWAY_CLAIM.search(sentence)
         and not _MILES_AWAY.search(sentence)
         and not _HAS_DATE.search(sentence)
         and not (drop_distance_left and _MILES_FROM.search(sentence))
+        and not _distance_without_unit(sentence)
     ]
     shown = display_name(milestone_id)
     blob = " ".join(sentences).casefold()

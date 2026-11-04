@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import re
+import time
 from typing import Any, Awaitable, Callable, Optional
 
 import httpx
@@ -357,11 +358,42 @@ def _http_error(provider: str, response: httpx.Response) -> RuntimeError:
 
 # One pause inside this band, then the same NIM model is tried again.
 NIM_RETRY_PAUSE_S = 0.75
+# 429 still arrives at one call per second, so successive NIM calls sit further apart.
+NIM_CALL_GAP_S = 1.25
+_last_nim_at = 0.0
 
 
 def nim_rate_limit_pause() -> float:
     """Seconds to wait after NIM HTTP 429 before the same model is retried."""
     return NIM_RETRY_PAUSE_S
+
+
+def nim_call_gap() -> float:
+    """Minimum seconds between NIM requests. Above one second: 429 still happens at 1/s."""
+    raw = _env("ESCALES_NIM_GAP_S")
+    if not raw:
+        return NIM_CALL_GAP_S
+    try:
+        value = float(raw)
+    except ValueError:
+        return NIM_CALL_GAP_S
+    return value if value >= 0 else NIM_CALL_GAP_S
+
+
+def reset_nim_pace() -> None:
+    global _last_nim_at
+    _last_nim_at = 0.0
+
+
+async def _pace_nim() -> None:
+    """Wait until the previous NIM call is far enough behind."""
+    global _last_nim_at
+    gap = nim_call_gap()
+    if _last_nim_at and gap > 0:
+        wait = gap - (time.monotonic() - _last_nim_at)
+        if wait > 0:
+            await asyncio.sleep(wait)
+    _last_nim_at = time.monotonic()
 
 
 def _is_rate_limit(exc: BaseException) -> bool:
@@ -642,6 +674,7 @@ async def ask_text(
             for attempt in range(2 if nim_hop else 1):
                 try:
                     if nim_hop:
+                        await _pace_nim()
                         result = await _call_nim(
                             system_text,
                             user,

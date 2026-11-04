@@ -347,7 +347,7 @@ def test_a_complete_model_answer_is_not_followed_by_the_french_template(monkeypa
 
     async def body():
         result = await chat("Je voudrais parrainer 120 milles près de Lorient")
-        assert "Promesse calculée" not in result["reply"]
+        assert result["reply"].count("Promesse calculée") == 1
         assert "120,00 €" in result["reply"]
         assert "120.00" not in result["reply"]
         assert result["reply"].count("— Le capitaine") == 1
@@ -410,14 +410,14 @@ def test_number_guard_rewrites_amounts_into_the_reply_language(monkeypatch):
         assert "120,00 €" in french["reply"]
         assert "120.00" not in french["reply"]
         assert "120 milles parrainés" in french["reply"]
-        assert "Promesse calculée" not in french["reply"]
+        assert french["reply"].count("Promesse calculée") == 1
         english = await chat("I'd like to sponsor 120 nautical miles near Lorient")
         assert "120.00 EUR" in english["reply"]
         assert "120,00" not in english["reply"]
         assert "€" not in english["reply"]
         assert "120 sponsored miles" in english["reply"]
         assert "milles parrainés" not in english["reply"]
-        assert "Computed pledge" not in english["reply"]
+        assert english["reply"].count("Computed pledge") == 1
 
     asyncio.run(body())
 
@@ -1094,7 +1094,7 @@ def test_a_port_dinner_counts_as_the_computed_pledge(monkeypatch):
         result = await chat("I'd like to sponsor 250 mi + dinner near Dakar")
         reply = result["reply"]
         assert result["suggested_pledge"]["description"] == "250 sponsored miles and port dinner"
-        assert "Computed pledge" not in reply
+        assert reply.count("Computed pledge") == 1
         assert "310.00 EUR" in reply
         assert "a port dinner" in reply
 
@@ -1376,8 +1376,9 @@ def test_french_pledge_matches_amount_and_port_without_the_description(monkeypat
     async def body():
         result = await chat("Je parraine 120 milles près de Lorient")
         reply = result["reply"]
-        assert "120 milles parrainés" not in reply
-        assert reply.lower().count("promesse calculée") == 0
+        assert "Pour Lorient le total est" in reply
+        assert reply.lower().count("promesse calculée") == 1
+        assert reply.lower().count("120 milles parrainés") == 1
         assert reply.lower().count("intention") == 1
         assert "intention : autorisation" in reply.casefold()
         assert "AUTHORIZE" not in reply
@@ -1544,7 +1545,7 @@ def test_french_reply_standardises_intention_and_the_treasurer(monkeypatch):
         assert "The treasurer" not in reply
         assert "Le Trésorier" not in reply
         assert "le trésorier" in reply
-        assert reply.lower().count("promesse calculée") == 0
+        assert reply.lower().count("promesse calculée") == 1
 
     asyncio.run(body())
 
@@ -1597,7 +1598,8 @@ def test_reached_leg_keeps_miles_covered_from_the_port(monkeypatch):
     async def body():
         await record_evidence("lorient", met=True, facts={"distance_nm": 120})
         result = await review("lorient", reader=None, lang="en")
-        assert "120 nautical miles from Lorient" in result["report"]
+        assert "120 nautical miles to Lorient" in result["report"]
+        assert "miles from" not in result["report"].lower()
         assert "Milestone Lorient was reached" in result["report"]
         assert result["model_source"]["provider"] == "llm"
 
@@ -1897,6 +1899,93 @@ def test_thin_french_report_gains_the_covered_miles_sentence(monkeypatch):
         result = await review("lorient", reader=None, lang="fr")
         assert result["model_source"]["provider"] == "rules"
         assert "La preuve NAVIGUIDE (simulation) indique 120 milles parcourus." in result["report"]
+
+    asyncio.run(body())
+
+
+def test_glued_period_is_split_and_duplicate_sentences_drop():
+    raw = (
+        "The boat sailed 250 nm.The boat is heading toward Dakar. "
+        "The boat is heading toward Dakar."
+    )
+    text = captain._finish_text(raw)
+    assert "250 nm. The boat" in text
+    assert text.lower().count("heading toward dakar") == 1
+    url = captain._finish_text("See www.helloasso.com today.")
+    assert "www.helloasso.com" in url
+    assert "www. Hello" not in url
+
+
+def test_bare_distance_numbers_are_rejected(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return (
+            "The distance covered is 40 and the planned distance is 110. "
+            "The boat sailed 80 nautical miles."
+        )
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "wait", "reason": "open"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence("dakar", met=False, facts={"distance_nm": 80, "planned_nm": 110})
+        result = await review("dakar", reader=None, lang="en")
+        report = result["report"]
+        assert "80 nautical miles" in report
+        assert " 40" not in report
+        assert "110" not in report
+        assert "nautical miles or nm" in captain._report_system("dakar", reached=False, lang="en")
+
+    asyncio.run(body())
+
+
+def test_standalone_intent_authorize_is_dropped_when_the_pledge_states_it(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "The sea is calm. Intent AUTHORIZE."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("I'd like to sponsor 10 nautical miles near Lorient")
+        reply = result["reply"]
+        sentences = re.split(r"(?<=[.!?])\s+", reply.strip())
+        assert not any(re.fullmatch(r"intent\s*:?\s*authorize\.?", sentence.strip(), re.I) for sentence in sentences)
+        assert reply.count("Computed pledge") == 1
+        assert "The sea is calm" in reply
+
+    asyncio.run(body())
+
+
+def test_french_vocabulary_and_the_pledge_line(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return (
+            "La trésorière parle de remboursement. "
+            "Le prix est 10,00 € en euros pour Brest. "
+            "Le trésorier décide si l'argent est prélevé."
+        )
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Brest")
+        reply = result["reply"]
+        assert "remboursement" not in reply.casefold()
+        assert "trésorière" not in reply.casefold()
+        assert "en euros" not in reply.casefold()
+        assert "10,00 €" in reply
+        assert "Seul le trésorier décide si l'argent est prélevé ou libéré." in reply
+        assert reply.count("Promesse calculée") == 1
 
     asyncio.run(body())
 

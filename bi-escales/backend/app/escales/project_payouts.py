@@ -11,6 +11,7 @@ from typing import Any, Optional
 
 from .app_i18n import normalize_app_lang
 from .ledger import _euros, get_ledger, list_finance_entries, record_finance, update_finance_entry
+from .pledges import refunded_amount_from_pledge
 from .paypal_client import PayPalError, _paypal_api_error_fields
 
 
@@ -52,7 +53,7 @@ async def project_captured_eur(project_id: str) -> Decimal:
             continue
         if str(row.get("status") or "") not in ("captured", "partially_refunded"):
             continue
-        total += _euros(row.get("amount_eur")) - _euros(row.get("refunded_amount_eur"))
+        total += _euros(row.get("amount_eur")) - refunded_amount_from_pledge(row)
     return total
 
 

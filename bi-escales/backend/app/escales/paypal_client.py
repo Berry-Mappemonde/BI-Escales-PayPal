@@ -381,22 +381,26 @@ class PayPalClient:
             idempotency_key=paypal_request_id(ref, "authorize"),
         )
 
-    def capture_order(self, order_id: str, *, pledge_id: Optional[str] = None) -> dict:
-        ref = pledge_id or order_id
+    def capture_order(self, order_id: str, *, idempotency_key: str) -> dict:
         return self._req(
             "POST",
             f"/v2/checkout/orders/{order_id}/capture",
             {},
-            idempotency_key=paypal_request_id(ref, "order-capture"),
+            idempotency_key=idempotency_key,
         )
 
-    def capture_authorization(self, authorization_id: str, final: bool = True, *, pledge_id: Optional[str] = None) -> dict:
-        ref = pledge_id or authorization_id
+    def capture_authorization(
+        self,
+        authorization_id: str,
+        final: bool = True,
+        *,
+        idempotency_key: str,
+    ) -> dict:
         return self._req(
             "POST",
             f"/v2/payments/authorizations/{authorization_id}/capture",
             {"final_capture": final},
-            idempotency_key=paypal_request_id(ref, "capture"),
+            idempotency_key=idempotency_key,
         )
 
     def void_authorization(self, authorization_id: str, *, pledge_id: Optional[str] = None) -> dict:
@@ -504,6 +508,7 @@ class PayPalClient:
         source: str = "paypal",
         *,
         description: str = "",
+        idempotency_key: str,
     ) -> dict:
         """Charge a saved payment token. ``source`` is ``paypal`` or ``card``."""
         kind = "card" if source == "card" else "paypal"
@@ -524,7 +529,7 @@ class PayPalClient:
             "POST",
             "/v2/checkout/orders",
             body,
-            idempotency_key=paypal_request_id(reference_id, "vault-charge"),
+            idempotency_key=idempotency_key,
         )
 
     def list_disputes(self, *, start_time: Optional[str] = None) -> dict:
@@ -739,13 +744,12 @@ class PayPalClient:
         capture_id: str,
         *,
         amount_eur: Optional[str] = None,
-        pledge_id: Optional[str] = None,
+        idempotency_key: str,
     ) -> dict:
         """Refund a captured payment (full or partial).
 
         Captures API: https://developer.paypal.com/docs/api/payments/v2/#captures_refund
         """
-        ref = pledge_id or capture_id
         body: dict = {}
         if amount_eur:
             body["amount"] = {"currency_code": self.cfg.currency, "value": amount_eur}
@@ -753,7 +757,7 @@ class PayPalClient:
             "POST",
             f"/v2/payments/captures/{capture_id}/refund",
             body or None,
-            idempotency_key=paypal_request_id(ref, "refund"),
+            idempotency_key=idempotency_key,
         )
 
     def create_payout(

@@ -486,7 +486,7 @@ def test_get_pledge_returns_captured_at_with_the_capture_id(api):
 
 
 def test_void_records_void_id_and_voided_at(api):
-    """A void keeps PayPal's id when the body has one, else the authorization id."""
+    """PayPal's void id is kept. An empty body stores the authorization id and says so."""
     client, fake = api
     _created, authorized = _ready(client, "void-stamp")
 
@@ -500,14 +500,29 @@ def test_void_records_void_id_and_voided_at(api):
     body = stamped.json()
     assert body["status"] == "voided"
     assert body["void_id"] == "VOID-1"
+    assert body["void_id_source"] == "paypal"
+    assert "void_note" not in body
     assert body["voided_at"].endswith("Z") or "+" in body["voided_at"]
 
     _other, second = _ready(client, "void-fallback")
     fake.void_authorization = lambda authorization_id: {}
     fallback = client.post(f"/api/escales/pledges/{second['id']}/void", headers=ADMIN)
     assert fallback.status_code == 200, fallback.text
-    assert fallback.json()["void_id"] == second["authorization_id"]
-    assert fallback.json()["voided_at"]
+    empty = fallback.json()
+    assert empty["void_id"] == second["authorization_id"]
+    assert empty["void_id_source"] == "authorization"
+    assert empty["void_note"] == "PayPal's void returned no id. void_id is the authorization id."
+    assert empty["voided_at"]
+    listed = client.get(f"/api/escales/pledges/{second['id']}", headers=ADMIN)
+    assert listed.json()["void_id"] == second["authorization_id"]
+    assert "authorization id" in listed.json()["void_note"]
+
+    _third, same = _ready(client, "void-same-id")
+    fake.void_authorization = lambda authorization_id: {"id": authorization_id, "status": "VOIDED"}
+    echoed = client.post(f"/api/escales/pledges/{same['id']}/void", headers=ADMIN)
+    assert echoed.status_code == 200, echoed.text
+    assert echoed.json()["void_id"] == same["authorization_id"]
+    assert echoed.json()["void_id_source"] == "paypal"
 
 
 def test_void_with_admin_key(api):

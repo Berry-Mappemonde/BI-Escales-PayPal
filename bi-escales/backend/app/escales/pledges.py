@@ -848,13 +848,28 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
     )
 
 
-def _stamp_void(pledge: dict, payload: Any, fallback_id: str) -> None:
-    """PayPal's void id when the body has one, otherwise the hold we released."""
+def _stamp_void(pledge: dict, payload: Any, fallback_id: str, *, hold: str) -> None:
+    """Store the id PayPal's void returns.
+
+    A void of an authorization is often HTTP 204 with no body, or a body whose
+    ``id`` is the authorization itself. When the body has an id, that id is
+    ``void_id`` and ``void_id_source`` is ``paypal``. When it does not,
+    ``void_id`` is the authorization id (or the vault id) and ``void_note``
+    says so.
+    """
     body = payload if isinstance(payload, dict) else {}
-    void_id = str(body.get("id") or "").strip() or str(fallback_id or "").strip()
-    if not void_id:
-        raise PayPalError(502, "void id missing")
-    pledge["void_id"] = void_id
+    returned = str(body.get("id") or "").strip()
+    if returned:
+        pledge["void_id"] = returned
+        pledge["void_id_source"] = "paypal"
+        pledge.pop("void_note", None)
+    else:
+        fallback = str(fallback_id or "").strip()
+        if not fallback:
+            raise PayPalError(502, "void id missing")
+        pledge["void_id"] = fallback
+        pledge["void_id_source"] = hold
+        pledge["void_note"] = f"PayPal's void returned no id. void_id is the {hold} id."
     pledge["voided_at"] = now_iso()
     pledge["status"] = "voided"
     pledge["history"] = list(pledge.get("history") or []) + ["voided"]
@@ -869,7 +884,7 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
         if not vault_id:
             raise IllegalTransition("vaulted", "voided")
         released = client.delete_payment_token(vault_id)
-        _stamp_void(pledge, released, str(vault_id))
+        _stamp_void(pledge, released, str(vault_id), hold="vault")
         saved = await get_ledger().save_pledge(pledge)
         from .audit import record
         await record(
@@ -904,7 +919,7 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "voided")
     released = client.void_authorization(pledge["authorization_id"])
-    _stamp_void(pledge, released, str(pledge["authorization_id"]))
+    _stamp_void(pledge, released, str(pledge["authorization_id"]), hold="authorization")
     saved = await get_ledger().save_pledge(pledge)
     from .audit import record
     await record(

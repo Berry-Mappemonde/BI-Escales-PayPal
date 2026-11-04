@@ -63,7 +63,10 @@ TOKENFACTORY_DEFAULT_BASE = "https://api.tokenfactory.nebius.com/v1"
 
 # Benchmarked NIM defaults (final.log). Env overrides still win.
 # NIM_TEMPERATURE stays unset so chat 0.3, reports 0.2 and JSON 0 apply.
-NIM_MODEL_DEFAULT = "nvidia/nemotron-3.5-super-vl-120b-a12b"
+# The old id nvidia/nemotron-3.5-super-vl-120b-a12b returns 404.
+# So does nvidia/nemotron-3.5-super-120b-a12b without the private/ prefix.
+# model_source reports the model that answered, including lightning after that 404.
+NIM_MODEL_DEFAULT = "private/nvidia/nemotron-3.5-super-120b-a12b"
 NIM_FALLBACK_MODEL_DEFAULT = "nvidia/nemotron-3.5-lightning-30b-a3b"
 NIM_MAX_TOKENS_DEFAULT = 400
 NIM_TOP_P_DEFAULT = 0.95
@@ -160,6 +163,19 @@ def _env_float(raw: str, default: float) -> float:
     if value != value:  # NaN
         return default
     return value
+
+
+_nim_404_fallbacks = 0
+
+
+def nim_404_fallback_count() -> int:
+    """How many times the primary NIM id answered 404 and the cascade moved on."""
+    return _nim_404_fallbacks
+
+
+def reset_nim_404_fallbacks() -> None:
+    global _nim_404_fallbacks
+    _nim_404_fallbacks = 0
 
 
 def nim_model() -> str:
@@ -691,6 +707,14 @@ async def ask_text(
                     detail = safe_error_message(exc)
                     last = f"{name} {type(exc).__name__}: {detail}"
                     log.warning("cascade %s failed (%s): %s", name, type(exc).__name__, detail)
+                    if name == "nim" and "HTTP 404" in str(exc):
+                        global _nim_404_fallbacks
+                        _nim_404_fallbacks += 1
+                        log.warning(
+                            "NIM model %s returned 404; falling back (count=%s)",
+                            nim_model(),
+                            _nim_404_fallbacks,
+                        )
                     if attempt == 0 and nim_hop and _is_rate_limit(exc):
                         pause = nim_rate_limit_pause()
                         log.warning("cascade %s HTTP 429, retrying once in %.2fs", name, pause)

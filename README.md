@@ -9,6 +9,10 @@ A supporter's PayPal pledge is **authorized** (Orders v2 `intent=AUTHORIZE`), an
 
 Status: in development. PayPal **sandbox only**; no real money moves. Planned departure: 15 May 2027.
 
+## NIM model
+
+`NIM_MODEL` defaults to `private/nvidia/nemotron-3.5-super-120b-a12b`. The old id `nvidia/nemotron-3.5-super-vl-120b-a12b` returns 404 at NVIDIA, and so does `nvidia/nemotron-3.5-super-120b-a12b` (the same new id without the `private/` prefix). That 404 is logged and the cascade answers with `nvidia/nemotron-3.5-lightning-30b-a3b`. `model_source.model` is the model that answered, so a lightning value means the fallback hop ran. It does not mean the private id was ignored when `NIM_MODEL` is set.
+
 ## Optional partners (feature flags)
 
 The API runs fully on local pytest and manual treasurer routes without any of the integrations below. Each partner is gated by an environment variable (see `bi-escales/.env.example`).

@@ -831,7 +831,7 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
         "description": "veille du depart",
     })
     assert held["status"] == "authorized"
-    before = client.get("/api/escales/clock")
+    before = client.post("/api/escales/clock/settle", headers=ADMIN)
     assert before.status_code == 200
     assert before.json()["settled"]["actions"] == [{"pledge_id": held["id"], "action": "wait"}]
     assert status(held["id"]) == "authorized"
@@ -848,7 +848,7 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
         headers=ADMIN,
     )
     assert evidence.status_code == 200, evidence.text
-    voided = client.get("/api/escales/clock")
+    voided = client.post("/api/escales/clock/settle", headers=ADMIN)
     assert voided.status_code == 200
     actions = {row["pledge_id"]: row["action"] for row in voided.json()["settled"]["actions"]}
     assert actions[stopped["id"]] == "void"
@@ -859,7 +859,14 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     assert all(call[0] != "capture" for call in fake.calls)
 
     monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-20T08:00:00Z")
-    departed = client.get("/api/escales/clock")
+    public = client.get("/api/escales/clock")
+    assert public.status_code == 200
+    assert "settled" not in public.json()
+    assert public.json()["now"].startswith("2026-11-20")
+    assert status(held["id"]) == "authorized"
+    locked = client.post("/api/escales/clock/settle")
+    assert locked.status_code == 401
+    departed = client.post("/api/escales/clock/settle", headers=ADMIN)
     assert departed.status_code == 200
     assert departed.json()["settled"]["actions"] == [{"pledge_id": held["id"], "action": "capture"}]
     assert status(held["id"]) == "captured"
@@ -901,13 +908,13 @@ def test_declined_capture_does_not_stop_the_clock(api, monkeypatch):
         return {"id": "CAP-OK", "status": "COMPLETED"}
 
     fake.capture_authorization = capture_authorization
-    clock = client.get("/api/escales/clock")
+    clock = client.post("/api/escales/clock/settle", headers=ADMIN)
     assert clock.status_code == 200, clock.text
     actions = {row["pledge_id"]: row for row in clock.json()["settled"]["actions"]}
     assert actions[first.json()["id"]]["action"] == "error"
     assert "DECLINED" in actions[first.json()["id"]]["detail"]
     assert actions[second["id"]]["action"] == "capture"
-    again = client.get("/api/escales/clock")
+    again = client.post("/api/escales/clock/settle", headers=ADMIN)
     assert again.status_code == 200, again.text
     assert client.get(f"/api/escales/pledges/{second['id']}").json()["status"] == "captured"
 

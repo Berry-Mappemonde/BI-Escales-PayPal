@@ -304,20 +304,27 @@ async def get_prices():
     return simulated_prices()
 
 
-@router.get("/clock")
-async def get_clock():
-    """Voyage clock. Reading it settles departure-day captures and voids."""
-    from app.escales.departure_clock import run_departure_clock
-
-    body = {
+def _clock_body() -> dict:
+    return {
         "start": clock_start(),
         "now": simulated_now().replace(microsecond=0).isoformat(),
     }
-    try:
-        client = _paypal()
-    except HTTPException:
-        return body
-    body["settled"] = await run_departure_clock(client)
+
+
+@router.get("/clock")
+async def get_clock():
+    """Public voyage clock. It does not capture or void."""
+    return _clock_body()
+
+
+@router.post("/clock/settle")
+async def post_clock_settle(request: Request):
+    """Settle departure pledges. Treasurer key. Uses the simulated clock."""
+    from app.escales.departure_clock import run_departure_clock
+
+    _require_treasurer(request)
+    body = _clock_body()
+    body["settled"] = await run_departure_clock(_paypal())
     return body
 
 

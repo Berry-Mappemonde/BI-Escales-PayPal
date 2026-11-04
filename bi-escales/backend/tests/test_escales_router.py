@@ -653,9 +653,13 @@ def test_pledge_accepts_kind_and_target(api):
 
 def test_target_slug_must_be_known_for_a_stopover_kind(api):
     client, fake = api
-    bad_slug = _create(client, "m0-slug", {**PLEDGE, "kind": "berth", "target_id": "Projet Ecole"})
+    bad_slug = _create(client, "m0-slug", {
+        **PLEDGE, "kind": "berth", "amount_eur": "30.00", "target_id": "Projet Ecole",
+    })
     assert bad_slug.status_code == 422
-    unknown = _create(client, "m0-unknown", {**PLEDGE, "kind": "care", "target_id": "nulle-part"})
+    unknown = _create(client, "m0-unknown", {
+        **PLEDGE, "kind": "care", "amount_eur": "40.00", "target_id": "nulle-part",
+    })
     assert unknown.status_code == 422
     project = _create(client, "m0-project", {
         **PLEDGE,
@@ -1127,6 +1131,41 @@ def test_priced_kind_requires_its_unit_price(api):
         "description": "cabine",
     })
     assert priced.status_code == 200, priced.text
+    above = _create(client, "cabin-90", {
+        **PLEDGE,
+        "kind": "cabin_leg",
+        "amount_eur": "90.00",
+        "milestone_id": "leg-la-rochelle-to-ajaccio-corse",
+        "description": "cabine",
+    })
+    assert above.status_code == 422
+    assert "80.00" in above.json()["detail"]
+    for kind, price, wrong in (
+        ("berth", "30.00", "31.00"),
+        ("night", "60.00", "120.00"),
+        ("meal", "60.00", "61.00"),
+        ("care", "40.00", "39.00"),
+    ):
+        off = _create(client, f"{kind}-off", {
+            **PLEDGE,
+            "kind": kind,
+            "amount_eur": wrong,
+            "description": kind,
+        })
+        assert off.status_code == 422, kind
+        assert price in off.json()["detail"]
+        on = _create(client, f"{kind}-on", {
+            **PLEDGE,
+            "kind": kind,
+            "amount_eur": price,
+            "description": kind,
+        })
+        assert on.status_code == 200, on.text
+    mile = _create(client, "mile-20", {**PLEDGE, "kind": "mile", "amount_eur": "20.00"})
+    assert mile.status_code == 200, mile.text
+    under = _create(client, "mile-half", {**PLEDGE, "kind": "mile", "amount_eur": "0.50"})
+    assert under.status_code == 422
+    assert "1.00" in under.json()["detail"]
     gift = _create(client, "project-small", {
         "amount_eur": "5.00",
         "description": "promesse projet",

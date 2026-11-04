@@ -118,9 +118,17 @@ _TARGET_MUST_BE_KNOWN = {"mile", "berth", "night", "meal", "care"}
 _TARGET_MUST_MATCH_MILESTONE = _TARGET_MUST_BE_KNOWN | {"common_fund"}
 # No stopover required. An empty milestone keeps this default target.
 _UNPLACED_TARGET = {"project_pledge": "projet", "common_fund": "fonds-commun"}
-# Same figures as the captain catalogue. A priced kind cannot go under one unit.
+# Same figures as the captain catalogue. A mile cannot go under one unit.
 _UNIT_FLOOR = {
     "mile": Decimal("1.00"),
+    "berth": Decimal("30.00"),
+    "night": Decimal("60.00"),
+    "meal": Decimal("60.00"),
+    "care": Decimal("40.00"),
+    "cabin_leg": Decimal("80.00"),
+}
+# Fixed tariffs are the catalogue price, not a minimum. A mile stays editable.
+_EXACT_PRICE = {
     "berth": Decimal("30.00"),
     "night": Decimal("60.00"),
     "meal": Decimal("60.00"),
@@ -399,8 +407,11 @@ async def create_pledge(
     amount = normalize_amount(amount_eur)
     description = _require_text(description, "description")
     pledge_kind = _kind(kind)
+    exact = _EXACT_PRICE.get(pledge_kind)
+    if exact is not None and Decimal(amount) != exact:
+        raise ValueError(f"{pledge_kind} amount must be {exact:.2f} EUR")
     floor = _UNIT_FLOOR.get(pledge_kind)
-    if floor is not None and Decimal(amount) < floor:
+    if exact is None and floor is not None and Decimal(amount) < floor:
         raise ValueError(f"{pledge_kind} amount must be at least {floor:.2f} EUR")
     if pledge_kind in _UNPLACED_TARGET and not (milestone_id or "").strip():
         milestone_id = ""

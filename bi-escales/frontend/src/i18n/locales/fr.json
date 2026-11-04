@@ -114,6 +114,9 @@
     "crewSubscribeSaved": "Abonnement Équipage enregistré. Merci."
   },
   "treasurer": {
+    "panelTitle": "Trésorier",
+    "panelExpand": "Afficher les outils trésorier",
+    "panelCollapse": "Masquer les outils trésorier",
     "heading": "File trésorier",
     "adminKey": "Clé trésorier (x-admin-key)",
     "adminKeyHint": "Saisie en mémoire uniquement — jamais enregistrée.",

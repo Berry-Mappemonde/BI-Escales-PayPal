@@ -76,7 +76,7 @@ describe("departure-day settle", () => {
       </I18nextProvider>,
     );
 
-    const button = screen.getByTestId("departure-settle");
+    const button = await waitFor(() => screen.getByTestId("departure-settle"));
     expect(button).toHaveTextContent("Run departure-day settle");
     expect(button).toBeDisabled();
     await user.click(button);

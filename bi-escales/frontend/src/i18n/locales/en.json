@@ -114,6 +114,9 @@
     "crewSubscribeSaved": "Crew supporter subscription recorded. Thank you."
   },
   "treasurer": {
+    "panelTitle": "Treasurer",
+    "panelExpand": "Show treasurer tools",
+    "panelCollapse": "Hide treasurer tools",
     "heading": "Treasurer queue",
     "adminKey": "Treasurer key (x-admin-key)",
     "adminKeyHint": "Held in memory only — never stored.",

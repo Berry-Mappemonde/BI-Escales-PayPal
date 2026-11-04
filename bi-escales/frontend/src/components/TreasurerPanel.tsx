@@ -1,0 +1,204 @@
+import { FormEvent } from "react";
+import { useTranslation } from "react-i18next";
+import type { FundView, PublicPledge } from "../api/types";
+import { TreasurerPayPalPanel } from "./TreasurerPayPalPanel";
+import { TreasurerQueue } from "./TreasurerQueue";
+
+function OpenFundTotals({
+  title,
+  fund,
+  testId,
+}: {
+  title: string;
+  fund: FundView | null | undefined;
+  testId: string;
+}) {
+  const { t } = useTranslation();
+  const figures = fund
+    ? t("fund.figures", {
+        balance: fund.balance_eur,
+        currency: fund.currency,
+        income: fund.income_eur,
+        spending: fund.spending_eur,
+      })
+    : fund === null
+      ? t("fund.missing")
+      : "";
+  return (
+    <p data-testid={testId}>
+      {title}
+      {figures ? ` — ${figures}` : ""}
+    </p>
+  );
+}
+
+export interface TreasurerPanelProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  adminKey: string;
+  onAdminKeyChange: (value: string) => void;
+  settleBusy: boolean;
+  settleNote: string | null;
+  onSettle: () => void;
+  clockPinned: boolean;
+  settleAt: string;
+  onSettleAtChange: (value: string) => void;
+  onSettleAt: () => void;
+  milestoneId: string;
+  onMilestoneIdChange: (value: string) => void;
+  projectFund: FundView | null | undefined;
+  boatFund: FundView | null | undefined;
+  pledges: PublicPledge[];
+  loading: boolean;
+  error: string | null;
+  needsKey: boolean;
+  onRefreshQueue: () => void;
+  onPledgeUpdated: (pledge: PublicPledge) => void;
+  spendAmount: string;
+  onSpendAmountChange: (value: string) => void;
+  spendNote: string;
+  onSpendNoteChange: (value: string) => void;
+  spendError: string | null;
+  fund: FundView | null;
+  onSpendSubmit: (event: FormEvent) => void;
+}
+
+export function TreasurerPanel({
+  open,
+  onOpenChange,
+  adminKey,
+  onAdminKeyChange,
+  settleBusy,
+  settleNote,
+  onSettle,
+  clockPinned,
+  settleAt,
+  onSettleAtChange,
+  onSettleAt,
+  milestoneId,
+  onMilestoneIdChange,
+  projectFund,
+  boatFund,
+  pledges,
+  loading,
+  error,
+  needsKey,
+  onRefreshQueue,
+  onPledgeUpdated,
+  spendAmount,
+  onSpendAmountChange,
+  spendNote,
+  onSpendNoteChange,
+  spendError,
+  fund,
+  onSpendSubmit,
+}: TreasurerPanelProps) {
+  const { t } = useTranslation();
+
+  return (
+    <section className="treasurer-panel panel" data-testid="treasurer-panel">
+      <button
+        type="button"
+        className="treasurer-panel-toggle"
+        data-testid="treasurer-panel-toggle"
+        aria-expanded={open}
+        onClick={() => onOpenChange(!open)}
+      >
+        {t("treasurer.panelTitle")}
+      </button>
+      {open ? (
+        <div className="treasurer-panel-body" data-testid="treasurer-panel-body">
+          <p className="hint">{t("treasurer.adminKeyHint")}</p>
+          <label className="admin-key shared-admin">
+            {t("treasurer.adminKey")}
+            <input
+              type="password"
+              autoComplete="off"
+              value={adminKey}
+              onChange={(event) => onAdminKeyChange(event.target.value)}
+              data-testid="admin-key-input"
+            />
+          </label>
+          <button
+            type="button"
+            data-testid="departure-settle"
+            disabled={!adminKey.trim() || settleBusy}
+            onClick={() => onSettle()}
+          >
+            {t("treasurer.settle")}
+          </button>
+          {settleNote ? (
+            <p className="notice" data-testid="settle-note">
+              {settleNote}
+            </p>
+          ) : null}
+          {clockPinned ? (
+            <div className="stack-form" data-testid="settle-at-chosen">
+              <label>
+                {t("treasurer.settleAtLabel")}
+                <input
+                  type="datetime-local"
+                  value={settleAt}
+                  onChange={(event) => onSettleAtChange(event.target.value)}
+                  data-testid="settle-at-input"
+                />
+              </label>
+              <button
+                type="button"
+                data-testid="settle-at-chosen-button"
+                disabled={!adminKey.trim() || !settleAt.trim() || settleBusy}
+                onClick={() => onSettleAt()}
+              >
+                {t("treasurer.settleAtButton")}
+              </button>
+            </div>
+          ) : null}
+          <label>
+            {t("pledge.milestone")}
+            <input value={milestoneId} onChange={(event) => onMilestoneIdChange(event.target.value)} />
+          </label>
+          <section className="panel" data-testid="treasurer-open-funds">
+            <h2>{t("fund.openHeading")}</h2>
+            <OpenFundTotals title={t("fund.projectTotals")} fund={projectFund} testId="project-fund-totals" />
+            <OpenFundTotals title={t("fund.boatTotals")} fund={boatFund} testId="common-fund-totals" />
+          </section>
+          <TreasurerQueue
+            pledges={pledges}
+            loading={loading}
+            error={error}
+            needsKey={needsKey}
+            adminKey={adminKey}
+            onRefresh={onRefreshQueue}
+            onUpdated={onPledgeUpdated}
+          />
+          <TreasurerPayPalPanel adminKey={adminKey} />
+          <form className="stack-form" onSubmit={onSpendSubmit}>
+            <h2>{t("fund.heading")}</h2>
+            <label>
+              {t("fund.spendAmount")}
+              <input value={spendAmount} onChange={(event) => onSpendAmountChange(event.target.value)} />
+            </label>
+            <label>
+              {t("fund.spendDescription")}
+              <input value={spendNote} onChange={(event) => onSpendNoteChange(event.target.value)} />
+            </label>
+            <button type="submit" disabled={!adminKey.trim() || !milestoneId || !spendNote.trim()}>
+              {t("fund.spendSubmit")}
+            </button>
+            {spendError ? <p className="notice error">{spendError}</p> : null}
+            {fund ? (
+              <p data-testid="common-fund">
+                {t("fund.figures", {
+                  balance: fund.balance_eur,
+                  currency: fund.currency,
+                  income: fund.income_eur,
+                  spending: fund.spending_eur,
+                })}
+              </p>
+            ) : null}
+          </form>
+        </div>
+      ) : null}
+    </section>
+  );
+}

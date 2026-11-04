@@ -164,3 +164,28 @@ body.ng-naviguide-shell {
     transform: translateX(-100%);
   }
 }
+
+.treasurer-panel {
+  margin-top: 0.75rem;
+  border-top: 1px solid rgba(59, 130, 246, 0.25);
+  padding-top: 0.5rem;
+}
+
+.treasurer-panel-toggle {
+  width: 100%;
+  text-align: left;
+  font-weight: 600;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #e2e8f0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.treasurer-panel-body {
+  margin-top: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}

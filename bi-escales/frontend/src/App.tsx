@@ -8,8 +8,7 @@ import { EscalesPanel } from "./components/EscalesPanel";
 import { EscalePopup } from "./components/EscalePopup.jsx";
 import MarinasPanel from "./components/MarinasPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
-import { TreasurerQueue } from "./components/TreasurerQueue";
-import { TreasurerPayPalPanel } from "./components/TreasurerPayPalPanel";
+import { TreasurerPanel } from "./components/TreasurerPanel";
 import { CrewSubscribeButton } from "./components/CrewSubscribeButton";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { setLanguage } from "./i18n";
@@ -32,34 +31,6 @@ type VoyageStop = {
 };
 
 type FlyTarget = { lat: number; lon: number; ts: number };
-
-function OpenFundTotals({
-  title,
-  fund,
-  testId,
-}: {
-  title: string;
-  fund: FundView | null | undefined;
-  testId: string;
-}) {
-  const { t } = useTranslation();
-  const figures = fund
-    ? t("fund.figures", {
-        balance: fund.balance_eur,
-        currency: fund.currency,
-        income: fund.income_eur,
-        spending: fund.spending_eur,
-      })
-    : fund === null
-      ? t("fund.missing")
-      : "";
-  return (
-    <p data-testid={testId}>
-      {title}
-      {figures ? ` — ${figures}` : ""}
-    </p>
-  );
-}
 
 const KIND_AMOUNT: Record<string, string | null> = {
   mile: null,
@@ -104,6 +75,7 @@ export default function App() {
   const [projectFund, setProjectFund] = useState<FundView | null | undefined>(undefined);
   const [boatFund, setBoatFund] = useState<FundView | null | undefined>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [treasurerOpen, setTreasurerOpen] = useState(false);
 
   const prod = Boolean(import.meta.env.PROD);
   const t0 = resolveDepartureT0(prod, devT0 || undefined);
@@ -168,8 +140,12 @@ export default function App() {
   }, [stop, lang]);
 
   useEffect(() => {
-    if (hash !== "#tresorier" || !milestoneId) {
-      if (hash !== "#tresorier") setFund(null);
+    if (hash === "#tresorier") setTreasurerOpen(true);
+  }, [hash]);
+
+  useEffect(() => {
+    if (!treasurerOpen || !milestoneId) {
+      if (!treasurerOpen) setFund(null);
       return undefined;
     }
     let cancelled = false;
@@ -183,7 +159,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [milestoneId, pledges, hash, adminKey]);
+  }, [milestoneId, pledges, treasurerOpen, adminKey]);
 
   const chooseStop = (next: VoyageStop) => {
     setStop(next);
@@ -200,7 +176,7 @@ export default function App() {
   }, [refresh, updatePledge]);
 
   useEffect(() => {
-    if (hash !== "#tresorier") return undefined;
+    if (!treasurerOpen) return undefined;
     let cancelled = false;
     void fetchFeatures()
       .then((flags) => {
@@ -212,10 +188,10 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [hash]);
+  }, [treasurerOpen]);
 
   useEffect(() => {
-    if (hash !== "#tresorier") return undefined;
+    if (!treasurerOpen) return undefined;
     let cancelled = false;
     void fetchFund("project", adminKey)
       .then((row) => {
@@ -234,7 +210,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [hash, pledges, adminKey]);
+  }, [treasurerOpen, pledges, adminKey]);
 
   useEffect(() => {
     const onHash = () => setHash(window.location.hash);
@@ -385,112 +361,6 @@ export default function App() {
     prevTabRef.current = tab;
   }, [tab, voyage?.stops, cumNm]);
 
-  if (hash === "#tresorier") {
-    return (
-      <div className="ng-shell" data-testid="ng-shell">
-        <div className="ng-treasurer-panel app-shell">
-        <header className="app-header">
-          <div>
-            <h1>{t("treasurer.screen")}</h1>
-            <p>{t("treasurer.adminKeyHint")}</p>
-          </div>
-          <a href="#">{t("treasurer.back")}</a>
-        </header>
-        <label className="admin-key shared-admin">
-          {t("treasurer.adminKey")}
-          <input
-            type="password"
-            autoComplete="off"
-            value={adminKey}
-            onChange={(event) => setAdminKey(event.target.value)}
-            data-testid="admin-key-input"
-          />
-        </label>
-        <button
-          type="button"
-          data-testid="departure-settle"
-          disabled={!adminKey.trim() || settleBusy}
-          onClick={() => void onSettle()}
-        >
-          {t("treasurer.settle")}
-        </button>
-        {settleNote ? <p className="notice" data-testid="settle-note">{settleNote}</p> : null}
-        {clockPinned ? (
-          <div className="stack-form" data-testid="settle-at-chosen">
-            <label>
-              {t("treasurer.settleAtLabel")}
-              <input
-                type="datetime-local"
-                value={settleAt}
-                onChange={(event) => setSettleAt(event.target.value)}
-                data-testid="settle-at-input"
-              />
-            </label>
-            <button
-              type="button"
-              data-testid="settle-at-chosen-button"
-              disabled={!adminKey.trim() || !settleAt.trim() || settleBusy}
-              onClick={() => void onSettleAt()}
-            >
-              {t("treasurer.settleAtButton")}
-            </button>
-          </div>
-        ) : null}
-        <label>
-          {t("pledge.milestone")}
-          <input value={milestoneId} onChange={(event) => setMilestoneId(event.target.value)} />
-        </label>
-        <section className="panel" data-testid="treasurer-open-funds">
-          <h2>{t("fund.openHeading")}</h2>
-          <OpenFundTotals title={t("fund.projectTotals")} fund={projectFund} testId="project-fund-totals" />
-          <OpenFundTotals title={t("fund.boatTotals")} fund={boatFund} testId="common-fund-totals" />
-        </section>
-        <TreasurerQueue
-          pledges={pledges}
-          loading={loading}
-          error={error}
-          needsKey={needsKey}
-          adminKey={adminKey}
-          onRefresh={() => void refresh()}
-          onUpdated={updatePledge}
-        />
-        <TreasurerPayPalPanel adminKey={adminKey} />
-        <form
-          className="stack-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void onSpend();
-          }}
-        >
-          <h2>{t("fund.heading")}</h2>
-          <label>
-            {t("fund.spendAmount")}
-            <input value={spendAmount} onChange={(event) => setSpendAmount(event.target.value)} />
-          </label>
-          <label>
-            {t("fund.spendDescription")}
-            <input value={spendNote} onChange={(event) => setSpendNote(event.target.value)} />
-          </label>
-          <button type="submit" disabled={!adminKey.trim() || !milestoneId || !spendNote.trim()}>
-            {t("fund.spendSubmit")}
-          </button>
-          {spendError ? <p className="notice error">{spendError}</p> : null}
-          {fund ? (
-            <p data-testid="common-fund">
-              {t("fund.figures", {
-                balance: fund.balance_eur,
-                currency: fund.currency,
-                income: fund.income_eur,
-                spending: fund.spending_eur,
-              })}
-            </p>
-          ) : null}
-        </form>
-        </div>
-      </div>
-    );
-  }
-
   const marinaFeatures = ficheMarinas(fiche);
   const onFlyTo = (_id: string, lat: number, lon: number) => {
     setFlyTo({ lat, lon, ts: Date.now() });
@@ -631,6 +501,39 @@ export default function App() {
             </ul>
           </div>
         )}
+        <TreasurerPanel
+          open={treasurerOpen}
+          onOpenChange={setTreasurerOpen}
+          adminKey={adminKey}
+          onAdminKeyChange={setAdminKey}
+          settleBusy={settleBusy}
+          settleNote={settleNote}
+          onSettle={() => void onSettle()}
+          clockPinned={clockPinned}
+          settleAt={settleAt}
+          onSettleAtChange={setSettleAt}
+          onSettleAt={() => void onSettleAt()}
+          milestoneId={milestoneId}
+          onMilestoneIdChange={setMilestoneId}
+          projectFund={projectFund}
+          boatFund={boatFund}
+          pledges={pledges}
+          loading={loading}
+          error={error}
+          needsKey={needsKey}
+          onRefreshQueue={() => void refresh()}
+          onPledgeUpdated={updatePledge}
+          spendAmount={spendAmount}
+          onSpendAmountChange={setSpendAmount}
+          spendNote={spendNote}
+          onSpendNoteChange={setSpendNote}
+          spendError={spendError}
+          fund={fund}
+          onSpendSubmit={(event) => {
+            event.preventDefault();
+            void onSpend();
+          }}
+        />
       </aside>
 
       <aside className="ng-tools-panel panel" data-testid="ng-tools-panel">

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -100,7 +100,9 @@ describe("NAVIGUIDE shell wiring", () => {
         <App />
       </I18nextProvider>,
     );
+    await waitFor(() => {
+      expect(screen.getByTestId("departure-settle")).toBeDisabled();
+    });
     expect(screen.getByTestId("ng-shell")).toBeInTheDocument();
-    expect(screen.getByTestId("departure-settle")).toBeDisabled();
   });
 });

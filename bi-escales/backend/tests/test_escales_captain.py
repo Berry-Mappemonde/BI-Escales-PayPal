@@ -2148,6 +2148,35 @@ def test_other_kinds_use_the_simulated_catalogue():
     assert english["amount_eur"] == "120.00"
 
 
+def test_cabin_price_is_eighty_euros_per_leg_in_the_question_language(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        raise AssertionError("a cabin price is a catalogue fact, not a model answer")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        english = await chat("How much is a cabin?")
+        assert english["reply"].startswith("A cabin is 80 € per leg.")
+        assert "Seul le trésorier" not in english["reply"]
+        assert "Which escale" not in english["reply"]
+        assert "— The captain" in english["reply"]
+        assert "— Le capitaine" not in english["reply"]
+        french = await chat("Combien coûte une cabine ?")
+        assert french["reply"].startswith("Une cabine coûte 80 € par jambe.")
+        assert "Only the treasurer" not in french["reply"]
+        assert "Quelle escale" not in french["reply"]
+        assert "— Le capitaine" in french["reply"]
+        near = await chat("How much is a cabin near La Rochelle?")
+        assert "80 € per leg" in near["reply"]
+        assert near["suggested_pledge"]["kind"] == "cabin_leg"
+        assert near["suggested_pledge"]["amount_eur"] == "80.00"
+
+    asyncio.run(body())
+
+
 def test_cabin_cart_line_is_the_leg_and_stays_authorize():
     cabin = captain.suggest_pledge("1 cabine près de Fort-de-France")
     assert cabin["kind"] == "cabin_leg"

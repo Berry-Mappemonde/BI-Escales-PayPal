@@ -67,11 +67,13 @@ _CHAT_MAX_TOKENS = 400
 
 _EN_HINT = re.compile(
     r"\b(?:i|i'd|i’m|i'm|would|like|sponsor|please|the|near|miles?|nautical|dinner|and"
-    r"|my|you|your|will|is|are|was|old|days?|authorization|it|this)\b",
+    r"|my|you|your|will|is|are|was|old|days?|authorization|it|this"
+    r"|how|much|price|cost|costs|cabin)\b",
     re.IGNORECASE,
 )
 _FR_HINT = re.compile(
-    r"\b(?:je|j'|voudrais|parrain\w*|milles?|près|pres|pour|dîner|diner|une|des|autorisation|est-ce)\b",
+    r"\b(?:je|j'|voudrais|parrain\w*|milles?|près|pres|pour|dîner|diner|une|des|autorisation|est-ce"
+    r"|combien|co[uû]te|prix|cabine)\b",
     re.IGNORECASE,
 )
 _TREASURER_Q = re.compile(
@@ -2497,6 +2499,30 @@ async def _answer_fund(
     return reply, source, public
 
 
+def _is_cabin_price_question(message: str) -> bool:
+    """A catalogue price, not a fund total. ``How much is a cabin?`` is one."""
+    text = message or ""
+    if _is_fund_question(text):
+        return False
+    if not re.search(
+        r"\bhow\s+much\b|\bcombien\b|\bprix\b|\bprices?\b|\bcosts?\b|\bco[uû]te",
+        text,
+        re.IGNORECASE,
+    ):
+        return False
+    return _sum_quantity(_CABIN_COUNT, text) > 0
+
+
+def _cabin_price_reply(lang: str) -> str:
+    unit = _SIMULATED_EUR["cabin_leg"].quantize(Decimal("0.01"))
+    shown = f"{unit:.2f}".rstrip("0").rstrip(".")
+    if lang == "en":
+        prose = f"A cabin is {shown} € per leg."
+    else:
+        prose = f"Une cabine coûte {shown} € par jambe."
+    return _fit_words("", [prose, _signature(lang)])
+
+
 async def chat(message: str, *, treasurer: bool = False) -> dict:
     """Help a contributor phrase a pledge and offer the HelloAsso membership URL.
 
@@ -2525,6 +2551,16 @@ async def chat(message: str, *, treasurer: bool = False) -> dict:
             "cart": None,
             "model_source": source,
             "fund": fund,
+        }
+    if _is_cabin_price_question(text):
+        suggested = suggest_pledge(text, lang)
+        return {
+            "reply": _cabin_price_reply(lang),
+            "membership_url": url,
+            "suggested_pledge": suggested,
+            "cart": pledge_cart(text, lang, suggested) if suggested and suggested.get("milestone_id") else None,
+            "model_source": _rules_source(),
+            "fund": None,
         }
     treasurer = _is_treasurer_question(text)
     suggested = suggest_pledge(text, lang)

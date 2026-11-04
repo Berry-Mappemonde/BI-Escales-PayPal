@@ -846,6 +846,18 @@ async def capture_pledge(pledge_id: str, client: Any) -> dict:
     )
 
 
+def _stamp_void(pledge: dict, payload: Any, fallback_id: str) -> None:
+    """PayPal's void id when the body has one, otherwise the hold we released."""
+    body = payload if isinstance(payload, dict) else {}
+    void_id = str(body.get("id") or "").strip() or str(fallback_id or "").strip()
+    if not void_id:
+        raise PayPalError(502, "void id missing")
+    pledge["void_id"] = void_id
+    pledge["voided_at"] = now_iso()
+    pledge["status"] = "voided"
+    pledge["history"] = list(pledge.get("history") or []) + ["voided"]
+
+
 async def void_pledge(pledge_id: str, client: Any) -> dict:
     pledge = await require_pledge(pledge_id)
     mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
@@ -854,9 +866,8 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
         vault_id = pledge.get("vault_id")
         if not vault_id:
             raise IllegalTransition("vaulted", "voided")
-        client.delete_payment_token(vault_id)
-        pledge["status"] = "voided"
-        pledge["history"] = list(pledge.get("history") or []) + ["voided"]
+        released = client.delete_payment_token(vault_id)
+        _stamp_void(pledge, released, str(vault_id))
         saved = await get_ledger().save_pledge(pledge)
         from .audit import record
         await record(
@@ -868,6 +879,8 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
             amount_eur=saved.get("amount_eur"),
             currency="EUR",
             payment_mode="VAULT",
+            void_id=saved.get("void_id"),
+            voided_at=saved.get("voided_at"),
             **_identity(saved),
         )
         await record_finance(
@@ -880,15 +893,16 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
             status="voided",
             actor="treasurer",
             payment_mode="VAULT",
+            void_id=saved.get("void_id"),
+            voided_at=saved.get("voided_at"),
             **_identity(saved),
         )
         return saved
     _require_status(pledge, "authorized", "voided")
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "voided")
-    client.void_authorization(pledge["authorization_id"])
-    pledge["status"] = "voided"
-    pledge["history"] = list(pledge.get("history") or []) + ["voided"]
+    released = client.void_authorization(pledge["authorization_id"])
+    _stamp_void(pledge, released, str(pledge["authorization_id"]))
     saved = await get_ledger().save_pledge(pledge)
     from .audit import record
     await record(
@@ -899,6 +913,8 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
         status="voided",
         amount_eur=saved.get("amount_eur"),
         currency="EUR",
+        void_id=saved.get("void_id"),
+        voided_at=saved.get("voided_at"),
         **_identity(saved),
     )
     await record_finance(
@@ -910,6 +926,8 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
         authorization_id=saved.get("authorization_id"),
         status="voided",
         actor="treasurer",
+        void_id=saved.get("void_id"),
+        voided_at=saved.get("voided_at"),
         **_identity(saved),
     )
     return saved

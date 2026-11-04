@@ -23,6 +23,7 @@ from app.escales.config import (
     bryntum_scheduler_enabled,
     channel3_enabled,
     clock_start,
+    simulated_now,
     elastic_evidence_enabled,
     escales_enabled,
     kernel_evidence_enabled,
@@ -289,7 +290,19 @@ async def get_prices():
 
 @router.get("/clock")
 async def get_clock():
-    return {"start": clock_start()}
+    """Voyage clock. Reading it settles departure-day captures and voids."""
+    from app.escales.departure_clock import run_departure_clock
+
+    body = {
+        "start": clock_start(),
+        "now": simulated_now().replace(microsecond=0).isoformat(),
+    }
+    try:
+        client = _paypal()
+    except HTTPException:
+        return body
+    body["settled"] = await run_departure_clock(client)
+    return body
 
 
 @router.get("/schedule")
@@ -358,7 +371,7 @@ async def post_register_vault(pledge_id: str, body: VaultRegisterIn):
 async def post_authorize(pledge_id: str):
     try:
         doc = await authorize_pledge(pledge_id, _paypal())
-    except (PledgeNotFound, IllegalTransition, PayPalError) as exc:
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
     return await _public_pledge_with_fund(doc)
 

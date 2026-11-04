@@ -726,6 +726,83 @@ def test_prices_and_clock(api, monkeypatch):
     assert clock.json()["start"] == "2026-11-12"
 
 
+def test_departure_clock_captures_on_the_day(api, monkeypatch):
+    """The simulated clock captures on departure day, voids a cancelled stop, and refuses an early authorization."""
+    import asyncio
+
+    from app.escales.ledger import get_ledger
+
+    client, fake = api
+    departure = "2026-11-20T08:00:00+00:00"
+
+    async def stamp(milestone_id: str) -> None:
+        await get_ledger().ensure_milestone(
+            milestone_id,
+            meta={"capture_on": "departure", "departure_iso": departure},
+        )
+
+    def status(pledge_id: str) -> str:
+        response = client.get(f"/api/escales/pledges/{pledge_id}")
+        assert response.status_code == 200, response.text
+        return response.json()["status"]
+
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-10-21T08:00:00Z")
+    early = _create(client, "dep-early", {
+        **PLEDGE,
+        "milestone_id": "dep-la-rochelle",
+        "description": "trop tot",
+    })
+    assert early.status_code == 200, early.text
+    sailing = early.json()["milestone_id"]
+    asyncio.run(stamp(sailing))
+    refused = _authorize(client, early.json()["id"])
+    assert refused.status_code == 422
+    assert "29" in refused.text
+    assert all(call[0] != "authorize" for call in fake.calls)
+    assert status(early.json()["id"]) == "created"
+
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-19T08:00:00Z")
+    held_body, held = _ready(client, "dep-held", {
+        **PLEDGE,
+        "milestone_id": sailing,
+        "description": "veille du depart",
+    })
+    assert held["status"] == "authorized"
+    before = client.get("/api/escales/clock")
+    assert before.status_code == 200
+    assert before.json()["settled"]["actions"] == [{"pledge_id": held["id"], "action": "wait"}]
+    assert status(held["id"]) == "authorized"
+    assert all(call[0] != "capture" for call in fake.calls)
+
+    stopped_body, stopped = _ready(client, "dep-cancel", {
+        **PLEDGE,
+        "description": "escale annulee",
+    })
+    asyncio.run(stamp(stopped_body["milestone_id"]))
+    evidence = client.post(
+        f"/api/escales/milestones/{stopped_body['milestone_id']}/evidence",
+        json={"met": False, "facts": {"cancelled": True}},
+        headers=ADMIN,
+    )
+    assert evidence.status_code == 200, evidence.text
+    voided = client.get("/api/escales/clock")
+    assert voided.status_code == 200
+    actions = {row["pledge_id"]: row["action"] for row in voided.json()["settled"]["actions"]}
+    assert actions[stopped["id"]] == "void"
+    assert actions[held["id"]] == "wait"
+    assert status(stopped["id"]) == "voided"
+    assert status(held["id"]) == "authorized"
+    assert any(call[0] == "void" for call in fake.calls)
+    assert all(call[0] != "capture" for call in fake.calls)
+
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-20T08:00:00Z")
+    departed = client.get("/api/escales/clock")
+    assert departed.status_code == 200
+    assert departed.json()["settled"]["actions"] == [{"pledge_id": held["id"], "action": "capture"}]
+    assert status(held["id"]) == "captured"
+    assert any(call[0] == "capture" for call in fake.calls)
+
+
 def test_clock_start_is_configurable_outside_production(monkeypatch):
     from app.escales.config import clock_start
 

@@ -667,6 +667,9 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     order_id = str(pledge.get("order_id") or "")
     if not _buyer_approved(client, order_id):
         raise IllegalTransition(str(pledge.get("status")), "authorized")
+    from .departure_clock import refuse_early_authorization
+
+    await refuse_early_authorization(pledge)
     order = client.authorize_order(order_id)
     auth_id, expiration = authorization_from(order)
     pledge["status"] = "authorized"

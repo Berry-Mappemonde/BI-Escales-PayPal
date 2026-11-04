@@ -69,6 +69,31 @@ def _clock_date(raw: str) -> str:
     return moment.date().isoformat()
 
 
+def simulated_now() -> dt.datetime:
+    """Instant of the voyage clock, UTC.
+
+    ``ESCALES_CLOCK_NOW`` moves it in development and in tests. A bare
+    ``YYYY-MM-DD`` is 08:00 UTC, the same hour as the voyage origin.
+    With no variable, the clock is the real UTC time.
+    """
+    raw = (os.environ.get("ESCALES_CLOCK_NOW") or "").strip()
+    if not raw:
+        return dt.datetime.now(dt.timezone.utc)
+    text = raw
+    if len(text) == 10 and "T" not in text:
+        text = f"{text}T08:00:00+00:00"
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        moment = dt.datetime.fromisoformat(text)
+    except ValueError:
+        log.warning("ESCALES_CLOCK_NOW is not a time; using UTC now")
+        return dt.datetime.now(dt.timezone.utc)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment.astimezone(dt.timezone.utc)
+
+
 def clock_start() -> str:
     """Origine de l'horloge de voyage (``YYYY-MM-DD``).
 

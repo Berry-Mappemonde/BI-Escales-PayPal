@@ -17,6 +17,7 @@ A daily call cap applies only when ``ESCALES_ENV=production`` (or when
 """
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import json
 import logging
@@ -354,6 +355,19 @@ def _http_error(provider: str, response: httpx.Response) -> RuntimeError:
     return RuntimeError(f"{provider} HTTP {response.status_code}")
 
 
+# One pause inside this band, then the same NIM model is tried again.
+NIM_RETRY_PAUSE_S = 0.75
+
+
+def nim_rate_limit_pause() -> float:
+    """Seconds to wait after NIM HTTP 429 before the same model is retried."""
+    return NIM_RETRY_PAUSE_S
+
+
+def _is_rate_limit(exc: BaseException) -> bool:
+    return bool(re.search(r"\bHTTP\s+429\b", str(exc)))
+
+
 def _openai_text(data: dict[str, Any]) -> str:
     choices = data.get("choices") or []
     choice = choices[0] if choices and isinstance(choices[0], dict) else {}
@@ -624,28 +638,36 @@ async def ask_text(
     try:
         last = "no_llm_backend"
         for name in active_providers():
-            try:
-                if name in {"nim", "nim_fallback"}:
-                    result = await _call_nim(
-                        system_text,
-                        user,
-                        http,
-                        budget,
-                        temperature,
-                        hop=name,
-                        model=nim_fallback_model() if name == "nim_fallback" else nim_model(),
-                        guided_json=guided_json,
-                    )
-                else:
-                    result = await _CALLS[name](system_text, user, http, budget, temperature)
-            except Exception as exc:
-                detail = safe_error_message(exc)
-                last = f"{name} {type(exc).__name__}: {detail}"
-                log.warning("cascade %s failed (%s): %s", name, type(exc).__name__, detail)
-                continue
-            if result.text.strip():
-                return result
-            last = f"{name} empty"
+            nim_hop = name in {"nim", "nim_fallback"}
+            for attempt in range(2 if nim_hop else 1):
+                try:
+                    if nim_hop:
+                        result = await _call_nim(
+                            system_text,
+                            user,
+                            http,
+                            budget,
+                            temperature,
+                            hop=name,
+                            model=nim_fallback_model() if name == "nim_fallback" else nim_model(),
+                            guided_json=guided_json,
+                        )
+                    else:
+                        result = await _CALLS[name](system_text, user, http, budget, temperature)
+                except Exception as exc:
+                    detail = safe_error_message(exc)
+                    last = f"{name} {type(exc).__name__}: {detail}"
+                    log.warning("cascade %s failed (%s): %s", name, type(exc).__name__, detail)
+                    if attempt == 0 and nim_hop and _is_rate_limit(exc):
+                        pause = nim_rate_limit_pause()
+                        log.warning("cascade %s HTTP 429, retrying once in %.2fs", name, pause)
+                        await asyncio.sleep(pause)
+                        continue
+                    break
+                if result.text.strip():
+                    return result
+                last = f"{name} empty"
+                break
         raise RuntimeError(f"LLM cascade exhausted ({last})")
     finally:
         if own:

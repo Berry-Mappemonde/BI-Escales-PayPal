@@ -1123,15 +1123,16 @@ def test_lightning_french_translates_english_labels(monkeypatch):
         french = await chat("Je parraine 10 milles près de Dakar")
         reply = french["reply"]
         assert french["model_source"]["provider"] == "nim_fallback"
-        assert "Jalon : Dakar" in reply
+        assert "Jalon : Dakar" not in reply
         assert "Jalon : suite" in reply
-        assert "intention : autorisation" in reply.casefold()
+        assert "Promesse calculée" in reply
         assert "AUTHORIZE" not in reply
         assert "Milestone" not in reply
         assert "Intent:" not in reply
         monkeypatch.setattr(llm, "ask_text", english_answer)
         english = await chat("I'd like to sponsor 10 nautical miles near Lorient")
-        assert "Milestone:" in english["reply"]
+        assert "Noted for the pledge" in english["reply"]
+        assert "Milestone:" not in english["reply"]
         assert "Jalon" not in english["reply"]
 
     asyncio.run(body())
@@ -1813,6 +1814,91 @@ def test_fast_lightning_failure_logs_the_message(monkeypatch, caplog):
         assert "captain llm failed" not in caplog.text
 
     asyncio.run(quiet())
+
+
+def test_invented_captain_sentences_are_dropped(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return (
+            "Voici le calcul. Je suis le capitaine des Escales. "
+            "Escales Bleue. Escales Bleues. Je m'appelle Marin."
+        )
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Brest")
+        reply = result["reply"]
+        assert "Voici le calcul" in reply
+        assert "Je suis le capitaine" not in reply
+        assert "Escales Bleue" not in reply
+        assert "Je m'appelle" not in reply
+        assert reply.count("— Le capitaine") == 1
+
+    asyncio.run(body())
+
+
+def test_pledge_line_drops_milestone_and_intent_labels(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "La mer est calme. Jalon : Dakar. Intention : autorisation."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Dakar")
+        reply = result["reply"]
+        assert "La mer est calme" in reply
+        assert reply.count("Promesse calculée") == 1
+        assert "Jalon :" not in reply
+        assert "Intention :" not in reply
+
+    asyncio.run(body())
+
+
+def test_chat_capitalizes_the_treasurer_after_a_period(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "La mer est calme. le trésorier reste consultatif."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Brest")
+        assert ". Le trésorier" in result["reply"]
+
+    asyncio.run(body())
+
+
+def test_thin_french_report_gains_the_covered_miles_sentence(monkeypatch):
+    import app.core.llm as llm
+
+    prompt = captain._report_system("lorient", reached=False, lang="fr")
+    assert "contient un verbe" in prompt
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "The treasurer alone decides."
+
+    async def fake_ask_json(*_args, **_kwargs):
+        return llm.LlmJson({"proposal": "wait", "reason": "open"}, "nim", "test-model", "{}")
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+    monkeypatch.setattr(llm, "ask_json", fake_ask_json)
+
+    async def body():
+        await record_evidence("lorient", met=False, facts={"distance_nm": 120})
+        result = await review("lorient", reader=None, lang="fr")
+        assert result["model_source"]["provider"] == "rules"
+        assert "La preuve NAVIGUIDE (simulation) indique 120 milles parcourus." in result["report"]
+
+    asyncio.run(body())
 
 
 def test_ui_labels_the_llm_proposal_as_advisory():

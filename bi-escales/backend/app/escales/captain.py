@@ -147,6 +147,14 @@ _INVENTED_SIGNATURE = re.compile(
     r"|\bsigned\s*,\s*\.?",
     re.IGNORECASE,
 )
+# Whole sentences. The code adds its own signature afterwards.
+_INVENTED_SENTENCE = re.compile(
+    r"capitaine\s+des?\s+escales"
+    r"|escales\s+bleues?"
+    r"|je suis le capitaine"
+    r"|je m['’]appelle",
+    re.IGNORECASE,
+)
 # Horizon and re-issue policy stay in code. Drop them if a model writes them anyway.
 _POLICY_RE = re.compile(
     r"\b29\s*(?:jours|days|day)\b"
@@ -305,6 +313,7 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
             "Write in English only. "
             f"Write {count}. "
             "End each sentence with one period. Never stop mid-sentence. "
+            "Each sentence is complete and contains a verb. "
             "No title, no heading, no list. "
             f"Keep this port name verbatim: {port}. "
             "Use only numbers present in the evidence JSON. Do not invent a figure. "
@@ -327,6 +336,7 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
         "Réponds uniquement en français, même si les données JSON sont en anglais. "
         f"Écris {count}. "
         "Termine chaque phrase par un seul point. Ne t'arrête jamais au milieu d'une phrase. "
+        "Chaque phrase est complète et contient un verbe. "
         "Pas de titre, pas d'intertitre, pas de liste. "
         f"Garde ce nom de port tel quel : {port}. "
         "Utilise seulement les nombres présents dans le JSON de preuve. N'invente aucun chiffre. "
@@ -550,6 +560,29 @@ def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
     }
 
 
+def _covered_miles_sentence(evidence: dict, lang: str = "fr") -> str:
+    """One code sentence when Lightning's only line was rejected or empty."""
+    if not isinstance(evidence, dict):
+        return ""
+    facts = evidence.get("facts") if isinstance(evidence.get("facts"), dict) else {}
+    raw = facts.get("distance_nm")
+    if raw is None:
+        return ""
+    try:
+        number = Decimal(str(raw))
+    except InvalidOperation:
+        return ""
+    if number == number.to_integral_value():
+        shown = str(int(number))
+    else:
+        shown = f"{number.quantize(Decimal('0.01'))}"
+    provider = str(evidence.get("provider") or "NAVIGUIDE")
+    flag = str(evidence.get("flag") or evidence.get("source") or "simulation")
+    if lang == "en":
+        return f"The {provider} evidence ({flag}) shows {shown} miles covered."
+    return f"La preuve {provider} ({flag}) indique {shown} milles parcourus."
+
+
 def _fallback_report(milestone_id: str, decision: str, evidence: dict, lang: str = "fr") -> str:
     source = evidence.get("source") or "simulation"
     provider = evidence.get("provider") or "NAVIGUIDE"
@@ -692,7 +725,8 @@ def _signature(lang: str) -> str:
 
 def _strip_signatures(text: str) -> str:
     """Drop every model sign-off so the reply can add exactly one."""
-    cleaned = _LONG_SIGNATURE.sub(" ", text or "")
+    cleaned = _drop_sentences(text or "", _INVENTED_SENTENCE)
+    cleaned = _LONG_SIGNATURE.sub(" ", cleaned)
     cleaned = _INVENTED_SIGNATURE.sub(" ", cleaned)
     cleaned = re.sub(
         r"[—–\-]+\s*(?:le capitaine|the captain)\b",
@@ -752,6 +786,38 @@ def _drop_amount_without_port(text: str, suggested: dict) -> str:
         if amount_in_text(sentence, amount) and not _port_present(sentence, port):
             continue
         kept.append(sentence)
+    return " ".join(kept).strip()
+
+
+def _restates_milestone_or_intent(sentence: str, suggested: dict) -> bool:
+    """A label such as ``Jalon : Dakar.`` or ``Intention : autorisation.``"""
+    body = re.sub(r"[.!?…]+$", "", (sentence or "").strip()).strip()
+    match = re.match(
+        r"^(?:jalons?|milestones?|intentions?|intents?|escale|port)\s*:\s*(.*)$",
+        body,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return False
+    rest = match.group(1)
+    rest = re.sub(
+        r"\b(?:autorisation|authorize|authorise)\b",
+        " ",
+        rest,
+        flags=re.IGNORECASE,
+    )
+    port = str(suggested.get("milestone_id") or "")
+    for token in (display_name(port), port, _escale_slug(port)):
+        if token:
+            rest = re.sub(re.escape(token), " ", rest, flags=re.IGNORECASE)
+    return re.sub(r"[^A-Za-zÀ-ÿ0-9]+", "", rest) == ""
+
+
+def _drop_milestone_intent_labels(text: str, suggested: dict) -> str:
+    kept = [
+        sentence for sentence in _split_sentences(text)
+        if not _restates_milestone_or_intent(sentence, suggested)
+    ]
     return " ".join(kept).strip()
 
 
@@ -1105,6 +1171,7 @@ def _compose_chat_reply(
     prose = _drop_amount_without_port(prose, suggested)
     required: list[str] = []
     if not _has_exact_pledge(prose, suggested):
+        prose = _drop_milestone_intent_labels(prose, suggested)
         required.append(_pledge_line(suggested, lang))
     joined = " ".join(required)
     if lang == "en" and not re.search(r"\bintent\s+authorize\b", f"{prose} {joined}", re.I):
@@ -1118,7 +1185,7 @@ def _compose_chat_reply(
     reply = _period_after_link(reply, url)
     if lang == "fr":
         reply = _standardise_french(reply)
-    return reply
+    return _fix_sentence_starts(reply)
 
 
 def _without_jalon(text: str, lang: str) -> str:
@@ -1487,6 +1554,7 @@ async def review(
     usable, source, report_lang = await _narrative_for_language(
         prompt, milestone_id, _forced_lang(lang), reached,
     )
+    model_lost = not usable
     if not usable:
         narrative = _fallback_report(milestone_id, decision, evidence, lang=report_lang)
         source = _rules_source()
@@ -1508,6 +1576,7 @@ async def review(
             )
             narrative = _fallback_report(milestone_id, decision, evidence, lang=report_lang)
             source = _rules_source()
+            model_lost = True
     narrative = _finish_text(narrative)
     narrative = _without_jalon(filter_numbers(narrative, allowed, lang=report_lang), report_lang)
     if reached:
@@ -1517,6 +1586,10 @@ async def review(
             report_lang,
             arrival_phrase(evidence, report_lang),
         )
+    if model_lost and report_lang == "fr":
+        factual = _covered_miles_sentence(evidence, "fr")
+        if factual and factual not in narrative:
+            narrative = _finish_text(f"{narrative} {factual}")
     narrative = _capitalize_ports(_finish_text(narrative), milestone_id)
     decision_line = (
         f" Decision: {decision}." if report_lang == "en" else f" Décision : {decision}."

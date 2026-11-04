@@ -579,6 +579,56 @@ def test_captain_uses_rules_when_every_provider_fails(monkeypatch):
     asyncio.run(body())
 
 
+def test_nim_http_429_retries_the_same_model_once(monkeypatch):
+    _enable("nim")
+    pauses = []
+
+    async def fake_sleep(seconds):
+        pauses.append(seconds)
+
+    monkeypatch.setattr(llm.asyncio, "sleep", fake_sleep)
+    assert 0.5 <= llm.nim_rate_limit_pause() <= 1
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [
+            _fail(429),
+            _openai("Rapport tenu.", llm.nim_model()),
+        ],
+    })
+
+    async def body():
+        result = await llm.ask_text("preuve", client=client)
+        assert result.text == "Rapport tenu."
+        assert result.provider == "nim"
+        assert [item["model"] for item in seen] == [llm.NIM_MODEL_DEFAULT, llm.NIM_MODEL_DEFAULT]
+        assert pauses == [llm.nim_rate_limit_pause()]
+        await client.aclose()
+
+    asyncio.run(body())
+
+    pauses.clear()
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [
+            _fail(429),
+            _fail(429),
+            _openai("Secours.", llm.nim_fallback_model()),
+        ],
+    })
+
+    async def fallback():
+        result = await llm.ask_text("preuve", client=client)
+        assert result.text == "Secours."
+        assert result.provider == "nim"
+        assert [item["model"] for item in seen] == [
+            llm.NIM_MODEL_DEFAULT,
+            llm.NIM_MODEL_DEFAULT,
+            llm.NIM_FALLBACK_MODEL_DEFAULT,
+        ]
+        assert pauses == [llm.nim_rate_limit_pause()]
+        await client.aclose()
+
+    asyncio.run(fallback())
+
+
 def test_nim_params_come_from_the_environment(monkeypatch):
     _enable("nim")
     monkeypatch.setenv("NIM_MODEL", "nvidia/benchmark-model")

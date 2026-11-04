@@ -4,9 +4,11 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
+from app.bi_projects_catalog import get_bi_projects_geojson
 from app.escales.config import cors_origins
 
 app = FastAPI(title="BI Escales — Pay Only If We Sail")
@@ -40,6 +42,12 @@ install_cors(app)
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/bi-projects.geojson", include_in_schema=False)
+async def bi_projects_geojson():
+    payload = await get_bi_projects_geojson()
+    return JSONResponse(content=payload, media_type="application/geo+json")
 
 
 _escales_on = os.environ.get("ESCALES_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}

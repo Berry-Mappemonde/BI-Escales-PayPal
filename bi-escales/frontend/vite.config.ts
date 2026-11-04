@@ -10,6 +10,10 @@ const apiProxy = {
     target: apiProxyTarget,
     changeOrigin: true,
   },
+  "/bi-projects.geojson": {
+    target: apiProxyTarget,
+    changeOrigin: true,
+  },
 };
 
 export default defineConfig({

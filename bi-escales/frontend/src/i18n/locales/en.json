@@ -27,6 +27,8 @@
     "loading": "Loading the sheet…",
     "empty": "No list for this stop.",
     "pick": "Pick a stop on the map for the sheet and the PayPal button.",
+    "estimatedArrival": "Estimated arrival (official clock)",
+    "logbookTitle": "Navigation logbook (read-only)",
     "sections": {
       "mooring": "Mooring",
       "marinas": "Marinas",

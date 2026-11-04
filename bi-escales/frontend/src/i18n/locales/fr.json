@@ -27,6 +27,8 @@
     "loading": "Chargement de la fiche…",
     "empty": "Pas de liste pour cette escale.",
     "pick": "Choisissez une escale sur la carte pour la fiche et le bouton PayPal.",
+    "estimatedArrival": "Arrivée estimée (horloge officielle)",
+    "logbookTitle": "Carnet de navigation (lecture seule)",
     "sections": {
       "mooring": "Amarrage",
       "marinas": "Marinas",

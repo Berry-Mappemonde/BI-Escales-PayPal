@@ -571,6 +571,8 @@ async def post_clock_settle(request: Request, payload: ClockSettleIn = ClockSett
 
 @router.get("/schedule")
 async def get_schedule():
+    from ..escales.navigation_logbook import navigation_logbook
+
     export = await fetch_naviguide_export()
     await sync_milestone_shells(export)
     legs = clock_legs()
@@ -581,6 +583,7 @@ async def get_schedule():
         "source": "naviguide" if naviguide_bridge_enabled() else "local",
         "clock": {"start": clock_start()},
         "prices": simulated_prices(),
+        "logbook": navigation_logbook(export),
     }
 
 

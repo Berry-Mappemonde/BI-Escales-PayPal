@@ -927,6 +927,7 @@ async def admin_reauthorize_pledge(
     client: Any,
     *,
     mock_response: Optional[str] = None,
+    effective_at: Optional[dt.datetime] = None,
 ) -> dict:
     """TEST-only treasurer helper: force honor-period reauthorize on an AUTHORIZE pledge."""
     if mock_response:
@@ -938,7 +939,7 @@ async def admin_reauthorize_pledge(
         raise ValueError("pledge must be authorized")
     if not pledge.get("authorization_id"):
         raise ValueError("authorization_id missing")
-    changed = _prepare_authorization_capture(pledge, client)
+    changed = _prepare_authorization_capture(pledge, client, now=effective_at)
     if not changed:
         raise ValueError("authorization is still inside the honor period")
     return await get_ledger().save_pledge(pledge)
@@ -1070,14 +1071,19 @@ def _parse_moment(value: Optional[str]) -> Optional[dt.datetime]:
     return moment.astimezone(dt.timezone.utc)
 
 
-def _prepare_authorization_capture(pledge: dict, client: Any) -> bool:
+def _prepare_authorization_capture(
+    pledge: dict,
+    client: Any,
+    *,
+    now: Optional[dt.datetime] = None,
+) -> bool:
     """Reauthorize once the 3-day honor period has passed, and refuse an expired hold."""
-    now = simulated_now()
+    moment = now or simulated_now()
     expires = _parse_moment(pledge.get("authorization_expires_at"))
-    if expires is not None and now >= expires:
+    if expires is not None and moment >= expires:
         raise ValueError("PayPal authorization has expired")
     authorized_at = _parse_moment(pledge.get("authorized_at"))
-    if authorized_at is None or now <= authorized_at + dt.timedelta(days=HONOR_DAYS):
+    if authorized_at is None or moment <= authorized_at + dt.timedelta(days=HONOR_DAYS):
         return False
     try:
         refreshed = client.reauthorize(
@@ -1085,7 +1091,7 @@ def _prepare_authorization_capture(pledge: dict, client: Any) -> bool:
             pledge_id=str(pledge.get("_id") or ""),
         ) or {}
     except PayPalError:
-        if expires is not None and now >= expires:
+        if expires is not None and moment >= expires:
             raise ValueError("PayPal authorization has expired") from None
         return False
     new_id = refreshed.get("id") or pledge.get("authorization_id")
@@ -1093,7 +1099,7 @@ def _prepare_authorization_capture(pledge: dict, client: Any) -> bool:
     expiration = refreshed.get("expiration_time")
     if expiration:
         pledge["authorization_expires_at"] = str(expiration)
-    pledge["authorized_at"] = _money_event_timestamp(now)
+    pledge["authorized_at"] = _money_event_timestamp(moment)
     pledge["history"] = list(pledge.get("history") or []) + ["reauthorized"]
     return True
 

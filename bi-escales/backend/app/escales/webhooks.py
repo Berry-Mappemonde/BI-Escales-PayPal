@@ -257,7 +257,12 @@ async def _apply_event(event: dict) -> dict:
     event_type = event.get("event_type") or ""
     resource = event.get("resource") or {}
     order_id = _order_id_from_resource(resource)
-    pledge = await get_ledger().find_pledge_by_order_id(order_id) if order_id else None
+    ledger = get_ledger()
+    pledge = await ledger.find_pledge_by_order_id(order_id) if order_id else None
+    if pledge is None:
+        capture_id = _capture_id_from_resource(resource)
+        if capture_id:
+            pledge = await ledger.find_pledge_by_capture_id(capture_id)
     if event_type == "VAULT.PAYMENT-TOKEN.DELETED":
         from .pledges import find_pledge_by_vault_id, mark_vault_token_deleted_for_vault_id
 
@@ -349,7 +354,7 @@ async def _apply_event(event: dict) -> dict:
         await record_finance(
             "webhook_capture_refunded",
             pledge_id=pledge.get("_id"),
-            capture_id=resource.get("id"),
+            capture_id=_capture_id_from_resource(resource) or resource.get("id"),
         )
 
     if event_type.startswith("CUSTOMER.DISPUTE."):
@@ -443,11 +448,18 @@ def _resource_id(event: Any) -> Optional[str]:
 
 async def _pledge_id_for(event: Any) -> Optional[str]:
     resource = _event_dict(event).get("resource")
-    order_id = _order_id_from_resource(resource if isinstance(resource, dict) else {})
-    if not order_id:
-        return None
-    pledge = await get_ledger().find_pledge_by_order_id(order_id)
-    return pledge.get("_id") if pledge else None
+    resource = resource if isinstance(resource, dict) else {}
+    order_id = _order_id_from_resource(resource)
+    ledger = get_ledger()
+    if order_id:
+        pledge = await ledger.find_pledge_by_order_id(order_id)
+        if pledge:
+            return pledge.get("_id")
+    capture_id = _capture_id_from_resource(resource)
+    if capture_id:
+        pledge = await ledger.find_pledge_by_capture_id(capture_id)
+        return pledge.get("_id") if pledge else None
+    return None
 
 
 async def _record_outcome(
@@ -498,6 +510,38 @@ async def _append_pledge_webhook(pledge_id: str, row: dict) -> None:
     )
     doc["webhook_events"] = events
     await ledger.save_pledge(doc)
+
+
+def _capture_id_from_resource(resource: dict) -> Optional[str]:
+    """Capture id on a CAPTURE or REFUND webhook resource.
+
+    Refund payloads often omit ``order_id``; the parent capture id is in
+    ``supplementary_data.related_ids`` or a ``/v2/payments/captures/`` link.
+    """
+    if not isinstance(resource, dict) or not resource:
+        return None
+    supplementary = resource.get("supplementary_data") or {}
+    if isinstance(supplementary, dict):
+        related = supplementary.get("related_ids") or {}
+        if isinstance(related, dict) and related.get("capture_id"):
+            return str(related["capture_id"])
+    capture_marker = "/v2/payments/captures/"
+    for link in resource.get("links") or []:
+        href = str(link.get("href") or "")
+        if capture_marker in href:
+            segment = href.split(capture_marker, 1)[1].split("/")[0].strip()
+            if segment:
+                return segment
+    resource_id = str(resource.get("id") or "").strip()
+    status = str(resource.get("status") or "").upper()
+    if resource_id and status in {"COMPLETED", "REFUNDED", "PARTIALLY_REFUNDED"}:
+        for link in resource.get("links") or []:
+            href = str(link.get("href") or "")
+            if str(link.get("rel") or "").lower() == "self" and capture_marker in href:
+                return resource_id
+        if status == "REFUNDED" and not _order_id_from_resource(resource):
+            return resource_id
+    return None
 
 
 def _order_id_from_resource(resource: dict) -> Optional[str]:

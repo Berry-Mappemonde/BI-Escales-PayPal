@@ -115,7 +115,7 @@
     "returnPendingProject": "Approuvez sur PayPal. Votre contribution projet est débitée au retour.",
     "cancelled": "Approbation annulée. Rien n’est autorisé.",
     "authorizing": "Autorisation côté serveur…",
-    "intent": "Intent AUTHORIZE — PayPal sandbox",
+    "intent": "Intent AUTHORIZE — sandbox PayPal",
     "intentProject": "Intent CAPTURE — votre contribution projet est débitée immédiatement après approbation (PayPal sandbox).",
     "create": "Créer l’ordre PayPal",
     "approve": "Approuver sur la page PayPal",

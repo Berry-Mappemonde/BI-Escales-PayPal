@@ -175,7 +175,7 @@ async def refuse_early_capture(pledge: dict, *, now: Optional[dt.datetime] = Non
     if anchor is None:
         return
     moment = now or simulated_now()
-    if moment.date() < anchor.date():
+    if moment < anchor:
         raise ValueError(f"capture is before {rule}")
 
 
@@ -256,7 +256,7 @@ async def _settle_timed_pledge(
                 pledge_id, client, mode=mode, actions=actions, effective_at=moment,
             )
             return
-        if anchor is None or moment.date() < anchor.date():
+        if anchor is None or moment < anchor:
             actions.append({"pledge_id": pledge_id, "action": "wait"})
             return
         saved = await capture_pledge(pledge_id, client, effective_at=moment)

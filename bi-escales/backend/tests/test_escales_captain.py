@@ -256,7 +256,7 @@ def test_chat_offers_membership_url_and_does_not_order(monkeypatch):
         assert pledge["milestone_id"] == "dep-dzaoudzi-mayotte"
         assert pledge["kind"] == "mile"
         assert pledge["simulated"] is True
-        assert pledge["price_label"] == "simulated price"
+        assert pledge["price_label"] == "prix simulé"
         assert "order_id" not in result
         assert "999" not in result["reply"]
         assert result["model_source"] == {"provider": "rules", "model": ""}

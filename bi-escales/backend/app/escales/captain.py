@@ -753,7 +753,7 @@ def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
         "intent": "AUTHORIZE",
         "item": item,
         "simulated": True,
-        "price_label": SIMULATED_PRICE_LABEL,
+        "price_label": simulated_price_label(lang),
     }
     if item == "mile":
         suggested["kind"] = "mile"
@@ -3187,6 +3187,7 @@ def _extend_pledge(base: dict, message: str, lang: str) -> dict:
         result.pop("kind", None)
     else:
         result["kind"] = item
+    result["price_label"] = simulated_price_label(lang)
     return result
 
 
@@ -3247,7 +3248,7 @@ def _open_pledge(
         "item": kind,
         "kind": kind,
         "simulated": True,
-        "price_label": SIMULATED_PRICE_LABEL,
+        "price_label": simulated_price_label(lang),
     }
 
 
@@ -3305,7 +3306,7 @@ def _cabin_pledge_alone(message: str, lang: str) -> Optional[dict]:
         "item": "cabin_leg",
         "kind": "cabin_leg",
         "simulated": True,
-        "price_label": SIMULATED_PRICE_LABEL,
+        "price_label": simulated_price_label(lang),
     }
 
 

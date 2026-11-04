@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import secrets
 from typing import Any, Optional
 
@@ -13,6 +15,7 @@ CREW_PRODUCT_NAME = "Crew supporter"
 CREW_PLAN_NAME = "Crew supporter monthly"
 CREW_SETUP_KEY = "crew_supporter_catalog"
 SUBSCRIPTION_CREATE_CACHE_KIND = "paypal_subscription_create_cache"
+SUBSCRIPTION_CREATE_CACHE_MAX = 32
 
 
 async def _catalog_row() -> Optional[dict]:
@@ -48,8 +51,15 @@ def _catalog_plan_id(plans_payload: dict) -> Optional[str]:
 
 async def _hydrate_catalog_from_paypal(client: Any) -> Optional[dict]:
     """Find existing Crew supporter product/plan on PayPal and remember locally."""
-    products = client.list_billing_products()
-    product_id = _catalog_product_id(products)
+    product_id: Optional[str] = None
+    iterator = getattr(client, "iter_billing_product_pages", None)
+    if callable(iterator):
+        for page_payload in iterator():
+            product_id = _catalog_product_id(page_payload)
+            if product_id:
+                break
+    else:
+        product_id = _catalog_product_id(client.list_billing_products())
     if not product_id:
         return None
     plans = client.list_billing_plans(product_id=product_id)
@@ -114,9 +124,16 @@ async def public_crew_supporter_plan_id() -> Optional[str]:
 
 
 async def resolve_crew_supporter_plan_id(client: Any) -> Optional[str]:
-    """Local memory, PayPal catalog lookup, or create — for public plan routes."""
-    catalog = await ensure_crew_supporter_catalog(client)
-    plan_id = str(catalog.get("plan_id") or "").strip()
+    """Local memory or PayPal catalog lookup only — never creates product/plan."""
+    row = await _catalog_row()
+    if row:
+        plan_id = str(row.get("plan_id") or "").strip()
+        if plan_id:
+            return plan_id
+    hydrated = await _hydrate_catalog_from_paypal(client)
+    if not hydrated:
+        return None
+    plan_id = str(hydrated.get("plan_id") or "").strip()
     return plan_id or None
 
 
@@ -131,11 +148,22 @@ def _subscription_approve_link(payload: dict) -> Optional[str]:
     return None
 
 
-async def _subscription_create_cache_get(client_key: str) -> Optional[dict]:
+def _subscription_create_body_hash(*, return_url: str, cancel_url: str) -> str:
+    payload = json.dumps(
+        {"return_url": return_url, "cancel_url": cancel_url},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
+
+
+async def _subscription_create_cache_get(client_key: str, body_hash: str) -> Optional[dict]:
     for entry in await list_finance_entries():
         if entry.get("kind") != SUBSCRIPTION_CREATE_CACHE_KIND:
             continue
         if str(entry.get("client_key") or "") != client_key:
+            continue
+        if str(entry.get("body_hash") or "") != body_hash:
             continue
         cached = entry.get("create_response")
         if isinstance(cached, dict):
@@ -143,12 +171,34 @@ async def _subscription_create_cache_get(client_key: str) -> Optional[dict]:
     return None
 
 
-async def _subscription_create_cache_put(client_key: str, response: dict) -> None:
-    await record_finance(
-        SUBSCRIPTION_CREATE_CACHE_KIND,
-        client_key=client_key,
-        create_response=response,
-    )
+async def _subscription_create_cache_put(
+    client_key: str,
+    body_hash: str,
+    response: dict,
+) -> None:
+    entries = await list_finance_entries()
+    cache_rows = [row for row in entries if row.get("kind") == SUBSCRIPTION_CREATE_CACHE_KIND]
+    for entry in cache_rows:
+        if (
+            str(entry.get("client_key") or "") == client_key
+            and str(entry.get("body_hash") or "") == body_hash
+        ):
+            await update_finance_entry(
+                str(entry.get("_id") or ""),
+                {"create_response": response, "at": now_iso()},
+            )
+            return
+    patch = {
+        "client_key": client_key,
+        "body_hash": body_hash,
+        "create_response": response,
+        "at": now_iso(),
+    }
+    if len(cache_rows) >= SUBSCRIPTION_CREATE_CACHE_MAX:
+        oldest = min(cache_rows, key=lambda row: str(row.get("at") or ""))
+        await update_finance_entry(str(oldest.get("_id") or ""), patch)
+        return
+    await record_finance(SUBSCRIPTION_CREATE_CACHE_KIND, **patch)
 
 
 def _subscription_create_response(
@@ -179,8 +229,9 @@ async def create_crew_subscription(
     if not plan_id:
         raise ValueError("crew supporter plan is not configured")
     replay_key = _client_key(client_key)
+    body_hash = _subscription_create_body_hash(return_url=return_url, cancel_url=cancel_url)
     if replay_key:
-        cached = await _subscription_create_cache_get(replay_key)
+        cached = await _subscription_create_cache_get(replay_key, body_hash)
         if cached:
             return cached
     idempotency = replay_key[:127] if replay_key else secrets.token_hex(16)
@@ -192,7 +243,7 @@ async def create_crew_subscription(
     )
     result = _subscription_create_response(catalog, plan_id, payload)
     if replay_key:
-        await _subscription_create_cache_put(replay_key, result)
+        await _subscription_create_cache_put(replay_key, body_hash, result)
     return result
 
 
@@ -207,7 +258,12 @@ async def approve_crew_subscription(
     if not sub_id:
         raise ValueError("subscription_id is required")
     remote = client.get_subscription(sub_id)
+    expected_plan = await resolve_crew_supporter_plan_id(client)
+    if not expected_plan:
+        raise ValueError("crew supporter plan is not configured")
     remote_plan = str(remote.get("plan_id") or plan_id or "").strip()
+    if remote_plan != expected_plan:
+        raise ValueError("subscription plan_id does not match the Crew supporter plan")
     status = str(remote.get("status") or "").strip().upper()
     if status != "ACTIVE":
         raise ValueError(

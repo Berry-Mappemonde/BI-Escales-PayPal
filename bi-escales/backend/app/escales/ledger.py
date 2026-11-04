@@ -118,6 +118,21 @@ class MemoryLedger:
                     return pledge_defaults(doc)
             return None
 
+    async def find_pledge_by_capture_id(self, capture_id: str) -> Optional[dict]:
+        wanted = str(capture_id or "").strip()
+        if not wanted:
+            return None
+        with self._lock:
+            for doc in self._pledges.values():
+                if doc.get("capture_id") == wanted:
+                    return pledge_defaults(doc)
+            for entry in self._finance:
+                if entry.get("kind") == "pledge_captured" and entry.get("capture_id") == wanted:
+                    pledge_id = entry.get("pledge_id")
+                    if pledge_id and pledge_id in self._pledges:
+                        return pledge_defaults(self._pledges[pledge_id])
+            return None
+
     async def list_pledges(self) -> list[dict]:
         with self._lock:
             return [pledge_defaults(doc) for doc in self._pledges.values()]
@@ -305,6 +320,19 @@ class MongoLedger:
     async def find_pledge_by_order_id(self, order_id: str) -> Optional[dict]:
         await self._ensure()
         return pledge_defaults(await self._pledges.find_one({"order_id": order_id}))
+
+    async def find_pledge_by_capture_id(self, capture_id: str) -> Optional[dict]:
+        wanted = str(capture_id or "").strip()
+        if not wanted:
+            return None
+        await self._ensure()
+        doc = await self._pledges.find_one({"capture_id": wanted})
+        if doc:
+            return pledge_defaults(doc)
+        fin = await self._finance.find_one({"kind": "pledge_captured", "capture_id": wanted})
+        if fin and fin.get("pledge_id"):
+            return await self.get_pledge(str(fin["pledge_id"]))
+        return None
 
     async def list_pledges(self) -> list[dict]:
         await self._ensure()
@@ -568,6 +596,7 @@ def to_public_fund(fund: dict) -> dict:
         "captured_eur": str(fund.get("captured_eur") or captured),
         "authorized_eur": str(fund.get("authorized_eur") or "0.00"),
         "spending_eur": str(fund.get("spending_eur") or "0.00"),
+        "refunded_eur": str(fund.get("refunded_eur") or "0.00"),
         "balance_eur": str(fund.get("balance_eur") or "0.00"),
         "overdrawn": bool(fund.get("overdrawn")),
     }

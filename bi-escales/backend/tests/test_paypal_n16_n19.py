@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.escales.paypal_subscriptions import (
     CREW_PLAN_NAME,
     CREW_PRODUCT_NAME,
+    ensure_crew_supporter_catalog,
     resolve_crew_supporter_plan_id,
 )
 from app.escales.pledges import reset_ledger
@@ -70,17 +71,18 @@ def test_n16_public_plan_route_hydrates_from_paypal_catalog_without_create():
     asyncio.run(run())
 
 
-def test_n16_resolve_still_creates_when_catalog_missing_on_paypal():
+def test_n16_resolve_does_not_create_when_catalog_missing_on_paypal():
     async def run():
         spy = NSpy()
         set_paypal_client_factory(lambda: spy)
         plan_id = await resolve_crew_supporter_plan_id(spy)
-        assert plan_id == "PLAN-N"
+        assert plan_id is None
 
     asyncio.run(run())
 
 
 def test_n19_subscription_approve_requires_active_paypal_status():
+    asyncio.run(ensure_crew_supporter_catalog(NSpy()))
     spy = NSpy()
 
     class PendingSpy(NSpy):

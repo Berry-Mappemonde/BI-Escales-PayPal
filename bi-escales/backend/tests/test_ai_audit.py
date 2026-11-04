@@ -175,6 +175,17 @@ def test_8_french_cabin_without_a_stop_asks_which_escale():
     asyncio.run(body())
 
 
+def test_f6_sponsor_miles_without_a_stopover_asks_which_stopover():
+    async def body():
+        result = await chat("Sponsor 10 miles", lang="en")
+        reply = result["reply"]
+        assert "Which stopover?" in reply
+        assert result["suggested_pledge"] is None
+        assert "10.00" not in reply
+
+    asyncio.run(body())
+
+
 def test_9_english_capture_rule_does_not_move_money():
     async def body():
         result = await chat("When is my mile pledge money captured?", lang="en")

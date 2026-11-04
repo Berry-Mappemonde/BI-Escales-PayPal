@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { createPledge, fetchFeatures, isVaultPledge, registerVault } from "../api/escales";
+import { createPledge, registerVault, isVaultPledge } from "../api/escales";
 import type { PublicPledge } from "../api/types";
 import { loadPayPalSdk } from "../paypal/paypalSdk";
 
@@ -31,13 +31,16 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
 
   useEffect(() => {
     let cancelled = false;
-    void fetchFeatures()
-      .then((flags) => {
-        const clientId = (flags.paypal_client_id || "").trim();
-        if (!clientId || cancelled) return;
-        return loadPayPalSdk(clientId).then(() => {
-          if (!cancelled) setSdkReady(true);
-        });
+    const clientId = String(import.meta.env.VITE_PAYPAL_CLIENT_ID ?? "").trim();
+    if (!clientId) {
+      setSdkReady(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    void loadPayPalSdk(clientId)
+      .then(() => {
+        if (!cancelled) setSdkReady(true);
       })
       .catch(() => {
         if (!cancelled) setSdkReady(false);

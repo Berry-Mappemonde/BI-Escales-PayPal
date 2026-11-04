@@ -78,7 +78,7 @@ export interface ScheduleResponse {
 export interface FeatureFlags {
   bryntum?: boolean;
   vault?: boolean;
-  paypal_client_id?: string;
+  clock_pinned?: boolean;
 }
 
 export interface MilestoneEvidence {

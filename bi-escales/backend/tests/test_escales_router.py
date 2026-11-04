@@ -1495,7 +1495,17 @@ def test_features_flags_off_by_default(api):
     assert flags["bryntum"] is False
     assert flags["vault"] is False
     assert flags["webhooks_enabled"] is False
+    assert flags["clock_pinned"] is False
+    assert "paypal_client_id" not in flags
     assert flags["webhook_url"] == "https://bi-escales-api.onrender.com/api/escales/webhooks/paypal"
+
+
+def test_features_clock_pinned_when_env_set(api, monkeypatch):
+    client, _fake = api
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-20T08:00:00Z")
+    flags = client.get("/api/escales/features").json()
+    assert flags["clock_pinned"] is True
+    assert "paypal_client_id" not in flags
 
 
 def test_cors_allows_the_minimix_vite_origin(monkeypatch):

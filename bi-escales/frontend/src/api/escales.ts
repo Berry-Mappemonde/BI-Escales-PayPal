@@ -166,15 +166,17 @@ export async function getPledge(pledgeId: string): Promise<PublicPledge> {
   return res.json();
 }
 
-export async function settleClock(adminKey: string): Promise<{ settled?: unknown }> {
+export async function settleClock(adminKey: string, now?: string): Promise<{ settled?: unknown }> {
   const key = adminKey.trim();
   if (!key) {
     throw new Error("treasurer key required");
   }
+  const at = (now || "").trim();
+  const body = at ? { now: at } : {};
   const res = await fetch(url("/api/escales/clock/settle"), {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-admin-key": key },
-    body: "{}",
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();

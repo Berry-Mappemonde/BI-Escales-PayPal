@@ -128,7 +128,10 @@
     "back": "Retour à la carte",
     "screen": "Écran trésorier",
     "settle": "Lancer le règlement du jour de départ",
-    "settleDone": "Règlement du jour de départ terminé."
+    "settleDone": "Règlement du jour de départ terminé.",
+    "settleAtLabel": "Régler à la date et l’heure choisies",
+    "settleAtButton": "Régler à cette date",
+    "settleAtInvalid": "Indiquez une date et une heure valides."
   },
   "grid": {
     "heading": "Vue trésorier — jauges",

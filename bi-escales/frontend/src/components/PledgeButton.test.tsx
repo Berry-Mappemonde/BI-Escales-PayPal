@@ -8,7 +8,6 @@ import { PledgeButton } from "./PledgeButton";
 vi.mock("../api/escales", () => ({
   createPledge: vi.fn(),
   registerVault: vi.fn(),
-  fetchFeatures: vi.fn().mockResolvedValue({ vault: true, paypal_client_id: "" }),
   isVaultPledge: (pledge: { payment_mode?: string; intent?: string }) =>
     pledge.payment_mode === "VAULT" || pledge.intent === "VAULT",
 }));

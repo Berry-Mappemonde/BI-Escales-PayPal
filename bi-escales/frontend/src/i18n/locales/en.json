@@ -128,7 +128,10 @@
     "back": "Back to the map",
     "screen": "Treasurer screen",
     "settle": "Run departure-day settle",
-    "settleDone": "Departure-day settle finished."
+    "settleDone": "Departure-day settle finished.",
+    "settleAtLabel": "Settle at chosen date and time",
+    "settleAtButton": "Settle at this date",
+    "settleAtInvalid": "Enter a valid date and time."
   },
   "grid": {
     "heading": "Treasurer view — gauges",

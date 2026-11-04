@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, fetchFund, fetchHealthRetrying, fetchSchedule, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { authorizePledge, fetchFund, fetchFeatures, fetchHealthRetrying, fetchSchedule, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { nextStopover } from "./voyage/nextStopover.js";
 import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
@@ -98,6 +98,8 @@ export default function App() {
   const [spendError, setSpendError] = useState<string | null>(null);
   const [settleBusy, setSettleBusy] = useState(false);
   const [settleNote, setSettleNote] = useState<string | null>(null);
+  const [clockPinned, setClockPinned] = useState(false);
+  const [settleAt, setSettleAt] = useState("");
   const [projectFund, setProjectFund] = useState<FundView | null | undefined>(undefined);
   const [boatFund, setBoatFund] = useState<FundView | null | undefined>(undefined);
 
@@ -190,6 +192,21 @@ export default function App() {
     setPaypalNote("authorized");
     void refresh();
   }, [refresh, updatePledge]);
+
+  useEffect(() => {
+    if (hash !== "#tresorier") return undefined;
+    let cancelled = false;
+    void fetchFeatures()
+      .then((flags) => {
+        if (!cancelled) setClockPinned(Boolean(flags.clock_pinned));
+      })
+      .catch(() => {
+        if (!cancelled) setClockPinned(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hash]);
 
   useEffect(() => {
     if (hash !== "#tresorier") return undefined;
@@ -299,6 +316,27 @@ export default function App() {
     }
   };
 
+  const onSettleAt = async () => {
+    const key = adminKey.trim();
+    const raw = settleAt.trim();
+    if (!key || !raw) return;
+    setSettleBusy(true);
+    setSettleNote(null);
+    try {
+      const parsed = new Date(raw);
+      if (Number.isNaN(parsed.getTime())) {
+        throw new Error(t("treasurer.settleAtInvalid"));
+      }
+      const iso = parsed.toISOString().replace(/\.\d{3}Z$/, "Z");
+      await settleClock(key, iso);
+      setSettleNote(t("treasurer.settleDone"));
+    } catch (err: unknown) {
+      setSettleNote(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSettleBusy(false);
+    }
+  };
+
   const onSpend = async () => {
     if (!adminKey.trim() || !milestoneId) return;
     setSpendError(null);
@@ -359,6 +397,27 @@ export default function App() {
           {t("treasurer.settle")}
         </button>
         {settleNote ? <p className="notice" data-testid="settle-note">{settleNote}</p> : null}
+        {clockPinned ? (
+          <div className="stack-form" data-testid="settle-at-chosen">
+            <label>
+              {t("treasurer.settleAtLabel")}
+              <input
+                type="datetime-local"
+                value={settleAt}
+                onChange={(event) => setSettleAt(event.target.value)}
+                data-testid="settle-at-input"
+              />
+            </label>
+            <button
+              type="button"
+              data-testid="settle-at-chosen-button"
+              disabled={!adminKey.trim() || !settleAt.trim() || settleBusy}
+              onClick={() => void onSettleAt()}
+            >
+              {t("treasurer.settleAtButton")}
+            </button>
+          </div>
+        ) : null}
         <label>
           {t("pledge.milestone")}
           <input value={milestoneId} onChange={(event) => setMilestoneId(event.target.value)} />

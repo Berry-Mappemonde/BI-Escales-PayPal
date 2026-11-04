@@ -22,5 +22,10 @@ describe("settleClock", () => {
     expect(String(path)).toContain("/api/escales/clock/settle");
     expect(init.method).toBe("POST");
     expect(init.headers["x-admin-key"]).toBe("secret-admin");
+    expect(JSON.parse(String(init.body))).toEqual({});
+
+    await settleClock("secret-admin", "2026-11-20T08:00:00Z");
+    const [, initAt] = fetchMock.mock.calls[1];
+    expect(JSON.parse(String(initAt.body))).toEqual({ now: "2026-11-20T08:00:00Z" });
   });
 });

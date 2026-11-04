@@ -248,6 +248,37 @@ class PayPalClient:
             raise PayPalError(response.status_code, response.text)
         return response.json() if response.content else {}
 
+    def create_capture_order(
+        self,
+        amount_eur: str,
+        description: str,
+        reference_id: str,
+        idempotency_key: Optional[str] = None,
+        return_url: Optional[str] = None,
+        cancel_url: Optional[str] = None,
+        checkout_locale: Optional[str] = None,
+    ) -> dict:
+        """Classic CAPTURE order (immediate payment after buyer approval)."""
+        back = (return_url or "").strip() or order_return_url()
+        cancel = (cancel_url or "").strip() or order_cancel_url()
+        body = {
+            "intent": "CAPTURE",
+            "payment_source": {
+                "paypal": {
+                    "experience_context": self._experience_context(
+                        back, cancel, locale=checkout_locale,
+                    ),
+                },
+            },
+            "purchase_units": [self._purchase_unit(reference_id, description, amount_eur)],
+        }
+        return self._req(
+            "POST",
+            "/v2/checkout/orders",
+            body,
+            idempotency_key=idempotency_key or paypal_request_id(reference_id, "capture-order"),
+        )
+
     def create_authorize_order(
         self,
         amount_eur: str,
@@ -348,6 +379,15 @@ class PayPalClient:
             f"/v2/checkout/orders/{order_id}/authorize",
             {},
             idempotency_key=paypal_request_id(ref, "authorize"),
+        )
+
+    def capture_order(self, order_id: str, *, pledge_id: Optional[str] = None) -> dict:
+        ref = pledge_id or order_id
+        return self._req(
+            "POST",
+            f"/v2/checkout/orders/{order_id}/capture",
+            {},
+            idempotency_key=paypal_request_id(ref, "order-capture"),
         )
 
     def capture_authorization(self, authorization_id: str, final: bool = True, *, pledge_id: Optional[str] = None) -> dict:

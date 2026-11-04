@@ -112,6 +112,32 @@ describe("PledgeButton", () => {
     expect(screen.queryByTestId("paypal-approve-link")).toBeNull();
   });
 
+  it("shows project CAPTURE copy without boat arrival wording", async () => {
+    vi.mocked(createPledge).mockResolvedValue({
+      id: "proj-1",
+      status: "created",
+      intent: "CAPTURE",
+      payment_mode: "CAPTURE",
+      currency: "EUR",
+      amount_eur: "15.00",
+      description: "École",
+      milestone_id: "",
+      approve_link: "https://www.sandbox.paypal.com/checkoutnow?token=ORDERP",
+    });
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <PledgeButton values={{ ...values, kind: "project_pledge", milestone_id: "", target_id: "projet-ecole" }} />
+      </I18nextProvider>,
+    );
+
+    expect(screen.getByText(/Intent CAPTURE/)).toBeInTheDocument();
+    expect(screen.queryByText(/Intent AUTHORIZE/)).toBeNull();
+    expect(screen.queryByText(/arrivée/i)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Créer l’ordre PayPal" }));
+    expect(await screen.findByText(/contribution projet est débitée au retour/)).toBeInTheDocument();
+  });
+
   it("clears in-progress status when PayPal return authorization fails", async () => {
     vi.mocked(createPledge).mockResolvedValue({
       id: "pledge-return-2",

@@ -44,6 +44,20 @@ class FakePayPal:
             }],
         }
 
+    def create_capture_order(self, amount_eur, description, reference_id, idempotency_key=None, **kwargs):
+        self.calls.append(("create_capture", amount_eur, idempotency_key))
+        self.n += 1
+        order_id = f"ORDER{self.n}"
+        return {
+            "id": order_id,
+            "status": "CREATED",
+            "intent": "CAPTURE",
+            "links": [{
+                "rel": "approve",
+                "href": f"https://www.sandbox.paypal.com/checkoutnow?token={order_id}",
+            }],
+        }
+
     def authorize_order(self, order_id, **kwargs):
         self.calls.append(("authorize", order_id))
         return {
@@ -61,6 +75,18 @@ class FakePayPal:
     def capture_authorization(self, authorization_id, final=True, **kwargs):
         self.calls.append(("capture", authorization_id))
         return {"id": "CAP", "status": "COMPLETED"}
+
+    def capture_order(self, order_id, **kwargs):
+        self.calls.append(("orders.capture", order_id))
+        return {
+            "id": order_id,
+            "status": "COMPLETED",
+            "purchase_units": [{
+                "payments": {
+                    "captures": [{"id": f"CAP-{order_id}", "status": "COMPLETED"}],
+                },
+            }],
+        }
 
     def void_authorization(self, authorization_id, **kwargs):
         self.calls.append(("void", authorization_id))
@@ -895,7 +921,7 @@ def test_target_slug_must_be_known_for_a_stopover_kind(api, monkeypatch):
     assert project.status_code == 200, project.text
     assert project.json()["target_id"] == "projet-ecole"
     assert project.json()["amount_eur"] == "12.50"
-    assert fake.calls[-1][0] == "create"
+    assert fake.calls[-1][0] == "create_capture"
     other_escale = _create(client, "m0-other", {**PLEDGE, "kind": "mile", "target_id": "dakar"})
     assert other_escale.status_code == 422
     fund = _create(client, "m0-fund", {
@@ -1253,20 +1279,19 @@ def test_unplaced_project_and_fund_totals_are_readable(api, monkeypatch):
         "milestone_id": "",
         "kind": "project_pledge",
     })
-    assert client.post(
-        f"/api/escales/pledges/{project['id']}/capture", headers=ADMIN
-    ).status_code == 200
-    _ready(client, "tot-project-held", {
+    assert project["status"] == "captured"
+    _created_h, held = _ready(client, "tot-project-held", {
         "amount_eur": "7.00",
         "description": "projet encore autorisé",
         "milestone_id": "",
         "kind": "project_pledge",
     })
+    assert held["status"] == "captured"
     shown = client.get("/api/escales/milestones/projet/fund", headers=ADMIN).json()
-    assert shown["income_eur"] == "15.00"
-    assert shown["captured_eur"] == "15.00"
-    assert shown["authorized_eur"] == "7.00"
-    assert shown["balance_eur"] == "15.00"
+    assert shown["income_eur"] == "22.00"
+    assert shown["captured_eur"] == "22.00"
+    assert shown["authorized_eur"] == "0.00"
+    assert shown["balance_eur"] == "22.00"
     assert "income" not in shown
     assert "pledge_ids" not in shown
     assert project["id"] not in str(shown)
@@ -1285,7 +1310,7 @@ def test_unplaced_project_and_fund_totals_are_readable(api, monkeypatch):
     assert fund["spending_eur"] == "0.00"
     assert fund["balance_eur"] == "12.00"
     assert client.get("/api/escales/milestones/common-fund/fund", headers=ADMIN).json()["income_eur"] == "12.00"
-    assert client.get("/api/escales/milestones/project/fund", headers=ADMIN).json()["income_eur"] == "15.00"
+    assert client.get("/api/escales/milestones/project/fund", headers=ADMIN).json()["income_eur"] == "22.00"
     assert client.get("/api/escales/milestones/common-fund/fund").status_code == 401
     assert client.get("/api/escales/milestones/projet/fund").status_code == 401
 
@@ -1318,9 +1343,7 @@ def _capture_open_and_stopover(client, monkeypatch):
         "milestone_id": "",
         "kind": "project_pledge",
     })
-    assert client.post(
-        f"/api/escales/pledges/{project['id']}/capture", headers=ADMIN
-    ).status_code == 200
+    assert project["status"] == "captured"
     _created_f, boat = _ready(client, "chat-boat", {
         "amount_eur": "12.00",
         "description": "fonds commun",

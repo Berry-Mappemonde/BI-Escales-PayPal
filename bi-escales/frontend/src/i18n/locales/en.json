@@ -49,7 +49,9 @@
     "truncated": "{{shown}} of {{total}} projects (use search to narrow)",
     "minAmount": "Minimum 1.00 EUR.",
     "invalidAmount": "Invalid amount (use at most 2 decimal places).",
-    "pledgeDescription": "Project pledge — {{title}}"
+    "pledgeDescription": "Project pledge — {{title}}",
+    "visitSite": "Project website",
+    "noDescription": "No description in the snapshot."
   },
   "marinas": {
     "heading": "Marinas",
@@ -110,8 +112,10 @@
     "contributor": "Contributor (optional)",
     "simulatedPrice": "simulated price",
     "returnPending": "Approve on PayPal. On return, authorization runs by itself.",
+    "returnPendingProject": "Approve on PayPal. Your project contribution is charged when you return.",
     "cancelled": "Approval cancelled. Nothing is authorized.",
     "intent": "AUTHORIZE intent — PayPal sandbox",
+    "intentProject": "CAPTURE intent — your project contribution is collected immediately after approval (PayPal sandbox).",
     "create": "Create the PayPal order",
     "approve": "Approve on the PayPal page",
     "authorize": "I approved — authorize",

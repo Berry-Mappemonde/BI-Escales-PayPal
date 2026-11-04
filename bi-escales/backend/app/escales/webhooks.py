@@ -306,32 +306,38 @@ async def _apply_event(event: dict) -> dict:
         pledge["history"] = list(pledge.get("history") or []) + ["webhook_order_approved"]
         pledge = await get_ledger().save_pledge(pledge)
     target = _PENDING_CAPTURE.get(event_type)
-    if pledge and target and pledge.get("status") == "pending":
-        pledge["status"] = target
-        pledge["paypal_status"] = "COMPLETED" if target == "captured" else "DENIED"
-        if resource.get("id"):
-            pledge["capture_id"] = str(resource["id"])
-        if target == "captured" and not str(pledge.get("captured_at") or "").strip():
-            pledge["captured_at"] = simulated_now().replace(microsecond=0).isoformat()
-        pledge["history"] = list(pledge.get("history") or []) + [target]
-        pledge = await get_ledger().save_pledge(pledge)
-        if target == "captured":
-            from .pledges import record_pledge_captured_once
+    if pledge and target:
+        status = str(pledge.get("status") or "")
+        mode = str(pledge.get("payment_mode") or pledge.get("intent") or "")
+        allowed = {"pending"}
+        if target == "captured" and mode == "CAPTURE":
+            allowed = allowed | {"created"}
+        if status in allowed:
+            pledge["status"] = target
+            pledge["paypal_status"] = "COMPLETED" if target == "captured" else "DENIED"
+            if resource.get("id"):
+                pledge["capture_id"] = str(resource["id"])
+            if target == "captured" and not str(pledge.get("captured_at") or "").strip():
+                pledge["captured_at"] = simulated_now().replace(microsecond=0).isoformat()
+            pledge["history"] = list(pledge.get("history") or []) + [target]
+            pledge = await get_ledger().save_pledge(pledge)
+            if target == "captured":
+                from .pledges import record_pledge_captured_once
 
-            await record_pledge_captured_once(pledge, actor="webhook")
-        else:
-            await record_finance(
-                "webhook_capture_denied",
-                event_type=event_type,
-                order_id=order_id,
-                pledge_id=pledge.get("_id"),
-                resource_id=resource.get("id"),
-                milestone_id=pledge.get("milestone_id"),
-                amount_eur=pledge.get("amount_eur"),
-                status=target,
-                pledge_kind=identity.get("kind") if identity else None,
-                target_id=identity.get("target_id") if identity else None,
-            )
+                await record_pledge_captured_once(pledge, actor="webhook")
+            else:
+                await record_finance(
+                    "webhook_capture_denied",
+                    event_type=event_type,
+                    order_id=order_id,
+                    pledge_id=pledge.get("_id"),
+                    resource_id=resource.get("id"),
+                    milestone_id=pledge.get("milestone_id"),
+                    amount_eur=pledge.get("amount_eur"),
+                    status=target,
+                    pledge_kind=identity.get("kind") if identity else None,
+                    target_id=identity.get("target_id") if identity else None,
+                )
 
     if event_type == "PAYMENT.CAPTURE.REFUNDED" and pledge and pledge.get("status") in {
         "captured",

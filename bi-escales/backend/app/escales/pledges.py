@@ -383,6 +383,24 @@ def _create_authorize_order(client: Any, **kwargs: Any) -> dict:
         return client.create_authorize_order(**slim)
 
 
+def _create_capture_order(client: Any, **kwargs: Any) -> dict:
+    create = getattr(client, "create_capture_order", None)
+    if create is None:
+        raise PayPalError(502, "capture checkout unavailable")
+    try:
+        return create(**kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if not any(token in message for token in ("return_url", "cancel_url", "checkout_locale")):
+            raise
+        slim = {
+            key: value
+            for key, value in kwargs.items()
+            if key not in {"return_url", "cancel_url", "checkout_locale"}
+        }
+        return create(**slim)
+
+
 def _create_authorize_vault_order(client: Any, **kwargs: Any) -> dict:
     create = getattr(client, "create_authorize_vault_order", None)
     if create is None:
@@ -546,6 +564,21 @@ async def create_pledge(
         from .naviguide_bridge import resolve_schedule_milestone
 
         await resolve_schedule_milestone(milestone_id)
+    if pledge_kind == "project_pledge":
+        return await _create_capture_pledge(
+            amount=amount,
+            description=description,
+            milestone_id=milestone_id,
+            client=client,
+            client_key=client_key,
+            contributor=contributor,
+            target_id=resolved_target,
+            return_url=return_url,
+            cancel_url=cancel_url,
+            caller_origin=caller_origin,
+            checkout_locale=checkout_locale,
+            checkout_method=checkout_method,
+        )
     mode: PaymentMode = payment_mode or "AUTHORIZE"
     from .departure_clock import refuse_cancelled_departure, refuse_early_authorization
 
@@ -593,6 +626,102 @@ async def create_pledge(
         checkout_locale=checkout_locale,
         checkout_method=checkout_method,
     )
+
+
+async def _create_capture_pledge(
+    *,
+    amount: str,
+    description: str,
+    milestone_id: str,
+    client: Any,
+    client_key: Optional[str],
+    contributor: Optional[str],
+    target_id: str,
+    return_url: Optional[str] = None,
+    cancel_url: Optional[str] = None,
+    caller_origin: Optional[str] = None,
+    checkout_locale: Optional[str] = None,
+    checkout_method: Optional[str] = None,
+) -> dict:
+    """Project crowdfunding: CAPTURE intent, charged when the buyer approves on return."""
+    key = _client_key(client_key)
+    ledger = get_ledger()
+    if key:
+        existing = await ledger.find_by_client_key(key)
+        if existing:
+            return existing
+    pledge_id = uuid.uuid4().hex
+    idempotency_key = key or uuid.uuid4().hex
+    method = _normalize_checkout_method(checkout_method)
+    if method == "card":
+        raise ValueError("project_pledge uses PayPal wallet checkout only")
+    back = _callback_url(
+        _http_url(return_url, order_return_url(), "return_url", caller_origin=caller_origin),
+        pledge_id,
+        "return",
+    )
+    cancel = _callback_url(
+        _http_url(cancel_url, order_cancel_url(), "cancel_url", caller_origin=caller_origin),
+        pledge_id,
+        "cancel",
+    )
+    order = _create_capture_order(
+        client,
+        amount_eur=amount,
+        description=description,
+        reference_id=pledge_id,
+        idempotency_key=idempotency_key,
+        return_url=back,
+        cancel_url=cancel,
+        checkout_locale=checkout_locale,
+    )
+    order_id = order.get("id")
+    if not order_id:
+        raise PayPalError(502, "order id missing")
+    if key:
+        existing = await ledger.find_by_client_key(key)
+        if existing:
+            return existing
+    doc = {
+        "_id": pledge_id,
+        "client_key": key,
+        "status": "created",
+        "intent": "CAPTURE",
+        "payment_mode": "CAPTURE",
+        "currency": "EUR",
+        "amount_eur": amount,
+        "description": description,
+        "milestone_id": milestone_id,
+        "kind": "project_pledge",
+        "target_id": target_id,
+        "contributor": (contributor or "").strip() or None,
+        "order_id": order_id,
+        "approve_link": approve_link(order),
+        "authorization_id": None,
+        "authorization_expires_at": None,
+        "vault_id": None,
+        "vault_source": None,
+        "setup_token_id": None,
+        "checkout_method": method,
+        "vault_on_purchase": False,
+        "checkout_locale": (checkout_locale or "").strip() or None,
+        "created_at": now_iso(),
+        "history": ["created"],
+    }
+    saved = await ledger.insert_pledge_once(doc)
+    if saved.get("_id") == pledge_id and saved.get("history") == ["created"]:
+        await record_finance(
+            "pledge_created",
+            pledge_id=pledge_id,
+            milestone_id=milestone_id,
+            amount_eur=amount,
+            currency="EUR",
+            order_id=order_id,
+            status="created",
+            payment_mode="CAPTURE",
+            **_identity(saved),
+        )
+    return saved
 
 
 async def _create_authorize_pledge(
@@ -864,8 +993,28 @@ def _require_status(pledge: dict, expected: str | tuple[str, ...], target: str) 
         raise IllegalTransition(str(current), target)
 
 
+async def _capture_order_pledge(pledge_id: str, client: Any, pledge: dict) -> dict:
+    """Capture a CAPTURE-intent order after the buyer approved on PayPal."""
+    _require_status(pledge, "created", "captured")
+    order_id = str(pledge.get("order_id") or "")
+    if not _buyer_approved(client, order_id):
+        raise ValueError("order not approved yet")
+    capture = getattr(client, "capture_order", None)
+    if capture is None:
+        raise PayPalError(502, "order capture unavailable")
+    payload = capture(order_id, pledge_id=pledge_id)
+    return await _finish_capture(
+        pledge,
+        payload,
+        finance={"payment_mode": "CAPTURE", "order_id": order_id},
+    )
+
+
 async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     pledge = await require_pledge(pledge_id)
+    mode = str(pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE")
+    if mode == "CAPTURE":
+        return await _capture_order_pledge(pledge_id, client, pledge)
     _require_status(pledge, "created", "authorized")
     order_id = str(pledge.get("order_id") or "")
     if not _buyer_approved(client, order_id):

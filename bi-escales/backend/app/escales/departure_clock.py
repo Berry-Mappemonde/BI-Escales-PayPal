@@ -1,9 +1,10 @@
 """Simulated clock settlement for PayPal pledges.
 
 Capture rules (7488f15 / Clément confirmation):
-Stop-level pledges (miles, nights, meals, care, berths, project gifts) are captured
-on the boat's ARRIVAL at the stop and voided if the stop is cancelled. Cabins are
-captured on the departure of their leg. Common fund pledges are captured at once.
+Stop-level pledges (miles, nights, meals, care, berths) are captured on the boat's
+ARRIVAL at the stop and voided if the stop is cancelled. Project crowdfunding is
+charged immediately (CAPTURE intent). Cabins are captured on the departure of their leg.
+Common fund pledges are captured at once.
 
 The simulated clock is ``simulated_now`` (``ESCALES_CLOCK_NOW``, else UTC).
 Authorizations are not opened more than 29 days before the relevant arrival or
@@ -15,15 +16,17 @@ import datetime as dt
 from typing import Any, Optional
 
 CAPTURE_RULES_EN = (
-    "Stop-level pledges (miles, nights, meals, care, berths, project gifts) are captured "
+    "Stop-level pledges (miles, nights, meals, care, berths) are captured "
     "on the boat's arrival at the stop and voided if the stop is cancelled. "
+    "Project crowdfunding is collected immediately. "
     "Cabins are captured on the departure of their leg. "
     "Common fund pledges are captured at once."
 )
 CAPTURE_RULES_FR = (
-    "Les promesses au niveau de l'escale (milles, nuits, repas, soins, couchettes, "
-    "cadeaux projet) sont capturées à l'arrivée du bateau à l'escale et annulées si "
-    "l'escale est annulée. Les cabines sont capturées au départ de leur étape. "
+    "Les promesses au niveau de l'escale (milles, nuits, repas, soins, couchettes) "
+    "sont capturées à l'arrivée du bateau à l'escale et annulées si l'escale est annulée. "
+    "Le financement projet est débité immédiatement. "
+    "Les cabines sont capturées au départ de leur étape. "
     "Les promesses au fonds commun sont capturées immédiatement."
 )
 
@@ -45,7 +48,6 @@ _ARRIVAL_KINDS = frozenset({
     "meal",
     "care",
     "berth",
-    "project_pledge",
 })
 
 

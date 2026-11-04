@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, fetchFund, fetchFeatures, fetchHealthRetrying, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { authorizePledge, fetchFund, fetchFeatures, fetchHealthRetrying, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { emitCrewSubscribeReturn } from "./paypal/crewSubscribeReturnEvents";
 import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
 import { nextStopover } from "./voyage/nextStopover.js";
 import type { CaptainChatResponse, FundView, PublicPledge } from "./api/types";
@@ -74,6 +75,7 @@ export default function App() {
   const [settleAt, setSettleAt] = useState("");
   const [projectFund, setProjectFund] = useState<FundView | null | undefined>(undefined);
   const [boatFund, setBoatFund] = useState<FundView | null | undefined>(undefined);
+  const [crewSubscribeNote, setCrewSubscribeNote] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [treasurerOpen, setTreasurerOpen] = useState(false);
 
@@ -142,6 +144,15 @@ export default function App() {
   useEffect(() => {
     if (hash === "#tresorier") setTreasurerOpen(true);
   }, [hash]);
+
+  const onTreasurerOpenChange = useCallback((open: boolean) => {
+    setTreasurerOpen(open);
+    if (!open && window.location.hash === "#tresorier") {
+      const next = `${window.location.pathname}${window.location.search}`;
+      window.history.replaceState({}, "", next);
+      setHash("");
+    }
+  }, []);
 
   useEffect(() => {
     if (!treasurerOpen || !milestoneId) {
@@ -222,6 +233,28 @@ export default function App() {
   pledgeQueueRef.current = { updatePledge, refresh };
 
   useEffect(() => {
+    const crewParsed = readCrewSubscribeReturn(window.location.search, window.location.hash);
+    if (crewParsed) {
+      const next = new URL(window.location.href);
+      next.searchParams.delete("sub");
+      next.searchParams.delete("subscription_id");
+      next.searchParams.delete("ba_token");
+      next.searchParams.delete("token");
+      if (next.hash === "#crew-subscribe=return" || next.hash === "#crew-subscribe=cancel") {
+        next.hash = "";
+      }
+      window.history.replaceState({}, "", `${next.pathname}${next.search}${next.hash}`);
+      setHash(next.hash);
+      if (crewParsed.action === "cancel") {
+        setCrewSubscribeNote("cancelled");
+        emitCrewSubscribeReturn({ outcome: "cancel" });
+        return undefined;
+      }
+      setCrewSubscribeNote("confirmed");
+      emitCrewSubscribeReturn({ outcome: "confirmed" });
+      return undefined;
+    }
+
     const vaultParsed = readVaultReturn(window.location.search);
     if (vaultParsed) {
       const next = new URL(window.location.href);
@@ -369,6 +402,16 @@ export default function App() {
   const paypalNotices = (
     <>
       {healthOk === false ? <p className="notice error">{t("app.healthFail")}</p> : null}
+      {crewSubscribeNote === "confirmed" ? (
+        <p className="status" data-testid="crew-subscribe-return-notice">
+          {t("pledge.crewSubscribeConfirmed")}
+        </p>
+      ) : null}
+      {crewSubscribeNote === "cancelled" ? (
+        <p className="notice warn" data-testid="crew-subscribe-cancel-notice">
+          {t("pledge.crewSubscribeCancelled")}
+        </p>
+      ) : null}
       {paypalNote === "cancel" ? <p className="notice warn">{t("pledge.cancelled")}</p> : null}
       {paypalNote === "vaultCancel" ? <p className="notice warn">{t("pledge.vaultCancelled")}</p> : null}
       {paypalNote === "vaultRetry" ? <p className="notice warn">{t("pledge.vaultRetry")}</p> : null}
@@ -503,7 +546,7 @@ export default function App() {
         )}
         <TreasurerPanel
           open={treasurerOpen}
-          onOpenChange={setTreasurerOpen}
+          onOpenChange={onTreasurerOpenChange}
           adminKey={adminKey}
           onAdminKeyChange={setAdminKey}
           settleBusy={settleBusy}

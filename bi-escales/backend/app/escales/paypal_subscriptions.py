@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from typing import Any, Optional
 
 from .ledger import list_finance_entries, now_iso, record_finance, update_finance_entry
@@ -77,17 +78,19 @@ async def create_crew_subscription(
     *,
     return_url: str,
     cancel_url: str,
+    client_key: Optional[str] = None,
 ) -> dict:
     """Public buyer checkout: ensure catalog + create PayPal subscription."""
     catalog = await ensure_crew_supporter_catalog(client)
     plan_id = str(catalog.get("plan_id") or "")
     if not plan_id:
         raise ValueError("crew supporter plan is not configured")
+    ref = str(client_key or "").strip() or secrets.token_hex(16)
     payload = client.create_billing_subscription(
         plan_id=plan_id,
         return_url=return_url,
         cancel_url=cancel_url,
-        idempotency_key=paypal_request_id(f"{CREW_SETUP_KEY}:{return_url}", "sub-create"),
+        idempotency_key=paypal_request_id(ref, "sub-create"),
     )
     subscription_id = str(payload.get("id") or "")
     return {

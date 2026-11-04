@@ -268,10 +268,8 @@ def test_n6_create_subscription_route_and_public_approve():
         client = TestClient(app)
         created = client.post(
             "/api/escales/paypal/subscriptions/create",
-            json={
-                "return_url": "https://app.example/return",
-                "cancel_url": "https://app.example/cancel",
-            },
+            json={},
+            headers={"paypal-request-id": "n6-buyer"},
         )
         assert created.status_code == 200
         body = created.json()

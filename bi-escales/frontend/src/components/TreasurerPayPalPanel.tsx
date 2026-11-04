@@ -6,7 +6,6 @@ import {
   fetchPayPalSubscriptions,
   setupCrewSubscription,
 } from "../api/escales";
-import { CrewSubscribeButton } from "./CrewSubscribeButton";
 
 export interface TreasurerPayPalPanelProps {
   adminKey: string;
@@ -18,7 +17,6 @@ export function TreasurerPayPalPanel({ adminKey }: TreasurerPayPalPanelProps) {
   const [invoiceCount, setInvoiceCount] = useState<number | null>(null);
   const [subscriptions, setSubscriptions] = useState<number | null>(null);
   const [setupNote, setSetupNote] = useState<string | null>(null);
-  const [planId, setPlanId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -56,7 +54,6 @@ export function TreasurerPayPalPanel({ adminKey }: TreasurerPayPalPanelProps) {
     setSetupNote(null);
     try {
       const body = await setupCrewSubscription(key);
-      if (body.plan_id) setPlanId(String(body.plan_id));
       setSetupNote(body.idempotent ? t("treasurer.paypal.setupDone") : t("treasurer.paypal.setupCreated"));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -83,7 +80,6 @@ export function TreasurerPayPalPanel({ adminKey }: TreasurerPayPalPanelProps) {
         {t("treasurer.paypal.setupCrew")}
       </button>
       {setupNote ? <p className="notice">{setupNote}</p> : null}
-      {planId ? <CrewSubscribeButton planId={planId} adminKey={adminKey} /> : null}
       <p className="hint" data-testid="reconcile-lag-note">
         {t("treasurer.paypal.reconcileLag")}
       </p>

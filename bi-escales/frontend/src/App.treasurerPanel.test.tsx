@@ -48,6 +48,41 @@ vi.mock("./components/ProjectList.jsx", () => ({ default: () => null }));
 vi.mock("./components/CrewSubscribeButton", () => ({ CrewSubscribeButton: () => null }));
 vi.mock("./marinas/escaleFiche.js", () => ({ loadEscaleFiche: vi.fn(), ficheMarinas: vi.fn(() => []) }));
 
+describe("Crew subscription return handling", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await i18n.changeLanguage("en");
+    vi.stubGlobal("location", {
+      ...window.location,
+      hash: "",
+      search: "",
+      pathname: "/",
+      href: "http://localhost/",
+    });
+    vi.stubGlobal("history", {
+      ...window.history,
+      replaceState: vi.fn(),
+    });
+  });
+
+  it("shows a confirmation when PayPal returns with ?sub=return", async () => {
+    vi.stubGlobal("location", {
+      ...window.location,
+      search: "?sub=return",
+      pathname: "/",
+      href: "http://localhost/?sub=return",
+    });
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+
+    expect(await screen.findByTestId("crew-subscribe-return-notice")).toHaveTextContent(/confirmed/i);
+  });
+});
+
 describe("Treasurer panel (mini-mix lot 1)", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -61,6 +96,10 @@ describe("Treasurer panel (mini-mix lot 1)", () => {
       pathname: "/",
       href: "http://localhost/",
     });
+    vi.stubGlobal("history", {
+      ...window.history,
+      replaceState: vi.fn(),
+    });
   });
 
   it("keeps treasurer tools collapsed by default on the public map", () => {
@@ -71,6 +110,7 @@ describe("Treasurer panel (mini-mix lot 1)", () => {
     );
     const toggle = screen.getByTestId("treasurer-panel-toggle");
     expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-controls", "treasurer-panel-body");
     expect(screen.queryByTestId("treasurer-panel-body")).toBeNull();
     expect(screen.queryByTestId("admin-key-input")).toBeNull();
     expect(screen.queryByTestId("departure-settle")).toBeNull();
@@ -117,5 +157,30 @@ describe("Treasurer panel (mini-mix lot 1)", () => {
     });
     expect(screen.getByTestId("admin-key-input")).toBeInTheDocument();
     expect(screen.getByTestId("departure-settle")).toBeDisabled();
+  });
+
+  it("clears #tresorier from the URL when the panel is closed", async () => {
+    const user = userEvent.setup();
+    const replaceState = vi.fn();
+    vi.stubGlobal("location", {
+      ...window.location,
+      hash: "#tresorier",
+      pathname: "/",
+      search: "",
+      href: "http://localhost/#tresorier",
+    });
+    vi.stubGlobal("history", { ...window.history, replaceState });
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("treasurer-panel-toggle")).toHaveAttribute("aria-expanded", "true");
+    });
+    await user.click(screen.getByTestId("treasurer-panel-toggle"));
+    expect(replaceState).toHaveBeenCalledWith({}, "", "/");
   });
 });

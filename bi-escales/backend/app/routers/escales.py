@@ -108,6 +108,7 @@ from app.escales.pledges import (
     refund_pledge,
     to_public,
     void_pledge,
+    _http_url,
 )
 from app.escales.toolkit_tools import ReadOnlyTools
 from app.escales.webhooks import WebhookDuplicate, WebhookRejected, verify_and_process
@@ -744,16 +745,35 @@ async def post_subscription_setup(request: Request):
         raise _as_http(exc) from exc
 
 
+@router.get("/paypal/subscriptions/plan")
+async def get_crew_subscription_plan():
+    """Public read-only Crew supporter billing plan id (does not create a PayPal subscription)."""
+    plan_id = await public_crew_supporter_plan_id()
+    return {"plan_id": plan_id}
+
+
 @router.post("/paypal/subscriptions/create")
-async def post_subscription_create(body: SubscriptionCreateIn = SubscriptionCreateIn()):
+async def post_subscription_create(request: Request, body: SubscriptionCreateIn = SubscriptionCreateIn()):
     """Buyer checkout: catalog + PayPal subscription (public)."""
-    back = (body.return_url or "").strip() or subscription_return_url()
-    cancel = (body.cancel_url or "").strip() or subscription_cancel_url()
+    caller = f"{request.url.scheme}://{request.url.netloc}"
     try:
+        back = _http_url(
+            body.return_url,
+            subscription_return_url(),
+            "return_url",
+            caller_origin=caller,
+        )
+        cancel = _http_url(
+            body.cancel_url,
+            subscription_cancel_url(),
+            "cancel_url",
+            caller_origin=caller,
+        )
         return await create_crew_subscription(
             _paypal(),
             return_url=back,
             cancel_url=cancel,
+            client_key=request.headers.get("paypal-request-id"),
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc

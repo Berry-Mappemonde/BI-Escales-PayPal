@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { approveCrewSubscription, createCrewSubscriptionCheckout, recordSubscription } from "../api/escales";
+import { approveCrewSubscription, fetchCrewSupporterPlan, recordSubscription } from "../api/escales";
 import { loadPayPalSubscriptionSdk } from "../paypal/paypalSdk";
+import { subscribeCrewSubscribeReturn } from "../paypal/crewSubscribeReturnEvents";
 
 export interface CrewSubscribeButtonProps {
   planId?: string;
   adminKey?: string;
 }
+
+const PLAN_LOAD_TIMEOUT_MS = 20_000;
 
 export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscribeButtonProps) {
   const { t } = useTranslation();
@@ -15,6 +18,7 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
   const [ready, setReady] = useState(false);
   const [planId, setPlanId] = useState(() => (planIdProp || "").trim());
   const [status, setStatus] = useState<string | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
 
   useEffect(() => {
     setPlanId((planIdProp || "").trim());
@@ -23,17 +27,46 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
   useEffect(() => {
     if (planId) return;
     let cancelled = false;
-    void createCrewSubscriptionCheckout()
+    setPlanLoading(true);
+    setError(null);
+    const timeoutId = window.setTimeout(() => {
+      if (!cancelled) {
+        setPlanLoading(false);
+        setError(t("pledge.crewSubscribePlanTimeout"));
+      }
+    }, PLAN_LOAD_TIMEOUT_MS);
+    void fetchCrewSupporterPlan()
       .then((body) => {
-        if (!cancelled) setPlanId(String(body.plan_id || "").trim());
+        if (cancelled) return;
+        const id = String(body.plan_id || "").trim();
+        if (id) {
+          setPlanId(id);
+        } else {
+          setError(t("pledge.crewSubscribePlanMissing"));
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPlanLoading(false);
+          window.clearTimeout(timeoutId);
+        }
       });
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
     };
-  }, [planId]);
+  }, [planId, t]);
+
+  useEffect(() => {
+    return subscribeCrewSubscribeReturn(() => {
+      setPlanLoading(false);
+      setStatus(null);
+      setError(null);
+    });
+  }, []);
 
   useEffect(() => {
     const clientId = String(import.meta.env.VITE_PAYPAL_CLIENT_ID ?? "").trim();
@@ -81,11 +114,11 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
     void buttons.render(host.current);
   }, [ready, planId, adminKey, t]);
 
-  if (!planId && !error) {
+  if (!planId && !error && planLoading) {
     return (
       <div className="crew-subscribe" data-testid="crew-subscribe">
         <p className="hint">{t("pledge.crewSubscribeHint")}</p>
-        <p className="status">{t("pledge.creating")}</p>
+        <p className="status">{t("pledge.crewSubscribeLoading")}</p>
       </div>
     );
   }

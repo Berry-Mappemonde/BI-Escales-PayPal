@@ -24,6 +24,33 @@ export function paypalPageUrls(): { return_url: string; cancel_url: string } {
   };
 }
 
+/** PayPal subscription redirect return/cancel (server default uses ?sub=). */
+export function crewSubscriptionPageUrls(): { return_url: string; cancel_url: string } {
+  const path = window.location.pathname || "/";
+  const origin = window.location.origin;
+  return {
+    return_url: `${origin}${path}?sub=return`,
+    cancel_url: `${origin}${path}?sub=cancel`,
+  };
+}
+
+export function readCrewSubscribeReturn(
+  search: string,
+  hash: string,
+): { action: "return" | "cancel"; subscriptionId?: string } | null {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+  const sub = params.get("sub");
+  if (sub === "return" || sub === "cancel") {
+    const subscriptionId =
+      params.get("subscription_id") || params.get("ba_token") || params.get("token") || undefined;
+    return { action: sub, subscriptionId: subscriptionId || undefined };
+  }
+  const hashBody = (hash || "").replace(/^#/, "");
+  if (hashBody === "crew-subscribe=return") return { action: "return" };
+  if (hashBody === "crew-subscribe=cancel") return { action: "cancel" };
+  return null;
+}
+
 export function readPaypalReturn(search: string): { action: "return" | "cancel"; pledgeId: string } | null {
   const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   const action = params.get("paypal");
@@ -304,9 +331,16 @@ export async function setupCrewSubscription(adminKey: string): Promise<{
   return res.json();
 }
 
+export async function fetchCrewSupporterPlan(): Promise<{ plan_id: string | null }> {
+  const res = await fetch(url("/api/escales/paypal/subscriptions/plan"));
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
 export async function createCrewSubscriptionCheckout(body?: {
   return_url?: string;
   cancel_url?: string;
+  clientRequestId?: string;
 }): Promise<{
   plan_id: string;
   subscription_id?: string;
@@ -314,15 +348,17 @@ export async function createCrewSubscriptionCheckout(body?: {
   product_id?: string;
   status?: string;
 }> {
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://example.com";
-  const path = typeof window !== "undefined" ? window.location.pathname : "/";
+  const defaults = typeof window !== "undefined" ? crewSubscriptionPageUrls() : { return_url: "", cancel_url: "" };
   const payload = {
-    return_url: body?.return_url ?? `${origin}${path}#crew-subscribe=return`,
-    cancel_url: body?.cancel_url ?? `${origin}${path}#crew-subscribe=cancel`,
+    return_url: body?.return_url ?? defaults.return_url,
+    cancel_url: body?.cancel_url ?? defaults.cancel_url,
   };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const clientRequestId = body?.clientRequestId?.trim() || crypto.randomUUID();
+  headers["paypal-request-id"] = clientRequestId;
   const res = await fetch(url("/api/escales/paypal/subscriptions/create"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(await parseError(res));

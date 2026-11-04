@@ -30,6 +30,11 @@
     "creating": "Creating pledge…",
     "authorizing": "Authorizing on server…",
     "authorized": "Pledge authorized",
+    "vaultHint": "Vault: approve the saved payment method on PayPal, then confirm. Nothing is captured yet.",
+    "vaultApprove": "Approve the payment method",
+    "vaultConfirm": "I approved — save it",
+    "vaulting": "Saving the payment method…",
+    "vaulted": "Payment method saved",
     "error": "Pledge error"
   },
   "treasurer": {
@@ -39,7 +44,9 @@
     "refresh": "Refresh queue",
     "capture": "Capture",
     "void": "Void authorization",
-    "queueEmpty": "No tracked pledges. Authorized pledges appear here.",
+    "queueEmpty": "No authorized, vaulted, or pending pledges on the server.",
+    "queueNeedsKey": "Enter the treasurer key to load pledges from the server.",
+    "loadError": "The queue could not be refreshed. Rows already loaded were kept.",
     "status": "Status",
     "amount": "Amount",
     "description": "Description",
@@ -48,7 +55,7 @@
   },
   "grid": {
     "heading": "Treasurer view — gauges",
-    "agGridOff": "AG Grid disabled (VITE_ENABLE_AG_GRID=0): HTML fallback table.",
+    "agGridOff": "AG Grid community is off (VITE_ENABLE_AG_GRID=0). HTML table. This is not AG Studio.",
     "milestone": "Milestone",
     "authorized": "Authorized",
     "captured": "Captured",

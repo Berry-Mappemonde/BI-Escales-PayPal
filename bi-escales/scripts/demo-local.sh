@@ -7,6 +7,11 @@ FRONTEND="$ROOT/frontend"
 
 echo "== BI Escales — démo locale =="
 
+if [[ -n "${RENDER:-}${RENDER_SERVICE_ID:-}${RENDER_EXTERNAL_URL:-}" ]]; then
+  echo "demo-local.sh est réservé à une machine locale. Il ne doit pas tourner sur Render." >&2
+  exit 1
+fi
+
 if [[ ! -d "$BACKEND/.venv" ]]; then
   python3 -m venv "$BACKEND/.venv"
 fi
@@ -39,7 +44,7 @@ export VITE_ENABLE_AG_GRID="${VITE_ENABLE_AG_GRID:-0}"
 
 echo "Backend: http://127.0.0.1:8000 (ESCALES_ENABLED=$ESCALES_ENABLED)"
 echo "Frontend: http://127.0.0.1:5173"
-echo "Clé trésorier démo (x-admin-key): $ESCALES_ADMIN_KEY"
+echo "Clé trésorier locale seulement (jamais sur Render): $ESCALES_ADMIN_KEY"
 
 (cd "$BACKEND" && uvicorn app.main:app --host 127.0.0.1 --port 8000) &
 BACK_PID=$!

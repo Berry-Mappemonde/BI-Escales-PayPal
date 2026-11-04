@@ -30,6 +30,11 @@
     "creating": "Création de la promesse…",
     "authorizing": "Autorisation côté serveur…",
     "authorized": "Promesse autorisée",
+    "vaultHint": "Vault : approuvez le moyen de paiement sur PayPal, puis confirmez. Rien n’est encaissé.",
+    "vaultApprove": "Approuver le moyen de paiement",
+    "vaultConfirm": "J’ai approuvé — enregistrer",
+    "vaulting": "Enregistrement du moyen de paiement…",
+    "vaulted": "Moyen de paiement enregistré",
     "error": "Erreur promesse"
   },
   "treasurer": {
@@ -39,7 +44,9 @@
     "refresh": "Actualiser la file",
     "capture": "Encaisser",
     "void": "Annuler l’autorisation",
-    "queueEmpty": "Aucune promesse suivie. Les promesses autorisées apparaissent ici.",
+    "queueEmpty": "Aucune promesse autorisée, vaultée ou en attente sur le serveur.",
+    "queueNeedsKey": "Saisissez la clé trésorier pour charger les promesses depuis le serveur.",
+    "loadError": "La file n’a pas pu être actualisée. Les lignes déjà chargées sont conservées.",
     "status": "Statut",
     "amount": "Montant",
     "description": "Description",
@@ -48,7 +55,7 @@
   },
   "grid": {
     "heading": "Vue trésorier — jauges",
-    "agGridOff": "AG Grid désactivé (VITE_ENABLE_AG_GRID=0) : tableau HTML de secours.",
+    "agGridOff": "AG Grid community est désactivé (VITE_ENABLE_AG_GRID=0) : tableau HTML. Ce n’est pas AG Studio.",
     "milestone": "Jalon",
     "authorized": "Autorisées",
     "captured": "Encaissées",

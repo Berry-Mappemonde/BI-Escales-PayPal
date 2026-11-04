@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, createPledge } from "../api/escales";
+import { authorizePledge, createPledge, isVaultPledge, registerVault } from "../api/escales";
 import type { PublicPledge } from "../api/types";
 import { paypalClientId } from "../config/features";
 import { loadPayPalSdk } from "../paypal/sdk";
@@ -29,6 +29,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
   const onAuthorizedRef = useRef(onAuthorized);
   onAuthorizedRef.current = onAuthorized;
   const pledgeRef = useRef<PublicPledge | null>(null);
+  const [vaultPledge, setVaultPledge] = useState<PublicPledge | null>(null);
 
   useEffect(() => {
     if (!clientId || disabled) return;
@@ -48,7 +49,12 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
             const requestId = crypto.randomUUID();
             const pledge = await createPledge(valuesRef.current, requestId);
             pledgeRef.current = pledge;
+            if (isVaultPledge(pledge)) {
+              setVaultPledge(pledge);
+              throw new Error("VAULT_SETUP");
+            }
             if (!pledge.order_id) throw new Error("order_id missing");
+            setVaultPledge(null);
             return pledge.order_id;
           },
           onApprove: async () => {
@@ -60,7 +66,9 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
             onAuthorizedRef.current?.(authorized);
           },
           onError: (err) => {
-            setError(err instanceof Error ? err.message : String(err));
+            const message = err instanceof Error ? err.message : String(err);
+            if (message.includes("VAULT_SETUP")) return;
+            setError(message);
           },
           onCancel: () => {
             setStatus(null);
@@ -83,10 +91,37 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
     return <p className="notice warn">{t("pledge.missingClientId")}</p>;
   }
 
+  const confirmVault = async () => {
+    if (!vaultPledge) return;
+    setError(null);
+    setStatus(t("pledge.vaulting"));
+    try {
+      const saved = await registerVault(vaultPledge.id);
+      setVaultPledge(saved);
+      setStatus(t("pledge.vaulted"));
+      onAuthorizedRef.current?.(saved);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   return (
     <div className="pledge-button">
       <p className="hint">{t("pledge.intent")}</p>
       <div ref={containerRef} data-testid="paypal-buttons" />
+      {vaultPledge ? (
+        <div className="vault-setup" data-testid="vault-setup">
+          <p className="hint">{t("pledge.vaultHint")}</p>
+          {vaultPledge.approve_link ? (
+            <a href={vaultPledge.approve_link} target="_blank" rel="noreferrer">
+              {t("pledge.vaultApprove")}
+            </a>
+          ) : null}
+          <button type="button" onClick={() => void confirmVault()}>
+            {t("pledge.vaultConfirm")}
+          </button>
+        </div>
+      ) : null}
       {status ? <p className="status">{status}</p> : null}
       {error ? (
         <p className="notice error">

@@ -1,3 +1,5 @@
+// Optional ag-grid-community table. Excluded from the core tsc/vite graph.
+// This is not AG Studio and not the Studio Agent Framework.
 import { useMemo } from "react";
 import { AgGridReact } from "ag-grid-react";
 import type { ColDef } from "ag-grid-community";

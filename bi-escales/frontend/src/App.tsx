@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { fetchHealth, listMilestones } from "./api/escales";
 import type { Milestone, PublicPledge } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
+import { EscalesScheduler } from "./components/EscalesScheduler";
 import { TreasurerGrid } from "./components/TreasurerGrid";
 import { TreasurerQueue } from "./components/TreasurerQueue";
 import { setLanguage } from "./i18n";
@@ -11,12 +12,12 @@ import "./styles/app.css";
 
 export default function App() {
   const { t, i18n } = useTranslation();
-  const { pledges, loading, refresh, register, updatePledge } = usePledgeQueue();
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
   const [escalesOk, setEscalesOk] = useState<boolean | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [selectedMilestone, setSelectedMilestone] = useState("dep-mayotte");
   const [adminKey, setAdminKey] = useState("");
+  const { pledges, loading, error, needsKey, refresh, updatePledge } = usePledgeQueue(adminKey);
 
   useEffect(() => {
     void fetchHealth()
@@ -32,10 +33,10 @@ export default function App() {
 
   const onAuthorized = useCallback(
     (pledge: PublicPledge) => {
-      register(pledge.id);
       updatePledge(pledge);
+      void refresh();
     },
-    [register, updatePledge],
+    [refresh, updatePledge],
   );
 
   return (
@@ -68,6 +69,8 @@ export default function App() {
       </p>
       {escalesOk === false ? <p className="notice warn">{t("app.escalesOff")}</p> : null}
 
+      <EscalesScheduler />
+
       <main className="layout">
         <EscalesPanel
           onPledgeAuthorized={(p) => {
@@ -89,6 +92,8 @@ export default function App() {
           <TreasurerQueue
             pledges={pledges}
             loading={loading}
+            error={error}
+            needsKey={needsKey}
             adminKey={adminKey}
             onRefresh={() => void refresh()}
             onUpdated={updatePledge}

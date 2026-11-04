@@ -1,4 +1,11 @@
-import type { PublicPledge, Milestone, CaptainProposal, CaptainChatResponse } from "./types";
+import type {
+  PublicPledge,
+  Milestone,
+  CaptainProposal,
+  CaptainChatResponse,
+  ScheduleResponse,
+  FeatureFlags,
+} from "./types";
 
 function url(path: string): string {
   const base = (import.meta.env.VITE_API_BASE ?? "").trim().replace(/\/$/, "");
@@ -50,6 +57,41 @@ export async function authorizePledge(pledgeId: string): Promise<PublicPledge> {
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
+}
+
+export async function listPledges(adminKey: string): Promise<PublicPledge[]> {
+  const res = await fetch(url("/api/escales/pledges"), {
+    headers: { "x-admin-key": adminKey },
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function registerVault(pledgeId: string): Promise<PublicPledge> {
+  const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}/vault`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function fetchSchedule(): Promise<ScheduleResponse> {
+  const res = await fetch(url("/api/escales/schedule"));
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function fetchFeatures(): Promise<FeatureFlags> {
+  const res = await fetch(url("/api/escales/features"));
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export function isVaultPledge(pledge: PublicPledge): boolean {
+  if (pledge.payment_mode === "VAULT" || pledge.intent === "VAULT") return true;
+  return Boolean(pledge.setup_token_id && !pledge.order_id);
 }
 
 export async function getPledge(pledgeId: string): Promise<PublicPledge> {

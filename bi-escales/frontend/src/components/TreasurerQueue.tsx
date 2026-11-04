@@ -2,21 +2,32 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { capturePledge, voidPledge } from "../api/escales";
 import type { PublicPledge } from "../api/types";
+import { isQueuedPledge } from "../hooks/queueFilter";
 
 export interface TreasurerQueueProps {
   pledges: PublicPledge[];
   loading?: boolean;
+  error?: string | null;
+  needsKey?: boolean;
   adminKey: string;
   onRefresh: () => void;
   onUpdated: (pledge: PublicPledge) => void;
 }
 
-export function TreasurerQueue({ pledges, loading, adminKey, onRefresh, onUpdated }: TreasurerQueueProps) {
+export function TreasurerQueue({
+  pledges,
+  loading,
+  error,
+  needsKey,
+  adminKey,
+  onRefresh,
+  onUpdated,
+}: TreasurerQueueProps) {
   const { t } = useTranslation();
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const queue = pledges.filter((p) => p.status === "authorized");
+  const queue = pledges.filter((p) => isQueuedPledge(p.status));
 
   const runAction = async (pledgeId: string, action: "capture" | "void") => {
     if (!adminKey.trim()) {
@@ -45,9 +56,12 @@ export function TreasurerQueue({ pledges, loading, adminKey, onRefresh, onUpdate
       <button type="button" onClick={onRefresh} disabled={loading}>
         {t("treasurer.refresh")}
       </button>
+      {error ? <p className="notice error">{t("treasurer.loadError")}: {error}</p> : null}
       {actionError ? <p className="notice error">{actionError}</p> : null}
 
-      {queue.length === 0 ? (
+      {needsKey ? (
+        <p className="hint">{t("treasurer.queueNeedsKey")}</p>
+      ) : queue.length === 0 ? (
         <p className="hint">{t("treasurer.queueEmpty")}</p>
       ) : (
         <table className="fallback-table">

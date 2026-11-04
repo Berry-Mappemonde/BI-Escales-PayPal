@@ -1,20 +1,51 @@
-export type PledgeStatus = "created" | "authorized" | "captured" | "voided";
+export type PledgeStatus =
+  | "created"
+  | "authorized"
+  | "vaulted"
+  | "pending"
+  | "captured"
+  | "settled"
+  | "failed"
+  | "voided";
 
 export interface PublicPledge {
   id: string;
   status: PledgeStatus;
   intent: string;
+  payment_mode?: string;
   currency: string;
   amount_eur: string;
   description: string;
   milestone_id: string;
   contributor?: string | null;
-  order_id?: string;
-  approve_link?: string;
+  order_id?: string | null;
+  approve_link?: string | null;
   authorization_id?: string | null;
   authorization_expires_at?: string | null;
+  setup_token_id?: string | null;
+  vault_id?: string | null;
+  paypal_status?: string | null;
+  capture_id?: string | null;
   created_at?: string;
   history?: string[];
+}
+
+export interface ScheduleEscale {
+  milestone_id?: string;
+  name?: string;
+  title?: string;
+  arrival_iso?: string | null;
+}
+
+export interface ScheduleResponse {
+  source?: string;
+  export?: { escales?: ScheduleEscale[] };
+  milestones?: ScheduleEscale[];
+}
+
+export interface FeatureFlags {
+  bryntum?: boolean;
+  vault?: boolean;
 }
 
 export interface MilestoneEvidence {

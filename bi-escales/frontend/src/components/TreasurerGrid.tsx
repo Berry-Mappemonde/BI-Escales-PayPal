@@ -1,11 +1,37 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { captainReview, capturePledge, voidPledge } from "../api/escales";
 import type { CaptainProposal, Milestone, PublicPledge } from "../api/types";
 import { featureAgGridEnabled } from "../config/features";
 import { buildGaugeRows, gaugePercent } from "../utils/gauges";
 
-const AgGridTreasurerTable = lazy(() => import("./TreasurerGridAg"));
+type AgTableProps = { rows: ReturnType<typeof buildGaugeRows> };
+
+function OptionalAgGrid({ rows }: AgTableProps) {
+  const [Table, setTable] = useState<ComponentType<AgTableProps> | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Variable specifier so the core Vite/tsc build does not import ag-grid.
+    // ag-grid-community is not AG Studio and is not a prize claim.
+    const specifier = "./TreasurerGridAg.tsx";
+    import(/* @vite-ignore */ specifier)
+      .then((mod: { default?: ComponentType<AgTableProps> }) => {
+        if (!cancelled && mod.default) setTable(() => mod.default as ComponentType<AgTableProps>);
+        else if (!cancelled) setFailed(true);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (failed || !Table) return <FallbackTreasurerTable rows={rows} />;
+  return <Table rows={rows} />;
+}
 
 export interface TreasurerGridProps {
   pledges: PublicPledge[];
@@ -195,13 +221,7 @@ export function TreasurerGrid(props: TreasurerGridProps) {
     <section className="panel treasurer-grid">
       <h2>{t("grid.heading")}</h2>
       {!agGrid ? <p className="hint">{t("grid.agGridOff")}</p> : null}
-      {agGrid ? (
-        <Suspense fallback={<FallbackTreasurerTable rows={rows} />}>
-          <AgGridTreasurerTable rows={rows} />
-        </Suspense>
-      ) : (
-        <FallbackTreasurerTable rows={rows} />
-      )}
+      {agGrid ? <OptionalAgGrid rows={rows} /> : <FallbackTreasurerTable rows={rows} />}
       <CaptainProposalWidget
         milestoneId={props.selectedMilestoneId}
         milestones={props.milestones}

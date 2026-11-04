@@ -919,6 +919,38 @@ def test_declined_capture_does_not_stop_the_clock(api, monkeypatch):
     assert client.get(f"/api/escales/pledges/{second['id']}").json()["status"] == "captured"
 
 
+def test_cancelled_leg_rejects_a_new_authorization(api):
+    client, fake = api
+    leg = "leg-la-rochelle-to-ajaccio-corse"
+    created = _create(client, "cabin-before-cancel", {
+        "amount_eur": "80.00",
+        "description": "cabine avant annulation",
+        "milestone_id": leg,
+        "kind": "cabin_leg",
+    })
+    assert created.status_code == 200, created.text
+    evidence = client.post(
+        f"/api/escales/milestones/{leg}/evidence",
+        json={"met": False, "facts": {"cancelled": True}},
+        headers=ADMIN,
+    )
+    assert evidence.status_code == 200, evidence.text
+    refused = _authorize(client, created.json()["id"])
+    assert refused.status_code == 422
+    assert "cancelled" in refused.json()["detail"]
+    creates = [call for call in fake.calls if call[0] == "create"]
+    again = _create(client, "cabin-after-cancel", {
+        "amount_eur": "80.00",
+        "description": "cabine après annulation",
+        "milestone_id": leg,
+        "kind": "cabin_leg",
+    })
+    assert again.status_code == 422
+    assert "cancelled" in again.json()["detail"]
+    assert [call for call in fake.calls if call[0] == "create"] == creates
+    assert all(call[0] != "authorize" for call in fake.calls)
+
+
 def test_clock_start_is_configurable_outside_production(monkeypatch):
     from app.escales.config import clock_start
 

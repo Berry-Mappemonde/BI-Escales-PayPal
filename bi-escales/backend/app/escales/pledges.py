@@ -450,6 +450,13 @@ async def create_pledge(
             await get_ledger().ensure_milestone(leg["id"], meta=leg_milestone_meta(leg))
     else:
         mode = payment_mode or await resolve_payment_mode(milestone_id)
+    from .departure_clock import refuse_cancelled_departure
+
+    await refuse_cancelled_departure({
+        "milestone_id": milestone_id,
+        "kind": pledge_kind,
+        "target_id": resolved_target,
+    })
     if mode == "VAULT":
         return await _create_vault_pledge(
             amount=amount,
@@ -685,8 +692,9 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     order_id = str(pledge.get("order_id") or "")
     if not _buyer_approved(client, order_id):
         raise IllegalTransition(str(pledge.get("status")), "authorized")
-    from .departure_clock import refuse_early_authorization
+    from .departure_clock import refuse_cancelled_departure, refuse_early_authorization
 
+    await refuse_cancelled_departure(pledge)
     await refuse_early_authorization(pledge)
     order = client.authorize_order(order_id)
     auth_id, expiration = authorization_from(order)

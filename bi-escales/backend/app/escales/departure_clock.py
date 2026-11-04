@@ -68,6 +68,13 @@ async def departure_milestone(pledge: dict) -> Optional[dict]:
     return base
 
 
+async def refuse_cancelled_departure(pledge: dict) -> None:
+    """A cancelled departure does not take a new authorization."""
+    doc = await departure_milestone(pledge)
+    if doc and _cancelled(doc):
+        raise ValueError("departure is cancelled")
+
+
 async def refuse_early_authorization(pledge: dict, *, now: Optional[dt.datetime] = None) -> None:
     """An authorization lasts at most 29 days, so it is not opened earlier."""
     doc = await departure_milestone(pledge)

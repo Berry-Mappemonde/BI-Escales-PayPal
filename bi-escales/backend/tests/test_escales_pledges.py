@@ -282,7 +282,7 @@ def test_omitted_kind_stays_a_mile_and_targets_the_milestone():
             client=spy,
         )
         assert created["kind"] == "mile"
-        assert created["target_id"] == "dep-mayotte"
+        assert created["target_id"] == "mayotte"
         assert created["intent"] == "AUTHORIZE"
         assert created["status"] == "created"
         assert _names(spy) == ["create"]
@@ -304,6 +304,16 @@ def test_kind_and_target_are_stored_and_unknown_kind_is_rejected():
         assert created["kind"] == "meal"
         assert created["target_id"] == "mayotte"
         assert created["milestone_id"] == "dep-mayotte"
+        prefixed = await create_pledge(
+            amount_eur="20.00",
+            description="20 milles",
+            milestone_id="dep-mayotte",
+            client=spy,
+            kind="mile",
+            target_id="dep-mayotte",
+        )
+        assert prefixed["target_id"] == "mayotte"
+        assert prefixed["milestone_id"] == "dep-mayotte"
         stored = await get_ledger().get_pledge(created["_id"])
         assert stored["kind"] == "meal"
         assert stored["target_id"] == "mayotte"

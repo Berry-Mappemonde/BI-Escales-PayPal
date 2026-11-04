@@ -124,7 +124,7 @@ def test_mongo_store_round_trip(mongo_store):
         saved = await mongo_store["bi_escales_test"]["escales_pledges"].find_one({"_id": created["_id"]})
         assert saved["client_key"] == "mongo-1"
         assert saved["kind"] == "mile"
-        assert saved["target_id"] == "dep-mayotte"
+        assert saved["target_id"] == "mayotte"
 
     asyncio.run(body())
 

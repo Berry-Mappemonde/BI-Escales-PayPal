@@ -236,7 +236,7 @@ def test_fund_counts_captured_income_and_treasurer_spending(api):
     assert fund["income"][0]["pledge_id"] == authorized["id"]
     assert fund["income"][0]["description"] == "20 milles Mayotte"
     assert fund["income"][0]["pledge_kind"] == "mile"
-    assert fund["income"][0]["target_id"] == "dep-mayotte"
+    assert fund["income"][0]["target_id"] == "mayotte"
     assert fund["spending"][0]["description"] == "gasoil"
     assert fund["spending"][0]["amount_eur"] == "5.00"
     same = client.get("/api/escales/milestones/mayotte/fund").json()
@@ -484,7 +484,7 @@ def test_pledge_defaults_to_mile_and_labels_the_simulated_price(api):
     assert response.status_code == 200
     body = response.json()
     assert body["kind"] == "mile"
-    assert body["target_id"] == "dep-mayotte"
+    assert body["target_id"] == "mayotte"
     assert body["intent"] == "AUTHORIZE"
     assert body["status"] == "created"
     assert body["price_label"] == "simulated price"

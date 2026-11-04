@@ -35,7 +35,13 @@ def test_escales_to_milestones_maps_ids():
     export = local_schedule_export()
     rows = escales_to_milestones(export)
     ids = {row["_id"] for row in rows}
-    assert ids == {"dep-mayotte", "dep-fort-de-france"}
+    assert ids == {
+        "dep-mayotte",
+        "dep-fort-de-france",
+        "dep-dakar",
+        "dep-lorient",
+        "dep-pointe-a-pitre",
+    }
     assert rows[0]["source"] == "local"
     by_id = {row["_id"]: row for row in rows}
     assert by_id["dep-fort-de-france"]["display_name"] == "Fort-de-France"
@@ -99,7 +105,7 @@ def test_fetch_naviguide_http_mock(monkeypatch):
 def test_sync_milestone_shells_creates_docs():
     async def run():
         docs = await sync_milestone_shells(local_schedule_export())
-        assert len(docs) == 2
+        assert len(docs) == 5
         assert docs[0]["meta"]["title"]
 
     asyncio.run(run())

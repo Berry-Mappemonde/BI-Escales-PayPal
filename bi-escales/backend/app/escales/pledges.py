@@ -145,7 +145,10 @@ async def _resolve_target(target_id: Optional[str], milestone_id: str, kind: str
         raise ValueError("target_id must match the milestone")
     if kind in _TARGET_MUST_BE_KNOWN and not await _known_stopover(slug):
         raise ValueError("target_id must name a known stopover")
-    return chosen if explicit else milestone_id
+    # ``dep-`` is the milestone prefix. The stored target is the stopover slug.
+    if not slug:
+        raise ValueError("target_id must match [a-z0-9-]+")
+    return slug
 
 
 def _identity(doc: dict) -> dict:

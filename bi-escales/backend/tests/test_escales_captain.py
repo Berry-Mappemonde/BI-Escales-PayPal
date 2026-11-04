@@ -2019,8 +2019,8 @@ def test_miles_and_dinner_stay_one_pledge_and_list_two_cart_lines():
     assert [line["amount_eur"] for line in cart["lines"]] == ["250.00", "60.00"]
     assert cart["lines"][0]["price_label"] == "simulated price"
     assert cart["lines"][0]["target_id"] == "dakar"
-    assert cart["available"] is False
-    assert cart["eta"] is None
+    assert cart["available"] is True
+    assert cart["eta"] == "2026-12-01T08:00:00+00:00"
     assert "order_id" not in cart
 
 
@@ -2108,3 +2108,104 @@ def test_cart_lines_use_the_existing_authorize_pledge():
         assert [call[0] for call in spy.calls] == ["create", "create", "authorize"]
 
     asyncio.run(body())
+
+
+def test_cette_nuit_and_tonight_are_not_a_night():
+    french = captain.suggest_pledge("cette nuit près de Mayotte")
+    assert french["kind"] == "mile"
+    assert "nuit" not in french["description"]
+    cart = captain.pledge_cart("cette nuit près de Mayotte", "fr", french)
+    assert [line["kind"] for line in cart["lines"]] == ["mile"]
+    both = captain.suggest_pledge("2 nuits cette nuit près de Mayotte")
+    assert both["kind"] == "night"
+    assert both["amount_eur"] == "120.00"
+    assert both["description"] == "2 nuits"
+    english = captain.suggest_pledge("tonight near Mayotte", lang="en")
+    assert english["kind"] == "mile"
+    assert "night" not in english["description"]
+    english_cart = captain.pledge_cart("tonight near Mayotte", "en", english)
+    assert [line["kind"] for line in english_cart["lines"]] == ["mile"]
+    kept = captain.suggest_pledge("2 nights tonight near Mayotte", lang="en")
+    assert kept["description"] == "2 nights"
+    assert kept["amount_eur"] == "120.00"
+
+
+def test_written_numbers_from_one_to_ten():
+    french = (
+        ("un", 1), ("deux", 2), ("trois", 3), ("quatre", 4), ("cinq", 5),
+        ("six", 6), ("sept", 7), ("huit", 8), ("neuf", 9), ("dix", 10),
+    )
+    english = (
+        ("one", 1), ("two", 2), ("three", 3), ("four", 4), ("five", 5),
+        ("six", 6), ("seven", 7), ("eight", 8), ("nine", 9), ("ten", 10),
+    )
+    for word, count in french:
+        pledge = captain.suggest_pledge(f"{word} nuits près de Mayotte")
+        assert pledge["kind"] == "night"
+        assert pledge["amount_eur"] == f"{count * 60:.2f}"
+        assert pledge["description"] == ("1 nuit" if count == 1 else f"{count} nuits")
+    for word, count in english:
+        pledge = captain.suggest_pledge(f"{word} nights near Mayotte", lang="en")
+        assert pledge["amount_eur"] == f"{count * 60:.2f}"
+        assert pledge["description"] == ("1 night" if count == 1 else f"{count} nights")
+    miles = captain.suggest_pledge("dix milles près de Dakar")
+    assert miles["kind"] == "mile"
+    assert miles["amount_eur"] == "10.00"
+    assert miles["description"] == "10 milles parrainés"
+    english_miles = captain.suggest_pledge("ten miles near Dakar", lang="en")
+    assert english_miles["amount_eur"] == "10.00"
+    assert english_miles["description"] == "10 sponsored miles"
+
+
+def test_euros_for_the_project_is_a_project_pledge_line():
+    text = "25 € pour le projet près de Dakar"
+    pledge = captain.suggest_pledge(text)
+    assert pledge["kind"] == "project_pledge"
+    assert pledge["amount_eur"] == "25.00"
+    assert "mille" not in pledge["description"]
+    cart = captain.pledge_cart(text, "fr", pledge)
+    assert [line["kind"] for line in cart["lines"]] == ["project_pledge"]
+    assert cart["lines"][0]["amount_eur"] == "25.00"
+    assert cart["lines"][0]["pledge"]["kind"] == "project_pledge"
+    assert cart["lines"][0]["pledge"]["amount_eur"] == "25.00"
+    words = captain.suggest_pledge("dix euros pour le projet près de Dakar")
+    assert words["kind"] == "project_pledge"
+    assert words["amount_eur"] == "10.00"
+
+
+def test_code_enforces_the_fixed_treasurer_sentence(monkeypatch):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return "The treasurer will decide. Le trésorier doit trancher."
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        result = await chat("Je parraine 10 milles près de Dakar")
+        reply = result["reply"]
+        sentence = "Seul le trésorier décide si l'argent est prélevé ou libéré."
+        assert reply.count(sentence) == 1
+        assert "will decide" not in reply.casefold()
+        assert "trancher" not in reply.casefold()
+        assert "The treasurer" not in reply
+
+    asyncio.run(body())
+
+
+def test_local_time_eta_for_dakar_lorient_and_pointe_a_pitre():
+    ports = (
+        ("10 milles près de Dakar", "dakar", "2026-12-01T08:00:00+00:00"),
+        ("10 milles près de Lorient", "lorient", "2026-12-15T09:00:00+01:00"),
+        ("10 milles près de Pointe-à-Pitre", "pointe-a-pitre", "2027-01-10T08:00:00-04:00"),
+    )
+    for text, slug, eta in ports:
+        pledge = captain.suggest_pledge(text)
+        assert pledge["milestone_id"] == slug
+        cart = captain.pledge_cart(text, "fr", pledge)
+        assert cart["eta"] == eta
+        assert cart["available"] is True
+    mayotte = captain.suggest_pledge("2 nuits près de Mayotte")
+    mayotte_cart = captain.pledge_cart("2 nuits près de Mayotte", "fr", mayotte)
+    assert mayotte_cart["eta"] == "2026-09-01T08:00:00+00:00"

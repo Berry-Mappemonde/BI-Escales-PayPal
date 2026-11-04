@@ -13,6 +13,7 @@ import re
 import time
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 from .config import AUTH_MAX_DAYS, membership_url
 from .milestones import (
@@ -582,14 +583,14 @@ def suggest_pledge(message: str, lang: str = "fr") -> Optional[dict]:
     if not place:
         return None
     counts: list[Decimal] = []
-    for match in _MILES.finditer(text):
+    for match in _MILES.finditer(_with_written_numbers(text)):
         try:
             count = Decimal(match.group(1).replace(",", "."))
         except InvalidOperation:
             continue
         if count > 0:
             counts.append(count)
-    dinners = len(_DINNER.findall(text))
+    dinners = _explicit_dinners(text)
     if not counts and dinners == 0:
         counts = [Decimal("1")]
     total_miles = sum(counts, Decimal("0"))
@@ -640,6 +641,9 @@ def _covered_miles_sentence(evidence: dict, lang: str = "fr") -> str:
     return f"La preuve {provider} ({flag}) indique {shown} milles parcourus."
 
 
+_TREASURER_DECIDES = "Seul le trésorier décide si l'argent est prélevé ou libéré."
+
+
 def _fallback_report(milestone_id: str, decision: str, evidence: dict, lang: str = "fr") -> str:
     source = evidence.get("source") or "simulation"
     provider = evidence.get("provider") or "NAVIGUIDE"
@@ -654,11 +658,8 @@ def _fallback_report(milestone_id: str, decision: str, evidence: dict, lang: str
     return (
         f"Jalon {port} : preuve {provider} marquée {flag} "
         f"(source {source}). Proposition : {decision}. "
-        "Seul le trésorier décide si l'argent est prélevé ou libéré."
+        f"{_TREASURER_DECIDES}"
     )
-
-
-_TREASURER_DECIDES = "Seul le trésorier décide si l'argent est prélevé ou libéré."
 _BARE_DISTANCE = re.compile(
     r"\b\d+(?:[.,]\d+)?\b(?!\s*(?:nautical\s+miles?|nm|milles?(?:\s+nautiques?)?)\b)",
     re.IGNORECASE,
@@ -1040,7 +1041,7 @@ def _fix_french_vocabulary(text: str) -> str:
         if re.search(r"remboursement|trésorière", sentence, re.IGNORECASE):
             continue
         decides = re.search(r"trésorier", sentence, re.IGNORECASE) and re.search(
-            r"décide|décider|prélev|libér|capture|annul|encaiss|argent",
+            r"d[ée]cid|decid|tranch|pr[ée]lev|lib[ée]r|capture|void|annul|encaiss|argent|money",
             sentence,
             re.IGNORECASE,
         )
@@ -1831,7 +1832,23 @@ _CABIN_COUNT = re.compile(
     re.IGNORECASE,
 )
 _PROJECT_PLEDGE = re.compile(
-    r"\b(?:promesse\s+)?projets?\b|\bproject\s+pledges?\b",
+    r"\bpour\s+le\s+projets?\b|\b(?:promesse\s+)?projets?\b|\bfor\s+the\s+project\b|\bproject\s+pledges?\b",
+    re.IGNORECASE,
+)
+# « cette nuit » et « tonight » sont un moment, pas une nuit à bord.
+_NOT_A_NIGHT = re.compile(r"\bcette\s+nuit\b|\btonight\b", re.IGNORECASE)
+_WRITTEN_NUMBERS = {
+    "one": "1", "two": "2", "three": "3", "four": "4", "five": "5",
+    "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10",
+    "un": "1", "deux": "2", "trois": "3", "quatre": "4", "cinq": "5",
+    "sept": "7", "huit": "8", "neuf": "9", "dix": "10",
+}
+_WRITTEN_NUMBER = re.compile(
+    r"\b(one|two|three|four|five|six|seven|eight|nine|ten|un|deux|trois|quatre|cinq|sept|huit|neuf|dix)\b",
+    re.IGNORECASE,
+)
+_DINNER_COUNT = re.compile(
+    r"\b(?:(\d+(?:[.,]\d+)?)\s+)?(?:d[iî]ners?|dinners?)\b",
     re.IGNORECASE,
 )
 _COMMON_FUND = re.compile(
@@ -1839,7 +1856,7 @@ _COMMON_FUND = re.compile(
     re.IGNORECASE,
 )
 _EUR_AMOUNT = re.compile(
-    r"(\d+(?:[.,]\d+)?)\s*(?:€|eur|euros?)\b",
+    r"(\d+(?:[.,]\d+)?)\s*(?:€|eur\b|euros?\b)",
     re.IGNORECASE,
 )
 _KIND_WORDS = {
@@ -1852,9 +1869,18 @@ _KIND_WORDS = {
 }
 
 
+def _with_written_numbers(text: str) -> str:
+    """``deux`` et ``two`` deviennent ``2``. Un à dix, one à ten."""
+
+    def repl(match: re.Match) -> str:
+        return _WRITTEN_NUMBERS[match.group(1).casefold()]
+
+    return _WRITTEN_NUMBER.sub(repl, text or "")
+
+
 def _explicit_miles(text: str) -> Decimal:
     total = Decimal("0")
-    for match in _MILES.finditer(text or ""):
+    for match in _MILES.finditer(_with_written_numbers(text)):
         try:
             count = Decimal(match.group(1).replace(",", "."))
         except InvalidOperation:
@@ -1865,12 +1891,21 @@ def _explicit_miles(text: str) -> Decimal:
 
 
 def _explicit_dinners(text: str) -> int:
-    return len(_DINNER.findall(text or ""))
+    total = _sum_quantity(_DINNER_COUNT, text)
+    if total == total.to_integral_value():
+        return int(total)
+    return int(total.to_integral_value())
+
+
+def _night_quantity(text: str) -> Decimal:
+    """Une nuit commandée. « cette nuit » et « tonight » ne comptent pas."""
+    cleaned = _NOT_A_NIGHT.sub(" ", text or "")
+    return _sum_quantity(_NIGHT_COUNT, cleaned)
 
 
 def _sum_quantity(pattern: re.Pattern, text: str) -> Decimal:
     total = Decimal("0")
-    for match in pattern.finditer(text or ""):
+    for match in pattern.finditer(_with_written_numbers(text)):
         raw = match.group(1)
         if not raw:
             total += 1
@@ -1890,7 +1925,7 @@ def _amount_near(text: str, pattern: re.Pattern) -> Optional[Decimal]:
         return None
     start = max(0, match.start() - 48)
     end = min(len(text), match.end() + 48)
-    found = _EUR_AMOUNT.search(text[start:end])
+    found = _EUR_AMOUNT.search(_with_written_numbers(text[start:end]))
     if not found:
         return None
     try:
@@ -1992,7 +2027,7 @@ def _catalogue_lines(text: str, lang: str, place: str) -> list[dict]:
         ("care", _CARE_COUNT),
         ("cabin_leg", _CABIN_COUNT),
     ):
-        quantity = _sum_quantity(pattern, text)
+        quantity = _night_quantity(text) if kind == "night" else _sum_quantity(pattern, text)
         if quantity > 0:
             lines.append(_fixed_line(kind, quantity, place, lang))
     for kind, pattern in (
@@ -2005,6 +2040,37 @@ def _catalogue_lines(text: str, lang: str, place: str) -> list[dict]:
     if not lines:
         lines.append(_fixed_line("mile", Decimal("1"), place, lang))
     return lines
+
+
+_PORT_LOCAL_TZ = {
+    "dakar": ZoneInfo("Africa/Dakar"),
+    "lorient": ZoneInfo("Europe/Paris"),
+    "pointe-a-pitre": ZoneInfo("America/Guadeloupe"),
+}
+
+
+def _local_eta(place: str, stop: Optional[dict]) -> Optional[str]:
+    """Arrival in the port's local time for Dakar, Lorient and Pointe-à-Pitre.
+
+    Other stopovers keep the stored ``arrival_iso``.
+    """
+    if not stop:
+        return None
+    raw = stop.get("arrival_iso")
+    if not raw:
+        return None
+    text = str(raw).strip()
+    zone = _PORT_LOCAL_TZ.get(_escale_slug(place))
+    if zone is None:
+        return text
+    parsed = text[:-1] + "+00:00" if text.endswith("Z") else text
+    try:
+        moment = dt.datetime.fromisoformat(parsed)
+    except ValueError:
+        return text
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment.astimezone(zone).replace(microsecond=0).isoformat()
 
 
 def _schedule_stop(place: str) -> Optional[dict]:
@@ -2030,8 +2096,9 @@ def _schedule_stop(place: str) -> Optional[dict]:
 def pledge_cart(message: str, lang: str, suggested: Optional[dict]) -> Optional[dict]:
     """Multi-line cart for the same AUTHORIZE total. No PayPal order.
 
-    ``eta`` is the schedule ``arrival_iso``. ``clock_start`` is the voyage
-    clock. ``available`` is the schedule flag for that stopover.
+    ``eta`` is the schedule arrival. Dakar, Lorient and Pointe-à-Pitre are
+    shown in local time. ``clock_start`` is the voyage clock. ``available``
+    is the schedule flag for that stopover.
     """
     if not suggested:
         return None
@@ -2054,7 +2121,7 @@ def pledge_cart(message: str, lang: str, suggested: Optional[dict]) -> Optional[
         "target_id": place,
         "intent": "AUTHORIZE",
         "clock_start": clock_start(),
-        "eta": stop.get("arrival_iso") if stop else None,
+        "eta": _local_eta(place, stop),
         "available": bool(stop and stop.get("flag")),
         "simulated": True,
         "indicative": True,

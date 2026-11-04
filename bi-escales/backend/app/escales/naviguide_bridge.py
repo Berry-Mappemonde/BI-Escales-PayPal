@@ -45,6 +45,33 @@ LOCAL_SCHEDULE: dict[str, Any] = {
             "arrival_iso": "2026-08-15T08:00:00+00:00",
             "flag": True,
         },
+        {
+            "milestone_id": "dep-dakar",
+            "name": "Dakar",
+            "slug": "dakar",
+            "lat": 14.6937,
+            "lon": -17.4441,
+            "arrival_iso": "2026-12-01T08:00:00+00:00",
+            "flag": True,
+        },
+        {
+            "milestone_id": "dep-lorient",
+            "name": "Lorient",
+            "slug": "lorient",
+            "lat": 47.748,
+            "lon": -3.366,
+            "arrival_iso": "2026-12-15T08:00:00+00:00",
+            "flag": True,
+        },
+        {
+            "milestone_id": "dep-pointe-a-pitre",
+            "name": "Pointe-à-Pitre",
+            "slug": "pointe-a-pitre",
+            "lat": 16.2365,
+            "lon": -61.5381,
+            "arrival_iso": "2027-01-10T12:00:00+00:00",
+            "flag": True,
+        },
     ],
 }
 

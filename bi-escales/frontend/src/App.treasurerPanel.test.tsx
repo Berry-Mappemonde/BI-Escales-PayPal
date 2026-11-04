@@ -4,6 +4,7 @@ import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "./i18n";
 import App from "./App";
+import { fetchCrewSupporterPlan, approveCrewSubscription } from "./api/escales";
 
 vi.mock("./hooks/usePledgeQueue", () => ({
   usePledgeQueue: () => ({
@@ -28,6 +29,8 @@ vi.mock("./api/escales", async (importOriginal) => {
       income_eur: "0.00",
       spending_eur: "0.00",
     }),
+    fetchCrewSupporterPlan: vi.fn().mockResolvedValue({ plan_id: "PLAN-PUBLIC" }),
+    approveCrewSubscription: vi.fn().mockResolvedValue({ subscription_id: "I-1", status: "ACTIVE" }),
     authorizePledge: vi.fn(),
     registerVault: vi.fn(),
     settleClock: vi.fn(),
@@ -68,9 +71,9 @@ describe("Crew subscription return handling", () => {
   it("shows a confirmation when PayPal returns with ?sub=return", async () => {
     vi.stubGlobal("location", {
       ...window.location,
-      search: "?sub=return",
+      search: "?sub=return&subscription_id=I-RETURN-1",
       pathname: "/",
-      href: "http://localhost/?sub=return",
+      href: "http://localhost/?sub=return&subscription_id=I-RETURN-1",
     });
 
     render(
@@ -79,7 +82,35 @@ describe("Crew subscription return handling", () => {
       </I18nextProvider>,
     );
 
-    expect(await screen.findByTestId("crew-subscribe-return-notice")).toHaveTextContent(/confirmed/i);
+    await waitFor(() => {
+      expect(screen.getByTestId("crew-subscribe-return-notice")).toHaveTextContent(/confirmed/i);
+    });
+    expect(fetchCrewSupporterPlan).toHaveBeenCalled();
+    expect(approveCrewSubscription).toHaveBeenCalledWith({
+      subscription_id: "I-RETURN-1",
+      plan_id: "PLAN-PUBLIC",
+    });
+  });
+
+  it("does not show confirmed when approve fails", async () => {
+    vi.mocked(approveCrewSubscription).mockRejectedValueOnce(new Error("not active"));
+    vi.stubGlobal("location", {
+      ...window.location,
+      search: "?sub=return&subscription_id=I-PENDING",
+      pathname: "/",
+      href: "http://localhost/?sub=return&subscription_id=I-PENDING",
+    });
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("crew-subscribe-return-notice")).toHaveTextContent(/not active yet/i);
+    });
+    expect(screen.queryByText(/confirmed/i)).toBeNull();
   });
 });
 

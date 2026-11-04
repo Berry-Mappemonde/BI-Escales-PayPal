@@ -23,8 +23,44 @@ describe("CrewSubscribeButton", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.paypal = {
-      Buttons: vi.fn(() => ({ render: vi.fn().mockResolvedValue(undefined) })),
+      Buttons: vi.fn(() => ({
+        render: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+      })),
     };
+  });
+
+  it("closes the previous PayPal Buttons instance when language changes", async () => {
+    vi.stubEnv("VITE_PAYPAL_CLIENT_ID", "sandbox-client-id");
+    vi.mocked(fetchCrewSupporterPlan).mockResolvedValue({ plan_id: "PLAN-PUBLIC" });
+    const closeFn = vi.fn().mockResolvedValue(undefined);
+    const buttonsFactory = vi.fn(() => ({
+      render: vi.fn().mockResolvedValue(undefined),
+      close: closeFn,
+    }));
+    window.paypal = { Buttons: buttonsFactory };
+
+    const { rerender } = render(
+      <I18nextProvider i18n={i18n}>
+        <CrewSubscribeButton planId="PLAN-PUBLIC" />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(buttonsFactory).toHaveBeenCalledTimes(1);
+    });
+
+    await i18n.changeLanguage("fr");
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <CrewSubscribeButton planId="PLAN-PUBLIC" />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(closeFn).toHaveBeenCalled();
+      expect(buttonsFactory).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("loads plan id from the read-only plan route", async () => {

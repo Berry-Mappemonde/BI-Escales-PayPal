@@ -24,6 +24,48 @@ async def _catalog_row() -> Optional[dict]:
     return None
 
 
+def _catalog_product_id(products_payload: dict) -> Optional[str]:
+    for item in products_payload.get("products") or []:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("name") or "").strip() == CREW_PRODUCT_NAME:
+            product_id = str(item.get("id") or "").strip()
+            if product_id:
+                return product_id
+    return None
+
+
+def _catalog_plan_id(plans_payload: dict) -> Optional[str]:
+    for item in plans_payload.get("plans") or []:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("name") or "").strip() == CREW_PLAN_NAME:
+            plan_id = str(item.get("id") or "").strip()
+            if plan_id:
+                return plan_id
+    return None
+
+
+async def _hydrate_catalog_from_paypal(client: Any) -> Optional[dict]:
+    """Find existing Crew supporter product/plan on PayPal and remember locally."""
+    products = client.list_billing_products()
+    product_id = _catalog_product_id(products)
+    if not product_id:
+        return None
+    plans = client.list_billing_plans(product_id=product_id)
+    plan_id = _catalog_plan_id(plans)
+    if not plan_id:
+        return None
+    await record_finance(
+        "subscription_catalog_ready",
+        setup_key=CREW_SETUP_KEY,
+        product_id=product_id,
+        plan_id=plan_id,
+        catalog_source="paypal_list",
+    )
+    return {"product_id": product_id, "plan_id": plan_id}
+
+
 async def ensure_crew_supporter_catalog(client: Any) -> dict:
     """Create product + monthly EUR plan once (idempotent)."""
     existing = await _catalog_row()
@@ -31,6 +73,13 @@ async def ensure_crew_supporter_catalog(client: Any) -> dict:
         return {
             "product_id": existing.get("product_id"),
             "plan_id": existing.get("plan_id"),
+            "idempotent": True,
+        }
+    hydrated = await _hydrate_catalog_from_paypal(client)
+    if hydrated:
+        return {
+            "product_id": hydrated.get("product_id"),
+            "plan_id": hydrated.get("plan_id"),
             "idempotent": True,
         }
     product = client.create_billing_product(
@@ -61,6 +110,13 @@ async def public_crew_supporter_plan_id() -> Optional[str]:
     if not row:
         return None
     plan_id = str(row.get("plan_id") or "").strip()
+    return plan_id or None
+
+
+async def resolve_crew_supporter_plan_id(client: Any) -> Optional[str]:
+    """Local memory, PayPal catalog lookup, or create — for public plan routes."""
+    catalog = await ensure_crew_supporter_catalog(client)
+    plan_id = str(catalog.get("plan_id") or "").strip()
     return plan_id or None
 
 

@@ -23,7 +23,7 @@ export function TreasurerQueue({
   onRefresh,
   onUpdated,
 }: TreasurerQueueProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -44,7 +44,8 @@ export function TreasurerQueue({
       const next: Record<string, string> = {};
       for (const id of ids) {
         try {
-          const row = await captainReview(id, key);
+          const appLang = i18n.language === "fr" ? "fr" : "en";
+          const row = await captainReview(id, key, appLang);
           next[id] = String(row.proposal || "");
           if (row.paypal_tool_calls?.length) {
             setToolCalls(row.paypal_tool_calls);
@@ -58,7 +59,7 @@ export function TreasurerQueue({
     return () => {
       cancel = true;
     };
-  }, [adminKey, milestoneKey]);
+  }, [adminKey, milestoneKey, i18n.language]);
 
   const runAction = async (pledgeId: string, action: "capture" | "void") => {
     if (!adminKey.trim()) {

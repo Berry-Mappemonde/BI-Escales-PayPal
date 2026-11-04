@@ -599,6 +599,19 @@ class PayPalClient:
         }
         return self._req("POST", "/v1/catalogs/products", body, idempotency_key=idempotency_key)
 
+    def list_billing_products(self, *, page_size: int = 20) -> dict:
+        return self._req(
+            "GET",
+            f"/v1/catalogs/products?page_size={page_size}&total_required=true",
+        )
+
+    def list_billing_plans(self, *, product_id: str, page_size: int = 20) -> dict:
+        pid = str(product_id or "").strip()
+        return self._req(
+            "GET",
+            f"/v1/billing/plans?product_id={pid}&page_size={page_size}&total_required=true",
+        )
+
     def create_billing_plan(
         self,
         *,

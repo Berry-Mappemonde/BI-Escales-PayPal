@@ -75,6 +75,14 @@ class P2Spy:
         self.calls.append(("product", kwargs.get("name")))
         return {"id": "PROD-1"}
 
+    def list_billing_products(self, **kwargs):
+        self.calls.append(("list_products", kwargs))
+        return {"products": []}
+
+    def list_billing_plans(self, **kwargs):
+        self.calls.append(("list_plans", kwargs))
+        return {"plans": []}
+
     def create_billing_plan(self, **kwargs):
         self.calls.append(("plan", kwargs.get("product_id")))
         return {"id": "PLAN-1"}

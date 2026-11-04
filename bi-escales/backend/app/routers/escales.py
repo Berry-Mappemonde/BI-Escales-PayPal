@@ -87,6 +87,7 @@ from app.escales.paypal_subscriptions import (
     list_subscriptions_local,
     public_crew_supporter_plan_id,
     record_subscription,
+    resolve_crew_supporter_plan_id,
 )
 from app.escales.project_payouts import (
     PayoutNotFound,
@@ -789,8 +790,11 @@ async def post_subscription_setup(request: Request):
 
 @router.get("/paypal/subscriptions/plan")
 async def get_crew_subscription_plan():
-    """Public read-only Crew supporter billing plan id (does not create a PayPal subscription)."""
-    plan_id = await public_crew_supporter_plan_id()
+    """Public read-only Crew supporter billing plan id (hydrates from PayPal when needed)."""
+    try:
+        plan_id = await resolve_crew_supporter_plan_id(_paypal())
+    except PayPalError as exc:
+        raise _as_http(exc) from exc
     return {"plan_id": plan_id}
 
 

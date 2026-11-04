@@ -1,6 +1,6 @@
 export const ESCALES_CREW_SUBSCRIBE_RETURN = "escales-crew-subscribe-return";
 
-export type CrewSubscribeReturnOutcome = "confirmed" | "cancel";
+export type CrewSubscribeReturnOutcome = "confirmed" | "cancel" | "pending";
 
 export type CrewSubscribeReturnDetail = {
   outcome: CrewSubscribeReturnOutcome;

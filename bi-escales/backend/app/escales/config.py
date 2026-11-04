@@ -144,6 +144,21 @@ def vault_cancel_url() -> str:
     return (os.environ.get("ESCALES_VAULT_CANCEL_URL") or "https://example.com/escales/vault/cancel").strip()
 
 
+# Static site prepared in render.yaml. The browser can override these per order.
+_DEFAULT_ORDER_RETURN = "https://bi-escales.onrender.com/?paypal=return"
+_DEFAULT_ORDER_CANCEL = "https://bi-escales.onrender.com/?paypal=cancel"
+
+
+def order_return_url() -> str:
+    """Where PayPal sends the buyer after approving a classic AUTHORIZE order."""
+    return (os.environ.get("ESCALES_RETURN_URL") or _DEFAULT_ORDER_RETURN).strip()
+
+
+def order_cancel_url() -> str:
+    """Where PayPal sends the buyer if they cancel a classic AUTHORIZE order."""
+    return (os.environ.get("ESCALES_CANCEL_URL") or _DEFAULT_ORDER_CANCEL).strip()
+
+
 def webhooks_enabled() -> bool:
     """PayPal inbound webhooks. Off unless ESCALES_WEBHOOKS_ENABLED is truthy."""
     return os.environ.get("ESCALES_WEBHOOKS_ENABLED", "").strip().lower() in _TRUTHY

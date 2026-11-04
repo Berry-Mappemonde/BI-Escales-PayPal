@@ -2007,6 +2007,13 @@ def _catalogue_lines(text: str, lang: str, place: str) -> list[dict]:
     return lines
 
 
+def _slug_covers(key: str, slug: str) -> bool:
+    """``mayotte`` matches ``dzaoudzi-mayotte``; ``fort-de-france`` matches the island id."""
+    if not key or not slug:
+        return False
+    return key == slug or key.endswith("-" + slug) or key.startswith(slug + "-")
+
+
 def _schedule_stop(place: str) -> Optional[dict]:
     """Arrival already stored on the local schedule. No partner call."""
     from .naviguide_bridge import local_schedule_export
@@ -2014,6 +2021,7 @@ def _schedule_stop(place: str) -> Optional[dict]:
     slug = _escale_slug(place)
     if not slug:
         return None
+    partial: Optional[dict] = None
     for item in local_schedule_export().get("escales") or []:
         if not isinstance(item, dict):
             continue
@@ -2024,7 +2032,9 @@ def _schedule_stop(place: str) -> Optional[dict]:
         }
         if slug in keys:
             return item
-    return None
+        if partial is None and any(_slug_covers(key, slug) for key in keys):
+            partial = item
+    return partial
 
 
 def pledge_cart(message: str, lang: str, suggested: Optional[dict]) -> Optional[dict]:

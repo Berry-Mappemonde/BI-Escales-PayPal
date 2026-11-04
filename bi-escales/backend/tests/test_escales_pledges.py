@@ -108,6 +108,10 @@ def test_create_authorize_order_is_eur_and_idempotent():
             body = json.loads(request.content)
             assert body["intent"] == "AUTHORIZE"
             assert body["purchase_units"][0]["amount"] == {"currency_code": "EUR", "value": "20.00"}
+            context = body["payment_source"]["paypal"]["experience_context"]
+            assert context["return_url"].startswith("https://")
+            assert context["cancel_url"].startswith("https://")
+            assert "return_url" in context and "cancel_url" in context
             return httpx.Response(201, json={
                 "id": "ORDER1",
                 "status": "CREATED",
@@ -267,7 +271,8 @@ def test_state_machine_and_forbidden_transitions():
 
         assert _names(spy).count("capture") == 1
         assert _names(spy).count("void") == 1
-        assert "orders.get" not in _names(spy)
+        assert _names(spy).count("orders.get") == 2
+        assert "authorizations.get" not in _names(spy)
 
     asyncio.run(body())
 

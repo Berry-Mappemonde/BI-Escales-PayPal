@@ -1715,12 +1715,12 @@ def test_short_french_report_keeps_a_tie(monkeypatch):
 
 
 def test_schedule_display_names_drop_the_dep_prefix():
-    from app.escales.naviguide_bridge import LOCAL_SCHEDULE
+    from app.escales.naviguide_bridge import local_schedule_export
 
     assert captain.display_name("pointe-a-pitre") == "Pointe-à-Pitre"
     assert captain.display_name("dep-pointe-a-pitre") == "Pointe-à-Pitre"
     assert captain.display_name("dep-fort-de-france") == "Fort-de-France"
-    for item in LOCAL_SCHEDULE["escales"]:
+    for item in local_schedule_export()["escales"]:
         shown = captain.display_name(item["milestone_id"])
         assert shown == item["name"]
         assert captain.display_name(item["slug"]) == item["name"]
@@ -1999,7 +1999,7 @@ def test_french_vocabulary_and_the_pledge_line(monkeypatch):
 def test_ui_labels_the_llm_proposal_as_advisory():
     root = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "escales"
     badge = (root / "advisoryLabel.js").read_text(encoding="utf-8")
-    screen = (root / "EscalesScheduler.js").read_text(encoding="utf-8")
+    screen = (root / "EscalesScheduler.jsx").read_text(encoding="utf-8")
     assert "Advisory" in badge
     assert 'label: "Advisory"' in badge
     assert "data-advisory" in screen
@@ -2064,7 +2064,13 @@ def test_chat_cart_keeps_authorize_and_reads_clock_and_schedule(monkeypatch):
         mayotte = await chat("2 nuits près de Mayotte")
         cart = mayotte["cart"]
         assert cart["clock_start"] == "2026-11-12"
-        assert cart["eta"] == "2026-09-01T08:00:00+00:00"
+        from app.escales.naviguide_bridge import local_schedule_export
+
+        route_mayotte = next(
+            item for item in local_schedule_export()["escales"] if "mayotte" in item["slug"]
+        )
+        assert cart["eta"] == route_mayotte["arrival_iso"]
+        assert cart["eta"] > "2026-11-12"
         assert cart["available"] is True
         assert cart["intent"] == "AUTHORIZE"
         assert cart["lines"][0]["kind"] == "night"
@@ -2105,6 +2111,6 @@ def test_cart_lines_use_the_existing_authorize_pledge():
         assert [doc["target_id"] for doc in saved] == ["dakar", "dakar"]
         authorized = await authorize_pledge(saved[0]["_id"], spy)
         assert authorized["status"] == "authorized"
-        assert [call[0] for call in spy.calls] == ["create", "create", "authorize"]
+        assert [call[0] for call in spy.calls] == ["create", "create", "orders.get", "authorize"]
 
     asyncio.run(body())

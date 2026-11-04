@@ -28,6 +28,7 @@ class FakePayPal:
     def __init__(self):
         self.calls = []
         self.n = 0
+        self.order_status = "APPROVED"
 
     def create_authorize_order(self, amount_eur, description, reference_id, idempotency_key=None):
         self.calls.append(("create", amount_eur, idempotency_key))
@@ -67,7 +68,7 @@ class FakePayPal:
 
     def get_order(self, order_id):
         self.calls.append(("orders.get", order_id))
-        return {"id": order_id, "status": "APPROVED"}
+        return {"id": order_id, "status": self.order_status}
 
     def get_authorization(self, authorization_id):
         self.calls.append(("authorizations.get", authorization_id))
@@ -151,6 +152,27 @@ def test_authorize_stores_id_and_expiration(api):
     assert fetched.status_code == 200
     assert fetched.json()["authorization_id"] == "AUTH-ORDER1"
     assert fetched.json()["status"] == "authorized"
+
+
+def test_authorize_refuses_an_order_the_buyer_has_not_approved(api):
+    client, fake = api
+    created = _create(client, "not-approved")
+    assert created.status_code == 200
+    fake.order_status = "CREATED"
+    response = client.post(f"/api/escales/pledges/{created.json()['id']}/authorize")
+    assert response.status_code == 409
+    assert "authorize" not in [call[0] for call in fake.calls]
+    assert client.get(f"/api/escales/pledges/{created.json()['id']}").json()["status"] == "created"
+
+
+def test_milestones_sync_the_route_when_the_ledger_is_empty(api):
+    client, _fake = api
+    listed = client.get("/api/escales/milestones")
+    assert listed.status_code == 200
+    ids = [row["id"] for row in listed.json()]
+    assert ids
+    assert "dep-la-rochelle" in ids
+    assert ids.index("dep-fort-de-france-martinique") < ids.index("dep-dzaoudzi-mayotte")
 
 
 def test_capture_refused_without_admin_key(api):
@@ -612,11 +634,20 @@ def test_schedule_local_fallback(api, monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["source"] == "local"
-    assert any(row["_id"] == "dep-mayotte" for row in body["milestones"])
-    shown = next(row for row in body["milestones"] if row["_id"] == "dep-fort-de-france")
-    assert shown["display_name"] == "Fort-de-France"
+    ids = [row["_id"] for row in body["milestones"]]
+    assert "dep-la-rochelle" in ids
+    assert "dep-fort-de-france-martinique" in ids
+    assert "dep-dzaoudzi-mayotte" in ids
+    assert ids.index("dep-fort-de-france-martinique") < ids.index("dep-dzaoudzi-mayotte")
+    shown = next(row for row in body["milestones"] if row["_id"] == "dep-fort-de-france-martinique")
+    assert shown["display_name"] == "Fort-de-France (Martinique)"
     assert "dep-" not in shown["display_name"].lower()
+    assert body["export"]["escales"][0]["arrival_iso"].startswith("2026-11-12")
     assert body["clock"]["start"] == "2026-11-12"
+    listed = client.get("/api/escales/milestones")
+    assert listed.status_code == 200
+    listed_ids = [row["id"] for row in listed.json()]
+    assert "dep-la-rochelle" in listed_ids
     assert body["prices"]["label"] == "simulated price"
     assert body["prices"]["simulated"] is True
 

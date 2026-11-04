@@ -107,6 +107,8 @@ class PledgeIn(BaseModel):
     contributor: Optional[str] = None
     kind: Optional[str] = None
     target_id: Optional[str] = None
+    return_url: Optional[str] = None
+    cancel_url: Optional[str] = None
 
 
 class EvidenceIn(BaseModel):
@@ -236,6 +238,7 @@ async def get_clock():
 @router.get("/schedule")
 async def get_schedule():
     export = await fetch_naviguide_export()
+    await sync_milestone_shells(export)
     return {
         "export": export,
         "milestones": escales_to_milestones(export),
@@ -266,6 +269,8 @@ async def post_pledge(body: PledgeIn, request: Request):
             payment_mode=mode,
             kind=body.kind,
             target_id=body.target_id,
+            return_url=body.return_url,
+            cancel_url=body.cancel_url,
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
@@ -351,6 +356,8 @@ async def post_spending(milestone_id: str, body: SpendingIn, request: Request):
 @router.get("/milestones")
 async def get_milestones():
     docs = await list_milestones()
+    if not docs:
+        docs = await sync_milestone_shells()
     return [_public_milestone(doc) for doc in docs]
 
 

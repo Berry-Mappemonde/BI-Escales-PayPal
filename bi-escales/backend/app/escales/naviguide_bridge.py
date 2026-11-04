@@ -2,9 +2,16 @@
 
 When ``ESCALES_NAVIGUIDE_ENABLED`` is off, ``local_schedule_export`` is used
 (no HTTP, no partner). The bridge never writes to NAVIGUIDE.
+
+The local rows are the stopovers of ``frontend/public/route.geojson``,
+with the same ids as ``milestoneIdFromName`` and the hour offsets of
+``voyageClock.js`` at ``2026-11-12T08:00:00.000Z`` (``route_schedule.json``).
+``clock_start()`` shifts those offsets, so the dates follow the 12 November
+2026 clock instead of a fixed August/September pair.
 """
 from __future__ import annotations
 
+import datetime as dt
 import json
 import re
 from pathlib import Path
@@ -13,7 +20,11 @@ from typing import Any, Optional
 import httpx
 
 from ..escales_names import display_name
-from .config import naviguide_api_base, naviguide_bridge_enabled, naviguide_json_path
+from .config import clock_start, naviguide_api_base, naviguide_bridge_enabled, naviguide_json_path
+
+_ROUTE_SCHEDULE_PATH = Path(__file__).with_name("route_schedule.json")
+# Same civil time as voyageClock.DEFAULT_T0_ISO (08:00Z on the clock date).
+_CLOCK_AT = dt.time(8, 0, tzinfo=dt.timezone.utc)
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 _FOLD = str.maketrans("àâäáéèêëíìîïóòôöúùûüçñ", "aaaaeeeeiiiioooouuuucn")
@@ -23,35 +34,52 @@ def _slug(name: str) -> str:
     folded = (name or "").strip().lower().translate(_FOLD)
     return _SLUG_RE.sub("-", folded).strip("-") or "escale"
 
-LOCAL_SCHEDULE: dict[str, Any] = {
-    "version": 1,
-    "provider": "local",
-    "escales": [
-        {
-            "milestone_id": "dep-mayotte",
-            "name": "Mayotte",
-            "slug": "mayotte",
-            "lat": -12.78,
-            "lon": 45.22,
-            "arrival_iso": "2026-09-01T08:00:00+00:00",
-            "flag": True,
-        },
-        {
-            "milestone_id": "dep-fort-de-france",
-            "name": "Fort-de-France",
-            "slug": "fort-de-france",
-            "lat": 14.6,
-            "lon": -61.07,
-            "arrival_iso": "2026-08-15T08:00:00+00:00",
-            "flag": True,
-        },
-    ],
-}
+def _route_stops() -> list[dict[str, Any]]:
+    payload = json.loads(_ROUTE_SCHEDULE_PATH.read_text(encoding="utf-8"))
+    rows = payload.get("escales") or []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _arrival_iso(t_hours: Any) -> str:
+    """Arrival on the voyage clock. ``t_hours`` is the offset from 08:00Z."""
+    try:
+        hours = float(t_hours or 0)
+    except (TypeError, ValueError):
+        hours = 0.0
+    base = dt.datetime.combine(dt.date.fromisoformat(clock_start()), _CLOCK_AT)
+    moment = base + dt.timedelta(hours=hours)
+    return moment.replace(microsecond=0).isoformat()
 
 
 def local_schedule_export() -> dict[str, Any]:
-    """Fallback schedule when the NAVIGUIDE bridge is disabled."""
-    return dict(LOCAL_SCHEDULE)
+    """Fallback schedule when the NAVIGUIDE bridge is disabled.
+
+    Ids and order come from the route. Dates are ``clock_start()`` plus the
+    clock offset, so a 12 November 2026 departure keeps Fort-de-France before
+    Mayotte and both after that day.
+    """
+    escales: list[dict[str, Any]] = []
+    for item in _route_stops():
+        milestone_id = str(item.get("milestone_id") or "").strip()
+        if not milestone_id:
+            continue
+        escales.append(
+            {
+                "milestone_id": milestone_id,
+                "name": item.get("name") or milestone_id,
+                "slug": item.get("slug") or milestone_id.removeprefix("dep-"),
+                "lat": item.get("lat"),
+                "lon": item.get("lon"),
+                "arrival_iso": _arrival_iso(item.get("t_hours")),
+                "flag": True,
+            }
+        )
+    return {
+        "version": 1,
+        "provider": "local",
+        "clock_start": clock_start(),
+        "escales": escales,
+    }
 
 
 def escales_to_milestones(export: dict[str, Any]) -> list[dict[str, Any]]:
@@ -61,12 +89,12 @@ def escales_to_milestones(export: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(item, dict):
             continue
         milestone_id = str(item.get("milestone_id") or "").strip()
+        named = str(item.get("name") or "").strip()
         if not milestone_id:
-            name = str(item.get("name") or "").strip()
-            if not name:
+            if not named:
                 continue
-            milestone_id = f"dep-{_slug(name)}"
-        shown = display_name(str(item.get("slug") or milestone_id))
+            milestone_id = f"dep-{_slug(named)}"
+        shown = named or display_name(str(item.get("slug") or milestone_id))
         rows.append(
             {
                 "_id": milestone_id,

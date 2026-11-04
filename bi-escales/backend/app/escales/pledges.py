@@ -13,8 +13,9 @@ import re
 import uuid
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from .config import AUTH_MAX_DAYS, vault_cancel_url, vault_return_url
+from .config import AUTH_MAX_DAYS, order_cancel_url, order_return_url, vault_cancel_url, vault_return_url
 from .ledger import (
     COLLECTIONS,
     get_ledger,
@@ -160,6 +161,47 @@ def _require_text(value: str, field: str) -> str:
     return text
 
 
+def _http_url(raw: Optional[str], fallback: str, field: str) -> str:
+    text = (raw or "").strip() or fallback
+    parts = urlsplit(text)
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        raise ValueError(f"{field} must be an http(s) URL")
+    return text
+
+
+def _callback_url(base: str, pledge_id: str, flag: str) -> str:
+    """PayPal return or cancel URL, with the pledge id the page authorizes."""
+    parts = urlsplit(base)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["paypal"] = flag
+    query["pledge_id"] = pledge_id
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _create_authorize_order(client: Any, **kwargs: Any) -> dict:
+    """Pass return URLs when the client accepts them. Older fakes do not."""
+    try:
+        return client.create_authorize_order(**kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if "return_url" not in message and "cancel_url" not in message:
+            raise
+        slim = {key: value for key, value in kwargs.items() if key not in {"return_url", "cancel_url"}}
+        return client.create_authorize_order(**slim)
+
+
+def _buyer_approved(client: Any, order_id: str) -> bool:
+    """True when PayPal already shows the buyer approved, or the client cannot say."""
+    getter = getattr(client, "get_order", None)
+    if getter is None or not order_id:
+        return True
+    current = getter(order_id) or {}
+    status = str(current.get("status") or "").upper()
+    if not status:
+        return True
+    return status in {"APPROVED", "COMPLETED"}
+
+
 def _client_key(raw: Optional[str]) -> Optional[str]:
     if raw is None:
         return None
@@ -202,6 +244,8 @@ async def create_pledge(
     payment_mode: Optional[PaymentMode] = None,
     kind: Optional[str] = None,
     target_id: Optional[str] = None,
+    return_url: Optional[str] = None,
+    cancel_url: Optional[str] = None,
 ) -> dict:
     amount = normalize_amount(amount_eur)
     description = _require_text(description, "description")
@@ -234,6 +278,8 @@ async def create_pledge(
         contributor=contributor,
         kind=pledge_kind,
         target_id=resolved_target,
+        return_url=return_url,
+        cancel_url=cancel_url,
     )
 
 
@@ -247,6 +293,8 @@ async def _create_authorize_pledge(
     contributor: Optional[str],
     kind: str,
     target_id: str,
+    return_url: Optional[str] = None,
+    cancel_url: Optional[str] = None,
 ) -> dict:
     key = _client_key(client_key)
     ledger = get_ledger()
@@ -256,11 +304,24 @@ async def _create_authorize_pledge(
             return existing
     pledge_id = uuid.uuid4().hex
     idempotency_key = key or uuid.uuid4().hex
-    order = client.create_authorize_order(
+    back = _callback_url(
+        _http_url(return_url, order_return_url(), "return_url"),
+        pledge_id,
+        "return",
+    )
+    cancel = _callback_url(
+        _http_url(cancel_url, order_cancel_url(), "cancel_url"),
+        pledge_id,
+        "cancel",
+    )
+    order = _create_authorize_order(
+        client,
         amount_eur=amount,
         description=description,
         reference_id=pledge_id,
         idempotency_key=idempotency_key,
+        return_url=back,
+        cancel_url=cancel,
     )
     order_id = order.get("id")
     if not order_id:
@@ -420,7 +481,10 @@ def _require_status(pledge: dict, expected: str, target: str) -> None:
 async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     pledge = await require_pledge(pledge_id)
     _require_status(pledge, "created", "authorized")
-    order = client.authorize_order(pledge["order_id"])
+    order_id = str(pledge.get("order_id") or "")
+    if not _buyer_approved(client, order_id):
+        raise IllegalTransition(str(pledge.get("status")), "authorized")
+    order = client.authorize_order(order_id)
     auth_id, expiration = authorization_from(order)
     pledge["status"] = "authorized"
     pledge["authorization_id"] = auth_id

@@ -34,13 +34,19 @@ def memory_store(monkeypatch):
 def test_escales_to_milestones_maps_ids():
     export = local_schedule_export()
     rows = escales_to_milestones(export)
-    ids = {row["_id"] for row in rows}
-    assert ids == {"dep-mayotte", "dep-fort-de-france"}
+    ids = [row["_id"] for row in rows]
+    assert ids[0] == "dep-la-rochelle" or ids[0] == "dep-saint-maur-berry-indre"
+    assert "dep-fort-de-france-martinique" in ids
+    assert "dep-dzaoudzi-mayotte" in ids
+    assert ids.index("dep-fort-de-france-martinique") < ids.index("dep-dzaoudzi-mayotte")
     assert rows[0]["source"] == "local"
     by_id = {row["_id"]: row for row in rows}
-    assert by_id["dep-fort-de-france"]["display_name"] == "Fort-de-France"
-    assert "dep-" not in by_id["dep-fort-de-france"]["display_name"].lower()
-    assert by_id["dep-mayotte"]["display_name"] == "Mayotte"
+    shown = by_id["dep-fort-de-france-martinique"]
+    assert shown["display_name"] == "Fort-de-France (Martinique)"
+    assert "dep-" not in shown["display_name"].lower()
+    assert shown["arrival_iso"].startswith("2026-") or shown["arrival_iso"].startswith("2027-")
+    assert by_id["dep-la-rochelle"]["arrival_iso"].startswith("2026-11-12")
+    assert by_id["dep-dzaoudzi-mayotte"]["arrival_iso"] > shown["arrival_iso"]
 
 
 def test_fetch_naviguide_uses_local_when_flag_off():
@@ -63,7 +69,7 @@ def test_fetch_naviguide_reads_json_file(monkeypatch, tmp_path):
     async def run():
         payload = await fetch_naviguide_export()
         assert payload["provider"] == "NAVIGUIDE"
-        assert payload["escales"][0]["milestone_id"] == "dep-mayotte"
+        assert payload["escales"][0]["milestone_id"] == "dep-saint-maur-berry-indre"
 
     asyncio.run(run())
 
@@ -99,7 +105,7 @@ def test_fetch_naviguide_http_mock(monkeypatch):
 def test_sync_milestone_shells_creates_docs():
     async def run():
         docs = await sync_milestone_shells(local_schedule_export())
-        assert len(docs) == 2
+        assert len(docs) >= 16
         assert docs[0]["meta"]["title"]
 
     asyncio.run(run())

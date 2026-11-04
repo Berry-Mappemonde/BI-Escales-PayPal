@@ -25,7 +25,7 @@ from app.escales.pledges import (
 from app.routers.escales import router, set_paypal_client_factory
 
 ADMIN = {"x-admin-key": "vault-admin"}
-FAR_ARRIVAL = "2027-05-15T08:00:00+00:00"
+FAR_ARRIVAL = "2027-06-01T08:00:00+00:00"
 
 
 def test_sponsor_customer_id_respects_paypal_max_length():
@@ -101,7 +101,7 @@ def memory_ledger(monkeypatch):
 async def _seed_far_milestone(
     milestone_id: str = "dep-long-haul",
     *,
-    departure_iso: str = "2027-05-15T08:00:00+00:00",
+    departure_iso: str = "2027-06-01T08:00:00+00:00",
 ):
     await get_ledger().ensure_milestone(
         milestone_id,

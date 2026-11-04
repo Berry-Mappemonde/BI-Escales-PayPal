@@ -57,7 +57,7 @@ def isolated(monkeypatch):
     for name in LLM_ENV:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-01T08:00:00Z")
     monkeypatch.setenv("ESCALES_NIM_GAP_S", "0")
     reset_ledger()
     llm.reset_llm_budget()

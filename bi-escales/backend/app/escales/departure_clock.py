@@ -1,14 +1,13 @@
 """Simulated clock settlement for PayPal pledges.
 
-Capture rules (see mini-mix plan):
-- Miles, night, meal, care, berth and project pledges: capture on **arrival** at the
-  stopover; void if the stop is cancelled.
+Capture rules (Clément / mini-mix):
+- Miles, night, meal, care, berth and project pledges: capture on **departure day**
+  when the boat leaves that stopover; void if the stop is cancelled.
 - Cabin legs: capture on **departure** from the leg origin; void if cancelled.
 - Common fund: captured at once by the treasurer (not driven by this clock).
 
 The simulated clock is ``simulated_now`` (``ESCALES_CLOCK_NOW``, else UTC).
-Authorizations are not opened more than 29 days before the relevant arrival or
-departure date.
+Authorizations are not opened more than 29 days before the relevant departure date.
 """
 from __future__ import annotations
 
@@ -26,7 +25,7 @@ from .pledges import (
     void_pledge,
 )
 
-_ARRIVAL_KINDS = frozenset({
+_STOP_KINDS = frozenset({
     "mile",
     "miles",
     "night",
@@ -68,11 +67,12 @@ def _cancelled(milestone: dict) -> bool:
 
 
 async def departure_milestone(pledge: dict) -> Optional[dict]:
-    """Cabin legs and other milestones with ``capture_on=departure``."""
+    """Stops and cabin legs whose capture follows ``departure_iso``."""
     from .naviguide_bridge import leg_by_id, leg_milestone_meta, resolve_schedule_milestone
 
     milestone_id = str(pledge.get("milestone_id") or "")
-    if not milestone_id:
+    kind = str(pledge.get("kind") or "mile").lower()
+    if not milestone_id or kind == "common_fund":
         return None
     doc = await resolve_schedule_milestone(milestone_id)
     meta = (doc or {}).get("meta") if isinstance(doc, dict) else None
@@ -88,36 +88,24 @@ async def departure_milestone(pledge: dict) -> Optional[dict]:
         base = dict(doc or {"_id": leg["id"], "evidence": []})
         base["meta"] = merged
         return base
-    return None
-
-
-async def arrival_milestone(pledge: dict) -> Optional[dict]:
-    """Stopover pledges captured on arrival."""
-    from .naviguide_bridge import resolve_schedule_milestone
-
-    milestone_id = str(pledge.get("milestone_id") or "")
-    kind = str(pledge.get("kind") or "mile").lower()
-    if not milestone_id or kind == "cabin_leg" or kind == "common_fund":
+    if kind == "cabin_leg":
         return None
-    if kind not in _ARRIVAL_KINDS and not milestone_id.startswith(("dep-", "ret-")):
+    if kind not in _STOP_KINDS and not milestone_id.startswith(("dep-", "ret-")):
         return None
-    doc = await resolve_schedule_milestone(milestone_id)
     if not doc:
         return None
-    meta = dict((doc.get("meta") or {}))
-    if meta.get("capture_on") == "departure":
-        return None
-    meta.setdefault("capture_on", "arrival")
-    if not meta.get("arrival_iso"):
+    merged = dict(meta or {})
+    merged.setdefault("capture_on", "departure")
+    if not merged.get("departure_iso"):
         return None
     base = dict(doc)
-    base["meta"] = meta
+    base["meta"] = merged
     return base
 
 
 async def timing_milestone(pledge: dict) -> Optional[dict]:
     """Milestone that governs the 29-day authorization window."""
-    return await departure_milestone(pledge) or await arrival_milestone(pledge)
+    return await departure_milestone(pledge)
 
 
 async def refuse_cancelled_departure(pledge: dict) -> None:
@@ -133,11 +121,7 @@ async def refuse_early_authorization(pledge: dict, *, now: Optional[dt.datetime]
     if not doc:
         return
     meta = doc.get("meta") if isinstance(doc.get("meta"), dict) else {}
-    if meta.get("capture_on") == "departure":
-        anchor_raw = meta.get("departure_iso")
-    else:
-        anchor_raw = meta.get("arrival_iso")
-    anchor = _parse_moment(str(anchor_raw or ""))
+    anchor = _parse_moment(str(meta.get("departure_iso") or ""))
     if anchor is None:
         return
     moment = now or simulated_now()
@@ -186,10 +170,7 @@ async def _settle_timed_pledge(
     status = str(pledge.get("status") or "")
     pledge_id = str(pledge.get("_id") or "")
     meta = doc.get("meta") if isinstance(doc.get("meta"), dict) else {}
-    if meta.get("capture_on") == "departure":
-        anchor = _parse_moment(str(meta.get("departure_iso") or ""))
-    else:
-        anchor = _parse_moment(str(meta.get("arrival_iso") or ""))
+    anchor = _parse_moment(str(meta.get("departure_iso") or ""))
     if (
         mode == "VAULT"
         and status == "captured"
@@ -248,8 +229,6 @@ async def run_departure_clock(client: Any, *, now: Optional[dt.datetime] = None)
         if not pledge_id or pledge_id in seen:
             continue
         doc = await departure_milestone(pledge)
-        if doc is None:
-            doc = await arrival_milestone(pledge)
         if doc is None:
             continue
         seen.add(pledge_id)

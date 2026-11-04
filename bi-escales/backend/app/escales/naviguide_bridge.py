@@ -641,6 +641,14 @@ def legs_to_milestones(legs: Optional[list[dict[str, Any]]] = None) -> list[dict
     return rows
 
 
+def _stop_departure_iso(milestone_id: str, arrival_iso: Any) -> str:
+    """When the boat leaves this stop (next leg departure), else the arrival instant."""
+    outgoing = leg_departing_from(milestone_id)
+    if outgoing and outgoing.get("departure_iso"):
+        return str(outgoing["departure_iso"])
+    return str(arrival_iso or "")
+
+
 def _stop_shell_meta(milestone_id: str) -> Optional[dict[str, Any]]:
     """Schedule meta for a stopover id without reading the ledger."""
     resolved = resolve_milestone(milestone_id)
@@ -654,12 +662,13 @@ def _stop_shell_meta(milestone_id: str) -> Optional[dict[str, Any]]:
         if str(item.get("milestone_id") or "") != resolved:
             continue
         arrival = item.get("arrival_iso")
+        departure = _stop_departure_iso(resolved, arrival)
         return {
             "title": item.get("name") or display_name(str(item.get("slug") or resolved)),
             "display_name": item.get("name") or display_name(str(item.get("slug") or resolved)),
             "arrival_iso": arrival,
-            "departure_iso": arrival,
-            "capture_on": "arrival",
+            "departure_iso": departure,
+            "capture_on": "departure",
             "source": "clock",
         }
     return None
@@ -686,8 +695,8 @@ async def resolve_schedule_milestone(milestone_id: str) -> Optional[dict]:
 async def sync_milestone_shells(export: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
     """Ensure milestone documents exist for each exported escale (meta only).
 
-    Stop pledges (miles, night, meal, care, berth, project) capture on **arrival**
-    at the stopover. Cabins capture on **leg departure** via ``sync_leg_shells``.
+    Stop pledges (miles, night, meal, care, berth, project) capture on **departure day**
+    when the boat leaves the stopover. Cabins capture on **leg departure** via ``sync_leg_shells``.
     """
     from .pledges import get_ledger
 
@@ -696,14 +705,17 @@ async def sync_milestone_shells(export: Optional[dict[str, Any]] = None) -> list
     ledger = get_ledger()
     synced: list[dict[str, Any]] = []
     for row in rows:
+        departure = row.get("departure_iso") or _stop_departure_iso(
+            row["_id"], row.get("arrival_iso"),
+        )
         doc = await ledger.ensure_milestone(
             row["_id"],
             meta={
                 "title": row.get("title"),
                 "display_name": row.get("display_name"),
                 "arrival_iso": row.get("arrival_iso"),
-                "departure_iso": row.get("departure_iso") or row.get("arrival_iso"),
-                "capture_on": "arrival",
+                "departure_iso": departure,
+                "capture_on": "departure",
                 "lat": row.get("lat"),
                 "lon": row.get("lon"),
                 "source": row.get("source"),

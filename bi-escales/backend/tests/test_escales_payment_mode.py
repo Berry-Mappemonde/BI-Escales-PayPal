@@ -22,7 +22,7 @@ def test_days_until_arrival():
 
 def test_select_authorize_when_vault_disabled(monkeypatch):
     monkeypatch.delenv("ESCALES_VAULT_ENABLED", raising=False)
-    far = "2027-05-15T08:00:00+00:00"
+    far = "2027-06-01T08:00:00+00:00"
     assert select_payment_mode(far) == "AUTHORIZE"
 
 

@@ -4,6 +4,7 @@
  * Nettoyage calendrier : PR #27 chore/ui-audit (libellés morts retirés).
  */
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { PledgeButton } from "../PledgeButton";
 
 function toDate(value) {
@@ -70,8 +71,9 @@ function LegList({ legs, amount, onAuthorized }) {
 }
 
 function LocalScheduleList({ events, onSelect }) {
+  const { t } = useTranslation();
   if (!events.length) {
-    return <p className="escales-scheduler-empty">Aucune escale planifiée.</p>;
+    return <p className="escales-scheduler-empty">{t("scheduler.empty")}</p>;
   }
   return (
     <ul className="escales-scheduler-list">

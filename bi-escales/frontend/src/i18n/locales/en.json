@@ -64,6 +64,9 @@
     "projectTotals": "Project pledges",
     "boatTotals": "Common fund"
   },
+  "scheduler": {
+    "empty": "No stopovers scheduled."
+  },
   "escales": {
     "heading": "Stops & AI Captain",
     "captainChat": "Message to AI Captain",

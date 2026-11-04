@@ -64,6 +64,9 @@
     "projectTotals": "Promesses projet",
     "boatTotals": "Fonds commun"
   },
+  "scheduler": {
+    "empty": "Aucune escale planifiée."
+  },
   "escales": {
     "heading": "Escales & capitaine",
     "captainChat": "Message au capitaine IA",

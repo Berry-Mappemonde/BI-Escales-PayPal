@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
+import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
-import EscalesScheduler from "./EscalesScheduler.jsx";
+import i18n from "../../i18n";
+import EscalesScheduler, { LocalScheduleList } from "./EscalesScheduler.jsx";
 
 vi.mock("../PledgeButton", () => ({
   PledgeButton: ({ values }) => (
@@ -33,6 +35,25 @@ const schedule = {
 };
 
 describe("EscalesScheduler", () => {
+  it("shows localized empty schedule copy", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <LocalScheduleList events={[]} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText("No stopovers scheduled.")).toBeInTheDocument();
+
+    cleanup();
+    await i18n.changeLanguage("fr");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <LocalScheduleList events={[]} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText("Aucune escale planifiée.")).toBeInTheDocument();
+  });
+
   it("affiche les jambes et une promesse cabine", () => {
     render(<EscalesScheduler schedule={schedule} />);
     expect(screen.getByTestId("schedule-leg").textContent).toContain("Ajaccio");

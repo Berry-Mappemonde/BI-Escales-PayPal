@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, act } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../i18n";
 import { createPledge } from "../api/escales";
+import { emitPledgeReturn } from "../paypal/pledgeReturnEvents";
 import { PledgeButton } from "./PledgeButton";
 
 vi.mock("../api/escales", () => ({
@@ -80,5 +81,63 @@ describe("PledgeButton", () => {
     fireEvent.click(screen.getByRole("button", { name: "Créer l’ordre PayPal" }));
     expect(await screen.findByTestId("pledge-authorize")).toBeInTheDocument();
     expect(screen.getByText(/Redirection vers PayPal/)).toBeInTheDocument();
+  });
+
+  it("clears in-progress status after PayPal return authorization", async () => {
+    vi.mocked(createPledge).mockResolvedValue({
+      id: "pledge-return-1",
+      status: "created",
+      intent: "AUTHORIZE",
+      currency: "EUR",
+      amount_eur: "20.00",
+      description: values.description,
+      milestone_id: values.milestone_id,
+      approve_link: "https://www.sandbox.paypal.com/checkoutnow?token=ORDER1",
+    });
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <PledgeButton values={values} />
+      </I18nextProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Créer l’ordre PayPal" }));
+    expect(await screen.findByText(/Au retour, l’autorisation/)).toBeInTheDocument();
+
+    await act(async () => {
+      emitPledgeReturn({ pledgeId: "pledge-return-1", outcome: "authorized" });
+    });
+    expect(screen.queryByText(/Au retour, l’autorisation/)).toBeNull();
+    expect(screen.queryByText(/Création de la promesse/)).toBeNull();
+    expect(screen.queryByTestId("paypal-approve-link")).toBeNull();
+  });
+
+  it("clears in-progress status when PayPal return authorization fails", async () => {
+    vi.mocked(createPledge).mockResolvedValue({
+      id: "pledge-return-2",
+      status: "created",
+      intent: "AUTHORIZE",
+      currency: "EUR",
+      amount_eur: "20.00",
+      description: values.description,
+      milestone_id: values.milestone_id,
+      approve_link: "https://www.sandbox.paypal.com/checkoutnow?token=ORDER2",
+    });
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <PledgeButton values={values} />
+      </I18nextProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Créer l’ordre PayPal" }));
+    expect(await screen.findByTestId("paypal-approve-link")).toBeInTheDocument();
+
+    await act(async () => {
+      emitPledgeReturn({ pledgeId: "pledge-return-2", outcome: "error", message: "order not approved" });
+    });
+    expect(screen.queryByTestId("paypal-approve-link")).toBeNull();
+    expect(screen.queryByText(/Au retour, l’autorisation/)).toBeNull();
+    expect(screen.getByText(/order not approved/)).toBeInTheDocument();
   });
 });

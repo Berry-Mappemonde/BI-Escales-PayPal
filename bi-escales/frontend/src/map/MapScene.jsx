@@ -7,9 +7,13 @@
  * Les couches passent par SceneLayerRegistry.js.
  */
 import { useEffect, useRef } from "react";
+import { createRoot } from "react-dom/client";
+import { I18nextProvider } from "react-i18next";
 import { useTranslation } from "react-i18next";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import i18n from "../i18n";
+import { ProjectMapPopup } from "../components/ProjectMapPopup.jsx";
 import { SceneLayerRegistry } from "../../../../naviguide-escales/src/map/SceneLayerRegistry.js";
 import { createPanes } from "../../../../naviguide-escales/src/layers/layerOrder.js";
 import {
@@ -67,9 +71,11 @@ export function MapScene({
   onSelectStop,
   onSelectProject,
   onFlyTo,
+  contributor = "",
+  onPledgeAuthorized,
   theme = "dark",
 }) {
-  const { t, i18n } = useTranslation();
+  const { i18n: i18nInstance } = useTranslation();
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const baseLayerRef = useRef(null);
@@ -80,8 +86,11 @@ export function MapScene({
   onProjectRef.current = onSelectProject;
   const onFlyToRef = useRef(onFlyTo);
   onFlyToRef.current = onFlyTo;
-  const pledgeLabelRef = useRef(t("projects.pledge"));
-  pledgeLabelRef.current = t("projects.pledge");
+  const contributorRef = useRef(contributor);
+  contributorRef.current = contributor;
+  const onPledgeAuthorizedRef = useRef(onPledgeAuthorized);
+  onPledgeAuthorizedRef.current = onPledgeAuthorized;
+  const popupRootsRef = useRef(new Map());
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return undefined;
@@ -94,7 +103,7 @@ export function MapScene({
       worldCopyJump: false,
     });
     const tileLayer = L.tileLayer(mapTileUrlForTheme(theme), {
-      attribution: tileAttribution(i18n.language),
+      attribution: tileAttribution(i18nInstance.language),
     }).addTo(map);
     baseLayerRef.current = tileLayer;
     createPanes(map);
@@ -175,9 +184,12 @@ export function MapScene({
   useEffect(() => {
     const map = mapRef.current;
     const layers = layersRef.current;
-    if (!map || !layers) return;
+    if (!map || !layers) return undefined;
     const group = layers.update("projects", () => L.layerGroup().addTo(map), (layer) => layer.clearLayers());
-    if (!showProjects) return;
+    const roots = popupRootsRef.current;
+    roots.forEach((root) => root.unmount());
+    roots.clear();
+    if (!showProjects) return undefined;
     (projects?.features || []).forEach((feature) => {
       const [lon, lat] = feature.geometry?.coordinates || [];
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
@@ -192,31 +204,51 @@ export function MapScene({
         pane: "overlayPane",
       }).addTo(group);
       if (feature.properties?.title) marker.bindTooltip(feature.properties.title, { direction: "top" });
+      const popupContainer = document.createElement("div");
+      popupContainer.className = "project-map-popup";
+      let popupRoot = null;
+
+      const mountPopup = () => {
+        popupRoot?.unmount();
+        popupRoot = createRoot(popupContainer);
+        roots.set(marker, popupRoot);
+        popupRoot.render(
+          <I18nextProvider i18n={i18n}>
+            <ProjectMapPopup
+              properties={feature.properties}
+              contributorDefault={contributorRef.current}
+              onAuthorized={(pledge) => onPledgeAuthorizedRef.current?.(pledge)}
+            />
+          </I18nextProvider>,
+        );
+      };
+
+      marker.bindPopup(popupContainer, {
+        maxWidth: 360,
+        minWidth: 260,
+        className: "ng-project-leaflet-popup",
+        autoPan: true,
+        keepInView: true,
+      });
+      marker.on("popupopen", mountPopup);
+      marker.on("popupclose", () => {
+        popupRoot?.unmount();
+        popupRoot = null;
+        roots.delete(marker);
+      });
       marker.on("click", (event) => {
         L.DomEvent.stopPropagation(event);
         const props = feature.properties || {};
-        const id = props.id;
-        onFlyToRef.current?.(id, lat, lon);
-        const title = props.title || "";
-        const popup = document.createElement("div");
-        popup.className = "project-map-popup";
-        const heading = document.createElement("strong");
-        heading.textContent = title;
-        popup.appendChild(heading);
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.textContent = pledgeLabelRef.current;
-        btn.dataset.testid = "project-map-pledge";
-        btn.addEventListener("click", (clickEvent) => {
-          clickEvent.stopPropagation();
-          onProjectRef.current?.(props);
-          map.closePopup();
-        });
-        popup.appendChild(btn);
-        marker.bindPopup(popup).openPopup();
+        onFlyToRef.current?.(props.id, lat, lon);
+        onProjectRef.current?.(props);
+        marker.openPopup();
       });
     });
-  }, [projects, showProjects, t]);
+    return () => {
+      roots.forEach((root) => root.unmount());
+      roots.clear();
+    };
+  }, [projects, showProjects, contributor, onPledgeAuthorized, i18nInstance.language]);
 
   useEffect(() => {
     const map = mapRef.current;

@@ -49,7 +49,9 @@
     "truncated": "{{shown}} of {{total}} projects (use search to narrow)",
     "minAmount": "Minimum 1.00 EUR.",
     "invalidAmount": "Invalid amount (use at most 2 decimal places).",
-    "pledgeDescription": "Project pledge — {{title}}"
+    "pledgeDescription": "Project pledge — {{title}}",
+    "visitSite": "Project website",
+    "noDescription": "No description in the snapshot."
   },
   "marinas": {
     "heading": "Marinas",

@@ -299,3 +299,66 @@ body.ng-naviguide-shell {
   letter-spacing: 0.04em;
   color: var(--muted);
 }
+
+.leaflet-popup.ng-project-leaflet-popup .leaflet-popup-content-wrapper {
+  border-radius: 8px;
+  background: var(--shell-control-bg);
+  color: var(--text);
+  border: 1px solid var(--shell-border);
+}
+
+.leaflet-popup.ng-project-leaflet-popup .leaflet-popup-content {
+  margin: 0.65rem;
+  width: auto !important;
+  max-width: min(360px, 92vw);
+}
+
+.project-map-popup-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.project-map-popup-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.project-map-popup-desc {
+  margin: 0;
+  max-height: 9rem;
+  overflow-y: auto;
+}
+
+.project-map-popup-link-row {
+  margin: 0;
+}
+
+.project-map-popup-link-row a {
+  word-break: break-word;
+}
+
+.project-map-popup-pledge label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+}
+
+.project-map-popup-pledge input,
+.project-map-popup-pledge button,
+.project-map-popup .pledge-button button {
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+.project-map-popup-pledge input {
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--shell-control-border);
+  background: var(--bg);
+  color: var(--text);
+}

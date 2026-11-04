@@ -523,6 +523,8 @@ export default function App() {
           theme={theme}
           onSelectStop={chooseStop}
           onFlyTo={onFlyTo}
+          contributor={contributor}
+          onPledgeAuthorized={onAuthorized}
           onSelectProject={(props: { id?: string }) => {
             if (props?.id) setSelectedProjectId(props.id);
           }}

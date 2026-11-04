@@ -13,7 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.escales.audit import AUDIT_COLLECTION, list_entries
 from app.escales.pledges import reset_ledger
-from app.routers.escales import router, set_paypal_client_factory
+from app.escales.config import cors_origins, paypal_webhook_url
+from app.routers.escales import _public_pledge, router, set_paypal_client_factory
 
 PLEDGE = {
     "amount_eur": "20.00",
@@ -125,6 +126,8 @@ def test_create_pledge_returns_order_and_approve_link(api):
     assert body["amount_eur"] == "20.00"
     assert body["order_id"] == "ORDER1"
     assert body["approve_link"] == "https://www.sandbox.paypal.com/checkoutnow?token=ORDER1"
+    bare = _public_pledge({"_id": "old", "order_id": "ORDER9", "kind": "mile", "milestone_id": "dep-mayotte"})
+    assert bare["approve_link"] == "https://www.sandbox.paypal.com/checkoutnow?token=ORDER9"
     assert "client_key" not in body
     assert fake.calls[0] == ("create", "20.00", "create-1")
 
@@ -624,3 +627,38 @@ def test_features_flags_off_by_default(api):
     assert flags["naviguide_bridge"] is False
     assert flags["bryntum"] is False
     assert flags["vault"] is False
+    assert flags["webhooks_enabled"] is False
+    assert flags["webhook_url"] == "https://bi-escales-api.onrender.com/api/escales/webhooks/paypal"
+
+
+def test_cors_allows_the_minimix_vite_origin(monkeypatch):
+    from fastapi.middleware.cors import CORSMiddleware
+
+    monkeypatch.delenv("ESCALES_CORS_ORIGINS", raising=False)
+    assert "http://localhost:5173" in cors_origins()
+    assert paypal_webhook_url().endswith("/api/escales/webhooks/paypal")
+    app = FastAPI()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins(),
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "PayPal-Request-Id", "x-admin-key"],
+    )
+
+    @app.get("/api/health")
+    def health():
+        return {"status": "ok"}
+
+    with TestClient(app) as client:
+        allowed = client.options(
+            "/api/health",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type,paypal-request-id",
+            },
+        )
+        assert allowed.headers.get("access-control-allow-origin") == "http://localhost:5173"
+        blocked = client.get("/api/health", headers={"Origin": "https://evil.example"})
+        assert blocked.headers.get("access-control-allow-origin") is None

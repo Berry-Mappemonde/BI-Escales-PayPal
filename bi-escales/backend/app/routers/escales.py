@@ -28,6 +28,7 @@ from app.escales.config import (
     kernel_evidence_enabled,
     load_config,
     naviguide_bridge_enabled,
+    paypal_webhook_url,
     vault_enabled,
     webhooks_enabled,
 )
@@ -39,7 +40,7 @@ from app.escales.naviguide_bridge import (
     fetch_naviguide_export,
     sync_milestone_shells,
 )
-from app.escales.paypal_client import PayPalClient, PayPalError
+from app.escales.paypal_client import PayPalClient, PayPalError, approve_link
 from app.escales.rate_limit import (
     RateLimited,
     client_ip,
@@ -184,11 +185,17 @@ def _public_milestone(doc: dict) -> dict:
 
 
 def _public_pledge(doc: dict) -> dict:
-    """Same shape as ``to_public``, plus the simulated catalogue line."""
+    """Same shape as ``to_public``, plus the simulated catalogue line.
+
+    ``approve_link`` is the buyer step. A stored order without one still
+    gets the sandbox checkout URL.
+    """
     public = to_public(doc)
     public["payment_mode"] = doc.get("payment_mode") or doc.get("intent")
     public["simulated_price"] = simulated_unit(str(public.get("kind") or "mile"))
     public["price_label"] = SIMULATED_PRICE_LABEL
+    if not public.get("approve_link") and public.get("order_id"):
+        public["approve_link"] = approve_link({"id": public["order_id"]})
     return public
 
 
@@ -211,6 +218,8 @@ async def get_features():
         "channel3": channel3_enabled(),
         "bryntum": bryntum_scheduler_enabled(),
         "vault": vault_enabled(),
+        "webhooks_enabled": webhooks_enabled(),
+        "webhook_url": paypal_webhook_url(),
     }
 
 

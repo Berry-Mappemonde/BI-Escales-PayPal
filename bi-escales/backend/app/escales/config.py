@@ -158,6 +158,43 @@ def paypal_webhook_id() -> str:
     return (os.environ.get("PAYPAL_WEBHOOK_ID") or "").strip()
 
 
+PUBLIC_API_ORIGIN = "https://bi-escales-api.onrender.com"
+PAYPAL_WEBHOOK_PATH = "/api/escales/webhooks/paypal"
+# Vite dev server from the mini-mix frontend, plus the other Render host.
+_DEFAULT_CORS_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://bi-escales.onrender.com",
+    PUBLIC_API_ORIGIN,
+)
+
+
+def public_base_url() -> str:
+    """Origin PayPal and the browser use to reach this API. No trailing slash."""
+    raw = (os.environ.get("ESCALES_PUBLIC_URL") or PUBLIC_API_ORIGIN).strip().rstrip("/")
+    return raw or PUBLIC_API_ORIGIN
+
+
+def paypal_webhook_url() -> str:
+    """URL to register in the PayPal sandbox webhook dashboard."""
+    return f"{public_base_url()}{PAYPAL_WEBHOOK_PATH}"
+
+
+def cors_origins() -> list[str]:
+    """Browser origins allowed to call the API.
+
+    ``ESCALES_CORS_ORIGINS`` is a comma-separated extra list. The mini-mix
+    Vite origin is always included.
+    """
+    origins = list(_DEFAULT_CORS_ORIGINS)
+    extra = os.environ.get("ESCALES_CORS_ORIGINS") or ""
+    for part in extra.split(","):
+        origin = part.strip().rstrip("/")
+        if origin and origin not in origins:
+            origins.append(origin)
+    return origins
+
+
 def load_config() -> EscalesConfig:
     env = (os.environ.get("PAYPAL_ENV") or "sandbox").strip().lower()
     if env != "sandbox":

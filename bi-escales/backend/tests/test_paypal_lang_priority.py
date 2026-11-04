@@ -115,6 +115,48 @@ def test_n4_english_with_explicit_lang(monkeypatch):
     assert "Litiges" not in body["reply"]
 
 
+def test_treasurer_fr_transactions_use_readonly_tools(monkeypatch):
+    spy = type("C", (), {
+        "get_order": lambda self, oid: {"id": oid},
+        "get_authorization": lambda self, aid: {"id": aid},
+        "list_disputes": lambda self, **k: {"items": []},
+        "search_transactions": lambda self, **k: {"transaction_details": [{"id": "T1"}]},
+        "list_invoices": lambda self, **k: {"items": []},
+    })()
+    set_paypal_client_factory(lambda: spy)
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+    body = client.post(
+        "/api/escales/captain/chat",
+        json={"message": "Liste les transactions PayPal pour le trésorier", "lang": "fr"},
+        headers={"x-admin-key": "lang-admin"},
+    ).json()
+    assert body["model_source"] == "paypal_readonly_tools"
+    assert "Transactions PayPal" in body["reply"]
+    assert "lecture seule" in body["reply"]
+
+
+def test_project_pledge_min_amount_fr_422():
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+    res = client.post(
+        "/api/escales/pledges",
+        json={
+            "amount_eur": "0.50",
+            "description": "don",
+            "kind": "project_pledge",
+            "target_id": "projet",
+            "lang": "fr",
+        },
+    )
+    assert res.status_code == 422
+    detail = res.json()["detail"]
+    assert detail["code"] == "project_pledge_min_amount"
+    assert detail["detail"] == "Le don à un projet doit être d'au moins 1,00 €"
+
+
 def test_reconcile_note_follows_lang():
     assert "Sandbox Transaction Search" in reconcile_note("en")
     assert "bac à sable" in reconcile_note("fr").lower()

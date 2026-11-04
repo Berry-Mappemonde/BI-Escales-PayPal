@@ -328,7 +328,7 @@ def test_dry_run_refusal_writes_nothing(tmp_path, capsys):
 
 def test_server_startup_and_ci_do_not_launch_the_tool():
     server = Path(__file__).resolve().parents[1]
-    root = server.parents[1]
+    root = server.parents[0]
     main_py = (server / "main.py").read_text(encoding="utf-8")
     voyage = (server / "voyage_api.py").read_text(encoding="utf-8")
     assert "rebuild_berry_route" not in main_py

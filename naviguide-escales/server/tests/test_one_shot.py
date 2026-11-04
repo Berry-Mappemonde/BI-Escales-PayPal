@@ -16,7 +16,8 @@ import one_shot
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "one_shot.py"
-REPO = Path(__file__).resolve().parents[3]
+# Racine du paquet naviguide-escales (infra/, server/, …).
+REPO = ROOT
 _SECRET_KEYS = (
     "NEBIUS_API_KEY",
     "NVIDIA_API_KEY",
@@ -246,7 +247,7 @@ def test_mode_off_stops_before_any_call(monkeypatch):
 
 
 def test_lock_directory_inside_the_repo_is_refused(monkeypatch):
-    inside = REPO / "naviguide-simulator" / "server" / "voyage_data" / "one-shot-test"
+    inside = REPO / "server" / "voyage_data" / "one-shot-test"
     monkeypatch.setenv(one_shot.ENV_DIR, str(inside))
     fingerprint = one_shot.build_estimate(one_shot.FIXTURE_JOB)["fingerprint"]
     with pytest.raises(one_shot.OneShotError) as err:

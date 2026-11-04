@@ -508,6 +508,9 @@ class PayPalClient:
             idempotency_key=paypal_request_id(invoice_id, "invoice-cancel"),
         )
 
+    def delete_invoice(self, invoice_id: str) -> dict:
+        return self._req("DELETE", f"/v2/invoicing/invoices/{invoice_id}")
+
     def get_invoice(self, invoice_id: str) -> dict:
         return self._req("GET", f"/v2/invoicing/invoices/{invoice_id}")
 

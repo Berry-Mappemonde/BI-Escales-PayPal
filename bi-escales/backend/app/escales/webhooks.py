@@ -296,9 +296,7 @@ async def _apply_event(event: dict) -> dict:
     if event_type.startswith("BILLING.SUBSCRIPTION.") or event_type == "PAYMENT.SALE.COMPLETED":
         from .paypal_subscriptions import record_subscription
 
-        sub_id = str(resource.get("id") or resource.get("billing_agreement_id") or "")
-        plan_id = str(resource.get("plan_id") or "")
-        status = str(resource.get("status") or event_type.split(".")[-1].lower())
+        sub_id, plan_id, status = _subscription_webhook_fields(event_type, resource)
         if sub_id:
             await record_subscription(
                 subscription_id=sub_id,
@@ -331,6 +329,26 @@ def _dedup_key(event: dict, transmission_id: str) -> str:
 
 def _event_dict(event: Any) -> dict:
     return event if isinstance(event, dict) else {}
+
+
+def _subscription_webhook_fields(event_type: str, resource: dict) -> tuple[str, str, str]:
+    """Return subscription id, plan id, and normalized status for billing webhooks."""
+    if event_type == "PAYMENT.SALE.COMPLETED":
+        sub_id = str(
+            resource.get("billing_agreement_id")
+            or resource.get("subscription_id")
+            or ""
+        ).strip()
+        plan_id = str(resource.get("plan_id") or "")
+        status = str(resource.get("state") or resource.get("status") or "ACTIVE")
+        return sub_id, plan_id, status
+    if not event_type.startswith("BILLING.SUBSCRIPTION."):
+        return "", "", ""
+    sub_id = str(resource.get("id") or "").strip()
+    plan_id = str(resource.get("plan_id") or "")
+    suffix = event_type.split(".")[-1].upper()
+    status = str(resource.get("status") or suffix)
+    return sub_id, plan_id, status
 
 
 def _resource_id(event: Any) -> Optional[str]:

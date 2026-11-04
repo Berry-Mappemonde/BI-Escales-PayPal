@@ -69,7 +69,8 @@ _CHAT_MAX_TOKENS = 400
 _EN_HINT = re.compile(
     r"\b(?:i|i'd|i’m|i'm|would|like|sponsor|please|the|near|miles?|nautical|dinner|and"
     r"|my|you|your|will|is|are|was|old|days?|authorization|it|this"
-    r"|how|much|price|cost|costs|cabin)\b",
+    r"|how|much|price|cost|costs|cabin|show|me|what|we|have|our|paypal|transactions?"
+    r"|disputes?|invoices?|treasurer)\b",
     re.IGNORECASE,
 )
 _FR_HINT = re.compile(
@@ -2671,6 +2672,12 @@ _PAYPAL_READONLY = re.compile(
 def _is_paypal_readonly_question(message: str) -> bool:
     text = message or ""
     if _PAYPAL_READONLY.search(text):
+        return True
+    if re.search(
+        r"\bshow\s+me\s+(?:the\s+)?paypal\s+transactions?\b",
+        text,
+        re.I,
+    ):
         return True
     if re.search(
         r"\bpaypal\s+(?:transaction|dispute)\s+(?:search|list)\b",

@@ -134,6 +134,8 @@ async def reconcile_paypal_ledger(
     return {
         "start_date": search_start,
         "end_date": search_end,
+        "searched_start_date": search_start,
+        "searched_end_date": search_end,
         "requested_start_date": start_date,
         "requested_end_date": end_date,
         "match_key": "capture_id",

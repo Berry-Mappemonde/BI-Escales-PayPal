@@ -108,7 +108,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
     sdkHost.current.dataset.paypalSdkReady = "1";
     const host = sdkHost.current;
     host.innerHTML = "";
-    if (payLaterEligible(values.amount_eur) && window.paypal?.Messages) {
+    if (payLaterEligible(values.amount_eur, values.kind) && window.paypal?.Messages) {
       const messages = window.paypal.Messages({
         amount: values.amount_eur.replace(",", "."),
         placement: "product",
@@ -117,7 +117,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
       void messages.render(host);
       host.dataset.payLaterMessages = "1";
     }
-  }, [sdkReady, values.amount_eur]);
+  }, [sdkReady, values.amount_eur, values.kind]);
 
   return (
     <div className="pledge-button" data-testid="paypal-buttons" data-kind={values.kind || ""}>

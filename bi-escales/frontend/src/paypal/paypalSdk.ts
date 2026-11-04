@@ -36,7 +36,11 @@ export function paypalSubscriptionSdkUrl(clientId: string): string {
   return `https://www.paypal.com/sdk/js?${params.toString()}`;
 }
 
-export function payLaterEligible(amountEur: string): boolean {
+export function payLaterEligible(amountEur: string, kind?: string): boolean {
+  const pledgeKind = (kind || "").trim();
+  if (pledgeKind && pledgeKind !== "project_pledge") {
+    return false;
+  }
   const normalized = amountEur.replace(",", ".").trim();
   const value = Number.parseFloat(normalized);
   return Number.isFinite(value) && value >= PAY_LATER_MIN;
@@ -52,13 +56,32 @@ export function loadPayPalSdk(clientId: string): Promise<void> {
 export function loadPayPalSubscriptionSdk(clientId: string): Promise<void> {
   const trimmed = clientId.trim();
   if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
-  return loadScript(paypalSubscriptionSdkUrl(trimmed));
+  const src = paypalSubscriptionSdkUrl(trimmed);
+  const loaded = findPayPalScript(src);
+  if (loaded?.dataset.loaded === "1") {
+    return Promise.resolve();
+  }
+  return loadScript(src);
+}
+
+function findPayPalScript(src: string): HTMLScriptElement | null {
+  for (const node of document.querySelectorAll("script[data-paypal-sdk-src]")) {
+    const script = node as HTMLScriptElement;
+    if (script.dataset.paypalSdkSrc === src) {
+      return script;
+    }
+  }
+  return null;
 }
 
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const existing = document.querySelector(`script[data-paypal-sdk-src="${src}"]`);
+    const existing = findPayPalScript(src);
     if (existing) {
+      if (existing.dataset.loaded === "1") {
+        resolve();
+        return;
+      }
       existing.addEventListener("load", () => resolve(), { once: true });
       existing.addEventListener("error", () => reject(new Error("PayPal SDK failed to load")), { once: true });
       return;
@@ -67,7 +90,10 @@ function loadScript(src: string): Promise<void> {
     script.src = src;
     script.async = true;
     script.dataset.paypalSdkSrc = src;
-    script.onload = () => resolve();
+    script.onload = () => {
+      script.dataset.loaded = "1";
+      resolve();
+    };
     script.onerror = () => reject(new Error("PayPal SDK failed to load"));
     document.body.appendChild(script);
   });

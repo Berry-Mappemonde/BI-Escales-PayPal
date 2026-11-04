@@ -79,6 +79,7 @@ export interface FeatureFlags {
   bryntum?: boolean;
   vault?: boolean;
   clock_pinned?: boolean;
+  crew_supporter_plan_id?: string | null;
 }
 
 export interface MilestoneEvidence {

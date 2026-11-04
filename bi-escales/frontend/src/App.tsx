@@ -10,6 +10,7 @@ import MarinasPanel from "./components/MarinasPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
 import { TreasurerQueue } from "./components/TreasurerQueue";
 import { TreasurerPayPalPanel } from "./components/TreasurerPayPalPanel";
+import { CrewSubscribeButton } from "./components/CrewSubscribeButton";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { setLanguage } from "./i18n";
 import { MapScene } from "./map/MapScene.jsx";
@@ -103,6 +104,7 @@ export default function App() {
   const [settleAt, setSettleAt] = useState("");
   const [projectFund, setProjectFund] = useState<FundView | null | undefined>(undefined);
   const [boatFund, setBoatFund] = useState<FundView | null | undefined>(undefined);
+  const [crewPlanId, setCrewPlanId] = useState("");
 
   const prod = Boolean(import.meta.env.PROD);
   const t0 = resolveDepartureT0(prod, devT0 || undefined);
@@ -116,6 +118,22 @@ export default function App() {
     [voyage, now],
   );
   const cumNm = Number(sample?.sailNm ?? sample?.cumNm ?? 0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchFeatures()
+      .then((flags) => {
+        if (!cancelled) {
+          setCrewPlanId(String(flags.crew_supporter_plan_id ?? "").trim());
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCrewPlanId("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -568,6 +586,11 @@ export default function App() {
       {tab === "voyage" ? (
         <div className="layout">
           <div>
+            {crewPlanId ? (
+              <section className="panel crew-supporter-public" data-testid="crew-supporter-public">
+                <CrewSubscribeButton planId={crewPlanId} adminKey={adminKey.trim() || undefined} />
+              </section>
+            ) : null}
             <ProjectList
               projects={projects}
               selectedProjectId={selectedProjectId}

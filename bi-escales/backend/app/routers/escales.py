@@ -64,6 +64,7 @@ from app.escales.paypal_disputes import (
 )
 from app.escales.paypal_invoicing import (
     cancel_invoice,
+    delete_draft_invoice,
     create_partner_invoice,
     list_treasurer_invoices,
     remind_invoice,
@@ -74,6 +75,7 @@ from app.escales.paypal_reconcile import reconcile_paypal_ledger
 from app.escales.paypal_subscriptions import (
     ensure_crew_supporter_catalog,
     list_subscriptions_local,
+    public_crew_supporter_plan_id,
     record_subscription,
 )
 from app.escales.project_payouts import (
@@ -300,10 +302,6 @@ def _paypal_order_not_approved(exc: PayPalError) -> bool:
 def _paypal_client_error_detail(exc: PayPalError) -> str:
     body = exc.body
     if isinstance(body, dict):
-        for key in ("message", "error_description", "name"):
-            value = body.get(key)
-            if value:
-                return str(value)
         details = body.get("details")
         if isinstance(details, list):
             parts: list[str] = []
@@ -315,6 +313,10 @@ def _paypal_client_error_detail(exc: PayPalError) -> str:
                     parts.append(str(issue))
             if parts:
                 return "; ".join(parts)
+        for key in ("message", "error_description", "name"):
+            value = body.get(key)
+            if value:
+                return str(value)
     if exc.status == 404:
         return "PayPal transaction search returned no data for this date window"
     return "PayPal request rejected"
@@ -411,6 +413,7 @@ def _public_pledge_summary(doc: dict, fund: Optional[dict]) -> dict:
 
 @router.get("/features")
 async def get_features():
+    crew_plan_id = await public_crew_supporter_plan_id()
     return {
         "naviguide_bridge": naviguide_bridge_enabled(),
         "elastic": elastic_evidence_enabled(),
@@ -423,6 +426,7 @@ async def get_features():
         "clock_pinned": clock_now_pinned(),
         "pay_later_min_eur": PAY_LATER_UI_MIN_EUR,
         "p2_eligibility": p2_eligibility_report(),
+        "crew_supporter_plan_id": crew_plan_id,
         "fastlane": False,
     }
 
@@ -671,6 +675,16 @@ async def post_invoice_cancel(invoice_id: str, request: Request):
     _require_treasurer(request)
     try:
         return await cancel_invoice(_paypal(), invoice_id)
+    except PayPalError as exc:
+        raise _as_http(exc) from exc
+
+
+@router.delete("/paypal/invoices/{invoice_id}")
+async def delete_invoice_route(invoice_id: str, request: Request):
+    """Remove a draft invoice (PayPal only cancels sent invoices)."""
+    _require_treasurer(request)
+    try:
+        return await delete_draft_invoice(_paypal(), invoice_id)
     except PayPalError as exc:
         raise _as_http(exc) from exc
 

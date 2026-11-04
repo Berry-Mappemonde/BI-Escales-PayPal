@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from .ledger import list_finance_entries, record_finance
+from .ledger import list_finance_entries, now_iso, record_finance, update_finance_entry
 from .paypal_idempotency import paypal_request_id
 
 CREW_PRODUCT_NAME = "Crew supporter"
@@ -53,6 +53,14 @@ async def ensure_crew_supporter_catalog(client: Any) -> dict:
     return {"product_id": product_id, "plan_id": plan_id, "idempotent": False}
 
 
+async def public_crew_supporter_plan_id() -> Optional[str]:
+    row = await _catalog_row()
+    if not row:
+        return None
+    plan_id = str(row.get("plan_id") or "").strip()
+    return plan_id or None
+
+
 async def record_subscription(
     *,
     subscription_id: str,
@@ -63,6 +71,21 @@ async def record_subscription(
     sub_id = str(subscription_id or "").strip()
     if not sub_id:
         raise ValueError("subscription_id is required")
+    patch: dict = {
+        "plan_id": plan_id,
+        "status": status,
+        "updated_at": now_iso(),
+    }
+    if subscriber_email is not None:
+        patch["subscriber_email"] = subscriber_email
+    for entry in await list_finance_entries():
+        if entry.get("kind") != "paypal_subscription_local":
+            continue
+        if str(entry.get("subscription_id") or "") != sub_id:
+            continue
+        updated = await update_finance_entry(str(entry.get("_id") or ""), patch)
+        if updated:
+            return updated
     row = await record_finance(
         "paypal_subscription_local",
         subscription_id=sub_id,
@@ -74,15 +97,24 @@ async def record_subscription(
 
 
 async def list_subscriptions_local() -> list[dict]:
-    rows: list[dict] = []
+    by_id: dict[str, dict] = {}
     for entry in await list_finance_entries():
         if entry.get("kind") != "paypal_subscription_local":
             continue
-        rows.append({
-            "subscription_id": entry.get("subscription_id"),
+        sub_id = str(entry.get("subscription_id") or "")
+        if not sub_id:
+            continue
+        row = {
+            "subscription_id": sub_id,
             "plan_id": entry.get("plan_id"),
             "status": entry.get("status"),
             "subscriber_email": entry.get("subscriber_email"),
             "at": entry.get("at"),
-        })
-    return rows
+            "updated_at": entry.get("updated_at"),
+        }
+        prev = by_id.get(sub_id)
+        prev_stamp = str((prev or {}).get("updated_at") or (prev or {}).get("at") or "")
+        stamp = str(row.get("updated_at") or row.get("at") or "")
+        if prev is None or stamp >= prev_stamp:
+            by_id[sub_id] = row
+    return list(by_id.values())

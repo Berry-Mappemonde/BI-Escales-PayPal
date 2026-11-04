@@ -84,6 +84,19 @@ async def cancel_invoice(client: Any, invoice_id: str) -> dict:
     return result
 
 
+async def delete_draft_invoice(client: Any, invoice_id: str) -> dict:
+    invoice_id = str(invoice_id or "").strip()
+    if not invoice_id:
+        raise ValueError("invoice_id is required")
+    result = client.delete_invoice(invoice_id)
+    await record_finance(
+        "paypal_invoice_action",
+        invoice_id=invoice_id,
+        action="delete_draft",
+    )
+    return result
+
+
 async def list_treasurer_invoices(client: Any, *, page: int = 1) -> dict:
     remote = client.list_invoices(page=page)
     items = remote.get("items") if isinstance(remote, dict) else []

@@ -15,13 +15,14 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 from starlette.responses import Response
 
+from app.escales.channel3_client import search_gear
 from app.escales.captain import SIMULATED_PRICE_LABEL
 from app.escales.captain import chat as captain_chat
 from app.escales.captain import review as captain_review
 from app.escales.captain import simulated_prices, simulated_unit
 from app.escales.config import (
     bryntum_scheduler_enabled,
-    channel3_enabled,
+    channel3_ready,
     clock_start,
     elastic_evidence_enabled,
     escales_enabled,
@@ -252,11 +253,24 @@ async def get_features():
         "naviguide_bridge": naviguide_bridge_enabled(),
         "elastic": elastic_evidence_enabled(),
         "kernel": kernel_evidence_enabled(),
-        "channel3": channel3_enabled(),
+        "channel3": channel3_ready(),
         "bryntum": bryntum_scheduler_enabled(),
         "vault": vault_enabled(),
         "webhooks_enabled": webhooks_enabled(),
         "webhook_url": paypal_webhook_url(),
+    }
+
+
+@router.get("/channel3/gear")
+async def get_channel3_gear():
+    if not channel3_ready():
+        raise HTTPException(status_code=404, detail="Not Found")
+    items = await search_gear()
+    return {
+        "items": items,
+        "label": "Channel3 onboard gear (authorize now, capture on stopover arrival)",
+        "source": "channel3",
+        "docs": "https://channel3.ai/docs/api-reference/v1/search",
     }
 
 

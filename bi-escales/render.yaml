@@ -57,6 +57,8 @@ services:
         value: "100"
       - key: ESCALES_LLM_ENABLED
         sync: false
+      - key: CHANNEL3_API_KEY
+        sync: false
       - key: NVIDIA_API_KEY
         sync: false
       - key: NIM_MODEL

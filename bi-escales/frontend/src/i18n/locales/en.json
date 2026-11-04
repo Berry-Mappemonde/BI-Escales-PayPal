@@ -98,6 +98,11 @@
     "vaulted": "Payment method saved",
     "error": "Pledge error"
   },
+  "channel3": {
+    "heading": "Onboard gear (Channel3)",
+    "hint": "PayPal authorize now; captured only if the boat arrives at the stopover.",
+    "productLink": "Product page"
+  },
   "treasurer": {
     "heading": "Treasurer queue",
     "adminKey": "Treasurer key (x-admin-key)",

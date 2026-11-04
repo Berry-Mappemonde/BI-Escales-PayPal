@@ -98,6 +98,11 @@
     "vaulted": "Moyen de paiement enregistré",
     "error": "Erreur promesse"
   },
+  "channel3": {
+    "heading": "Équipement de bord (Channel3)",
+    "hint": "Autorisation PayPal maintenant ; encaissement si le bateau arrive à l’escale.",
+    "productLink": "Fiche produit"
+  },
   "treasurer": {
     "heading": "File trésorier",
     "adminKey": "Clé trésorier (x-admin-key)",

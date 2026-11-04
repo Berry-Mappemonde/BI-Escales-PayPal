@@ -119,6 +119,14 @@ def channel3_enabled() -> bool:
     return os.environ.get("ESCALES_CHANNEL3_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def channel3_api_key() -> str:
+    return (os.environ.get("CHANNEL3_API_KEY") or "").strip()
+
+
+def channel3_ready() -> bool:
+    return channel3_enabled() and bool(channel3_api_key())
+
+
 def bryntum_scheduler_enabled() -> bool:
     return os.environ.get("ESCALES_BRYNTUM_ENABLED", "").strip().lower() in _TRUTHY
 

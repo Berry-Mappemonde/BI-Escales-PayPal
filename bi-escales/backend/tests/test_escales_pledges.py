@@ -386,6 +386,52 @@ def test_kind_and_target_are_stored_and_unknown_kind_is_rejected():
     asyncio.run(body())
 
 
+def test_cabin_leg_authorizes_and_waits_for_departure(monkeypatch):
+    """Réserver une cabine autorise. Le départ de A capture, l'annulation vide."""
+    from app.escales.milestones import decision_for_evidence, record_evidence
+    from app.escales.naviguide_bridge import sync_leg_shells
+
+    monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+    monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
+    leg = "leg-ajaccio-corse-to-fort-de-france-martinique"
+
+    async def body():
+        await sync_leg_shells()
+        spy = Spy()
+        created = await create_pledge(
+            amount_eur="80.00",
+            description="cabine Ajaccio Fort-de-France",
+            milestone_id=leg,
+            client=spy,
+            kind="cabin_leg",
+        )
+        assert created["intent"] == "AUTHORIZE"
+        assert created["payment_mode"] == "AUTHORIZE"
+        assert created["kind"] == "cabin_leg"
+        assert created["target_id"] == leg
+        assert created["status"] == "created"
+        assert _names(spy) == ["create"]
+        with pytest.raises(ValueError):
+            await create_pledge(
+                amount_eur="80.00",
+                description="cabine sur une escale",
+                milestone_id="dep-mayotte",
+                client=spy,
+                kind="cabin_leg",
+            )
+        departed = await record_evidence(leg, met=True, facts={"departed": True})
+        milestone = await get_ledger().get_milestone(leg)
+        assert decision_for_evidence({"facts": departed["facts"], "met": True}, milestone) == "capture"
+        cancelled = await record_evidence(leg, met=False, facts={"cancelled": True})
+        assert decision_for_evidence(
+            {"facts": cancelled["facts"], "met": False}, milestone,
+        ) == "void"
+        assert decision_for_evidence({"facts": {"departed": True}, "met": None}, milestone) == "capture"
+        assert decision_for_evidence({"facts": {"cancelled": True}, "met": True}, milestone) == "void"
+
+    asyncio.run(body())
+
+
 def test_legacy_memory_row_reads_as_a_mile():
     async def body():
         ledger = get_ledger()

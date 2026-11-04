@@ -102,7 +102,7 @@ def _kind(raw: Optional[str]) -> str:
 
 
 _TARGET_SLUG = re.compile(r"^[a-z0-9-]+$")
-_TARGET_MUST_BE_KNOWN = {"mile", "berth", "night", "meal", "care", "cabin_leg"}
+_TARGET_MUST_BE_KNOWN = {"mile", "berth", "night", "meal", "care"}
 # Escale kinds and the common fund name this stopover. A project pledge does not.
 _TARGET_MUST_MATCH_MILESTONE = _TARGET_MUST_BE_KNOWN | {"common_fund"}
 
@@ -135,8 +135,25 @@ async def _known_stopover(slug: str) -> bool:
     return False
 
 
+def _cabin_target(explicit: str, milestone_id: str) -> str:
+    """A cabin names the leg milestone. The stored target is that leg id."""
+    from .naviguide_bridge import leg_by_id
+
+    chosen = explicit or milestone_id
+    if not _TARGET_SLUG.fullmatch(chosen):
+        raise ValueError("target_id must match [a-z0-9-]+")
+    leg = leg_by_id(chosen)
+    if leg is None:
+        raise ValueError("target_id must name a cabin leg")
+    if milestone_id != leg["id"]:
+        raise ValueError("target_id must match the milestone")
+    return leg["id"]
+
+
 async def _resolve_target(target_id: Optional[str], milestone_id: str, kind: str) -> str:
     explicit = (target_id or "").strip()
+    if kind == "cabin_leg":
+        return _cabin_target(explicit, milestone_id)
     if explicit and not _TARGET_SLUG.fullmatch(explicit):
         raise ValueError("target_id must match [a-z0-9-]+")
     chosen = explicit or milestone_id
@@ -216,7 +233,16 @@ async def create_pledge(
             return existing
     pledge_kind = _kind(kind)
     resolved_target = await _resolve_target(target_id, milestone_id, pledge_kind)
-    mode = payment_mode or await resolve_payment_mode(milestone_id)
+    # A cabin is always an authorization. Capture waits for the departure.
+    if pledge_kind == "cabin_leg":
+        mode = "AUTHORIZE"
+        from .naviguide_bridge import leg_by_id, leg_milestone_meta
+
+        leg = leg_by_id(resolved_target)
+        if leg:
+            await get_ledger().ensure_milestone(leg["id"], meta=leg_milestone_meta(leg))
+    else:
+        mode = payment_mode or await resolve_payment_mode(milestone_id)
     if mode == "VAULT":
         return await _create_vault_pledge(
             amount=amount,

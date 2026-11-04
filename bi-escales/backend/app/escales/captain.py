@@ -19,6 +19,7 @@ from .config import AUTH_MAX_DAYS, membership_url
 from .milestones import (
     amount_in_text,
     decision_for,
+    decision_for_evidence,
     filter_numbers,
     format_amount,
     get_milestone,
@@ -301,6 +302,11 @@ def _display_names() -> dict[str, str]:
             slug = _escale_slug(str(raw or ""))
             if slug:
                 table[slug] = name
+    from .naviguide_bridge import clock_legs
+
+    for leg in clock_legs():
+        title = f"{leg.get('from_name')} → {leg.get('to_name')}"
+        table[str(leg.get("id") or "")] = title
     return table
 
 
@@ -1707,7 +1713,7 @@ async def review(
     evidence = latest_evidence(milestone)
     met = evidence.get("met") if evidence else None
     reached = met is True
-    decision = decision_for(met if isinstance(met, bool) else None)
+    decision = decision_for_evidence(evidence, milestone)
     related = await pledges_for_milestone(milestone_id)
     concerned = [
         pledge
@@ -2057,7 +2063,14 @@ def _catalogue_lines(text: str, lang: str, place: str) -> list[dict]:
     ):
         quantity = _night_quantity(text) if kind == "night" else _sum_quantity(pattern, text)
         if quantity > 0:
-            lines.append(_fixed_line(kind, quantity, place, lang))
+            line_place = place
+            if kind == "cabin_leg":
+                from .naviguide_bridge import leg_departing_from
+
+                leg = leg_departing_from(place)
+                if leg:
+                    line_place = str(leg["id"])
+            lines.append(_fixed_line(kind, quantity, line_place, lang))
     for kind, pattern in (
         ("project_pledge", _PROJECT_PLEDGE),
         ("common_fund", _COMMON_FUND),

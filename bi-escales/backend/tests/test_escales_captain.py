@@ -2057,6 +2057,23 @@ def test_other_kinds_use_the_simulated_catalogue():
     assert english["amount_eur"] == "120.00"
 
 
+def test_cabin_cart_line_is_the_leg_and_stays_authorize():
+    cabin = captain.suggest_pledge("1 cabine près de Fort-de-France")
+    assert cabin["kind"] == "cabin_leg"
+    assert cabin["amount_eur"] == "80.00"
+    assert cabin["intent"] == "AUTHORIZE"
+    cart = captain.pledge_cart("1 cabine près de Fort-de-France", "fr", cabin)
+    line = cart["lines"][0]
+    assert line["kind"] == "cabin_leg"
+    assert line["intent"] == "AUTHORIZE"
+    assert line["milestone_id"] == "leg-fort-de-france-martinique-to-pointe-a-pitre-guadeloupe"
+    assert line["pledge"]["target_id"] == line["milestone_id"]
+    assert line["pledge"]["kind"] == "cabin_leg"
+    assert captain.display_name(line["milestone_id"]) == (
+        "Fort-de-France (Martinique) → Pointe-à-Pitre (Guadeloupe)"
+    )
+
+
 def test_chat_cart_keeps_authorize_and_reads_clock_and_schedule(monkeypatch):
     monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
 

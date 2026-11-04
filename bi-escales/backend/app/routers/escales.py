@@ -36,8 +36,11 @@ from app.escales.ledger import fund_for_milestone, list_webhook_outcomes, record
 from app.escales_names import display_name as escale_display_name
 from app.escales.milestones import list_milestones, record_evidence
 from app.escales.naviguide_bridge import (
+    clock_legs,
     escales_to_milestones,
     fetch_naviguide_export,
+    legs_to_milestones,
+    sync_leg_shells,
     sync_milestone_shells,
 )
 from app.escales.paypal_client import PayPalClient, PayPalError, approve_link
@@ -236,9 +239,11 @@ async def get_clock():
 @router.get("/schedule")
 async def get_schedule():
     export = await fetch_naviguide_export()
+    legs = clock_legs()
     return {
         "export": export,
-        "milestones": escales_to_milestones(export),
+        "milestones": [*escales_to_milestones(export), *legs_to_milestones(legs)],
+        "legs": legs,
         "source": "naviguide" if naviguide_bridge_enabled() else "local",
         "clock": {"start": clock_start()},
         "prices": simulated_prices(),
@@ -248,6 +253,7 @@ async def get_schedule():
 @router.post("/schedule/sync")
 async def post_schedule_sync():
     docs = await sync_milestone_shells()
+    docs.extend(await sync_leg_shells())
     return [_public_milestone(doc) for doc in docs]
 
 

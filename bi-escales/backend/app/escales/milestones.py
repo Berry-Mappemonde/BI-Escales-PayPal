@@ -170,6 +170,27 @@ def decision_for(met: Optional[bool]) -> str:
     return "wait"
 
 
+def decision_for_evidence(evidence: Optional[dict], milestone: Optional[dict] = None) -> str:
+    """Same rule as ``decision_for``. A cabin leg reads the departure from A.
+
+    Departure as planned (``departed`` or ``met``) proposes capture.
+    A cancelled departure proposes void. The treasurer still executes it.
+    """
+    row = evidence or {}
+    facts = row.get("facts") if isinstance(row.get("facts"), dict) else {}
+    met = row.get("met")
+    meta = milestone.get("meta") if isinstance(milestone, dict) else None
+    if isinstance(meta, dict) and meta.get("capture_on") == "departure":
+        if facts.get("cancelled") is True or facts.get("departed") is False:
+            return "void"
+        if facts.get("departed") is True or met is True:
+            return "capture"
+        if met is False:
+            return "void"
+        return "wait"
+    return decision_for(met if isinstance(met, bool) else None)
+
+
 def simulation_evidence(met: Optional[bool], facts: Optional[dict]) -> dict:
     """Evidence record flagged simulation for NAVIGUIDE."""
     from .pledges import now_iso

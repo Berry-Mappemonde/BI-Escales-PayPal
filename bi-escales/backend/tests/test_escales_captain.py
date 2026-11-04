@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import re
 import sys
 from pathlib import Path
@@ -259,6 +260,41 @@ def test_chat_replaces_an_invented_date_and_drops_a_broken_fragment(monkeypatch)
         assert "As the" not in reply
         assert "12 November 2026" in reply
         assert "La Rochelle" in reply
+
+    asyncio.run(body())
+
+
+def test_arrival_dates_stay_on_the_injected_schedule_day(monkeypatch):
+    """12 November and 29 November are both real, but not for the same stop."""
+    import app.core.llm as llm
+
+    answers = {"text": "We arrive on 12 November 2026."}
+    seen = {}
+
+    async def fake_ask_text(prompt, system=None, **_kwargs):
+        seen["prompt"] = prompt
+        seen["system"] = system or ""
+        return answers["text"]
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    async def body():
+        ajaccio = await chat("I'd like to sponsor 10 nautical miles near Ajaccio")
+        schedule = json.loads(seen["prompt"])["schedule"]
+        assert schedule["arrival_iso"].startswith("2026-11-29")
+        assert "departure_iso" in schedule
+        assert "Do not invent a date" in seen["system"]
+        assert "12 November" not in ajaccio["reply"]
+        assert "29 November 2026" in ajaccio["reply"]
+        answers["text"] = "We arrive on 29 November 2026."
+        again = await chat("I'd like to sponsor 10 nautical miles near Ajaccio")
+        assert "29 November 2026" in again["reply"]
+        assert "12 November" not in again["reply"]
+        answers["text"] = "We arrive on 29 November 2026."
+        rochelle = await chat("I'd like to sponsor 10 nautical miles near La Rochelle")
+        assert "12 November 2026" in rochelle["reply"]
+        assert "29 November" not in rochelle["reply"]
 
     asyncio.run(body())
 

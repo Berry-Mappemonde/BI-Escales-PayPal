@@ -471,6 +471,7 @@ def _chat_system(lang: str) -> str:
         "Repeat the computed pledge exactly: amount, currency, description, milestone and intent. "
         "Do not propose to take or release money. Do not create an order. Do not invent a price. "
         "State only facts present in the JSON: the stopover, its dates, the fund, and the computed pledge. "
+        "Do not invent a date. Copy only schedule.arrival_iso and schedule.departure_iso. "
         "If a fact is absent, say you do not know. Do not describe the place. "
         "If the message asks whether money will be taken or released, say that only the treasurer review decides. "
         "Mention membership only by repeating the HelloAsso URL you were given. "
@@ -1564,8 +1565,37 @@ def _milestone_in_payload(data: dict) -> str:
     return milestone
 
 
+def _schedule_slice(milestone_id: str) -> dict[str, str]:
+    """Arrival and departure that GET /schedule publishes for this stop or leg.
+
+    The stop arrival is the export row. A leg uses that leg's own pair.
+    The next port's arrival is not included.
+    """
+    from .naviguide_bridge import leg_by_id, leg_departing_from
+
+    if not milestone_id:
+        return {}
+    arrival = _schedule_arrival(milestone_id)
+    departure = ""
+    leg = leg_by_id(milestone_id)
+    if leg:
+        departure = str(leg.get("departure_iso") or "")
+        if not arrival:
+            arrival = str(leg.get("arrival_iso") or "")
+    else:
+        outgoing = leg_departing_from(milestone_id)
+        if outgoing:
+            departure = str(outgoing.get("departure_iso") or "")
+    block: dict[str, str] = {}
+    if arrival:
+        block["arrival_iso"] = arrival
+    if departure:
+        block["departure_iso"] = departure
+    return block
+
+
 def _with_known_facts(prompt: str) -> str:
-    """Add the schedule arrival and the evidence distance. Nothing else is invented."""
+    """Add the /schedule dates and the evidence distance. Nothing else is invented."""
     try:
         data = json.loads(prompt)
     except (TypeError, ValueError):
@@ -1573,14 +1603,13 @@ def _with_known_facts(prompt: str) -> str:
     if not isinstance(data, dict):
         return prompt
     milestone = _milestone_in_payload(data)
-    if milestone and not data.get("arrival_iso"):
-        arrival = _schedule_arrival(milestone)
-        if arrival:
-            data["arrival_iso"] = arrival
-    if milestone and not data.get("departure_iso"):
-        departure = _schedule_departure(milestone)
-        if departure:
-            data["departure_iso"] = departure
+    schedule = _schedule_slice(milestone) if milestone else {}
+    if schedule:
+        data["schedule"] = schedule
+        if not data.get("arrival_iso") and schedule.get("arrival_iso"):
+            data["arrival_iso"] = schedule["arrival_iso"]
+        if not data.get("departure_iso") and schedule.get("departure_iso"):
+            data["departure_iso"] = schedule["departure_iso"]
     evidence = data.get("evidence") if isinstance(data.get("evidence"), dict) else {}
     facts = evidence.get("facts") if isinstance(evidence.get("facts"), dict) else {}
     for key in ("distance_nm", "planned_nm"):
@@ -1663,61 +1692,115 @@ def _labeled_moments(milestone_id: str) -> list[tuple[str, dt.datetime]]:
     return unique
 
 
-def _date_allowance(known: str) -> tuple[set[str], set[int], set[str], Optional[dt.datetime]]:
-    """Years, months and civil dates the schedule (or the payload) actually has."""
-    milestone = ""
+def _known_payload(known: str) -> dict:
     try:
         data = json.loads(known or "")
     except (TypeError, ValueError):
-        data = None
-    if isinstance(data, dict):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _schedule_moments(known: str) -> tuple[list[dt.datetime], Optional[dt.datetime], Optional[dt.datetime]]:
+    """Civil instants injected from /schedule, plus arrival and departure."""
+    data = _known_payload(known)
+    schedule = data.get("schedule") if isinstance(data.get("schedule"), dict) else {}
+    source = schedule or data
+    moments: list[dt.datetime] = []
+    arrival = _parse_clock(str(source.get("arrival_iso") or ""))
+    departure = _parse_clock(str(source.get("departure_iso") or ""))
+    if arrival:
+        moments.append(arrival)
+    if departure:
+        moments.append(departure)
+    if not moments:
         milestone = _milestone_in_payload(data)
-    moments = [moment for _kind, moment in _labeled_moments(milestone)]
-    for match in re.finditer(r"\d{4}-\d{2}-\d{2}", known or ""):
-        parsed = _parse_clock(match.group(0))
-        if parsed:
-            moments.append(parsed)
+        moments = [moment for _kind, moment in _labeled_moments(milestone)]
+        if arrival is None:
+            arrival = next((moment for kind, moment in _labeled_moments(milestone) if kind == "arrival"), None)
+        if departure is None:
+            departure = _primary_moment(milestone)
+    return moments, arrival, departure
+
+
+def _date_allowance(known: str) -> tuple[set[str], set[int], set[str], Optional[dt.datetime]]:
+    """Years, months and civil dates injected from /schedule for this stop or leg."""
+    moments, arrival, _departure = _schedule_moments(known)
     years = {str(moment.year) for moment in moments}
     months = {moment.month for moment in moments}
     days = {moment.date().isoformat() for moment in moments}
-    primary = _primary_moment(milestone)
-    return years, months, days, primary
+    return years, months, days, arrival or (moments[0] if moments else None)
+
+
+def _month_in_phrase(phrase: str) -> Optional[int]:
+    for name, number in _MONTH_INDEX.items():
+        if name and re.search(rf"\b{re.escape(name)}\b", phrase or "", re.IGNORECASE):
+            return number
+    return None
+
+
+def _civil_day(phrase: str) -> Optional[str]:
+    """YYYY-MM-DD when the phrase names a day, else nothing."""
+    iso = re.search(r"(\d{4})-(\d{2})-(\d{2})", phrase or "")
+    if iso:
+        return f"{iso.group(1)}-{iso.group(2)}-{iso.group(3)}"
+    month = _month_in_phrase(phrase)
+    day_match = re.search(r"\b(\d{1,2})(?:er)?\b", phrase or "")
+    year_match = re.search(r"\b(1[89]\d{2}|20\d{2})\b", phrase or "")
+    if month and day_match and year_match:
+        day = int(day_match.group(1))
+        if 1 <= day <= 31:
+            return f"{year_match.group(0)}-{month:02d}-{day:02d}"
+    return None
 
 
 def _phrase_allowed(phrase: str, years: set[str], months: set[int], days: set[str]) -> bool:
-    iso = re.search(r"\d{4}-\d{2}-\d{2}", phrase or "")
-    if iso:
-        return iso.group(0) in days
+    civil = _civil_day(phrase)
+    if civil:
+        return civil in days
+    if _month_in_phrase(phrase) is not None:
+        return False
     year_match = re.search(r"\b(1[89]\d{2}|20\d{2})\b", phrase or "")
-    year = year_match.group(0) if year_match else ""
-    month = None
-    for name, number in _MONTH_INDEX.items():
-        if re.search(rf"\b{re.escape(name)}\b", phrase or "", re.IGNORECASE):
-            month = number
-            break
-    if year and year not in years:
-        return False
-    if month is not None and month not in months:
-        return False
-    return bool(year or month is not None)
+    if year_match:
+        return year_match.group(0) in years
+    return False
 
 
 def _spoken_date(moment: dt.datetime, lang: str) -> str:
     return arrival_phrase({"facts": {"arrival_iso": moment.date().isoformat()}}, lang)
 
 
+_ARRIVAL_CUE = re.compile(r"\barriv|\breach", re.IGNORECASE)
+_DEPARTURE_CUE = re.compile(
+    r"\bdepart|\bd[ée]part|\bleav|\bpartons\b|\bquitt",
+    re.IGNORECASE,
+)
+
+
 def _ground_schedule_dates(text: str, known: str, lang: str = "") -> str:
-    """Replace a date or a year that is not on this stop or leg."""
-    years, months, days, primary = _date_allowance(known)
-    if not years and primary is None:
+    """Keep a date only when its day is one injected from /schedule.
+
+    Any other day or year is replaced by the schedule arrival, or by the
+    schedule departure when the sentence is about leaving. The model cannot
+    swap 12 November and 29 November: only the injected day is kept.
+    """
+    years, _months, days, _primary = _date_allowance(known)
+    _moments, arrival, departure = _schedule_moments(known)
+    if not days and arrival is None and departure is None:
         return text or ""
-    spoken = _spoken_date(primary, "en" if lang == "en" else "fr") if primary else ""
+    spoken_lang = "en" if lang == "en" else "fr"
 
     def replace(match: re.Match) -> str:
         phrase = match.group(0)
-        if _phrase_allowed(phrase, years, months, days):
+        if _phrase_allowed(phrase, years, set(), days):
             return phrase
-        return spoken
+        window = (text or "")[max(0, match.start() - 60):match.end() + 40]
+        if _DEPARTURE_CUE.search(window) and not _ARRIVAL_CUE.search(window) and departure:
+            return _spoken_date(departure, spoken_lang)
+        if arrival:
+            return _spoken_date(arrival, spoken_lang)
+        if departure:
+            return _spoken_date(departure, spoken_lang)
+        return ""
 
     return re.sub(r"[ \t]{2,}", " ", _DATE_PHRASE.sub(replace, text or "")).strip()
 

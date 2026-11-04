@@ -69,7 +69,6 @@ from app.escales.pledges import (
     create_pledge,
     register_vault_pledge,
     require_pledge,
-    resolve_payment_mode,
     to_public,
     void_pledge,
 )
@@ -373,7 +372,6 @@ async def post_schedule_sync():
 async def post_pledge(body: PledgeIn, request: Request):
     client_key = request.headers.get("paypal-request-id")
     try:
-        mode = await resolve_payment_mode(body.milestone_id)
         doc = await create_pledge(
             amount_eur=body.amount_eur,
             description=body.description,
@@ -381,7 +379,6 @@ async def post_pledge(body: PledgeIn, request: Request):
             contributor=body.contributor,
             client=_paypal(),
             client_key=client_key,
-            payment_mode=mode,
             kind=body.kind,
             target_id=body.target_id,
             return_url=body.return_url,

@@ -12,7 +12,7 @@ from typing import Any, Optional
 from .config import AUTH_MAX_DAYS, simulated_now
 from .ledger import get_ledger
 from .paypal_client import PayPalError
-from .pledges import capture_pledge, mark_vault_charge_failed, void_pledge
+from .pledges import capture_pledge, mark_token_delete_pending, mark_vault_charge_failed, void_pledge
 
 
 def _parse_moment(value: Optional[str]) -> Optional[dt.datetime]:
@@ -98,6 +98,25 @@ def _vault_failure_detail(exc: Exception) -> str:
     return str(exc)[:200]
 
 
+async def _void_cancelled_departure(
+    pledge_id: str,
+    client: Any,
+    *,
+    mode: str,
+    actions: list[dict],
+) -> None:
+    try:
+        saved = await void_pledge(pledge_id, client)
+        actions.append({"pledge_id": saved["_id"], "action": "void"})
+    except Exception as exc:
+        if mode == "VAULT":
+            detail = _vault_failure_detail(exc)
+            await mark_token_delete_pending(pledge_id, detail)
+            actions.append({"pledge_id": pledge_id, "action": "token_delete_pending", "detail": detail})
+        else:
+            actions.append({"pledge_id": pledge_id, "action": "error", "detail": str(exc)})
+
+
 async def run_departure_clock(client: Any, *, now: Optional[dt.datetime] = None) -> dict:
     """Settle authorized or vaulted departure pledges against the simulated clock."""
     moment = now or simulated_now()
@@ -107,19 +126,22 @@ async def run_departure_clock(client: Any, *, now: Optional[dt.datetime] = None)
             continue
         mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
         status = str(pledge.get("status") or "")
+        doc = await departure_milestone(pledge)
+        if not doc:
+            continue
+        pledge_id = str(pledge.get("_id") or "")
+        if mode == "VAULT" and status == "token_delete_pending":
+            if _cancelled(doc):
+                await _void_cancelled_departure(pledge_id, client, mode=mode, actions=actions)
+            continue
         if mode == "VAULT":
             if status != "vaulted":
                 continue
         elif status != "authorized":
             continue
-        doc = await departure_milestone(pledge)
-        if not doc:
-            continue
-        pledge_id = str(pledge.get("_id") or "")
         try:
             if _cancelled(doc):
-                saved = await void_pledge(pledge_id, client)
-                actions.append({"pledge_id": saved["_id"], "action": "void"})
+                await _void_cancelled_departure(pledge_id, client, mode=mode, actions=actions)
                 continue
             departure = _parse_moment((doc.get("meta") or {}).get("departure_iso"))
             if departure is None or moment.date() < departure.date():

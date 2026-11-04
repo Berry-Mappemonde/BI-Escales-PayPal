@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.escales.departure_clock import run_departure_clock
 from app.escales.ledger import get_ledger
 from app.escales.pledges import (
     IllegalTransition,
@@ -91,15 +92,25 @@ class VaultPayPal:
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-04T08:00:00Z")
     reset_ledger()
     yield
     reset_ledger()
 
 
-async def _seed_far_milestone(milestone_id: str = "dep-long-haul"):
+async def _seed_far_milestone(
+    milestone_id: str = "dep-long-haul",
+    *,
+    departure_iso: str = "2027-05-15T08:00:00+00:00",
+):
     await get_ledger().ensure_milestone(
         milestone_id,
-        meta={"arrival_iso": FAR_ARRIVAL, "title": "Long haul"},
+        meta={
+            "capture_on": "departure",
+            "departure_iso": departure_iso,
+            "arrival_iso": FAR_ARRIVAL,
+            "title": "Long haul",
+        },
     )
 
 
@@ -354,6 +365,68 @@ def test_vault_void_records_token_deleted_not_void_id(monkeypatch):
         assert voided.get("void_id") is None
         assert voided["vault_voided_at"].startswith("2026-03-01")
         assert ("delete_token", vaulted["vault_id"]) in client.calls
+
+    asyncio.run(body())
+
+
+def test_departure_clock_retries_vault_token_delete(monkeypatch):
+    monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+
+    class FlakyDelete:
+        def __init__(self) -> None:
+            self.calls: list[tuple] = []
+            self.fail_delete = True
+
+        def delete_payment_token(self, vault_id: str) -> dict:
+            self.calls.append(("delete_token", vault_id))
+            if self.fail_delete:
+                from app.escales.paypal_client import PayPalError
+
+                raise PayPalError(502, {"name": "INTERNAL_SERVER_ERROR", "debug_id": "del-1"})
+            return {}
+
+    async def body():
+        from app.escales.milestones import record_evidence
+
+        fake = FlakyDelete()
+        await get_ledger().ensure_milestone(
+            "dep-del-retry",
+            meta={"capture_on": "departure", "departure_iso": "2026-12-01T08:00:00+00:00"},
+        )
+        row = {
+            "_id": "vault-del",
+            "status": "vaulted",
+            "intent": "VAULT",
+            "payment_mode": "VAULT",
+            "vault_id": "VAULT-RETRY",
+            "milestone_id": "dep-del-retry",
+            "amount_eur": "10.00",
+            "currency": "EUR",
+            "kind": "mile",
+            "target_id": "dep-del-retry",
+            "history": ["vaulted"],
+        }
+        await get_ledger().insert_pledge_once(row)
+        await record_evidence("dep-del-retry", met=False, facts={"cancelled": True})
+
+        first = await run_departure_clock(fake)
+        assert any(
+            act["pledge_id"] == "vault-del" and act["action"] == "token_delete_pending"
+            for act in first["actions"]
+        )
+        stored = await get_ledger().get_pledge("vault-del")
+        assert stored["status"] == "token_delete_pending"
+
+        fake.fail_delete = False
+        second = await run_departure_clock(fake)
+        assert any(
+            act["pledge_id"] == "vault-del" and act["action"] == "void"
+            for act in second["actions"]
+        )
+        done = await get_ledger().get_pledge("vault-del")
+        assert done["status"] == "voided"
+        assert done["vault_token_deleted"] is True
+        assert ("delete_token", "VAULT-RETRY") in fake.calls
 
     asyncio.run(body())
 

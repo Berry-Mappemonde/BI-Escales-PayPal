@@ -469,6 +469,63 @@ def test_cabin_leg_authorizes_and_waits_for_departure(monkeypatch):
     asyncio.run(body())
 
 
+def test_two_cabins_same_leg_both_authorize_at_28_days(monkeypatch):
+    """Payment mode must not flip to VAULT on the 2nd cabin when departure is within 29 days."""
+    from app.escales.naviguide_bridge import sync_leg_shells
+
+    monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-10-15T08:00:00Z")
+    leg = "leg-la-rochelle-to-ajaccio-corse"
+
+    async def body():
+        await sync_leg_shells()
+        spy = Spy()
+        first = await create_pledge(
+            amount_eur="80.00",
+            description="cabine a",
+            milestone_id=leg,
+            client=spy,
+            client_key="cabin-a",
+            kind="cabin_leg",
+        )
+        second = await create_pledge(
+            amount_eur="80.00",
+            description="cabine b",
+            milestone_id=leg,
+            client=spy,
+            client_key="cabin-b",
+            kind="cabin_leg",
+        )
+        assert first["payment_mode"] == "AUTHORIZE"
+        assert second["payment_mode"] == "AUTHORIZE"
+        assert _names(spy) == ["create", "create"]
+
+    asyncio.run(body())
+
+
+def test_cabin_uses_vault_only_when_departure_beyond_29_days(monkeypatch):
+    from app.escales.naviguide_bridge import sync_leg_shells
+
+    monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-10-01T08:00:00Z")
+    leg = "leg-la-rochelle-to-ajaccio-corse"
+
+    async def body():
+        await sync_leg_shells()
+        spy = Spy()
+        created = await create_pledge(
+            amount_eur="80.00",
+            description="cabine lointaine",
+            milestone_id=leg,
+            client=spy,
+            kind="cabin_leg",
+        )
+        assert created["payment_mode"] == "VAULT"
+        assert spy.calls[-1][0] == "setup_token"
+
+    asyncio.run(body())
+
+
 def test_legacy_memory_row_reads_as_a_mile():
     async def body():
         ledger = get_ledger()

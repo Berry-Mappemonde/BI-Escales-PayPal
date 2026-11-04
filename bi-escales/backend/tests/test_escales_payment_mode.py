@@ -26,10 +26,10 @@ def test_select_authorize_when_vault_disabled(monkeypatch):
     assert select_payment_mode(far) == "AUTHORIZE"
 
 
-def test_select_vault_when_horizon_at_least_29_days(monkeypatch):
+def test_select_authorize_by_default_even_when_vault_enabled(monkeypatch):
     monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
     now = dt.datetime(2026, 11, 4, tzinfo=dt.timezone.utc)
     horizon = (now + dt.timedelta(days=AUTH_MAX_DAYS)).isoformat()
-    assert select_payment_mode(horizon, now=now) == "VAULT"
+    assert select_payment_mode(horizon, now=now) == "AUTHORIZE"
     near = (now + dt.timedelta(days=AUTH_MAX_DAYS - 1)).isoformat()
     assert select_payment_mode(near, now=now) == "AUTHORIZE"

@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Literal, Optional
 
-from .config import AUTH_MAX_DAYS, vault_enabled
+from .config import AUTH_MAX_DAYS
 
 PaymentMode = Literal["AUTHORIZE", "VAULT"]
 
@@ -39,12 +39,6 @@ def select_payment_mode(
     *,
     now: Optional[dt.datetime] = None,
 ) -> PaymentMode:
-    """Demo rule: AUTHORIZE when the jalon is under 29 days away; else VAULT if enabled."""
-    if not vault_enabled():
-        return "AUTHORIZE"
-    days = days_until_arrival(arrival_iso, now=now)
-    if days is None:
-        return "AUTHORIZE"
-    if days >= AUTH_MAX_DAYS:
-        return "VAULT"
+    """Default is AUTHORIZE. VAULT is chosen only in ``create_pledge`` when authorization is too early before departure."""
+    _ = (arrival_iso, now)
     return "AUTHORIZE"

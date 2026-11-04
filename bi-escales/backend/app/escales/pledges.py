@@ -41,7 +41,7 @@ from .ledger import (
     record_finance,
     reset_ledger,
 )
-from .payment_mode import PaymentMode, select_payment_mode
+from .payment_mode import PaymentMode
 from .paypal_client import (
     PayPalError,
     approve_link,
@@ -407,17 +407,10 @@ async def require_pledge(pledge_id: str) -> dict:
     return doc
 
 
-async def _milestone_arrival(milestone_id: str) -> Optional[str]:
-    doc = await get_ledger().get_milestone(milestone_id)
-    if not doc:
-        return None
-    meta = doc.get("meta") or {}
-    return meta.get("arrival_iso")
-
-
 async def resolve_payment_mode(milestone_id: str) -> PaymentMode:
-    arrival = await _milestone_arrival(milestone_id)
-    return select_payment_mode(arrival)
+    """Public default before ``create_pledge`` runs the departure-day fallback."""
+    _ = milestone_id
+    return "AUTHORIZE"
 
 
 async def create_pledge(
@@ -471,13 +464,13 @@ async def create_pledge(
             raise ValueError("milestone_id must name a known stopover")
         milestone_id = str(canonical)
     resolved_target = await _resolve_target(target_id, milestone_id, pledge_kind)
-    mode = payment_mode or await resolve_payment_mode(milestone_id)
     if pledge_kind == "cabin_leg":
         from .naviguide_bridge import leg_by_id, leg_milestone_meta
 
         leg = leg_by_id(resolved_target)
         if leg:
             await get_ledger().ensure_milestone(leg["id"], meta=leg_milestone_meta(leg))
+    mode: PaymentMode = payment_mode or "AUTHORIZE"
     from .departure_clock import refuse_cancelled_departure, refuse_early_authorization
 
     draft = {
@@ -724,9 +717,10 @@ async def register_vault_pledge(
     return saved
 
 
-def _require_status(pledge: dict, expected: str, target: str) -> None:
+def _require_status(pledge: dict, expected: str | tuple[str, ...], target: str) -> None:
     current = pledge.get("status")
-    if current != expected:
+    allowed = expected if isinstance(expected, tuple) else (expected,)
+    if current not in allowed:
         raise IllegalTransition(str(current), target)
 
 
@@ -886,6 +880,26 @@ async def mark_vault_charge_failed(pledge_id: str, detail: str) -> dict:
     return saved
 
 
+async def mark_token_delete_pending(pledge_id: str, detail: str) -> dict:
+    """PayPal vault token delete failed on void — retry on the next departure settle."""
+    from .audit import record
+
+    pledge = await require_pledge(pledge_id)
+    pledge["status"] = "token_delete_pending"
+    pledge["paypal_status"] = str(detail or "")[:120]
+    pledge["history"] = list(pledge.get("history") or []) + ["token_delete_pending"]
+    saved = await get_ledger().save_pledge(pledge)
+    await record(
+        "token_delete_pending",
+        pledge_id=saved["_id"],
+        milestone_id=saved.get("milestone_id"),
+        detail=str(detail or "")[:200],
+        payment_mode="VAULT",
+        **_identity(saved),
+    )
+    return saved
+
+
 async def capture_pledge(pledge_id: str, client: Any) -> dict:
     pledge = await require_pledge(pledge_id)
     mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
@@ -979,7 +993,7 @@ async def void_pledge(pledge_id: str, client: Any) -> dict:
     pledge = await require_pledge(pledge_id)
     mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
     if mode == "VAULT":
-        _require_status(pledge, "vaulted", "voided")
+        _require_status(pledge, ("vaulted", "token_delete_pending"), "voided")
         vault_id = pledge.get("vault_id")
         if not vault_id:
             raise IllegalTransition("vaulted", "voided")

@@ -5,19 +5,36 @@ import re
 from typing import Any, Optional
 
 _EMAIL = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.I)
-_AMOUNT = re.compile(r"(\d+(?:[.,]\d{1,2})?)\s*(?:€|eur|euros?)?", re.I)
+_NUMBER = r"(\d+(?:[.,]\d{1,2})?)"
+# A number tied to a currency marker wins: "50 EUR", "50€", "€50", "EUR 50".
+_AMOUNT_WITH_CURRENCY = re.compile(
+    rf"(?<![\w.,]){_NUMBER}\s*(?:€|\beur\b|\beuros?\b)|(?:€|\beur\b)\s*{_NUMBER}(?![\w.,]*\d)",
+    re.I,
+)
+# Otherwise a standalone number, never digits glued to a word ("user123").
+_AMOUNT_BARE = re.compile(rf"(?<![\w.,@-]){_NUMBER}(?![\w@-]|[.,]\d)", re.I)
+
+
+def _to_amount(raw: str) -> Optional[str]:
+    try:
+        value = float(raw.replace(",", "."))
+    except ValueError:
+        return None
+    if value <= 0:
+        return None
+    return f"{value:.2f}"
 
 
 def _parse_amount(text: str) -> Optional[str]:
-    match = _AMOUNT.search(text)
-    if not match:
-        return None
-    raw = match.group(1).replace(",", ".")
-    try:
-        value = float(raw)
-    except ValueError:
-        return None
-    return f"{value:.2f}"
+    """Amount in euros, ignoring digits inside e-mail addresses and identifiers."""
+    cleaned = _EMAIL.sub(" ", text or "")
+    match = _AMOUNT_WITH_CURRENCY.search(cleaned)
+    if match:
+        return _to_amount(match.group(1) or match.group(2))
+    match = _AMOUNT_BARE.search(cleaned)
+    if match:
+        return _to_amount(match.group(1))
+    return None
 
 
 def parse_agentic_proposal(message: str, lang: str) -> Optional[dict[str, Any]]:

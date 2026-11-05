@@ -23,10 +23,37 @@ describe("buildMarinaDashboardRows", () => {
         description: "berth",
         milestone_id: "dep-mayotte",
         kind: "berth",
+        platform_fee_eur: "3.00",
+        marina_net_eur: "27.00",
+        platform_fee_simulated: true,
       },
     ]);
     expect(rows).toHaveLength(1);
     expect(rows[0].berth_bookings).toBe(2);
     expect(rows[0].gross_eur).toBe(60);
+    expect(rows[0].platform_fees_eur).toBe(3);
+    expect(rows[0].marina_net_eur).toBe(27);
+    expect(rows[0].fees_simulated).toBe(true);
+  });
+
+  it("ignore les frais tant que la capture n’est pas faite", () => {
+    const rows = buildMarinaDashboardRows([
+      {
+        id: "b1",
+        status: "authorized",
+        intent: "AUTHORIZE",
+        currency: "EUR",
+        amount_eur: "30.00",
+        description: "berth",
+        milestone_id: "dep-mayotte",
+        kind: "berth",
+        platform_fee_eur: "3.00",
+        marina_net_eur: "27.00",
+        platform_fee_simulated: true,
+      },
+    ]);
+    expect(rows[0].platform_fees_eur).toBe(0);
+    expect(rows[0].marina_net_eur).toBe(0);
+    expect(rows[0].fees_simulated).toBe(false);
   });
 });

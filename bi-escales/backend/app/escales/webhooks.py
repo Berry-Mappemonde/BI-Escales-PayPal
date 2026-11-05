@@ -337,7 +337,7 @@ async def _apply_event(event: dict) -> dict:
             if target == "captured":
                 from .pledges import record_pledge_captured_once
 
-                await record_pledge_captured_once(pledge, actor="webhook")
+                pledge = await record_pledge_captured_once(pledge, actor="webhook")
             else:
                 await record_finance(
                     "webhook_capture_denied",

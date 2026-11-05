@@ -155,6 +155,15 @@ def channel3_enabled() -> bool:
     return os.environ.get("ESCALES_CHANNEL3_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def channel3_api_key() -> str:
+    return (os.environ.get("CHANNEL3_API_KEY") or os.environ.get("ESCALES_CHANNEL3_API_KEY") or "").strip()
+
+
+def channel3_mcp_url() -> str:
+    raw = (os.environ.get("CHANNEL3_MCP_URL") or "https://ucp.trychannel3.com/mcp").strip()
+    return raw or "https://ucp.trychannel3.com/mcp"
+
+
 def bryntum_scheduler_enabled() -> bool:
     return os.environ.get("ESCALES_BRYNTUM_ENABLED", "").strip().lower() in _TRUTHY
 
@@ -222,6 +231,13 @@ def platform_payee_merchant_id() -> str:
 def marina_seller_merchant_id(_target_id: str = "") -> str:
     """Marina seller merchant id (from partner-referrals onboarding)."""
     return (os.environ.get("ESCALES_MARINA_SELLER_MERCHANT_ID") or "").strip()
+
+
+def paypal_berth_platform_fees_on_order(target_id: str = "") -> bool:
+    """True when PayPal Orders v2 will carry multiparty platform_fees for this berth."""
+    if not platform_fees_enabled():
+        return False
+    return bool(marina_seller_merchant_id(target_id)) and bool(platform_payee_merchant_id())
 
 
 def apple_pay_domain_association_file() -> str:

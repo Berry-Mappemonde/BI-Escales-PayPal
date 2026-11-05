@@ -1,0 +1,63 @@
+{
+  "type": "FeatureCollection",
+  "name": "Expedition gear (sandbox seed)",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [55.45, -20.88] },
+      "properties": {
+        "id": "gear-dive-computer-expedition",
+        "title": "Ordinateur de plongée expedition",
+        "funder": "Channel3",
+        "url": "https://trychannel3.com/",
+        "category_group": "Gear",
+        "location": "Réunion",
+        "description": "Matériel expédition — financement collectif sandbox EUR.",
+        "project_kind": "gear_project",
+        "goal_eur": "450.00",
+        "channel3_price_eur": "450.00",
+        "channel3_image_url": "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=640",
+        "channel3_buy_url": "https://trychannel3.com/",
+        "channel3_product_name": "Suunto D5"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [57.65, -20.16] },
+      "properties": {
+        "id": "gear-dry-bag-expedition",
+        "title": "Sacs étanches (lot expédition)",
+        "funder": "Channel3",
+        "url": "https://trychannel3.com/",
+        "category_group": "Gear",
+        "location": "Océan Indien",
+        "description": "Protection du matériel embarqué — objectif sandbox.",
+        "project_kind": "gear_project",
+        "goal_eur": "120.00",
+        "channel3_price_eur": "120.00",
+        "channel3_image_url": "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=640",
+        "channel3_buy_url": "https://trychannel3.com/",
+        "channel3_product_name": "Dry bag 40L"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [49.29, -18.14] },
+      "properties": {
+        "id": "gear-marine-binoculars",
+        "title": "Jumelles marines",
+        "funder": "Channel3",
+        "url": "https://trychannel3.com/",
+        "category_group": "Gear",
+        "location": "Madagascar",
+        "description": "Observation côtière et sécurité — financement Gear sandbox.",
+        "project_kind": "gear_project",
+        "goal_eur": "280.00",
+        "channel3_price_eur": "280.00",
+        "channel3_image_url": "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=640",
+        "channel3_buy_url": "https://trychannel3.com/",
+        "channel3_product_name": "Marine binoculars 7x50"
+      }
+    }
+  ]
+}

@@ -249,7 +249,11 @@
     "marinaStop": "Stopover / milestone",
     "marinaBookings": "Bookings",
     "marinaGross": "Gross EUR",
-    "marinaFees": "Platform fees (est.)",
+    "marinaFees": "Platform fees",
+    "marinaFeesSimulated": "Platform fee (sandbox sim.)",
+    "marinaNet": "Net to marina",
+    "marinaNetSimulated": "Net to marina (sandbox sim.)",
+    "marinaSimBanner": "Platform fee and net to marina are computed in-app (sandbox simulation) because PayPal partner merchant IDs are not configured. PayPal orders are not split.",
     "marinaRefunds": "Refunds",
     "marinaDisputes": "Open disputes"
   }

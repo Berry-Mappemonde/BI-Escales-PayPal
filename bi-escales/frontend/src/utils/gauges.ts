@@ -5,14 +5,31 @@ export interface MarinaDashboardRow {
   berth_bookings: number;
   gross_eur: number;
   platform_fees_eur: number;
+  marina_net_eur: number;
   refunds_eur: number;
   disputes_open: number;
+  fees_simulated: boolean;
+}
+
+const CAPTURED_STATUSES = new Set<PublicPledge["status"]>([
+  "captured",
+  "partially_refunded",
+  "refunded",
+]);
+
+function parseEur(value: string | null | undefined): number {
+  const n = parseFloat(value || "0");
+  return Number.isFinite(n) ? n : 0;
+}
+
+function isCapturedBerth(p: PublicPledge): boolean {
+  return (p.kind || "") === "berth" && CAPTURED_STATUSES.has(p.status);
 }
 
 export function sumAmount(pledges: PublicPledge[], status: PublicPledge["status"]): number {
   return pledges
     .filter((p) => p.status === status)
-    .reduce((acc, p) => acc + parseFloat(p.amount_eur || "0"), 0);
+    .reduce((acc, p) => acc + parseEur(p.amount_eur), 0);
 }
 
 export function countByStatus(pledges: PublicPledge[], status: PublicPledge["status"]): number {
@@ -47,9 +64,7 @@ export function gaugePercent(row: PledgeGaugeRow, field: "authorized" | "capture
   return Math.round((row.voided_count / total) * 100);
 }
 
-const PLATFORM_FEE_PER_BERTH = 3;
-
-/** Marina berth dashboard: bookings, gross, fee estimate, refunds (disputes placeholder). */
+/** Marina berth dashboard from ledger-backed fee fields on captured pledges. */
 export function buildMarinaDashboardRows(pledges: PublicPledge[]): MarinaDashboardRow[] {
   const byStop = new Map<string, PublicPledge[]>();
   for (const p of pledges) {
@@ -62,20 +77,26 @@ export function buildMarinaDashboardRows(pledges: PublicPledge[]): MarinaDashboa
   return [...byStop.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([marina_key, list]) => {
-      const gross = list.reduce((acc, row) => acc + parseFloat(row.amount_eur || "0"), 0);
+      const gross = list.reduce((acc, row) => acc + parseEur(row.amount_eur), 0);
       const refunds = list
         .filter((row) => row.status === "refunded" || row.status === "partially_refunded")
-        .reduce((acc, row) => acc + parseFloat(row.amount_eur || "0"), 0);
-      const capturedOrAuth = list.filter((row) =>
-        ["authorized", "captured", "settled", "pending"].includes(row.status),
-      ).length;
+        .reduce((acc, row) => acc + parseEur(row.amount_eur), 0);
+      const captured = list.filter((row) => isCapturedBerth(row));
+      const platform_fees_eur = captured.reduce(
+        (acc, row) => acc + parseEur(row.platform_fee_eur),
+        0,
+      );
+      const marina_net_eur = captured.reduce((acc, row) => acc + parseEur(row.marina_net_eur), 0);
+      const fees_simulated = captured.some((row) => row.platform_fee_simulated === true);
       return {
         marina_key,
         berth_bookings: list.length,
         gross_eur: gross,
-        platform_fees_eur: capturedOrAuth * PLATFORM_FEE_PER_BERTH,
+        platform_fees_eur,
+        marina_net_eur,
         refunds_eur: refunds,
         disputes_open: 0,
+        fees_simulated,
       };
     });
 }

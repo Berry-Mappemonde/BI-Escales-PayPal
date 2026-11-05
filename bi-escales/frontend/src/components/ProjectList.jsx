@@ -3,12 +3,14 @@
  * Blue-Intelligence frontend/src/components/ProjectList.js
  * (filtre via filterProjectFeatures.js ; promesse Escales).
  */
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { fetchPublicProjectFund } from "../api/escales";
 import { filterProjectFeatures } from "../projects/filterProjectFeatures.js";
 import { parseProjectPledgeAmount } from "../projects/projectPledgeAmount.js";
 import { visibleProjectFeatures } from "../projects/visibleProjectFeatures.js";
 import { PledgeButton } from "./PledgeButton";
+import { ProjectFundProgress } from "./ProjectFundProgress";
 
 /** Même plafond que ProjectList.js BI (slice 0, 100). */
 const LIST_CAP = 100;
@@ -19,12 +21,36 @@ function ProjectPledgeForm({ project, contributor, onAuthorized }) {
   const props = project?.properties || {};
   const [amount, setAmount] = useState(MIN_EUR);
   const [who, setWho] = useState(contributor || "");
+  const [publicTotal, setPublicTotal] = useState(null);
   const title = props.title || props.id || "";
   const description = t("projects.pledgeDescription", { title });
   const parsed = parseProjectPledgeAmount(amount);
+  const isGear = String(props.project_kind || "") === "gear_project";
+  const projectId = String(props.id || "").trim();
+
+  const loadFund = useCallback(async () => {
+    if (!isGear || !projectId) {
+      setPublicTotal(null);
+      return;
+    }
+    const data = await fetchPublicProjectFund(projectId);
+    setPublicTotal(data);
+  }, [isGear, projectId]);
+
+  useEffect(() => {
+    void loadFund();
+  }, [loadFund]);
+
+  const handleAuthorized = (pledge) => {
+    void loadFund();
+    onAuthorized?.(pledge);
+  };
 
   return (
     <div className="project-pledge" data-testid="project-pledge" data-project-id={props.id}>
+      {isGear && publicTotal ? (
+        <ProjectFundProgress properties={props} fund={publicTotal} />
+      ) : null}
       <label>
         {t("pledge.amount")}
         <input
@@ -55,7 +81,7 @@ function ProjectPledgeForm({ project, contributor, onAuthorized }) {
           target_id: props.id,
         }}
         disabled={parsed.kind !== "ok"}
-        onAuthorized={onAuthorized}
+        onAuthorized={handleAuthorized}
       />
     </div>
   );

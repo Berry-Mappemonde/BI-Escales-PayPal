@@ -249,7 +249,11 @@
     "marinaStop": "Escale / jalon",
     "marinaBookings": "Réservations",
     "marinaGross": "Brut EUR",
-    "marinaFees": "Frais plateforme (est.)",
+    "marinaFees": "Frais plateforme",
+    "marinaFeesSimulated": "Frais plateforme (sim. bac à sable)",
+    "marinaNet": "Net marina",
+    "marinaNetSimulated": "Net marina (sim. bac à sable)",
+    "marinaSimBanner": "Frais plateforme et net marina sont calculés dans l’app (simulation bac à sable) faute d’identifiants marchands PayPal partner. Aucun split sur les ordres PayPal.",
     "marinaRefunds": "Remboursements",
     "marinaDisputes": "Litiges ouverts"
   }

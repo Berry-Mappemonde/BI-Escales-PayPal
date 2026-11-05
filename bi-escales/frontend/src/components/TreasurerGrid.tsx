@@ -113,6 +113,11 @@ export function TreasurerGrid(props: TreasurerGridProps) {
     </section>
     <section className="panel treasurer-marina-grid" data-testid="treasurer-marina-dashboard">
       <h2>{t("grid.marinaHeading")}</h2>
+      {marinaRows.some((row) => row.fees_simulated) ? (
+        <p className="hint" data-testid="marina-fee-simulation-banner">
+          {t("grid.marinaSimBanner")}
+        </p>
+      ) : null}
       {marinaRows.length === 0 ? (
         <p className="hint">{t("grid.marinaEmpty")}</p>
       ) : (
@@ -122,7 +127,16 @@ export function TreasurerGrid(props: TreasurerGridProps) {
               <th>{t("grid.marinaStop")}</th>
               <th>{t("grid.marinaBookings")}</th>
               <th>{t("grid.marinaGross")}</th>
-              <th>{t("grid.marinaFees")}</th>
+              <th>
+                {marinaRows.some((row) => row.fees_simulated)
+                  ? t("grid.marinaFeesSimulated")
+                  : t("grid.marinaFees")}
+              </th>
+              <th>
+                {marinaRows.some((row) => row.fees_simulated)
+                  ? t("grid.marinaNetSimulated")
+                  : t("grid.marinaNet")}
+              </th>
               <th>{t("grid.marinaRefunds")}</th>
               <th>{t("grid.marinaDisputes")}</th>
             </tr>
@@ -134,6 +148,7 @@ export function TreasurerGrid(props: TreasurerGridProps) {
                 <td>{row.berth_bookings}</td>
                 <td>{row.gross_eur.toFixed(2)} €</td>
                 <td>{row.platform_fees_eur.toFixed(2)} €</td>
+                <td>{row.marina_net_eur.toFixed(2)} €</td>
                 <td>{row.refunds_eur.toFixed(2)} €</td>
                 <td>{row.disputes_open}</td>
               </tr>

@@ -4,6 +4,7 @@ import { authorizePledge, createPledge, fetchFeatures, registerVault, isVaultPle
 import { PayPalCardFieldsBlock } from "./PayPalCardFieldsBlock";
 import type { PublicPledge } from "../api/types";
 import { loadPayPalSdk, payLaterEligible } from "../paypal/paypalSdk";
+import { PayPalWalletPayBlock } from "./PayPalWalletPayBlock";
 import { subscribePledgeReturn } from "../paypal/pledgeReturnEvents";
 
 export interface PledgeFormValues {
@@ -31,6 +32,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
   const [busy, setBusy] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const [cardFieldsEnabled, setCardFieldsEnabled] = useState(false);
+  const [walletPayEnabled, setWalletPayEnabled] = useState(false);
   const sdkHost = useRef<HTMLDivElement | null>(null);
   const activePledgeIdRef = useRef<string | null>(null);
   const vault = created ? isVaultPledge(created) : false;
@@ -44,7 +46,10 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
     let cancelled = false;
     void fetchFeatures()
       .then((flags) => {
-        if (!cancelled) setCardFieldsEnabled(Boolean(flags.card_fields));
+        if (!cancelled) {
+          setCardFieldsEnabled(Boolean(flags.card_fields));
+          setWalletPayEnabled(Boolean(flags.wallet_pay));
+        }
       })
       .catch(() => {
         if (!cancelled) setCardFieldsEnabled(false);
@@ -64,7 +69,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
       };
     }
     setSdkReady(false);
-    void loadPayPalSdk(clientId, appLang, sdkIntent)
+    void loadPayPalSdk(clientId, appLang, sdkIntent, walletPayEnabled)
       .then(() => {
         if (!cancelled) setSdkReady(true);
       })
@@ -74,7 +79,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
     return () => {
       cancelled = true;
     };
-  }, [appLang, sdkIntent]);
+  }, [appLang, sdkIntent, walletPayEnabled]);
 
   useEffect(() => {
     setCreated(null);
@@ -249,6 +254,15 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
         </button>
       ) : null}
       <div ref={buttonsHost} data-testid="paypal-smart-buttons" />
+      {walletPayEnabled && !isProjectPledge ? (
+        <PayPalWalletPayBlock
+          values={values}
+          appLang={appLang}
+          sdkIntent={sdkIntent}
+          disabled={disabled || busy}
+          onAuthorized={onAuthorized}
+        />
+      ) : null}
       {cardFieldsEnabled && !isProjectPledge ? (
         <PayPalCardFieldsBlock values={values} appLang={appLang} disabled={disabled || busy} onAuthorized={onAuthorized} />
       ) : null}

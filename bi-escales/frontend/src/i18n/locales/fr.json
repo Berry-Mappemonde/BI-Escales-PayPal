@@ -158,6 +158,7 @@
     "venmoNote": "PayPal ou carte (EUR). Venmo indisponible — USD uniquement.",
     "cardFieldsHint": "Carte bancaire (sandbox) : enregistrement Vault ou autorisation selon l’échéance.",
     "cardPay": "Payer par carte",
+    "walletPayHint": "Google Pay (Chrome) ou Apple Pay (Safari), sandbox TEST EUR.",
     "error": "Erreur promesse",
     "crewSubscribeHint": "Abonnement mensuel Équipage (EUR, sandbox).",
     "crewSubscribeSaved": "Abonnement Équipage enregistré. Merci.",

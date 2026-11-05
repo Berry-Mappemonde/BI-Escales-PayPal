@@ -5,6 +5,7 @@ import datetime as dt
 import logging
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 SANDBOX_BASE = "https://api-m.sandbox.paypal.com"
@@ -201,6 +202,24 @@ def vault_on_purchase_enabled() -> bool:
 def wallet_pay_enabled() -> bool:
     """Apple Pay and Google Pay SDK components. Off by default; needs sandbox domain registration."""
     return os.environ.get("ESCALES_WALLET_PAY_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def apple_pay_domain_association_file() -> str:
+    """Optional override path to the Apple Pay domain association file."""
+    return (os.environ.get("ESCALES_APPLE_PAY_DOMAIN_ASSOCIATION_FILE") or "").strip()
+
+
+def bundled_apple_pay_domain_association_path() -> Path:
+    """PayPal sandbox association file shipped under backend/static/.well-known/."""
+    backend_root = Path(__file__).resolve().parents[2]
+    return backend_root / "static" / ".well-known" / "apple-developer-merchantid-domain-association"
+
+
+def resolve_apple_pay_domain_association_path() -> Path:
+    override = apple_pay_domain_association_file()
+    if override:
+        return Path(override).expanduser().resolve()
+    return bundled_apple_pay_domain_association_path()
 
 
 def vault_return_url() -> str:

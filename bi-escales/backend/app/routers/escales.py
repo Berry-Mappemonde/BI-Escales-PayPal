@@ -27,6 +27,8 @@ from app.escales.config import (
     clock_now_pinned,
     parse_clock_moment,
     simulated_now,
+    demo_treasurer_enabled,
+    demo_treasurer_env_forbidden,
     elastic_evidence_enabled,
     escales_enabled,
     escales_env,
@@ -302,6 +304,40 @@ def _reader() -> Optional[ReadOnlyTools]:
     return ReadOnlyTools(client)
 
 
+def _has_admin_key_header(request: Request) -> bool:
+    return bool(request.headers.get("x-admin-key", "").strip())
+
+
+def _demo_treasurer_session(request: Request) -> bool:
+    return demo_treasurer_enabled() and not _has_admin_key_header(request)
+
+
+def _require_treasurer_or_demo(request: Request) -> None:
+    if _has_admin_key_header(request):
+        _require_treasurer(request)
+        return
+    if demo_treasurer_env_forbidden():
+        raise HTTPException(
+            status_code=403,
+            detail="Demo treasurer requires PAYPAL_ENV=sandbox",
+        )
+    if _demo_treasurer_session(request):
+        return
+    _require_treasurer(request)
+
+
+def _treasurer_privileged(request: Request) -> bool:
+    if _has_admin_key_header(request):
+        _require_treasurer(request)
+        return True
+    if demo_treasurer_env_forbidden():
+        raise HTTPException(
+            status_code=403,
+            detail="Demo treasurer requires PAYPAL_ENV=sandbox",
+        )
+    return _demo_treasurer_session(request)
+
+
 def _require_treasurer(request: Request) -> None:
     try:
         expected = os.environ["ESCALES_ADMIN_KEY"]
@@ -526,6 +562,7 @@ async def get_features():
         "pay_later_min_eur": PAY_LATER_UI_MIN_EUR,
         "p2_eligibility": p2_eligibility_report(),
         "crew_supporter_plan_id": crew_plan_id,
+        "demo_treasurer": demo_treasurer_enabled(),
         "fastlane": False,
     }
 
@@ -645,7 +682,7 @@ async def post_authorize(pledge_id: str):
 
 @router.post("/pledges/{pledge_id}/capture")
 async def post_capture(pledge_id: str, request: Request, body: CaptureIn = CaptureIn()):
-    _require_treasurer(request)
+    _require_treasurer_or_demo(request)
     effective_at = None
     if (body.now or "").strip():
         if not clock_now_pinned():
@@ -663,7 +700,7 @@ async def post_capture(pledge_id: str, request: Request, body: CaptureIn = Captu
 
 @router.post("/pledges/{pledge_id}/void")
 async def post_void(pledge_id: str, request: Request):
-    _require_treasurer(request)
+    _require_treasurer_or_demo(request)
     try:
         doc = await void_pledge(pledge_id, _paypal())
     except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
@@ -1004,7 +1041,7 @@ async def post_payout_approve(payout_id: str, request: Request, lang: Optional[s
 @router.get("/pledges")
 async def get_pledges(request: Request):
     """Every pledge on the server. The treasurer key is required."""
-    _require_treasurer(request)
+    _require_treasurer_or_demo(request)
     docs = await get_ledger().list_pledges()
     return [_public_pledge(doc) for doc in docs]
 
@@ -1097,7 +1134,7 @@ async def post_review(milestone_id: str, request: Request, lang: Optional[str] =
         proposal = await captain_review(milestone_id, reader=_reader(), lang=app_lang)
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc, lang=app_lang) from exc
-    if not _valid_admin_key(request):
+    if not _treasurer_privileged(request):
         proposal = {
             key: value
             for key, value in proposal.items()
@@ -1108,7 +1145,7 @@ async def post_review(milestone_id: str, request: Request, lang: Optional[str] =
 
 @router.post("/milestones/{milestone_id}/captain-review/approve")
 async def post_captain_review_approve(milestone_id: str, request: Request):
-    _require_treasurer(request)
+    _require_treasurer_or_demo(request)
     try:
         return await record_captain_review_approval(milestone_id)
     except ValueError as exc:

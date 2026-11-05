@@ -101,6 +101,11 @@ export interface FeatureFlags {
   wallet_pay?: boolean;
   clock_pinned?: boolean;
   crew_supporter_plan_id?: string | null;
+  demo_treasurer?: boolean;
+}
+
+export interface TreasurerAccessOptions {
+  demoTreasurer?: boolean;
 }
 
 export interface ClockSettleAction {

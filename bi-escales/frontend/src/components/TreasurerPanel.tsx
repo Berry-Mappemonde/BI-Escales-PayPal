@@ -62,6 +62,7 @@ export interface TreasurerPanelProps {
   spendError: string | null;
   fund: FundView | null;
   onSpendSubmit: (event: FormEvent) => void;
+  demoMode?: boolean;
 }
 
 export function TreasurerPanel({
@@ -93,6 +94,7 @@ export function TreasurerPanel({
   spendError,
   fund,
   onSpendSubmit,
+  demoMode = false,
 }: TreasurerPanelProps) {
   const { t } = useTranslation();
 
@@ -110,6 +112,12 @@ export function TreasurerPanel({
       </button>
       {open ? (
         <div className="treasurer-panel-body" id="treasurer-panel-body" data-testid="treasurer-panel-body">
+          {demoMode ? (
+            <p className="notice demo-treasurer-banner" data-testid="demo-treasurer-banner">
+              {t("treasurer.demoBanner")}
+            </p>
+          ) : (
+            <>
           <p className="hint">{t("treasurer.adminKeyHint")}</p>
           <MaskedSecretInput
             className="admin-key shared-admin"
@@ -166,15 +174,20 @@ export function TreasurerPanel({
             <OpenFundTotals title={t("fund.projectTotals")} fund={projectFund} testId="project-fund-totals" />
             <OpenFundTotals title={t("fund.boatTotals")} fund={boatFund} testId="common-fund-totals" />
           </section>
+            </>
+          )}
           <TreasurerQueue
             pledges={pledges}
             loading={loading}
             error={error}
             needsKey={needsKey}
             adminKey={adminKey}
+            demoTreasurer={demoMode}
             onRefresh={onRefreshQueue}
             onUpdated={onPledgeUpdated}
           />
+          {!demoMode ? (
+            <>
           <TreasurerPayPalPanel adminKey={adminKey} />
           <form className="stack-form" onSubmit={onSpendSubmit}>
             <h2>{t("fund.heading")}</h2>
@@ -201,6 +214,8 @@ export function TreasurerPanel({
               </p>
             ) : null}
           </form>
+            </>
+          ) : null}
         </div>
       ) : null}
     </section>

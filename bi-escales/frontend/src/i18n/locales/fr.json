@@ -169,6 +169,8 @@
   },
   "treasurer": {
     "panelTitle": "Trésorier",
+    "demoButton": "Trésorier démo",
+    "demoBanner": "Démo bac à sable — file, revue, capture et annulation seulement. Aucune clé admin sur cet appareil.",
     "heading": "File trésorier",
     "adminKey": "Clé trésorier (x-admin-key)",
     "adminKeyHint": "Saisie en mémoire uniquement — jamais enregistrée.",

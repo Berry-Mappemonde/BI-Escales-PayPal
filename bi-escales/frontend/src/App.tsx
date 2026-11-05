@@ -53,11 +53,16 @@ export default function App() {
   const [hash, setHash] = useState(() => window.location.hash);
   const [adminKey, setAdminKey] = useState("");
   const [queueAdminKey, setQueueAdminKey] = useState("");
+  const [demoTreasurerAvailable, setDemoTreasurerAvailable] = useState(false);
+  const [demoTreasurer, setDemoTreasurer] = useState(false);
   useEffect(() => {
     const handle = window.setTimeout(() => setQueueAdminKey(adminKey), 350);
     return () => window.clearTimeout(handle);
   }, [adminKey]);
-  const { pledges, loading, error, needsKey, refresh, updatePledge } = usePledgeQueue(queueAdminKey);
+  const { pledges, loading, error, needsKey, refresh, updatePledge } = usePledgeQueue(
+    queueAdminKey,
+    demoTreasurer,
+  );
 
   const [routeFc, setRouteFc] = useState<unknown>(null);
   const [projects, setProjects] = useState<{ features?: unknown[] }>({ features: [] });
@@ -135,6 +140,7 @@ export default function App() {
         if (cancelled) return;
         setBryntumEnabled(Boolean(flags.bryntum));
         setClockPinned(Boolean(flags.clock_pinned));
+        setDemoTreasurerAvailable(Boolean(flags.demo_treasurer));
       })
       .catch(() => {
         if (!cancelled) {
@@ -213,6 +219,9 @@ export default function App() {
 
   const onTreasurerOpenChange = useCallback((open: boolean) => {
     setTreasurerOpen(open);
+    if (!open) {
+      setDemoTreasurer(false);
+    }
     if (!open && window.location.hash === "#tresorier") {
       const next = `${window.location.pathname}${window.location.search}`;
       window.history.replaceState({}, "", next);
@@ -221,7 +230,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!treasurerOpen || !milestoneId) {
+    if (!treasurerOpen || demoTreasurer || !milestoneId) {
       if (!treasurerOpen) setFund(null);
       return undefined;
     }
@@ -236,7 +245,13 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [milestoneId, pledges, treasurerOpen, adminKey]);
+  }, [milestoneId, pledges, treasurerOpen, adminKey, demoTreasurer]);
+
+  const startDemoTreasurer = useCallback(() => {
+    setAdminKey("");
+    setDemoTreasurer(true);
+    setTreasurerOpen(true);
+  }, []);
 
   const chooseStop = (next: VoyageStop) => {
     setStop(next);
@@ -281,7 +296,7 @@ export default function App() {
   }, [pledges.length]);
 
   useEffect(() => {
-    if (!treasurerOpen) return undefined;
+    if (!treasurerOpen || demoTreasurer) return undefined;
     let cancelled = false;
     void fetchFund("project", adminKey)
       .then((row) => {
@@ -300,7 +315,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [treasurerOpen, pledges, adminKey]);
+  }, [treasurerOpen, pledges, adminKey, demoTreasurer]);
 
   useEffect(() => {
     const onHash = () => setHash(window.location.hash);
@@ -691,9 +706,20 @@ export default function App() {
             </ul>
           </div>
         )}
+        {demoTreasurerAvailable ? (
+          <button
+            type="button"
+            className="demo-treasurer-entry"
+            data-testid="demo-treasurer-button"
+            onClick={() => startDemoTreasurer()}
+          >
+            {t("treasurer.demoButton")}
+          </button>
+        ) : null}
         <TreasurerPanel
           open={treasurerOpen}
           onOpenChange={onTreasurerOpenChange}
+          demoMode={demoTreasurer}
           adminKey={adminKey}
           onAdminKeyChange={setAdminKey}
           settleBusy={settleBusy}

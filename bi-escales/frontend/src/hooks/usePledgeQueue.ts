@@ -5,7 +5,7 @@ import type { PublicPledge } from "../api/types";
 /**
  * La file vient de GET /api/escales/pledges. La clé trésorier est exigée.
  */
-export function usePledgeQueue(adminKey: string) {
+export function usePledgeQueue(adminKey: string, demoTreasurer = false) {
   const [pledges, setPledges] = useState<PublicPledge[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -13,7 +13,7 @@ export function usePledgeQueue(adminKey: string) {
 
   const refresh = useCallback(async () => {
     const key = adminKey.trim();
-    if (!key) {
+    if (!demoTreasurer && !key) {
       setNeedsKey(true);
       setError(null);
       setPledges([]);
@@ -23,13 +23,13 @@ export function usePledgeQueue(adminKey: string) {
     setLoading(true);
     setError(null);
     try {
-      setPledges(await listPledges(key));
+      setPledges(await listPledges(key, demoTreasurer ? { demoTreasurer: true } : undefined));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [adminKey]);
+  }, [adminKey, demoTreasurer]);
 
   const updatePledge = useCallback((updated: PublicPledge) => {
     setPledges((prev) => {

@@ -14,6 +14,10 @@ const apiProxy = {
     target: apiProxyTarget,
     changeOrigin: true,
   },
+  "/api/escale-marinas.geojson": {
+    target: apiProxyTarget,
+    changeOrigin: true,
+  },
 };
 
 export default defineConfig({

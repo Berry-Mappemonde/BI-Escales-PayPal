@@ -17,7 +17,7 @@ import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { useTheme } from "./hooks/useTheme";
 import { setLanguage } from "./i18n";
 import { MapScene } from "./map/MapScene.jsx";
-import { ficheMarinas, loadEscaleFiche } from "./marinas/escaleFiche.js";
+import { ficheMarinas, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
 import { formatCivilDate } from "./voyage/voyageClock.js";
@@ -60,6 +60,7 @@ export default function App() {
   const [now, setNow] = useState(() => new Date());
   const [stop, setStop] = useState<VoyageStop | null>(null);
   const [fiche, setFiche] = useState<unknown>(null);
+  const [marinaGeojson, setMarinaGeojson] = useState<unknown>(null);
   const [ficheLoading, setFicheLoading] = useState(false);
   const [ficheError, setFicheError] = useState<string | null>(null);
   const [flyTo, setFlyTo] = useState<FlyTarget | null>(null);
@@ -182,6 +183,24 @@ export default function App() {
       cancelled = true;
     };
   }, [stop, lang]);
+
+  useEffect(() => {
+    if (!stop) {
+      setMarinaGeojson(null);
+      return undefined;
+    }
+    let cancelled = false;
+    void loadEscaleMarinasGeojson(stop)
+      .then((fc) => {
+        if (!cancelled) setMarinaGeojson(fc);
+      })
+      .catch(() => {
+        if (!cancelled) setMarinaGeojson({ type: "FeatureCollection", features: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stop]);
 
   useEffect(() => {
     if (hash === "#tresorier") setTreasurerOpen(true);
@@ -464,7 +483,8 @@ export default function App() {
     prevTabRef.current = tab;
   }, [tab, voyage?.stops, cumNm]);
 
-  const marinaFeatures = ficheMarinas(fiche);
+  const marinaFeatures =
+    (marinaGeojson as { features?: unknown[] } | null) ?? ficheMarinas(fiche);
   const onFlyTo = (_id: string, lat: number, lon: number) => {
     setFlyTo({ lat, lon, ts: Date.now() });
   };

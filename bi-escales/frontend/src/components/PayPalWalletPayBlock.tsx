@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { authorizePledge, createPledge } from "../api/escales";
+import type { PayPalSdkButtonInstance } from "../paypal/paypalSdk";
 import type { PledgeFormValues } from "./PledgeButton";
 
 export interface PayPalWalletPayBlockProps {
@@ -56,8 +57,8 @@ export function PayPalWalletPayBlock({
 
     const Googlepay = window.paypal?.Googlepay;
     const Applepay = window.paypal?.Applepay;
-    let googleButtons: { close?: () => Promise<void> } | null = null;
-    let appleButtons: { close?: () => Promise<void> } | null = null;
+    let googleButtons: PayPalSdkButtonInstance | null = null;
+    let appleButtons: PayPalSdkButtonInstance | null = null;
 
     if (Googlepay && googleEl) {
       googleEl.innerHTML = "";

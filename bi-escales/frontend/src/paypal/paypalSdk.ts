@@ -3,16 +3,19 @@
 declare global {
   interface Window {
     paypal?: {
-      Buttons?: (config: Record<string, unknown>) => {
-        render: (el: HTMLElement) => Promise<void>;
-        close: () => Promise<void>;
-      };
+      Buttons?: (config: Record<string, unknown>) => PayPalSdkButtonInstance;
       Messages?: (config: Record<string, unknown>) => { render: (el: HTMLElement) => Promise<void> };
-      Googlepay?: (config: Record<string, unknown>) => { render: (el: HTMLElement) => Promise<void> };
-      Applepay?: (config: Record<string, unknown>) => { render: (el: HTMLElement) => Promise<void> };
+      Googlepay?: (config: Record<string, unknown>) => PayPalSdkButtonInstance;
+      Applepay?: (config: Record<string, unknown>) => PayPalSdkButtonInstance;
       CardFields?: (config: Record<string, unknown>) => Record<string, unknown>;
     };
   }
+}
+
+/** PayPal JS SDK v6 button-like components (Smart Buttons, Google Pay, Apple Pay). */
+export interface PayPalSdkButtonInstance {
+  render: (el: HTMLElement) => Promise<void>;
+  close?: () => Promise<void>;
 }
 
 const PAY_LATER_MIN = 30;

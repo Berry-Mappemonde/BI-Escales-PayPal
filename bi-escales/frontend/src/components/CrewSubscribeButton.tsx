@@ -116,7 +116,7 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
     });
     void buttons.render(container);
     return () => {
-      void buttons.close();
+      void buttons.close?.().catch(() => undefined);
       container.replaceChildren();
     };
   }, [ready, planId, adminKey, i18n.language, t]);

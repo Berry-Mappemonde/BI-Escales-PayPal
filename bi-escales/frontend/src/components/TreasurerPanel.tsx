@@ -6,6 +6,7 @@ import { TreasurerPayPalPanel } from "./TreasurerPayPalPanel";
 import { TreasurerWebhookPanel } from "./TreasurerWebhookPanel";
 import { TreasurerQueue } from "./TreasurerQueue";
 import { TreasurerGrid } from "./TreasurerGrid";
+import { TreasurerStudioSection } from "./TreasurerStudioSection";
 
 function OpenFundTotals({
   title,
@@ -201,6 +202,7 @@ export function TreasurerPanel({
             onMilestonesChange={() => {}}
             onPledgeUpdated={onPledgeUpdated}
           />
+          <TreasurerStudioSection pledges={pledges} />
           <form className="stack-form" onSubmit={onSpendSubmit}>
             <h2>{t("fund.heading")}</h2>
             <label>

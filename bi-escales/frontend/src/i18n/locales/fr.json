@@ -116,6 +116,7 @@
     "heading": "Escales & capitaine",
     "captainChat": "Message au capitaine IA",
     "sendChat": "Demander une formulation",
+    "agenticConfirmInvoice": "Confirmer — créer la facture PayPal (bac à sable)",
     "cartHeading": "Panier",
     "chatReply": "Réponse du capitaine",
     "paypalToolLine": "Outil PayPal : {{tools}} ({{client}})",

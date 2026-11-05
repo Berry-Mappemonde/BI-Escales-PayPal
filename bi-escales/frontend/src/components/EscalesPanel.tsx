@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { captainChat } from "../api/escales";
+import { captainChat, createPayPalInvoice } from "../api/escales";
 import type { CaptainChatResponse, PublicPledge } from "../api/types";
 import { PledgeButton } from "./PledgeButton";
 
@@ -23,6 +23,7 @@ export function EscalesPanel({
   const lang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const [chatMessage, setChatMessage] = useState("20 milles près de Mayotte");
   const [chatResult, setChatResult] = useState<CaptainChatResponse | null>(null);
+  const [agenticNote, setAgenticNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,6 +61,35 @@ export function EscalesPanel({
             <p className="hint" data-testid="captain-model-label">
               {chatResult.model_label}
             </p>
+          ) : null}
+          {chatResult.agentic_action?.kind === "create_invoice" && adminKey?.trim() ? (
+            <div data-testid="captain-agentic-invoice">
+              <p className="hint">{chatResult.agentic_action.toolkit_note}</p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  const preview = chatResult.agentic_action?.preview;
+                  if (!preview) return;
+                  setBusy(true);
+                  setAgenticNote(null);
+                  void createPayPalInvoice(adminKey.trim(), {
+                    recipient_email: preview.recipient_email || "",
+                    amount_eur: preview.amount_eur || "1.00",
+                    description: preview.description || "Escales",
+                    lang,
+                  })
+                    .then((row) => setAgenticNote(String(row.id || row.invoice_id || "created")))
+                    .catch((err: unknown) =>
+                      setAgenticNote(err instanceof Error ? err.message : String(err)),
+                    )
+                    .finally(() => setBusy(false));
+                }}
+              >
+                {t("escales.agenticConfirmInvoice")}
+              </button>
+              {agenticNote ? <p className="status">{agenticNote}</p> : null}
+            </div>
           ) : null}
           {(() => {
             const payload = chatResult.paypal_tools;

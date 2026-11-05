@@ -220,6 +220,12 @@ export interface CaptainChatResponse {
     kind?: string;
   } | null;
   cart?: PledgeCart | null;
+  agentic_action?: {
+    kind: string;
+    requires_confirm?: boolean;
+    preview?: Record<string, string>;
+    toolkit_note?: string;
+  } | null;
 }
 
 export interface PledgeGaugeRow {

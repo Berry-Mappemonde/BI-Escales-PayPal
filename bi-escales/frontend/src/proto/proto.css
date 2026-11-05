@@ -1,0 +1,555 @@
+/* Everything is scoped to .proto so the page can later mount inside the app without leaking. */
+.proto {
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  min-height: 100dvh;
+  box-sizing: border-box;
+  color-scheme: dark;
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.proto *,
+.proto *::before,
+.proto *::after {
+  box-sizing: border-box;
+}
+
+.proto :where(h1, h2, p, ol, ul, dl, dd) {
+  margin: 0;
+  padding: 0;
+}
+
+.proto :where(ol, ul) {
+  list-style: none;
+}
+
+.proto :where(button) {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.proto :where(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+/* Shell */
+.proto-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+  min-height: 48px;
+  padding: 0 24px;
+  background: var(--color-shell);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.proto-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.proto-product {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.proto-tabs {
+  display: flex;
+  align-self: stretch;
+  gap: 20px;
+}
+
+.proto-tab {
+  position: relative;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-fg-2);
+  white-space: nowrap;
+}
+
+.proto-tab[aria-selected="true"] {
+  color: var(--color-fg);
+  font-weight: 500;
+}
+
+.proto-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 2px;
+  background: var(--color-fg);
+}
+
+.proto-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.proto-lang {
+  display: flex;
+  flex-shrink: 0;
+  padding: 2px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+}
+
+.proto-lang button {
+  min-width: 32px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--color-fg-2);
+  font-size: var(--text-micro);
+  line-height: var(--text-micro--line-height);
+  font-weight: 500;
+}
+
+.proto-lang button[aria-pressed="true"] {
+  background: var(--color-selected);
+  color: var(--color-fg);
+}
+
+.proto-main {
+  display: grid;
+  justify-items: center;
+  padding: 32px 24px 64px;
+}
+
+/* Text roles */
+.proto-heading {
+  font-size: var(--text-heading);
+  line-height: var(--text-heading--line-height);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.proto-card-title {
+  font-size: var(--text-title);
+  line-height: var(--text-title--line-height);
+  font-weight: 500;
+}
+
+.proto-section-title {
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-weight: 400;
+}
+
+.proto-meta {
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.proto-meta:empty,
+.proto-ui:empty {
+  display: none;
+}
+
+.proto-read {
+  color: var(--color-fg-2);
+  font-size: var(--text-read);
+  line-height: var(--text-read--line-height);
+}
+
+.proto-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+/* Card and sections: one border, hairlines inside, no nested boxes */
+.proto-card {
+  width: 100%;
+  min-width: 0;
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  overflow-wrap: anywhere;
+}
+
+.proto-stop {
+  max-width: 420px;
+}
+
+.proto-captain {
+  max-width: 600px;
+}
+
+.proto-pledges {
+  max-width: 760px;
+}
+
+.proto-card-head {
+  display: grid;
+  gap: 4px;
+  padding: 16px;
+}
+
+.proto-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.proto-section {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-top: 1px solid var(--color-line-soft);
+}
+
+/* Status chip */
+.proto-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px 0 6px;
+  border-radius: var(--radius-chip);
+  background: color-mix(in oklab, var(--st) 14%, transparent);
+  color: color-mix(in oklab, var(--st) 68%, white);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.proto-glyph {
+  flex-shrink: 0;
+}
+
+.proto-states .proto-chip {
+  justify-self: start;
+}
+
+/* Label and value rows */
+.proto-props {
+  margin: -6px 0;
+}
+
+.proto-props > div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.proto-props dt {
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.proto-props dd {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Logbook */
+.proto-log {
+  display: grid;
+  gap: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--color-line-strong);
+}
+
+.proto-log li {
+  display: grid;
+  gap: 2px;
+}
+
+.proto-log-time {
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Next step */
+.proto-next {
+  gap: 4px;
+  background: var(--color-raised);
+  border-radius: 0 0 9px 9px;
+}
+
+.proto-next-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--color-fg-3);
+}
+
+.proto-next-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.proto-amount {
+  color: var(--color-fg);
+  font-size: var(--text-title);
+  line-height: var(--text-title--line-height);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.proto-held {
+  font-size: var(--text-read);
+  line-height: var(--text-read--line-height);
+  font-weight: 500;
+}
+
+/* Buttons */
+.proto-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.proto-next .proto-actions {
+  margin-top: 8px;
+}
+
+.proto-btn {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-raised);
+  color: var(--color-fg);
+  font-weight: 500;
+  transition:
+    background-color 100ms ease-out,
+    transform 120ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.proto-btn:active {
+  transform: scale(0.97);
+}
+
+.proto-btn[data-variant="primary"] {
+  border-color: var(--color-fg);
+  background: var(--color-fg);
+  color: var(--color-canvas);
+}
+
+.proto-btn[data-variant="ghost"] {
+  border-color: transparent;
+  background: none;
+  color: var(--color-fg-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .proto-btn:hover {
+    background: var(--color-selected);
+  }
+
+  .proto-btn[data-variant="primary"]:hover {
+    background: var(--color-fg-2);
+    border-color: var(--color-fg-2);
+  }
+
+  .proto-btn[data-variant="ghost"]:hover {
+    background: var(--color-raised);
+    color: var(--color-fg);
+  }
+
+  .proto-tab:hover,
+  .proto-lang button:hover {
+    color: var(--color-fg);
+  }
+
+  .proto-cite:hover {
+    background: var(--color-line-strong);
+    color: var(--color-fg);
+  }
+}
+
+/* Citations: the trust layer. Every claim in the proposal points at a source row. */
+.proto-cite,
+.proto-cite-num {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--color-selected);
+  color: var(--color-fg-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.proto-cite {
+  position: relative;
+  margin: 0 1px;
+  padding: 0;
+  border: 0;
+  vertical-align: 1px;
+}
+
+.proto-claim-end {
+  white-space: nowrap;
+}
+
+/* A 16px badge reads right in a sentence; the hit area stays comfortable. */
+.proto-cite::after {
+  content: "";
+  position: absolute;
+  inset: -6px -3px;
+}
+
+.proto-sources {
+  display: grid;
+  margin: 0 -8px;
+}
+
+.proto-sources li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border-radius: var(--radius-control);
+  outline: none;
+  transition: background-color 150ms ease-out;
+}
+
+.proto-sources li[data-active] {
+  background: var(--color-selected);
+}
+
+.proto-sources li[data-active] .proto-cite-num {
+  background: var(--color-line-strong);
+  color: var(--color-fg);
+}
+
+.proto-source-detail {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0 8px;
+  color: var(--color-fg-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pledge states */
+.proto-states li {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) 88px;
+  align-items: center;
+  gap: 16px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--color-line-soft);
+}
+
+.proto-state-meaning {
+  color: var(--color-fg-2);
+}
+
+.proto-state-backend {
+  justify-self: end;
+  color: var(--color-fg-3);
+}
+
+@media (max-width: 860px) {
+  .proto-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 8px 16px 0;
+    gap: 4px 12px;
+  }
+
+  .proto-tabs {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  /* The mock notice stays visible on phones: sample data must never read as live. */
+  .proto-tools {
+    display: contents;
+  }
+
+  .proto-tools > .proto-meta {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .proto-main {
+    padding: 16px 16px 48px;
+  }
+}
+
+@media (max-width: 560px) {
+  .proto-sources li {
+    grid-template-columns: 16px minmax(0, 1fr);
+    gap: 2px 8px;
+    padding: 6px 8px;
+  }
+
+  .proto-source-detail {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  .proto-states li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 12px;
+    padding: 12px 16px;
+  }
+
+  .proto-state-meaning {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+@media (pointer: coarse) {
+  .proto-btn {
+    min-height: 44px;
+  }
+
+  .proto-lang button {
+    min-width: 44px;
+    height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proto-btn,
+  .proto-sources li {
+    transition-duration: 0ms;
+  }
+
+  .proto-btn:active {
+    transform: none;
+  }
+}

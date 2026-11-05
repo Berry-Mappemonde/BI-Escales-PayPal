@@ -1,0 +1,66 @@
+/*
+ * Meridian tokens, copied from the @theme block of Team_ops src/app/globals.css
+ * (commit 417b589). Names and values are unchanged. This frontend has no
+ * Tailwind, so @theme becomes plain custom properties scoped to .proto.
+ * --font-inter comes from next/font in Team_ops; here it is the installed
+ * Inter, falling back to the system stack in --font-sans.
+ */
+.proto {
+  --font-inter: "Inter";
+
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
+
+  --color-rail: #0c0c0c;
+  --color-canvas: #121212;
+  --color-shell: #161616;
+  --color-panel: #191919;
+  --color-raised: #1f1f1f;
+  --color-selected: #252525;
+  --color-overlay: #1c1c1c;
+
+  --color-line: #262626;
+  --color-line-soft: #1f1f1f;
+  --color-line-strong: #333333;
+
+  --color-fg: #ededed;
+  --color-fg-2: #ababab;
+  --color-fg-3: #8f8f8f;
+  --color-fg-4: #5e5e5e;
+
+  --color-accent: #4f8cff;
+  --color-accent-fg: #8fb5ff;
+  --color-danger: #eb5a5a;
+  --color-danger-fg: #f39a9a;
+  --color-success: #4fb67f;
+  --color-success-fg: #86d2a6;
+
+  --color-st-triage: #5e9bff;
+  --color-st-todo: #8f8f8f;
+  --color-st-progress: #e2b53e;
+  --color-st-review: #9b87f5;
+  --color-st-done: #4fb67f;
+  --color-st-declined: #6f6f6f;
+
+  --text-micro: 11px;
+  --text-micro--line-height: 14px;
+  --text-meta: 12px;
+  --text-meta--line-height: 16px;
+  --text-ui: 13px;
+  --text-ui--line-height: 18px;
+  --text-read: 14px;
+  --text-read--line-height: 22px;
+  --text-title: 15px;
+  --text-title--line-height: 20px;
+  --text-heading: 19px;
+  --text-heading--line-height: 26px;
+
+  --radius-control: 6px;
+  --radius-chip: 5px;
+  --radius-panel: 10px;
+  --radius-tray: 12px;
+
+  --shadow-float: 0 0 0 1px rgb(0 0 0 / 0.4), 0 12px 32px -8px rgb(0 0 0 / 0.6);
+  --shadow-sheet: -12px 0 32px -12px rgb(0 0 0 / 0.7);
+}

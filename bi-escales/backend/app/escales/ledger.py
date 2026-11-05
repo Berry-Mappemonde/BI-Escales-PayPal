@@ -357,10 +357,24 @@ class MongoLedger:
     async def save_pledge(self, doc: dict) -> dict:
         await self._ensure()
         incoming = pledge_defaults(doc)
-        current = await self._pledges.find_one({"_id": incoming["_id"]})
-        stored = merge_concurrent_pledge(pledge_defaults(current), incoming)
-        await self._pledges.replace_one({"_id": stored["_id"]}, copy.deepcopy(stored), upsert=True)
-        return stored
+        pledge_id = incoming["_id"]
+        # Compare-and-set on ``rev``: if another worker saved between our read and
+        # our write, the filter misses, so re-read and merge again. Without this,
+        # two workers could both read ``created`` and the later one revert the other.
+        for _attempt in range(8):
+            current = await self._pledges.find_one({"_id": pledge_id})
+            stored = merge_concurrent_pledge(pledge_defaults(current), incoming)
+            if current is None:
+                stored["rev"] = 1
+                await self._pledges.replace_one({"_id": pledge_id}, copy.deepcopy(stored), upsert=True)
+                return stored
+            rev = current.get("rev")
+            stored["rev"] = (rev or 0) + 1
+            match = {"_id": pledge_id, "rev": rev} if rev is not None else {"_id": pledge_id, "rev": {"$exists": False}}
+            result = await self._pledges.replace_one(match, copy.deepcopy(stored))
+            if result.matched_count:
+                return stored
+        raise RuntimeError(f"pledge {pledge_id}: concurrent writes kept conflicting")
 
     async def get_pledge(self, pledge_id: str) -> Optional[dict]:
         await self._ensure()

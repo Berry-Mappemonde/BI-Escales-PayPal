@@ -123,3 +123,45 @@ def test_same_webhook_twice_is_not_duplicated():
 
 def test_new_pledge_without_stored_copy():
     assert merge_concurrent_pledge(None, BASE) is BASE
+
+
+def test_mongo_retries_when_another_worker_saves_between_read_and_write(monkeypatch):
+    """Worker B reads ``created``; worker A saves ``authorized`` before B writes.
+
+    B's first replace must miss on ``rev`` and re-merge against A's copy.
+    """
+    ledger = _mongo_ledger(monkeypatch)
+
+    async def scenario():
+        await ledger.insert_pledge_once(copy.deepcopy(BASE))
+        await ledger.save_pledge(await ledger.get_pledge("P1"))  # rev 1, status created
+        stale = await ledger.get_pledge("P1")
+        coll = ledger._pledges
+        real_find = coll.find_one
+        calls = {"n": 0}
+
+        async def find_then_race(*args, **kwargs):
+            doc = await real_find(*args, **kwargs)
+            calls["n"] += 1
+            if calls["n"] == 1:
+                # A wins the race right after B's read
+                fresh = _authorized(await real_find({"_id": "P1"}))
+                fresh["rev"] = (fresh.get("rev") or 0) + 1
+                await coll.replace_one({"_id": "P1"}, fresh)
+            return doc
+
+        coll.find_one = find_then_race
+        await ledger.save_pledge(_webhooked(stale))
+        coll.find_one = real_find
+        return await ledger.get_pledge("P1"), calls["n"]
+
+    try:
+        final, reads = asyncio.run(scenario())
+    finally:
+        import app.db as dbmod
+
+        dbmod._client = None
+    assert reads >= 2, "expected a retry after the rev mismatch"
+    assert final["status"] == "authorized"
+    assert final["authorization_id"] == "AUTH1"
+    assert "webhook_order_approved" in final["history"] and "authorized" in final["history"]

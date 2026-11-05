@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app.core import llm
 from app.escales.config import limits_enabled
 from app.escales.pledges import reset_ledger
-from app.escales.rate_limit import RateLimited, hit, per_day, per_minute, reset
+from app.escales.rate_limit import RateLimited, captain_rate_key, hit, per_day, per_minute, reset
 from app.escales.captain import chat
 from app.routers.escales import router, set_paypal_client_factory
 from test_llm_cascade import _openai, _transport
@@ -48,14 +48,14 @@ def api(monkeypatch):
     llm.reset_llm_budget()
 
 
-def _chat(client, message, ip="203.0.113.10", accept_language="", lang=None):
-    headers = {"x-forwarded-for": ip}
+def _chat(client, message, ip="203.0.113.10", accept_language="", lang=None, headers=None):
+    req_headers = {"x-forwarded-for": ip, **(headers or {})}
     if accept_language:
-        headers["accept-language"] = accept_language
+        req_headers["accept-language"] = accept_language
     payload = {"message": message}
     if lang:
         payload["lang"] = lang
-    return client.post("/api/escales/captain/chat", json=payload, headers=headers)
+    return client.post("/api/escales/captain/chat", json=payload, headers=req_headers)
 
 
 def _review(client, ip="203.0.113.10", accept_language="", lang=None):
@@ -198,6 +198,23 @@ def test_pledges_stay_open_when_the_captain_is_limited(api, monkeypatch):
         headers={"x-forwarded-for": "203.0.113.50", "PayPal-Request-Id": "rate-pledge"},
     )
     assert created.status_code == 200, created.text
+
+
+def test_session_header_splits_buckets(api, monkeypatch):
+    monkeypatch.setenv("ESCALES_RATE_LIMIT_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "1")
+    base = {"x-forwarded-for": "203.0.113.60"}
+    first = _chat(api, FR, headers={**base, "x-escales-session": "tab-a"})
+    assert first.status_code == 200, first.text
+    blocked = _chat(api, FR, headers={**base, "x-escales-session": "tab-a"})
+    assert blocked.status_code == 429
+    other = _chat(api, FR, headers={**base, "x-escales-session": "tab-b"})
+    assert other.status_code == 200, other.text
+
+
+def test_captain_rate_key_composes_ip_and_session():
+    assert captain_rate_key("1.2.3.4", "") == "1.2.3.4"
+    assert captain_rate_key("1.2.3.4", "uuid") == "1.2.3.4|uuid"
 
 
 def test_render_and_readme_document_the_production_gate():

@@ -119,6 +119,7 @@
     "agenticConfirmInvoice": "Confirmer — créer la facture PayPal (bac à sable)",
     "cartHeading": "Panier",
     "chatReply": "Réponse du capitaine",
+    "rateLimit": "Trop de requêtes vers le capitaine. Patientez une minute ou réessayez demain.",
     "paypalToolLine": "Outil PayPal : {{tools}} ({{client}})",
     "suggestedPledge": "Promesse suggérée",
     "milestonesEmpty": "Aucun jalon enregistré pour l’instant."

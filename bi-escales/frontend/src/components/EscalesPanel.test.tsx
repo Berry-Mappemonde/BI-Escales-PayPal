@@ -83,4 +83,17 @@ describe("EscalesPanel cart", () => {
     expect(line).toHaveTextContent("transactions.search");
     expect(line).toHaveTextContent("paypal-agent-toolkit");
   });
+
+  it("affiche un message convivial sur HTTP 429", async () => {
+    vi.mocked(captainChat).mockRejectedValue(
+      new Error("Too many requests. The captain accepts 2 per minute."),
+    );
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EscalesPanel milestoneId="dep-mayotte" />
+      </I18nextProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Demander une formulation" }));
+    expect(await screen.findByText(/Trop de requêtes vers le capitaine/)).toBeInTheDocument();
+  });
 });

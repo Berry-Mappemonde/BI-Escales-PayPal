@@ -10,6 +10,7 @@ import type {
   ClockSettleResponse,
   TreasurerAccessOptions,
 } from "./types";
+import { captainSessionHeaders } from "./escalesSession";
 
 function treasurerAccessHeaders(
   adminKey: string,
@@ -417,7 +418,7 @@ export async function captainReview(
     url(`/api/escales/captain/review/${encodeURIComponent(milestoneId)}${qs ? `?${qs}` : ""}`),
     {
       method: "POST",
-      headers,
+      headers: { ...headers, ...captainSessionHeaders() },
     },
   );
   if (!res.ok) throw new Error(await parseError(res));
@@ -436,7 +437,7 @@ export async function captainChat(
   if (key) headers["x-admin-key"] = key;
   const res = await fetch(url("/api/escales/captain/chat"), {
     method: "POST",
-    headers,
+    headers: { "Content-Type": "application/json", ...headers, ...captainSessionHeaders() },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await parseError(res));

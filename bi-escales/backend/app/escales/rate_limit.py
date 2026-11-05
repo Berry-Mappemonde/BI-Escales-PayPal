@@ -73,6 +73,15 @@ def trusted_proxy_hops() -> int:
         return 1
 
 
+def captain_rate_key(ip: str, session_id: str = "") -> str:
+    """Per-IP bucket, or per IP+session when the browser sends ``X-Escales-Session``."""
+    base = (ip or "").strip() or "unknown"
+    session = (session_id or "").strip()[:128]
+    if session:
+        return f"{base}|{session}"
+    return base
+
+
 def lang_for(accept_language: str, text: str = "") -> str:
     """Chat follows the message. A review follows Accept-Language, else French."""
     if (text or "").strip():
@@ -94,7 +103,10 @@ def limit_message(kind: str, lang: str, limit: int) -> str:
 
 
 def hit(ip: str, now: Optional[dt.datetime] = None) -> None:
-    """Count one captain call. No-op when limits are off (development, tests)."""
+    """Count one captain call. No-op when limits are off (development, tests).
+
+    ``ip`` may be a bare client IP or ``{ip}|{session}`` when ``X-Escales-Session`` is sent.
+    """
     if not limits_enabled():
         return
     moment = now or _now()

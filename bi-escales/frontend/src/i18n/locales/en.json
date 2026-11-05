@@ -119,6 +119,7 @@
     "agenticConfirmInvoice": "Confirm — create PayPal invoice (sandbox)",
     "cartHeading": "Cart",
     "chatReply": "Captain reply",
+    "rateLimit": "Too many requests to the Captain. Wait a minute or try again tomorrow.",
     "paypalToolLine": "PayPal tool: {{tools}} ({{client}})",
     "suggestedPledge": "Suggested pledge",
     "milestonesEmpty": "No milestones recorded yet."

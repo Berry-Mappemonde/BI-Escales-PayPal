@@ -93,9 +93,9 @@ async function* runTreasurer(input: AgAiRunInput): AsyncGenerator<AgAiEvent> {
       widgetId: VALIDATION_NOTE_ID,
       type: VALIDATION_WIDGET_TYPE,
       xTrack: 0,
-      yTrack: 24,
+      yTrack: 27,
       xSpan: 24,
-      ySpan: 8,
+      ySpan: 11,
     });
     return;
   }

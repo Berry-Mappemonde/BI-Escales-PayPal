@@ -53,9 +53,9 @@ export function treasurerInitialState(language?: string): AgReportState {
           },
         },
         widgetLayout: {
-          validation: { xTrack: 0, yTrack: 0, xSpan: 24, ySpan: 8 },
-          "status-chart": { xTrack: 0, yTrack: 8, xSpan: 10, ySpan: 16 },
-          "pledge-grid": { xTrack: 10, yTrack: 8, xSpan: 14, ySpan: 16 },
+          validation: { xTrack: 0, yTrack: 0, xSpan: 24, ySpan: 11 },
+          "status-chart": { xTrack: 0, yTrack: 11, xSpan: 10, ySpan: 16 },
+          "pledge-grid": { xTrack: 10, yTrack: 11, xSpan: 14, ySpan: 16 },
         },
       },
     ],

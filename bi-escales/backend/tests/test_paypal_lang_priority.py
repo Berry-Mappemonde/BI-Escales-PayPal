@@ -34,12 +34,21 @@ from app.escales.pledges import get_ledger, reset_ledger
 from app.routers.escales import router, set_paypal_client_factory
 
 
+class _OfflinePayPal:
+    """Stand-in PayPal client: validation errors surface before any call; reconcile sees no rows."""
+
+    def search_transactions(self, **kwargs):
+        return {"transaction_details": []}
+
+
 @pytest.fixture(autouse=True)
 def memory_env(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "lang-admin")
     reset_ledger()
+    # Mocked PayPal client so route tests never need sandbox credentials.
+    set_paypal_client_factory(lambda: _OfflinePayPal())
     yield
     reset_ledger()
     set_paypal_client_factory(None)

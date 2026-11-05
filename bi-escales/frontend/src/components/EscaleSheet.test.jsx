@@ -12,6 +12,20 @@ vi.mock("./PledgeButton", () => ({
 
 const stop = { name: "La Rochelle", lat: 46.15, lon: -1.15, milestoneId: "dep-la-rochelle" };
 
+const priceCatalog = {
+  prices: [
+    { kind: "berth", amount_eur: "30.00" },
+    { kind: "cabin_leg", amount_eur: "80.00" },
+    { kind: "night", amount_eur: "60.00" },
+    { kind: "meal", amount_eur: "60.00" },
+    { kind: "care", amount_eur: "40.00" },
+  ],
+};
+
+const schedule = {
+  legs: [{ id: "leg-la-rochelle-to-ajaccio-corse", from_name: "La Rochelle", to_name: "Ajaccio (Corse)" }],
+};
+
 const mooringFiche = {
   name: "La Rochelle",
   sections: {
@@ -73,6 +87,7 @@ describe("EscaleSheet", () => {
         <EscaleSheet
           stop={stop}
           fiche={null}
+          priceCatalog={priceCatalog}
           pledge={{
             amount: "20.00",
             milestoneId: "dep-la-rochelle",
@@ -92,6 +107,62 @@ describe("EscaleSheet", () => {
     const sent = JSON.parse(screen.getByTestId("pledge-values").textContent || "{}");
     expect(sent.kind).toBe("night");
     expect(sent.amount_eur).toBe("60.00");
+  });
+
+  it("repro Nov 4 : état mile 20.00 mais type berth affiche et envoie 30.00", async () => {
+    await i18n.changeLanguage("fr");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EscaleSheet
+          stop={stop}
+          fiche={null}
+          priceCatalog={priceCatalog}
+          pledge={{
+            amount: "20.00",
+            milestoneId: "dep-la-rochelle",
+            contributor: "",
+            kind: "berth",
+            onAmount: () => {},
+            onMilestoneId: () => {},
+            onContributor: () => {},
+            onKind: () => {},
+          }}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("pledge-amount")).toHaveValue("30.00");
+    const sent = JSON.parse(screen.getByTestId("pledge-values").textContent || "{}");
+    expect(sent.kind).toBe("berth");
+    expect(sent.amount_eur).toBe("30.00");
+    expect(sent.amount_eur).not.toBe("80.00");
+  });
+
+  it("cabin_leg affiche et envoie 80.00 même si l'état utilisateur vaut 20.00", async () => {
+    await i18n.changeLanguage("fr");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EscaleSheet
+          stop={stop}
+          fiche={null}
+          priceCatalog={priceCatalog}
+          schedule={schedule}
+          pledge={{
+            amount: "20.00",
+            milestoneId: "dep-la-rochelle",
+            contributor: "",
+            kind: "cabin_leg",
+            onAmount: () => {},
+            onMilestoneId: () => {},
+            onContributor: () => {},
+            onKind: () => {},
+          }}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("pledge-amount")).toHaveValue("80.00");
+    const sent = JSON.parse(screen.getByTestId("pledge-values").textContent || "{}");
+    expect(sent.amount_eur).toBe("80.00");
+    expect(sent.milestone_id).toBe("leg-la-rochelle-to-ajaccio-corse");
   });
 
   it("affiche l'arrivée estimée et le carnet en FR", async () => {

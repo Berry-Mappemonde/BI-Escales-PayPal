@@ -17,6 +17,7 @@ from typing import Any, Optional
 
 import httpx
 
+from app.marina_place_link import apply_maps_place_policy
 from app.bi_projects_catalog import ACCEPT, DEFAULT_BI_API, bi_api_base
 
 CACHE_TTL = 900.0
@@ -123,7 +124,7 @@ def merge_marina_row(base: dict[str, Any], enrichment: dict[str, Any] | None) ->
     keep = ("name", "lat", "lon", "nm", "url", "visit_url", "phone", "type", "kind", "source")
     out = {k: base[k] for k in keep if k in base and base[k] is not None}
     if not enrichment:
-        return out
+        return apply_maps_place_policy(out)
     if not out.get("url") and enrichment.get("website"):
         out["url"] = enrichment["website"]
     if enrichment.get("maps_url"):
@@ -135,7 +136,7 @@ def merge_marina_row(base: dict[str, Any], enrichment: dict[str, Any] | None) ->
     for key in ENRICH_FIELD_KEYS:
         if enrichment.get(key) not in (None, "", [], {}):
             out[key] = enrichment[key]
-    return out
+    return apply_maps_place_policy(out)
 
 
 def _index_features(features: list[Any]) -> dict[str, dict[str, Any]]:

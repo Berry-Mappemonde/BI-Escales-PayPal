@@ -533,6 +533,7 @@ export default function App() {
           onFlyTo={onFlyTo}
           contributor={contributor}
           onPledgeAuthorized={onAuthorized}
+          marinaMilestoneId={milestoneId}
           onSelectProject={(props: { id?: string }) => {
             if (props?.id) setSelectedProjectId(props.id);
           }}

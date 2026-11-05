@@ -7,7 +7,6 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PledgeButton } from "./PledgeButton";
 
-const LIST_CAP = 250;
 const BERTH_EUR = "30.00";
 
 export default function MarinasPanel({ marinas, onFlyTo, milestoneId, contributor, onAuthorized }) {
@@ -28,13 +27,30 @@ export default function MarinasPanel({ marinas, onFlyTo, milestoneId, contributo
     });
   }, [features, query]);
 
-  const visible = filtered.slice(0, LIST_CAP);
+  const verifiedCount = useMemo(
+    () => features.filter((f) => f.properties?.safe_google_place).length,
+    [features],
+  );
 
   return (
     <aside className="panel marinas-panel" data-testid="marinas-panel">
       <div className="escale-sheet-head">
         <h2>{t("marinas.heading")}</h2>
         <span data-testid="marinas-count">{features.length}</span>
+      </div>
+      <div className="marinas-legend" data-testid="marinas-legend">
+        <p className="hint marinas-legend-title">{t("marinas.legendHeading")}</p>
+        <ul className="marinas-legend-list">
+          <li>
+            <span className="marinas-legend-swatch marinas-legend-swatch--verified" aria-hidden />
+            {t("marinas.legendVerified")}
+            {verifiedCount ? ` (${verifiedCount})` : ""}
+          </li>
+          <li>
+            <span className="marinas-legend-swatch marinas-legend-swatch--default" aria-hidden />
+            {t("marinas.legendDefault")}
+          </li>
+        </ul>
       </div>
       <input
         data-testid="marinas-search-input"
@@ -46,20 +62,16 @@ export default function MarinasPanel({ marinas, onFlyTo, milestoneId, contributo
       />
       <div data-testid="marinas-list">
         {features.length === 0 ? <p className="hint">{t("marinas.empty")}</p> : null}
-        {filtered.length > LIST_CAP ? (
-          <p className="hint" data-testid="marinas-list-truncated">
-            {t("marinas.truncated", { shown: LIST_CAP, total: filtered.length })}
-          </p>
-        ) : null}
-        {visible.map((feature) => {
+        {filtered.map((feature) => {
           const props = feature.properties || {};
           const [lon, lat] = feature.geometry?.coordinates || [0, 0];
+          const verified = Boolean(props.safe_google_place);
           return (
             <div key={props.id || props.osm_id}>
               <button
                 type="button"
                 data-testid={`marina-row-${props.id}`}
-                className="marina-row"
+                className={`marina-row${verified ? " marina-row--verified" : ""}`}
                 onClick={() => {
                   setPickedId(props.id || props.osm_id);
                   onFlyTo?.(props.id, lat, lon);

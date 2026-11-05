@@ -70,12 +70,14 @@
     "heading": "Marinas",
     "search": "Chercher une marina",
     "empty": "Choisissez une escale pour voir les marinas.",
-    "truncated": "{{shown}} sur {{total}}",
     "unnamed": "Sans nom",
     "odbl": "© contributeurs OpenStreetMap",
     "pick": "Escale",
     "reservePrice": "Réserver — 30,00 EUR / nuit (simulation)",
-    "reserveDescription": "Amarrage (simulation) — {{name}}"
+    "reserveDescription": "Amarrage (simulation) — {{name}}",
+    "legendHeading": "Légende carte",
+    "legendVerified": "Fiche Google vérifiée (≤ 1 km, nom marina)",
+    "legendDefault": "Marina (lien recherche Maps)"
   },
   "fund": {
     "heading": "Caisse commune",

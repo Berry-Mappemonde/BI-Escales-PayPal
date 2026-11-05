@@ -70,12 +70,14 @@
     "heading": "Marinas",
     "search": "Search a marina",
     "empty": "Pick a stop to see marinas.",
-    "truncated": "{{shown}} of {{total}}",
     "unnamed": "Unnamed",
     "odbl": "© OpenStreetMap contributors",
     "pick": "Stop",
     "reservePrice": "Reserve — 30.00 EUR / night (simulation)",
-    "reserveDescription": "Berth (simulation) — {{name}}"
+    "reserveDescription": "Berth (simulation) — {{name}}",
+    "legendHeading": "Map legend",
+    "legendVerified": "Verified Google place (within 1 km, marina name)",
+    "legendDefault": "Marina (search link on Maps)"
   },
   "fund": {
     "heading": "Common fund",

@@ -14,6 +14,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import i18n from "../i18n";
 import { ProjectMapPopup } from "../components/ProjectMapPopup.jsx";
+import { MarinaMapPopup } from "../components/MarinaMapPopup.jsx";
 import { SceneLayerRegistry } from "../../../../naviguide-escales/src/map/SceneLayerRegistry.js";
 import { createPanes } from "../../../../naviguide-escales/src/layers/layerOrder.js";
 import {
@@ -73,6 +74,7 @@ export function MapScene({
   onFlyTo,
   contributor = "",
   onPledgeAuthorized,
+  marinaMilestoneId = "",
   theme = "dark",
 }) {
   const { i18n: i18nInstance } = useTranslation();
@@ -256,19 +258,54 @@ export function MapScene({
     if (!map || !layers) return;
     const group = layers.update("marinas", () => L.layerGroup().addTo(map), (layer) => layer.clearLayers());
     if (!showMarinas) return;
+    const roots = new Map();
     (marinas?.features || []).forEach((feature) => {
       const [lon, lat] = feature.geometry?.coordinates || [];
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      const props = feature.properties || {};
+      const verified = Boolean(props.safe_google_place);
       const marker = L.circleMarker([lat, lon], {
         radius: 5,
-        color: "#ff4a4a",
+        color: verified ? "#00c8ff" : "#ff4a4a",
         weight: 1,
-        fillColor: "#ff4a4a",
-        fillOpacity: 0.8,
+        fillColor: verified ? "#00c8ff" : "#ff4a4a",
+        fillOpacity: 0.85,
       }).addTo(group);
-      if (feature.properties?.name) marker.bindTooltip(feature.properties.name, { direction: "top" });
+      if (props.name) marker.bindTooltip(props.name, { direction: "top" });
+      const container = document.createElement("div");
+      let popupRoot = null;
+      const mountPopup = () => {
+        popupRoot?.unmount();
+        popupRoot = createRoot(container);
+        popupRoot.render(
+          <I18nextProvider i18n={i18n}>
+            <MarinaMapPopup
+              properties={props}
+              milestoneId={marinaMilestoneId}
+              contributorDefault={contributor}
+              onAuthorized={onPledgeAuthorized}
+            />
+          </I18nextProvider>,
+        );
+      };
+      marker.bindPopup(container, { maxWidth: 320, autoPan: true, keepInView: true });
+      marker.on("popupopen", mountPopup);
+      marker.on("popupclose", () => {
+        popupRoot?.unmount();
+        popupRoot = null;
+      });
+      marker.on("click", (event) => {
+        L.DomEvent.stopPropagation(event);
+        onFlyToRef.current?.(props.id, lat, lon);
+        marker.openPopup();
+      });
+      roots.set(marker, popupRoot);
     });
-  }, [marinas, showMarinas]);
+    return () => {
+      roots.forEach((root) => root?.unmount());
+      roots.clear();
+    };
+  }, [marinas, showMarinas, contributor, onPledgeAuthorized, marinaMilestoneId, i18nInstance.language]);
 
   useEffect(() => {
     const map = mapRef.current;

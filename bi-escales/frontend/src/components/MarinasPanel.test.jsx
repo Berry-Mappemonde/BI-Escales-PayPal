@@ -30,4 +30,31 @@ describe("MarinasPanel", () => {
     expect(screen.getByTestId("paypal-buttons")).toHaveAttribute("data-kind", "berth");
     expect(screen.getByText(/Amarrage \(simulation\) — Port des Minimes/)).toBeInTheDocument();
   });
+
+  it("affiche la légende FR/EN des marinas vérifiées", async () => {
+    await i18n.changeLanguage("fr");
+    const verified = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [-1.1661, 46.1468] },
+          properties: {
+            id: "m2",
+            name: "Minimes",
+            safe_google_place: true,
+          },
+        },
+        ...marinas.features,
+      ],
+    };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MarinasPanel marinas={verified} milestoneId="dep-la-rochelle" onFlyTo={() => {}} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("marinas-legend")).toBeInTheDocument();
+    expect(screen.getByText(/Fiche Google vérifiée/)).toBeInTheDocument();
+    expect(screen.getByText(/\(1\)/)).toBeInTheDocument();
+  });
 });

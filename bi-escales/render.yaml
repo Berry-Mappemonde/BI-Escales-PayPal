@@ -3,7 +3,7 @@
 #
 # Partenaires optionnels (documentation uniquement ici — aucun secret) :
 # - Postman : collection statique bi-escales/postman/ ; rien à déclarer sur Render.
-# - AG Grid Community : build-time VITE_ENABLE_AG_GRID=0|1 (défaut 0). Vue AG Grid sous le serveur Vite seulement ; tableau HTML en build de production.
+# - AG Grid Community : build-time VITE_ENABLE_AG_GRID=0|1 (défaut 0). 1 : chunk lazy pour le tableau trésorier ; 0 : absent du build, tableau HTML.
 # - Bryntum Scheduler (essai npm public) : ESCALES_BRYNTUM_ENABLED=0|1 (défaut 0). Timeline lecture seule des escales ; liste locale si 0.
 services:
   - type: web

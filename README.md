@@ -38,7 +38,7 @@ The API runs fully on local pytest and manual treasurer routes without any of th
 | PayPal webhooks | `ESCALES_WEBHOOKS_ENABLED` + `PAYPAL_WEBHOOK_ID` | Inbound `POST /api/escales/webhooks/paypal` with PayPal `verify-webhook-signature` and transmission idempotence |
 | PayPal Agent Toolkit | `ESCALES_TOOLKIT_ENABLED` | Read-only order lookups for the Captain |
 | Render deploy | `bi-escales/render.yaml` | Optional blueprint; set env vars in the Render dashboard (names only in the file) |
-| AG Grid Community | `VITE_ENABLE_AG_GRID` (frontend build) | Optional AG Grid view of the treasurer milestone table under the Vite dev server; HTML table when off (default) and in production builds today |
+| AG Grid Community | `VITE_ENABLE_AG_GRID` (frontend build) | Optional AG Grid view of the treasurer milestone table, shipped as a lazy chunk when the flag is on; absent from the build when off (default), which keeps the HTML table |
 | Postman | `bi-escales/postman/escales.postman_collection.json` + `escales.sandbox.postman_environment.json` | Sandbox walkthrough (create → authorize → capture / void) against test2; admin key left empty; not loaded by the app |
 | Bryntum | `bi-escales/frontend/src/components/escales/BryntumTimeline.jsx` | Read-only stopover timeline (public npm trial `@bryntum/scheduler-trial`), only when `ESCALES_BRYNTUM_ENABLED=true`; falls back to the local list |
 | Zapier | `ESCALES_ZAPIER_ENABLED` | Optional automation layer (see below) |
@@ -49,7 +49,7 @@ The blueprint in `bi-escales/render.yaml` describes one free web service (`bi-es
 
 Partner toggles on Render (names only, no values in git):
 
-- **Build** — leave `VITE_ENABLE_AG_GRID` unset or `0` for the HTML table. `1` changes nothing in a production build today: `TreasurerGridAg.tsx` is not bundled, so the page falls back to the HTML table.
+- **Build** — `VITE_ENABLE_AG_GRID=1` ships AG Grid as a lazy chunk (`TreasurerGridAg`), loaded when the treasurer table opens. Leave it unset or `0` and the chunk is absent from the build; the page keeps the HTML table.
 - **Runtime** — `ESCALES_BRYNTUM_ENABLED=1` exposes Bryntum on `/api/escales/features` and the voyage tab loads the read-only timeline; default off keeps the local schedule list.
 
 See `bi-escales/docs/deploiement-render.md` for return URLs and same-origin setup, and `bi-escales/scripts/smoke_same_origin.py` for the smoke script. Removing partner env vars or the Postman folder does not change core pledge behaviour.

@@ -19,6 +19,8 @@ SUBSCRIPTION_CREATE_CACHE_MAX = 32
 
 CREW_CATALOG_LANGS = ("en", "fr")
 
+CREW_PLAN_ID_EN_FALLBACK = "P-4PS00218TX624722ENLVZY3I"
+
 CREW_LABELS: dict[str, dict[str, str]] = {
     "en": {
         "product_name": "Crew supporter",
@@ -231,6 +233,8 @@ async def resolve_crew_supporter_plan_id(client: Any, lang: Optional[str] = None
             return plan_id
     hydrated = await _hydrate_lang_from_paypal(client, app_lang)
     if not hydrated:
+        if app_lang == "en":
+            return CREW_PLAN_ID_EN_FALLBACK
         return None
     patch = {
         f"product_id_{app_lang}": hydrated["product_id"],

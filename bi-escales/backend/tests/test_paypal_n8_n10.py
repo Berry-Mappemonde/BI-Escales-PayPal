@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.escales.departure_clock import run_departure_clock
+from app.escales.milestones import record_captain_review_approval
 from app.escales.paypal_reconcile import reconcile_paypal_ledger
 from app.escales.pledges import (
     authorize_pledge,
@@ -161,6 +162,7 @@ def test_n9_settle_and_payment_mode_resolve_stops_without_milestone_sync(monkeyp
             kind="mile",
         )
         await authorize_pledge(created["_id"], spy)
+        await record_captain_review_approval("dep-dzaoudzi-mayotte")
         before = await run_departure_clock(spy)
         assert before["actions"][0]["action"] == "wait"
         arrival_raw = str(doc["meta"]["arrival_iso"])

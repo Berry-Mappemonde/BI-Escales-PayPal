@@ -52,7 +52,12 @@ export default function App() {
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
   const [hash, setHash] = useState(() => window.location.hash);
   const [adminKey, setAdminKey] = useState("");
-  const { pledges, loading, error, needsKey, refresh, updatePledge } = usePledgeQueue(adminKey);
+  const [queueAdminKey, setQueueAdminKey] = useState("");
+  useEffect(() => {
+    const handle = window.setTimeout(() => setQueueAdminKey(adminKey), 350);
+    return () => window.clearTimeout(handle);
+  }, [adminKey]);
+  const { pledges, loading, error, needsKey, refresh, updatePledge } = usePledgeQueue(queueAdminKey);
 
   const [routeFc, setRouteFc] = useState<unknown>(null);
   const [projects, setProjects] = useState<{ features?: unknown[] }>({ features: [] });
@@ -489,8 +494,18 @@ export default function App() {
     setFlyTo({ lat, lon, ts: Date.now() });
   };
 
+  const dismissNotices = () => {
+    setPaypalNote(null);
+    setCrewSubscribeNote(null);
+  };
+
   const paypalNotices = (
     <>
+      {(paypalNote || crewSubscribeNote) ? (
+        <button type="button" className="notice-dismiss" data-testid="dismiss-notices" onClick={dismissNotices}>
+          {t("app.dismissNotice")}
+        </button>
+      ) : null}
       {healthOk === false ? <p className="notice error">{t("app.healthFail")}</p> : null}
       {crewSubscribeNote === "verifying" ? (
         <p className="status" data-testid="crew-subscribe-return-notice">
@@ -650,6 +665,7 @@ export default function App() {
             />
             <EscalesPanel
               milestoneId={milestoneId}
+              adminKey={adminKey.trim() || undefined}
               onMilestoneId={setMilestoneId}
               onSuggested={onSuggested}
               onAuthorized={onAuthorized}

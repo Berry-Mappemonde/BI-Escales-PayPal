@@ -159,6 +159,30 @@ def vault_id_from_token(payload: dict) -> str:
     raise PayPalError(502, "vault id missing")
 
 
+def vault_id_from_order(order: dict) -> Optional[str]:
+    """Vault payment-token id saved during an AUTHORIZE checkout (vault on purchase)."""
+    if not isinstance(order, dict):
+        return None
+
+    def walk(node: Any) -> Optional[str]:
+        if isinstance(node, dict):
+            vault_id = node.get("vault_id")
+            if isinstance(vault_id, str) and vault_id.strip():
+                return vault_id.strip()
+            for value in node.values():
+                found = walk(value)
+                if found:
+                    return found
+        elif isinstance(node, list):
+            for item in node:
+                found = walk(item)
+                if found:
+                    return found
+        return None
+
+    return walk(order)
+
+
 def setup_token_approve_link(payload: dict) -> str:
     for link in payload.get("links") or []:
         rel = (link.get("rel") or "").lower()

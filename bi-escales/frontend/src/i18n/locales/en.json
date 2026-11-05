@@ -9,7 +9,8 @@
     "healthFail": "Backend unreachable",
     "escalesOff": "ESCALES_ENABLED is off: /api/escales returns 404.",
     "sidebarCollapse": "Collapse sidebar",
-    "sidebarExpand": "Expand sidebar"
+    "sidebarExpand": "Expand sidebar",
+    "dismissNotice": "Dismiss"
   },
   "tabs": {
     "voyage": "Voyage map",
@@ -171,6 +172,8 @@
     "queueEmpty": "No authorized, vaulted, or pending pledges on the server.",
     "queueNeedsKey": "Enter the treasurer key to read the queue from the server.",
     "approveReview": "Approve the review",
+    "capturePledge": "Capture pledge",
+    "notSailingVoid": "We are not sailing (void)",
     "verdict": "Verdict",
     "loadError": "The queue could not be refreshed. Rows already loaded were kept.",
     "status": "Status",

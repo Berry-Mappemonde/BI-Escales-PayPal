@@ -9,7 +9,8 @@
     "healthFail": "Backend indisponible",
     "escalesOff": "ESCALES_ENABLED est désactivé : l’API /api/escales renvoie 404.",
     "sidebarCollapse": "Replier le panneau latéral",
-    "sidebarExpand": "Déplier le panneau latéral"
+    "sidebarExpand": "Déplier le panneau latéral",
+    "dismissNotice": "Fermer"
   },
   "tabs": {
     "voyage": "Carte du voyage",
@@ -171,6 +172,8 @@
     "queueEmpty": "Aucune promesse autorisée, vaultée ou en attente sur le serveur.",
     "queueNeedsKey": "Saisissez la clé trésorier pour lire la file sur le serveur.",
     "approveReview": "Approuver la revue",
+    "capturePledge": "Capturer la promesse",
+    "notSailingVoid": "On ne part pas (annuler)",
     "verdict": "Verdict",
     "loadError": "La file n’a pas pu être actualisée. Les lignes déjà chargées sont conservées.",
     "status": "Statut",

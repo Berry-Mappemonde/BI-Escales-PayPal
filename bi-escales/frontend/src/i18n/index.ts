@@ -3,8 +3,14 @@ import { initReactI18next } from "react-i18next";
 import en from "./locales/en.json";
 import fr from "./locales/fr.json";
 
+function browserDefaultLang(): "fr" | "en" {
+  if (typeof navigator === "undefined") return "fr";
+  const nav = String(navigator.language || "");
+  return nav.toLowerCase().startsWith("en") ? "en" : "fr";
+}
+
 const stored = typeof localStorage !== "undefined" ? localStorage.getItem("bi-escales-lang") : null;
-const fallbackLng = stored === "en" || stored === "fr" ? stored : "fr";
+const fallbackLng = stored === "en" || stored === "fr" ? stored : browserDefaultLang();
 
 void i18n.use(initReactI18next).init({
   resources: { fr: { translation: fr }, en: { translation: en } },

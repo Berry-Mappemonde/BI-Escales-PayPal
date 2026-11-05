@@ -16,6 +16,18 @@ const BAS_DU_FORT = {
 };
 
 describe("marinaPlaceLink", () => {
+  it("rejects Bas-du-Fort boat-school plural place name", () => {
+    const ev = evaluateGooglePlaceLink({
+      name: "Marina de Bas-du-Fort",
+      lat: 16.2203478,
+      lon: -61.5297219,
+      maps_url:
+        "https://www.google.com/maps/place/Bateaux+Ecoles+De+Guadeloupe+Marina+Bas+Du+Fort/@16.2510,-61.5480,17z",
+    });
+    expect(ev.safePlace).toBe(false);
+    expect(ev.rejectedReason).toBe("suspicious_name");
+  });
+
   it("rejects Bas-du-Fort driving-school place and keeps search link", () => {
     const ev = evaluateGooglePlaceLink(BAS_DU_FORT);
     expect(ev.safePlace).toBe(false);

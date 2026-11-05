@@ -1,11 +1,12 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
-import { captainReview, capturePledge, voidPledge } from "../api/escales";
+import { approveCaptainReview, captainReview, capturePledge, voidPledge } from "../api/escales";
 import i18n from "../i18n";
 import { TreasurerQueue } from "./TreasurerQueue";
 
 vi.mock("../api/escales", () => ({
+  approveCaptainReview: vi.fn(),
   captainReview: vi.fn(),
   capturePledge: vi.fn(),
   voidPledge: vi.fn(),
@@ -22,12 +23,16 @@ const pledge = {
 };
 
 describe("TreasurerQueue", () => {
-  it("approuve le verdict du capitaine et n'offre pas d'autre bouton d'action", async () => {
+  it("records review approval then captures on a separate button", async () => {
     await i18n.changeLanguage("fr");
     vi.mocked(captainReview).mockResolvedValue({
       milestone_id: "dep-la-rochelle",
       proposal: "capture",
       pledge_ids: ["p-1"],
+    });
+    vi.mocked(approveCaptainReview).mockResolvedValue({
+      milestone_id: "dep-la-rochelle",
+      approved: true,
     });
     vi.mocked(capturePledge).mockResolvedValue({ ...pledge, status: "captured" });
     const onUpdated = vi.fn();
@@ -42,13 +47,15 @@ describe("TreasurerQueue", () => {
       </I18nextProvider>,
     );
     expect(await screen.findByTestId("verdict-p-1")).toHaveTextContent("capture");
-    expect(captainReview).toHaveBeenCalledWith("dep-la-rochelle", "test-admin-key", "fr");
-    expect(screen.queryByRole("button", { name: "Encaisser" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Annuler l’autorisation" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Approuver la revue" }));
-    expect(await screen.findByTestId("verdict-p-1")).toBeTruthy();
+    expect(approveCaptainReview).toHaveBeenCalledWith("dep-la-rochelle", "test-admin-key");
+    await waitFor(() => {
+      expect(screen.getByTestId("capture-p-1")).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Capturer la promesse" }));
     expect(capturePledge).toHaveBeenCalledWith("p-1", "test-admin-key");
-    expect(voidPledge).not.toHaveBeenCalled();
-    expect(onUpdated).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(onUpdated).toHaveBeenCalled();
+    });
   });
 });

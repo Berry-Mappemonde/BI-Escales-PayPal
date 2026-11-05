@@ -54,7 +54,7 @@ from app.escales.ledger import (
     to_public_project_donation_total,
 )
 from app.escales_names import display_name as escale_display_name
-from app.escales.milestones import list_milestones, record_evidence
+from app.escales.milestones import list_milestones, record_captain_review_approval, record_evidence
 from app.escales.naviguide_bridge import (
     clock_legs,
     escales_to_milestones,
@@ -1104,6 +1104,15 @@ async def post_review(milestone_id: str, request: Request, lang: Optional[str] =
             if key not in {"pending_authorizations", "pledge_ids"}
         }
     return proposal
+
+
+@router.post("/milestones/{milestone_id}/captain-review/approve")
+async def post_captain_review_approve(milestone_id: str, request: Request):
+    _require_treasurer(request)
+    try:
+        return await record_captain_review_approval(milestone_id)
+    except ValueError as exc:
+        raise _as_http(exc) from exc
 
 
 @router.post("/captain/chat")

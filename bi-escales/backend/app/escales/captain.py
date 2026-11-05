@@ -104,9 +104,11 @@ _CAPTURE_RULE_Q = re.compile(
 )
 _STATUS_Q = re.compile(
     r"\b(?:statuts?|status|états?|etats?)\b"
+    r"|statut de ma promesse|status of my pledge|my pledge status"
     r"|où en est|ou en est|où en sommes|ou en sommes",
     re.IGNORECASE,
 )
+_PLEDGE_ID_IN_TEXT = re.compile(r"\b([0-9a-f]{32})\b", re.IGNORECASE)
 # A stated authorization age, not an unrelated count in the same sentence.
 _AUTH_AGE = re.compile(
     r"(\d+)\s*[- ]?\s*(?:day|days|jour|jours)[- ]?\s*(?:old\s+)?"
@@ -1664,6 +1666,30 @@ def _rules_source() -> dict[str, str]:
     return {"provider": "rules", "model": ""}
 
 
+def model_display_label(source: Any) -> str:
+    """One consistent label for UI (N6/N7), aligned with ``llm_proposal`` NIM usage."""
+    if not isinstance(source, dict):
+        return ""
+    provider = str(source.get("provider") or "").strip().lower()
+    model = str(source.get("model") or "").strip()
+    if provider == "nim":
+        return f"NVIDIA NIM — {model}" if model else "NVIDIA NIM"
+    if provider == "paypal_readonly_tools":
+        return ""
+    if model:
+        return model
+    if provider == "rules":
+        return ""
+    return provider
+
+
+def _paypal_tools_payload(reader: ReadOnlyTools) -> dict[str, Any]:
+    return {
+        "tools": list(reader.allowed()),
+        "client": "paypal-agent-toolkit" if reader.uses_toolkit else "direct",
+    }
+
+
 def _text_of(raw: Any) -> str:
     if raw is None:
         return ""
@@ -2742,7 +2768,8 @@ def _cabin_price_reply(lang: str) -> str:
 
 
 _PAYPAL_READONLY = re.compile(
-    r"\b(?:list|show|search|check)\s+(?:paypal\s+)?(?:transactions?|disputes?|invoices?|subscriptions?|refunds?|payouts?)\b",
+    r"\b(?:list|show|search|check)\b.{0,60}\b(?:paypal\s+)?"
+    r"(?:transactions?|disputes?|invoices?|subscriptions?|refunds?|payouts?)\b",
     re.IGNORECASE,
 )
 _PAYPAL_READONLY_FR = re.compile(
@@ -2811,6 +2838,61 @@ def _is_paypal_readonly_question(message: str) -> bool:
 
 def _paypal_search_window() -> tuple[str, str]:
     return default_transaction_search_window()
+
+
+def _is_pledge_status_question(message: str) -> bool:
+    return bool(
+        re.search(
+            r"statut de ma promesse|status of my pledge|my pledge status",
+            message or "",
+            re.I,
+        )
+    )
+
+
+async def _pledge_for_status_question(message: str) -> Optional[dict]:
+    from .pledges import get_ledger
+
+    match = _PLEDGE_ID_IN_TEXT.search(message or "")
+    if match:
+        row = await get_ledger().get_pledge(match.group(1))
+        if row:
+            return row
+    rows = await get_ledger().list_pledges()
+    if not rows:
+        return None
+    rows.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
+    return rows[0]
+
+
+async def _pledge_status_readonly_reply(
+    message: str,
+    lang: str,
+    reader: ReadOnlyTools,
+) -> Optional[str]:
+    if not _is_pledge_status_question(message):
+        return None
+    pledge = await _pledge_for_status_question(message)
+    if not pledge:
+        if lang == "en":
+            return "No pledge found to inspect."
+        return "Aucune promesse trouvée à consulter."
+    _read(reader, pledge)
+    status = str(pledge.get("status") or "")
+    amount = pledge.get("amount_eur")
+    order_id = pledge.get("order_id") or "—"
+    auth_id = pledge.get("authorization_id") or "—"
+    if lang == "en":
+        lines = [
+            f"Pledge {pledge.get('_id')}: status {status}, {amount} EUR.",
+            f"PayPal order {order_id}; authorization {auth_id} (read-only lookup).",
+        ]
+    else:
+        lines = [
+            f"Promesse {pledge.get('_id')} : statut {status}, {amount} EUR.",
+            f"Commande PayPal {order_id} ; autorisation {auth_id} (lecture seule).",
+        ]
+    return "\n".join(lines)
 
 
 def _paypal_readonly_reply(message: str, lang: str, reader: ReadOnlyTools) -> Optional[str]:
@@ -2890,6 +2972,18 @@ async def chat(
     url = membership_url()
     lang = resolve_chat_lang(text, lang, accept_language)
     if treasurer and reader is not None:
+        pledge_reply = await _pledge_status_readonly_reply(text, lang, reader)
+        if pledge_reply:
+            return {
+                "reply": _fit_words("", [pledge_reply, _signature(lang)]),
+                "membership_url": url,
+                "suggested_pledge": None,
+                "cart": None,
+                "model_source": "paypal_readonly_tools",
+                "model_label": "",
+                "fund": None,
+                "paypal_tools": _paypal_tools_payload(reader),
+            }
         tool_reply = _paypal_readonly_reply(text, lang, reader)
         if tool_reply:
             return {
@@ -2898,8 +2992,9 @@ async def chat(
                 "suggested_pledge": None,
                 "cart": None,
                 "model_source": "paypal_readonly_tools",
+                "model_label": "",
                 "fund": None,
-                "paypal_tools": list(reader.allowed()),
+                "paypal_tools": _paypal_tools_payload(reader),
             }
     if _is_capture_rule_question(text):
         return {
@@ -2987,6 +3082,7 @@ async def chat(
         "suggested_pledge": suggested,
         "cart": cart,
         "model_source": source,
+        "model_label": model_display_label(source),
     }
 
 

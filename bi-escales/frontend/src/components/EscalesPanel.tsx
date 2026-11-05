@@ -6,6 +6,7 @@ import { PledgeButton } from "./PledgeButton";
 
 export interface EscalesPanelProps {
   milestoneId: string;
+  adminKey?: string;
   onMilestoneId?: (id: string) => void;
   onSuggested?: (pledge: CaptainChatResponse["suggested_pledge"]) => void;
   onAuthorized?: (pledge: PublicPledge) => void;
@@ -13,6 +14,7 @@ export interface EscalesPanelProps {
 
 export function EscalesPanel({
   milestoneId,
+  adminKey,
   onMilestoneId,
   onSuggested,
   onAuthorized,
@@ -29,7 +31,7 @@ export function EscalesPanel({
     setBusy(true);
     setError(null);
     try {
-      const res = await captainChat(chatMessage, lang);
+      const res = await captainChat(chatMessage, lang, adminKey);
       setChatResult(res);
       if (res.suggested_pledge) {
         onSuggested?.(res.suggested_pledge);
@@ -54,6 +56,11 @@ export function EscalesPanel({
         <div className="chat-result">
           <h3>{t("escales.chatReply")}</h3>
           <p>{chatResult.reply}</p>
+          {chatResult.model_label ? (
+            <p className="hint" data-testid="captain-model-label">
+              {chatResult.model_label}
+            </p>
+          ) : null}
           {chatResult.cart?.lines?.length ? (
             <div data-testid="captain-cart">
               <h3>{t("escales.cartHeading")}</h3>

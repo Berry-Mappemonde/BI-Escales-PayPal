@@ -54,7 +54,7 @@ describe("EscalesPanel cart", () => {
       </I18nextProvider>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Demander une formulation" }));
-    expect(captainChat).toHaveBeenCalledWith("20 milles près de Mayotte", "fr");
+    expect(captainChat).toHaveBeenCalledWith("20 milles près de Mayotte", "fr", undefined);
     const line = await screen.findByTestId("cart-line");
     expect(line).toHaveTextContent("20 milles parrainés — 20.00 EUR");
     expect(line).toHaveTextContent("prix simulé");

@@ -17,7 +17,8 @@ COORDS_RE = re.compile(r"/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)")
 DATA_COORDS_RE = re.compile(r"!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)")
 SUSPICIOUS_PLACE_RE = re.compile(
     r"\b("
-    r"auto[\s-]?école|auto[\s-]?ecole|bateau[\s-]?école|bateau[\s-]?ecole|"
+    r"auto[\s-]?[ée]coles?|"
+    r"bateaux?[\s-]?[ée]coles?|"
     r"driving\s+school|restaurant|hotel|hôtel|pizzeria|café|cafe|"
     r"brasserie|nightclub|bar"
     r")\b",

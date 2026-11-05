@@ -293,6 +293,9 @@ async def _apply_event(event: dict) -> dict:
             status=resource.get("status"),
         )
     if event_type == "VAULT.PAYMENT-TOKEN.CREATED" and pledge:
+        vault_token_id = str(resource.get("id") or "").strip()
+        if vault_token_id and pledge.get("vault_on_purchase") and not pledge.get("vault_id"):
+            pledge["vault_id"] = vault_token_id
         pledge["history"] = list(pledge.get("history") or []) + ["webhook_vault_token_created"]
         pledge = await get_ledger().save_pledge(pledge)
     if event_type == "VAULT.PAYMENT-TOKEN.DELETED" and pledge:

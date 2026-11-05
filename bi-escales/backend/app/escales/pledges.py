@@ -53,6 +53,7 @@ from .paypal_client import (
     authorization_from,
     read_capture_result,
     setup_token_approve_link,
+    vault_id_from_order,
     vault_id_from_token,
     vault_source_from_token,
 )
@@ -1160,6 +1161,17 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     await refuse_cancelled_departure(pledge)
     order = client.authorize_order(order_id, pledge_id=pledge_id)
     auth_id, expiration = authorization_from(order)
+    if pledge.get("vault_on_purchase"):
+        vault_id = vault_id_from_order(order if isinstance(order, dict) else {})
+        if not vault_id:
+            try:
+                refreshed = client.get_order(order_id) or {}
+            except Exception:
+                refreshed = {}
+            vault_id = vault_id_from_order(refreshed)
+        if vault_id:
+            pledge["vault_id"] = vault_id
+            pledge["history"] = list(pledge.get("history") or []) + ["vault_id_saved"]
     pledge["status"] = "authorized"
     pledge["authorized_at"] = _money_event_timestamp()
     pledge["authorization_id"] = auth_id

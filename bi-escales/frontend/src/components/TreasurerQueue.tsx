@@ -15,6 +15,7 @@ export interface TreasurerQueueProps {
   error?: string | null;
   needsKey?: boolean;
   adminKey: string;
+  demoTreasurer?: boolean;
   onRefresh: () => void;
   onUpdated: (pledge: PublicPledge) => void;
 }
@@ -25,6 +26,7 @@ export function TreasurerQueue({
   error,
   needsKey,
   adminKey,
+  demoTreasurer = false,
   onRefresh,
   onUpdated,
 }: TreasurerQueueProps) {
@@ -41,7 +43,11 @@ export function TreasurerQueue({
   useEffect(() => {
     const key = adminKey.trim();
     const ids = [...new Set(milestoneKey.split("|").filter(Boolean))];
-    if (!key || !ids.length) {
+    if (!demoTreasurer && !key) {
+      setVerdicts({});
+      return;
+    }
+    if (!ids.length) {
       setVerdicts({});
       return;
     }
@@ -51,7 +57,12 @@ export function TreasurerQueue({
       for (const id of ids) {
         try {
           const appLang = i18n.language === "fr" ? "fr" : "en";
-          const row = await captainReview(id, key, appLang);
+          const row = await captainReview(
+            id,
+            demoTreasurer ? undefined : key,
+            appLang,
+            demoTreasurer ? { demoTreasurer: true } : undefined,
+          );
           next[id] = String(row.proposal || "");
           if (row.paypal_tool_calls?.length) {
             setToolCalls(row.paypal_tool_calls);
@@ -65,20 +76,21 @@ export function TreasurerQueue({
     return () => {
       cancel = true;
     };
-  }, [adminKey, milestoneKey, i18n.language]);
+  }, [adminKey, demoTreasurer, milestoneKey, i18n.language]);
 
   const runAction = async (pledgeId: string, action: "capture" | "void") => {
-    if (!adminKey.trim()) {
+    if (!demoTreasurer && !adminKey.trim()) {
       setActionError("Admin key required");
       return;
     }
     setBusyId(pledgeId);
     setActionError(null);
+    const access = demoTreasurer ? { demoTreasurer: true as const } : undefined;
     try {
       const updated =
         action === "capture"
-          ? await capturePledge(pledgeId, adminKey.trim())
-          : await voidPledge(pledgeId, adminKey.trim());
+          ? await capturePledge(pledgeId, adminKey.trim(), access)
+          : await voidPledge(pledgeId, adminKey.trim(), access);
       onUpdated(updated);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : String(e));
@@ -94,7 +106,11 @@ export function TreasurerQueue({
     }
     setActionError(null);
     try {
-      await approveCaptainReview(milestoneId, adminKey.trim());
+      await approveCaptainReview(
+        milestoneId,
+        adminKey.trim(),
+        demoTreasurer ? { demoTreasurer: true } : undefined,
+      );
       setApprovedMilestones((prev) => ({ ...prev, [milestoneId]: true }));
     } catch (e) {
       setActionError(e instanceof Error ? e.message : String(e));

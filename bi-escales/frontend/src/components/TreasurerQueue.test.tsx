@@ -48,12 +48,12 @@ describe("TreasurerQueue", () => {
     );
     expect(await screen.findByTestId("verdict-p-1")).toHaveTextContent("capture");
     fireEvent.click(screen.getByRole("button", { name: "Approuver la revue" }));
-    expect(approveCaptainReview).toHaveBeenCalledWith("dep-la-rochelle", "test-admin-key");
+    expect(approveCaptainReview).toHaveBeenCalledWith("dep-la-rochelle", "test-admin-key", undefined);
     await waitFor(() => {
       expect(screen.getByTestId("capture-p-1")).not.toBeDisabled();
     });
     fireEvent.click(screen.getByRole("button", { name: "Capturer la promesse" }));
-    expect(capturePledge).toHaveBeenCalledWith("p-1", "test-admin-key");
+    expect(capturePledge).toHaveBeenCalledWith("p-1", "test-admin-key", undefined);
     await waitFor(() => {
       expect(onUpdated).toHaveBeenCalled();
     });

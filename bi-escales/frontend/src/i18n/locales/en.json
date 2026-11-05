@@ -169,6 +169,8 @@
   },
   "treasurer": {
     "panelTitle": "Treasurer",
+    "demoButton": "Demo treasurer",
+    "demoBanner": "Sandbox demo — queue, review, capture, and void only. No admin key on this device.",
     "heading": "Treasurer queue",
     "adminKey": "Treasurer key (x-admin-key)",
     "adminKeyHint": "Held in memory only — never stored.",

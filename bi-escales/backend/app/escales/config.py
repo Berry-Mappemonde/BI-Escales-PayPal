@@ -171,6 +171,23 @@ def vault_enabled() -> bool:
     return os.environ.get("ESCALES_VAULT_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def demo_treasurer_enabled() -> bool:
+    """Sandbox-only: treasurer queue/review/capture/void without x-admin-key."""
+    if os.environ.get("ESCALES_DEMO_TREASURER", "").strip().lower() not in _TRUTHY:
+        return False
+    env = (os.environ.get("PAYPAL_ENV") or "sandbox").strip().lower()
+    return env == "sandbox"
+
+
+def demo_treasurer_flag_set() -> bool:
+    return os.environ.get("ESCALES_DEMO_TREASURER", "").strip().lower() in _TRUTHY
+
+
+def demo_treasurer_env_forbidden() -> bool:
+    """Demo flag is on but PAYPAL_ENV is not sandbox."""
+    return demo_treasurer_flag_set() and not demo_treasurer_enabled()
+
+
 def card_fields_enabled() -> bool:
     """JS SDK Card Fields and card payment_source on orders/setup tokens. Off by default."""
     return os.environ.get("ESCALES_CARD_FIELDS_ENABLED", "").strip().lower() in _TRUTHY

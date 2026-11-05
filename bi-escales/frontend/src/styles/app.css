@@ -404,6 +404,15 @@ button:disabled {
   padding: 0.25rem 0.5rem;
 }
 
+.demo-treasurer-entry {
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.demo-treasurer-banner {
+  border-left: 3px solid #00c8ff;
+}
+
 .marina-map-popup-inner {
   display: flex;
   flex-direction: column;

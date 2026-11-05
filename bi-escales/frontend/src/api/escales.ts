@@ -8,7 +8,22 @@ import type {
   FundView,
   PublicProjectDonationTotal,
   ClockSettleResponse,
+  TreasurerAccessOptions,
 } from "./types";
+
+function treasurerAccessHeaders(
+  adminKey: string,
+  access?: TreasurerAccessOptions,
+): Record<string, string> {
+  if (access?.demoTreasurer) {
+    return {};
+  }
+  const key = adminKey.trim();
+  if (!key) {
+    throw new Error("Admin key required");
+  }
+  return { "x-admin-key": key };
+}
 
 function url(path: string): string {
   const base = (import.meta.env.VITE_API_BASE ?? "").trim().replace(/\/$/, "");
@@ -156,9 +171,12 @@ export async function authorizePledge(pledgeId: string): Promise<PublicPledge> {
   return res.json();
 }
 
-export async function listPledges(adminKey: string): Promise<PublicPledge[]> {
+export async function listPledges(
+  adminKey: string,
+  access?: TreasurerAccessOptions,
+): Promise<PublicPledge[]> {
   const res = await fetch(url("/api/escales/pledges"), {
-    headers: { "x-admin-key": adminKey },
+    headers: treasurerAccessHeaders(adminKey, access),
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
@@ -213,19 +231,27 @@ export async function settleClock(adminKey: string, now?: string): Promise<Clock
   return res.json();
 }
 
-export async function capturePledge(pledgeId: string, adminKey: string): Promise<PublicPledge> {
+export async function capturePledge(
+  pledgeId: string,
+  adminKey: string,
+  access?: TreasurerAccessOptions,
+): Promise<PublicPledge> {
   const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}/capture`), {
     method: "POST",
-    headers: { "x-admin-key": adminKey },
+    headers: treasurerAccessHeaders(adminKey, access),
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
 
-export async function voidPledge(pledgeId: string, adminKey: string): Promise<PublicPledge> {
+export async function voidPledge(
+  pledgeId: string,
+  adminKey: string,
+  access?: TreasurerAccessOptions,
+): Promise<PublicPledge> {
   const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}/void`), {
     method: "POST",
-    headers: { "x-admin-key": adminKey },
+    headers: treasurerAccessHeaders(adminKey, access),
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
@@ -234,12 +260,13 @@ export async function voidPledge(pledgeId: string, adminKey: string): Promise<Pu
 export async function approveCaptainReview(
   milestoneId: string,
   adminKey: string,
+  access?: TreasurerAccessOptions,
 ): Promise<{ milestone_id: string; approved: boolean }> {
   const res = await fetch(
     url(`/api/escales/milestones/${encodeURIComponent(milestoneId)}/captain-review/approve`),
     {
       method: "POST",
-      headers: { "x-admin-key": adminKey.trim() },
+      headers: treasurerAccessHeaders(adminKey, access),
     },
   );
   if (!res.ok) throw new Error(await parseError(res));
@@ -318,10 +345,15 @@ export async function captainReview(
   milestoneId: string,
   adminKey?: string,
   lang?: string,
+  access?: TreasurerAccessOptions,
 ): Promise<CaptainProposal> {
   const headers: Record<string, string> = {};
-  const key = (adminKey || "").trim();
-  if (key) headers["x-admin-key"] = key;
+  if (access?.demoTreasurer) {
+    /* demo session: no x-admin-key */
+  } else {
+    const key = (adminKey || "").trim();
+    if (key) headers["x-admin-key"] = key;
+  }
   const params = new URLSearchParams();
   if (lang === "fr" || lang === "en") params.set("lang", lang);
   const qs = params.toString();

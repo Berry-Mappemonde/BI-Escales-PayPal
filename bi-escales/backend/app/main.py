@@ -10,7 +10,7 @@ from starlette.responses import FileResponse
 
 from app.bi_marinas_catalog import build_escale_fiche, get_all_escale_marinas_geojson, get_escale_marinas_geojson
 from app.bi_projects_catalog import get_bi_projects_geojson
-from app.escales.config import cors_origins
+from app.escales.config import cors_origins, resolve_apple_pay_domain_association_path
 
 app = FastAPI(title="BI Escales — Pay Only If We Sail")
 
@@ -43,6 +43,15 @@ install_cors(app)
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/.well-known/apple-developer-merchantid-domain-association", include_in_schema=False)
+def apple_pay_domain_association():
+    """Apple Pay domain verification for PayPal sandbox (bi-escales-api-test2.onrender.com)."""
+    candidate = resolve_apple_pay_domain_association_path()
+    if not candidate.is_file():
+        raise HTTPException(status_code=404, detail="apple pay domain file missing")
+    return FileResponse(candidate, media_type="text/plain")
 
 
 @app.get("/bi-projects.geojson", include_in_schema=False)

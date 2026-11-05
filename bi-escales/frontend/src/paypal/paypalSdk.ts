@@ -8,6 +8,9 @@ declare global {
         close: () => Promise<void>;
       };
       Messages?: (config: Record<string, unknown>) => { render: (el: HTMLElement) => Promise<void> };
+      Googlepay?: (config: Record<string, unknown>) => { render: (el: HTMLElement) => Promise<void> };
+      Applepay?: (config: Record<string, unknown>) => { render: (el: HTMLElement) => Promise<void> };
+      CardFields?: (config: Record<string, unknown>) => Record<string, unknown>;
     };
   }
 }
@@ -30,9 +33,17 @@ function sdkParams(clientId: string, locale: string, extra: Record<string, strin
 
 export type SdkIntent = "authorize" | "capture";
 
-export function paypalSdkUrl(clientId: string, appLang?: string, intent: SdkIntent = "authorize"): string {
+export function paypalSdkUrl(
+  clientId: string,
+  appLang?: string,
+  intent: SdkIntent = "authorize",
+  walletPay = false,
+): string {
+  const components = walletPay
+    ? "buttons,card-fields,messages,applepay,googlepay"
+    : "buttons,card-fields,messages";
   const params = sdkParams(clientId, paypalLocale(appLang), {
-    components: "buttons,card-fields,messages",
+    components,
     intent,
     currency: "EUR",
     vault: "true",
@@ -54,10 +65,10 @@ export function paypalCardFieldsSdkUrl(clientId: string, appLang?: string): stri
   return `https://www.paypal.com/sdk/js?${params.toString()}`;
 }
 
-export function paypalWalletPaySdkUrl(clientId: string, appLang?: string): string {
+export function paypalWalletPaySdkUrl(clientId: string, appLang?: string, intent: SdkIntent = "authorize"): string {
   const params = sdkParams(clientId, paypalLocale(appLang), {
     components: "applepay,googlepay,buttons,messages",
-    intent: "authorize",
+    intent,
     currency: "EUR",
     vault: "true",
     "disable-funding": "venmo",
@@ -99,11 +110,36 @@ function clearPayPalSdk(): void {
 
 let loadedSrc: string | null = null;
 
-export function loadPayPalSdk(clientId: string, appLang?: string, intent: SdkIntent = "authorize"): Promise<void> {
+export function loadPayPalSdk(
+  clientId: string,
+  appLang?: string,
+  intent: SdkIntent = "authorize",
+  walletPay = false,
+): Promise<void> {
   const trimmed = clientId.trim();
   if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
   const locale = paypalLocale(appLang);
-  const src = paypalSdkUrl(trimmed, appLang, intent);
+  const src = paypalSdkUrl(trimmed, appLang, intent, walletPay);
+  if ((loadedLocale && loadedLocale !== locale) || (loadedSrc && loadedSrc !== src)) {
+    clearPayPalSdk();
+  }
+  if (window.paypal?.Buttons && loadedLocale === locale && loadedSrc === src) {
+    return Promise.resolve();
+  }
+  loadedLocale = locale;
+  loadedSrc = src;
+  return loadScript(src);
+}
+
+export function loadPayPalWalletPaySdk(
+  clientId: string,
+  appLang?: string,
+  intent: SdkIntent = "authorize",
+): Promise<void> {
+  const trimmed = clientId.trim();
+  if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
+  const locale = paypalLocale(appLang);
+  const src = paypalWalletPaySdkUrl(trimmed, appLang, intent);
   if ((loadedLocale && loadedLocale !== locale) || (loadedSrc && loadedSrc !== src)) {
     clearPayPalSdk();
   }
@@ -128,6 +164,7 @@ export function loadPayPalSubscriptionSdk(clientId: string, appLang?: string): P
     return Promise.resolve();
   }
   loadedLocale = locale;
+  loadedSrc = src;
   return loadScript(src);
 }
 

@@ -158,6 +158,7 @@
     "venmoNote": "PayPal wallet or card (EUR). Venmo is not available — USD only.",
     "cardFieldsHint": "Card (sandbox): vault setup or authorization depending on departure date.",
     "cardPay": "Pay with card",
+    "walletPayHint": "Google Pay (Chrome) or Apple Pay (Safari), TEST sandbox EUR.",
     "error": "Pledge error",
     "crewSubscribeHint": "Monthly Crew supporter subscription (EUR, sandbox).",
     "crewSubscribeSaved": "Crew supporter subscription recorded. Thank you.",

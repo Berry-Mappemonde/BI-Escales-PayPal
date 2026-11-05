@@ -194,7 +194,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
     void buttons.render(host).catch(() => undefined);
     host.dataset.smartButtons = "1";
     return () => {
-      void buttons.close().catch(() => undefined);
+      void buttons.close?.().catch(() => undefined);
     };
   }, [sdkReady, disabled, isProjectPledge, appLang, t, onAuthorized]);
 

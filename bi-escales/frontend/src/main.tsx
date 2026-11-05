@@ -1,8 +1,15 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { BiShellApp } from "./bi-shell";
 import { RootErrorBoundary } from "./components/RootErrorBoundary";
 import "./i18n";
+
+function Root() {
+  const params = new URLSearchParams(window.location.search);
+  const useBiShell = params.get("ui") === "bi-shell" || window.location.hash === "#bi-shell";
+  return useBiShell ? <BiShellApp /> : <App />;
+}
 
 const rootEl = document.getElementById("root");
 if (!rootEl) {
@@ -12,7 +19,7 @@ if (!rootEl) {
   createRoot(rootEl).render(
     <StrictMode>
       <RootErrorBoundary>
-        <App />
+        <Root />
       </RootErrorBoundary>
     </StrictMode>,
   );

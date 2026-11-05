@@ -270,5 +270,22 @@
     "marinaPayoutStatus.pending_email": "E-mail payout manquant",
     "marinaRefunds": "Remboursements",
     "marinaDisputes": "Litiges ouverts"
+  },
+  "biShell": {
+    "title": "BI Escales",
+    "subtitle": "Coquille BI vide (aperçu)",
+    "previewBanner": "Aperçu coquille vide — fonctions Escalés pas encore branchées",
+    "tabMap": "Carte",
+    "tabConsole": "Console",
+    "settings": "Réglages",
+    "leftCollapse": "Replier la colonne gauche",
+    "leftExpand": "Ouvrir la colonne gauche",
+    "slotMarinas": "Marinas (priorité)",
+    "slotProjects": "Projets + filtres",
+    "slotStopovers": "Escales",
+    "slotCaptain": "Chat capitaine",
+    "slotMembership": "Adhésion / Équipage",
+    "slotTreasurer": "Trésorier (onglet Console)",
+    "treasurerEmpty": "Vide — monter TreasurerPanel ici (corps Console BI)"
   }
 }

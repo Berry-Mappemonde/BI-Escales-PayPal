@@ -1,0 +1,36 @@
+{
+  "bug1_hard_reload": {
+    "pass": true,
+    "evidence": "01-boot.png, 01-after-reload.png — shell+map+PayPal visible"
+  },
+  "bug2_left_reopen": {
+    "pass": true,
+    "evidence": "02-left-collapsed.png then 02-left-reopened.png"
+  },
+  "bug3_right_close": {
+    "pass": true,
+    "evidence": "03-right-closed.png (gear only) then 03-right-reopened.png"
+  },
+  "bug4_marinas_no_fly": {
+    "pass": true,
+    "evidence": "04-marinas-tab.png — Marinas active, list 61, world map, no blank"
+  },
+  "bug5_crew_en_fr": {
+    "pass": false,
+    "enIframes": 2,
+    "frIframes": 0,
+    "enCrew": 1,
+    "frCrew": 1,
+    "frRoot": 1221154,
+    "evidence": "05-crew-en.png, 05-crew-fr.png"
+  },
+  "bug6_marina_dots": {
+    "pass": true,
+    "markers": 4583,
+    "zoomed": {
+      "ok": false,
+      "hasEl": true
+    },
+    "evidence": "06-marinas-zoomed-out.png + 01-boot.png world dots"
+  }
+}

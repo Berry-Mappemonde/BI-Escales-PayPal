@@ -1,0 +1,633 @@
+
+/* ---------- Mode theme tokens ----------
+ * Projects mode    → cyan accent + neutral surfaces
+ * Marinas mode     → red accent + red-tinted surfaces
+ * Formalities mode → amberx accent + amber-tinted surfaces
+ * AMP mode         → green accent + green-tinted surfaces
+ *
+ * Every UI element uses `accent`/`surface`/`raised`/`line` (via Tailwind
+ * bindings in tailwind.config.js) so the whole app repaints on data-mode change.
+ * Hard-coded `alert`/`sonar`/`amberx` classes have been progressively removed
+ * from panels — the exceptions are semantic (icon color for "no source
+ * warning" alert red is intentional, kept as alert).
+ */
+:root,
+[data-mode="projects"] {
+  --accent-rgb: 0 240 255;         /* #00f0ff — cyan */
+  --accent-glow: rgba(0, 240, 255, 0.35);
+  --accent-tint: rgba(0, 240, 255, 0.06);
+  --accent-tint-strong: rgba(0, 240, 255, 0.10);
+  --surface-rgb: 15 23 42;         /* #0f172a — slate-900 */
+  --raised-rgb: 30 41 59;          /* #1e293b — slate-800 */
+  --line-rgb: 51 65 85;            /* #334155 — slate-700 */
+  --marker-fill: #00f0ff;
+  --marker-stroke: #0f172a;
+}
+[data-mode="marinas"] {
+  --accent-rgb: 255 74 74;         /* #ff4a4a — alert red */
+  --accent-glow: rgba(255, 74, 74, 0.35);
+  --accent-tint: rgba(255, 74, 74, 0.05);
+  --accent-tint-strong: rgba(255, 74, 74, 0.08);
+  --surface-rgb: 24 15 18;         /* slate-900 tinted red */
+  --raised-rgb: 42 22 26;
+  --line-rgb: 82 43 49;
+  --marker-fill: #ff4a4a;
+  --marker-stroke: #0f172a;
+}
+/* Ports of entry: Meridian neutral ladder. Amber stays on the map (PoE markers,
+   EEZ polygons); the one UI accent is the Meridian focus/selection blue. */
+[data-mode="formalities"] {
+  --accent-rgb: 79 140 255;        /* #4f8cff — Meridian accent (focus, links) */
+  --accent-glow: rgba(79, 140, 255, 0.22);
+  --accent-tint: rgba(79, 140, 255, 0.05);
+  --accent-tint-strong: rgba(79, 140, 255, 0.08);
+  --surface-rgb: 22 22 22;         /* #161616 — Meridian shell */
+  --raised-rgb: 31 31 31;          /* #1f1f1f — Meridian raised */
+  --line-rgb: 38 38 38;            /* #262626 — Meridian line */
+  --marker-fill: #fbbf24;
+  --marker-stroke: #121212;
+}
+[data-mode="capitaineries"] {
+  --accent-rgb: 56 189 248;        /* #38bdf8 — sky */
+  --accent-glow: rgba(56, 189, 248, 0.35);
+  --accent-tint: rgba(56, 189, 248, 0.05);
+  --accent-tint-strong: rgba(56, 189, 248, 0.10);
+  --surface-rgb: 12 22 32;
+  --raised-rgb: 20 36 52;
+  --line-rgb: 36 64 90;
+  --marker-fill: #38bdf8;
+  --marker-stroke: #0f172a;
+}
+[data-mode="amp"] {
+  --accent-rgb: 74 222 128;        /* #4ade80 — green-400 */
+  --accent-glow: rgba(74, 222, 128, 0.35);
+  --accent-tint: rgba(74, 222, 128, 0.05);
+  --accent-tint-strong: rgba(74, 222, 128, 0.10);
+  --surface-rgb: 15 24 18;         /* slate-900 tinted green */
+  --raised-rgb: 22 42 30;
+  --line-rgb: 36 74 52;
+  --marker-fill: #4ade80;
+  --marker-stroke: #0f172a;
+}
+[data-mode="science"] {
+  --accent-rgb: 167 139 250;       /* #a78bfa — violet-400 */
+  --accent-glow: rgba(167, 139, 250, 0.35);
+  --accent-tint: rgba(167, 139, 250, 0.05);
+  --accent-tint-strong: rgba(167, 139, 250, 0.10);
+  --surface-rgb: 20 17 32;         /* slate-900 tinted violet */
+  --raised-rgb: 33 28 52;
+  --line-rgb: 58 50 90;
+  --marker-fill: #a78bfa;
+  --marker-stroke: #0f172a;
+}
+[data-mode="climatology"] {
+  --accent-rgb: 45 212 191;        /* #2dd4bf — teal-400 */
+  --accent-glow: rgba(45, 212, 191, 0.35);
+  --accent-tint: rgba(45, 212, 191, 0.05);
+  --accent-tint-strong: rgba(45, 212, 191, 0.10);
+  --surface-rgb: 12 24 24;         /* slate-900 tinted teal */
+  --raised-rgb: 20 40 40;
+  --line-rgb: 36 74 72;
+  --marker-fill: #2dd4bf;
+  --marker-stroke: #0f172a;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: #020617;
+  color: #e2e8f0;
+  font-family: "Manrope", sans-serif;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgb(var(--surface-rgb)); }
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--accent-rgb), 0.35);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--accent-rgb), 0.65); }
+* { scrollbar-color: rgba(var(--accent-rgb), 0.4) rgb(var(--surface-rgb)); }
+
+::selection { background: rgba(var(--accent-rgb), 0.20); color: rgb(var(--accent-rgb)); }
+
+.console-scanlines {
+  position: relative;
+}
+.console-scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 240, 255, 0.02) 3px
+  );
+}
+
+@keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.cursor-blink { animation: blink 1s step-end infinite; }
+
+@keyframes ping-ring {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* Leaflet dark theme overrides */
+.leaflet-container { background: #020617; font-family: "Manrope", sans-serif; }
+/* GL canvases must stay transparent so Esri/Carto tiles remain visible. */
+.leaflet-bi-overlay-pane canvas,
+.leaflet-basemap-gl-pane canvas { background: transparent; }
+.leaflet-popup-content-wrapper {
+  background: rgba(15, 23, 42, 0.95);
+  color: #e2e8f0;
+  border: 1px solid rgba(var(--accent-rgb), 0.45);
+  border-radius: 4px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 22px rgba(var(--accent-rgb), 0.10);
+}
+.leaflet-popup-tip { background: #0f172a; border: 1px solid rgba(var(--accent-rgb), 0.4); }
+.leaflet-popup-content {
+  margin: 12px 14px;
+  overflow-y: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--accent-rgb), 0.5) rgba(15, 23, 42, 0.4);
+}
+.leaflet-popup-content > * {
+  max-width: 100%;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+.leaflet-popup.bi-popup--below {
+  margin-bottom: 0;
+  margin-top: 20px;
+}
+.leaflet-popup.bi-popup--below .leaflet-popup-tip-container {
+  top: 0;
+  bottom: auto;
+  margin-top: -20px;
+}
+.leaflet-popup.bi-popup--below .leaflet-popup-tip {
+  margin: 9px auto 0;
+}
+.leaflet-popup-content::-webkit-scrollbar { width: 6px; }
+.leaflet-popup-content::-webkit-scrollbar-track { background: transparent; }
+.leaflet-popup-content::-webkit-scrollbar-thumb {
+  background: rgba(var(--accent-rgb), 0.4);
+  border-radius: 3px;
+}
+.leaflet-popup-content::-webkit-scrollbar-thumb:hover { background: rgba(var(--accent-rgb), 0.7); }
+.leaflet-popup-close-button { color: #94a3b8 !important; }
+/* Zoom controls: neutral in every mode (Meridian overlay surface), no per-mode accent. */
+.leaflet-bar a {
+  background: rgb(var(--m-overlay)) !important;
+  color: rgb(var(--m-fg-2)) !important;
+  border-color: rgb(var(--m-line-strong)) !important;
+}
+.leaflet-bar a:hover { background: rgb(var(--m-raised)) !important; color: rgb(var(--m-fg)) !important; }
+.leaflet-bar a.leaflet-disabled { color: rgb(var(--m-fg-4)) !important; }
+
+.bi-cluster {
+  background: rgba(0, 240, 255, 0.15);
+  border: 2px solid #00f0ff;
+  border-radius: 9999px;
+  color: #00f0ff;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 18px rgba(0, 240, 255, 0.35);
+}
+.bi-cluster-marina {
+  background: rgba(255, 74, 74, 0.15);
+  border: 2px solid #ff4a4a;
+  border-radius: 9999px;
+  color: #ff4a4a;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 18px rgba(255, 74, 74, 0.35);
+}
+/* Phase 8 — Anchorages cluster (teal) */
+.bi-cluster-anchorage {
+  background: rgba(45, 212, 191, 0.15);
+  border: 2px solid #2dd4bf;
+  border-radius: 9999px;
+  color: #2dd4bf;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 18px rgba(45, 212, 191, 0.35);
+}
+/* Phase 7 — Formalities cluster (amber) + unified status dot for individual escales */
+.bi-cluster-formalities {
+  background: rgba(251, 191, 36, 0.15);
+  border: 2px solid #fbbf24;
+  border-radius: 9999px;
+  color: #fbbf24;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 18px rgba(251, 191, 36, 0.35);
+}
+.bi-cluster-capitainerie {
+  background: rgba(56, 189, 248, 0.15);
+  border: 2px solid #38bdf8;
+  border-radius: 9999px;
+  color: #38bdf8;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
+}
+/* Science mode cluster (violet) — datasets + Argo floats */
+.bi-cluster-science {
+  background: rgba(167, 139, 250, 0.15);
+  border: 2px solid #a78bfa;
+  border-radius: 9999px;
+  color: #a78bfa;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 18px rgba(167, 139, 250, 0.35);
+}
+/* Phase 7bis — Formalities status marker.
+   Explicitly override the default `.leaflet-div-icon` styles (white bg +
+   light grey border) that would otherwise leak through and create a visible
+   halo/ring on our dark map. The class name matches divIcon({className:"bi-status-icon"})
+   in MapView.js so leaflet's default styling is neutralised. */
+.bi-status-icon,
+.bi-status-icon.leaflet-div-icon {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.bi-status-icon > div { transition: transform 0.15s ease; }
+.bi-status-icon:hover > div { transform: scale(1.15); }
+
+/* Berry-Mappemonde route: neutral tooltip for segments + intermediate waypoints */
+.bi-route-tt {
+  background: rgba(15, 23, 42, 0.92) !important;
+  color: #e2e8f0 !important;
+  border: 1px solid rgba(226, 232, 240, 0.35) !important;
+  border-radius: 3px;
+  padding: 4px 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+}
+.bi-route-tt::before { border-top-color: rgba(15, 23, 42, 0.92) !important; }
+/* Escale labels: small, always visible, neutral chip that reads on both basemaps */
+.leaflet-tooltip.bi-route-escale-label {
+  background: rgba(15, 23, 42, 0.88);
+  color: #f8fafc;
+  border: 1px solid rgba(226, 232, 240, 0.4);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.leaflet-tooltip.bi-route-escale-label::before { display: none; }
+
+/* Formalities mode — escale status ring badge for ports of entry */
+.bi-poe-ring {
+  filter: drop-shadow(0 0 4px rgba(248, 250, 252, 0.6));
+}
+/* Dashed border used for ia_sans_source escale markers */
+.bi-escale-marker--dashed {
+  stroke-dasharray: 3 3 !important;
+}
+
+/* Formalities mode — disclaimer banner */
+.bi-formalities-disclaimer {
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fbbf24;
+  font-family: "JetBrains Mono", monospace;
+}
+.bi-amp-disclaimer {
+  background: rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  color: #4ade80;
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* Phase 7 — Audit view themed wrapper.
+   Subtle accent-tinted background + accent-tinted top border, driven by the
+   active [data-mode] on <html>. Kept intentionally subtle so KPI/telemetry
+   cards inside remain readable. */
+.bi-audit-themed {
+  background:
+    linear-gradient(180deg, rgba(var(--accent-rgb), 0.045) 0%, rgba(var(--accent-rgb), 0) 260px),
+    rgb(var(--surface-rgb));
+  border-top: 1px solid rgba(var(--accent-rgb), 0.18);
+}
+
+
+button { transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
+
+/* =====================================================================
+   Meridian tokens (dark only). Used by the top nav and the Ports of entry
+   screens: zone list, zone sheet, Verify, port cards, map popups, legend,
+   "not for navigation" notice. Source: team-ops design-system/MERIDIAN.md.
+   ===================================================================== */
+:root {
+  --m-rail: 12 12 12;          /* #0c0c0c */
+  --m-canvas: 18 18 18;        /* #121212 */
+  --m-shell: 22 22 22;         /* #161616 */
+  --m-panel: 25 25 25;         /* #191919 */
+  --m-raised: 31 31 31;        /* #1f1f1f */
+  --m-selected: 37 37 37;      /* #252525 */
+  --m-overlay: 28 28 28;       /* #1c1c1c */
+  --m-line: 38 38 38;          /* #262626 */
+  --m-line-soft: 31 31 31;     /* #1f1f1f */
+  --m-line-strong: 51 51 51;   /* #333333 */
+  --m-fg: 237 237 237;         /* #ededed */
+  --m-fg-2: 171 171 171;       /* #ababab */
+  --m-fg-3: 143 143 143;       /* #8f8f8f */
+  --m-fg-4: 94 94 94;          /* #5e5e5e — decoration only, never text */
+  --m-accent: 79 140 255;      /* #4f8cff */
+  --m-accent-fg: 143 181 255;  /* #8fb5ff */
+  --m-danger: 235 90 90;       /* #eb5a5a */
+  --m-danger-fg: 243 154 154;  /* #f39a9a */
+  --m-success: 79 182 127;     /* #4fb67f */
+  --m-success-fg: 134 210 166; /* #86d2a6 */
+  --m-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --m-shadow-float: 0 0 0 1px rgb(0 0 0 / 0.4), 0 12px 32px -8px rgb(0 0 0 / 0.6);
+  --m-font: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Tier status colours (shape + colour + label, always labelled). */
+  --tier1: #4fb67f;
+  --tier2: #3cb5a8;
+  --tier-registered: #9b87f5;
+  --tier3: #8f8f8f;
+  --tier-none: #5e5e5e;
+  --poe-marker: #fbbf24;
+}
+
+/* ---- Top nav ---- */
+.nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 9px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: rgb(var(--m-fg-2));
+  transition: background-color 120ms var(--m-ease), color 120ms var(--m-ease);
+}
+.nav-tab:hover { color: rgb(var(--m-fg)); background: rgb(var(--raised-rgb)); }
+.nav-tab[aria-current="true"],
+.nav-tab[aria-pressed="true"] { color: rgb(var(--m-fg)); background: rgb(var(--raised-rgb)); }
+.nav-tab:focus-visible { outline: 2px solid rgb(var(--m-accent)); outline-offset: -2px; }
+.nav-tab svg { flex: none; }
+.nav-group {
+  display: flex;
+  border: 1px solid rgb(var(--line-rgb));
+  border-radius: 6px;
+  overflow: hidden;
+}
+.nav-group > .nav-tab + .nav-tab,
+.nav-group > div + .nav-tab { border-left: 1px solid rgb(var(--line-rgb)); }
+/* RunSelector (Clément's) sits inside the view group: match the tab metrics. */
+.nav-group [data-testid="run-selector-btn"] { height: 28px; padding: 0 10px; font-size: 13px; font-weight: 500; line-height: 18px; }
+.nav-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgb(var(--line-rgb));
+  border-radius: 6px;
+  color: rgb(var(--m-fg-2));
+}
+.nav-icon-btn:hover { color: rgb(var(--m-fg)); background: rgb(var(--raised-rgb)); }
+.nav-icon-btn[aria-pressed="true"] { color: rgb(var(--m-fg)); background: rgb(var(--raised-rgb)); }
+.nav-icon-btn:focus-visible { outline: 2px solid rgb(var(--m-accent)); outline-offset: 1px; }
+
+/* Wordmark: the attribution hides once the row left of the nav is too short for
+   "Blue Intelligence by Berry-Mappemonde" (Show review label expanded, narrow windows);
+   the title never gives way. Container query, with truncation as the fallback. */
+.brand { container-type: inline-size; }
+@container (max-width: 272px) { .brand-sub { display: none; } }
+
+/* ---- Controls ---- */
+.m-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-family: var(--m-font);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 120ms var(--m-ease), border-color 120ms var(--m-ease), color 120ms var(--m-ease), transform 120ms var(--m-ease);
+}
+.m-btn:active:not(:disabled) { transform: scale(0.97); }
+.m-btn:disabled { opacity: 0.45; pointer-events: none; }
+/* A disabled primary keeps a readable label (fg-3 on raised, 5:1) instead of a dimmed white block. */
+.m-btn-primary:disabled { opacity: 1; background: rgb(var(--m-raised)); color: rgb(var(--m-fg-3)); box-shadow: inset 0 0 0 1px rgb(var(--m-line)); }
+/* Busy (a run in flight) is not "unavailable": full opacity, fg-2 surface, dark label (7.9:1). */
+.m-btn[aria-busy="true"] { cursor: progress; }
+.m-btn-primary[aria-busy="true"] { background: rgb(var(--m-fg-2)); color: rgb(var(--m-canvas)); box-shadow: none; }
+.m-btn-primary[aria-busy="true"]:active { transform: none; }
+.m-btn:focus-visible { outline: 2px solid rgb(var(--m-accent)); outline-offset: 1px; }
+.m-btn-primary { background: rgb(var(--m-fg)); color: rgb(var(--m-canvas)); }
+.m-btn-primary:hover { background: #ffffff; }
+.m-btn-secondary { background: rgb(var(--m-raised)); color: rgb(var(--m-fg)); border: 1px solid rgb(var(--m-line)); }
+.m-btn-secondary:hover { background: rgb(var(--m-selected)); }
+.m-btn-sm { height: 28px; padding: 0 10px; }
+
+.m-field {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: rgb(var(--m-panel));
+  border: 1px solid rgb(var(--m-line));
+  color: rgb(var(--m-fg));
+  font-family: var(--m-font);
+  font-size: 13px;
+  line-height: 18px;
+  transition: border-color 120ms var(--m-ease), box-shadow 120ms var(--m-ease);
+}
+.m-field::placeholder { color: rgb(var(--m-fg-3)); }
+.m-field:focus { outline: none; border-color: color-mix(in oklab, rgb(var(--m-accent)) 70%, rgb(var(--m-line))); box-shadow: 0 0 0 3px rgb(var(--m-accent) / 0.22); }
+.m-select { appearance: none; -webkit-appearance: none; padding-right: 28px; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238f8f8f' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>"); background-repeat: no-repeat; background-position: right 10px center; }
+.m-select option { background: rgb(var(--m-panel)); color: rgb(var(--m-fg)); }
+
+/* ---- Status pattern: tier chip = glyph + colour + label ---- */
+.tier-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px 0 5px;
+  border-radius: 5px;
+  font-family: var(--m-font);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: color-mix(in oklab, var(--tier-c) 14%, transparent);
+  color: color-mix(in oklab, var(--tier-c) 68%, white);
+}
+.tier-chip .tier-glyph { flex: none; }
+.tier-chip--none { color: rgb(var(--m-fg-3)); background: rgb(var(--m-fg) / 0.06); }
+.tier-glyph { display: inline-block; width: 12px; height: 12px; vertical-align: -1px; }
+.tier-glyph svg { display: block; width: 12px; height: 12px; }
+.tier-chip-in { animation: m-chip-in 180ms var(--m-ease) both; }
+
+/* ---- Motion: one entrance for the sheet, a cross-fade for status, evidence expand ---- */
+@keyframes m-panel-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes m-chip-in { from { opacity: 0; } to { opacity: 1; } }
+/* Opacity only: a transform here left Safari with a stale composited sliver of the
+   legend's amber marker beside the summary line after the disclosure closed. */
+@keyframes m-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.m-enter { animation: m-panel-in 180ms var(--m-ease) both; }
+.m-details { contain: paint; }
+.m-details > .m-details-body { animation: m-fade-in 150ms var(--m-ease) both; }
+.m-details:not([open]) > .m-details-body { display: none; }
+.m-details > summary { list-style: none; cursor: pointer; }
+.m-details > summary::-webkit-details-marker { display: none; }
+.m-details > summary:focus-visible { outline: 2px solid rgb(var(--m-accent)); outline-offset: 1px; border-radius: 4px; }
+.m-details .m-disclosure { display: inline-block; transition: transform 150ms var(--m-ease); }
+.m-details[open] .m-disclosure { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .m-enter, .tier-chip-in, .m-details > .m-details-body { animation: none; }
+  .m-details .m-disclosure, .m-btn, .nav-tab { transition: none; }
+}
+
+/* Skeleton: a quiet placeholder, one slow pulse, none with reduced motion */
+.m-skeleton { display: inline-block; background: rgb(var(--m-selected)); animation: m-skeleton-pulse 1.6s ease-in-out infinite; }
+@keyframes m-skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+@media (prefers-reduced-motion: reduce) { .m-skeleton, .animate-spin, .animate-pulse { animation: none; } }
+
+/* Links: underlined at rest (sidebar and popups), stronger on hover */
+.m-link { color: rgb(var(--m-accent-fg)); text-decoration: underline; text-decoration-color: rgb(var(--m-accent-fg) / 0.45); text-underline-offset: 2px; }
+.m-link:hover { text-decoration-color: rgb(var(--m-accent-fg)); }
+.m-link:focus-visible { outline: 2px solid rgb(var(--m-accent)); outline-offset: 1px; border-radius: 3px; }
+.poe-popup__evidence { margin-top: 6px; }
+.poe-popup__evidence-row { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 12px; line-height: 16px; }
+.poe-popup__evidence-row > .m-link { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.poe-popup__toggle { display: inline-flex; align-items: center; gap: 6px; flex: none; color: rgb(var(--m-fg-3)); background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+.poe-popup__toggle:hover { color: rgb(var(--m-fg-2)); }
+.poe-popup__toggle:focus-visible { outline: 2px solid rgb(var(--m-accent)); outline-offset: 1px; border-radius: 3px; }
+.poe-popup__toggle .m-disclosure { flex: none; transition: transform 150ms var(--m-ease); }
+.poe-popup__toggle[aria-expanded="true"] .m-disclosure { transform: rotate(90deg); }
+.m-evidence-toggle .m-disclosure { transition: transform 150ms var(--m-ease); }
+.m-evidence-toggle[aria-expanded="true"] .m-disclosure { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .poe-popup__toggle .m-disclosure, .m-evidence-toggle .m-disclosure { transition: none; } }
+
+/* Script-focused landing targets (tabindex="-1"): a ring for keyboard users only */
+.m-focus-target:focus { outline: none; }
+.m-focus-target:focus-visible { outline: 2px solid rgb(var(--m-accent)); outline-offset: 2px; }
+html[data-input="pointer"] .m-focus-target:focus,
+html[data-input="pointer"] .m-focus-target:focus-visible { outline: none; }
+
+/* ---- Text roles ---- */
+.m-num { font-variant-numeric: tabular-nums; }
+.m-code { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* ---- Ports of entry mode: neutral browser surfaces + Leaflet popups ---- */
+[data-mode="formalities"] ::-webkit-scrollbar-thumb { background: rgb(var(--m-line-strong)); }
+[data-mode="formalities"] ::-webkit-scrollbar-thumb:hover { background: rgb(var(--m-fg-4)); }
+[data-mode="formalities"] * { scrollbar-color: rgb(var(--m-line-strong)) transparent; }
+[data-mode="formalities"] ::selection { background: rgb(var(--m-accent) / 0.3); color: rgb(var(--m-fg)); }
+[data-mode="formalities"] .leaflet-popup-content-wrapper {
+  background: rgb(var(--m-overlay));
+  color: rgb(var(--m-fg));
+  border: 1px solid rgb(var(--m-line-strong));
+  border-radius: 10px;
+  backdrop-filter: none;
+  box-shadow: var(--m-shadow-float);
+  font-family: var(--m-font);
+}
+[data-mode="formalities"] .leaflet-popup-tip { background: rgb(var(--m-overlay)); border: 1px solid rgb(var(--m-line-strong)); }
+[data-mode="formalities"] .leaflet-popup-content { margin: 12px 14px; scrollbar-color: rgb(var(--m-line-strong)) transparent; }
+[data-mode="formalities"] .leaflet-popup-close-button { color: rgb(var(--m-fg-3)) !important; font-weight: 400; }
+[data-mode="formalities"] .leaflet-popup-close-button:hover { color: rgb(var(--m-fg)) !important; }
+[data-mode="formalities"] .leaflet-bar a {
+  background: rgb(var(--m-overlay)) !important;
+  color: rgb(var(--m-fg-2)) !important;
+  border-color: rgb(var(--m-line-strong)) !important;
+}
+[data-mode="formalities"] .leaflet-bar a:hover { background: rgb(var(--m-raised)) !important; color: rgb(var(--m-fg)) !important; }
+[data-mode="formalities"] .leaflet-container { background: rgb(var(--m-canvas)); }
+
+/* Popup markup (zone sheet + port) shared by zonePopup.js and useFormalitiesLayers.js */
+.poe-popup { font-family: var(--m-font); color: rgb(var(--m-fg)); font-size: 13px; line-height: 18px; }
+.poe-popup__title { font-size: 14px; line-height: 20px; font-weight: 500; color: rgb(var(--m-fg)); }
+.poe-popup__meta { font-size: 12px; line-height: 16px; color: rgb(var(--m-fg-3)); margin-top: 2px; }
+.poe-popup__row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.poe-popup__h { font-size: 12px; line-height: 16px; font-weight: 500; color: rgb(var(--m-fg-2)); margin-top: 12px; padding-bottom: 4px; border-bottom: 1px solid rgb(var(--m-line)); }
+.poe-popup__src { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; margin-top: 6px; min-width: 0; }
+.poe-popup__src a { color: rgb(var(--m-accent-fg)); text-decoration: underline; text-decoration-color: rgb(var(--m-accent-fg) / 0.45); text-underline-offset: 2px; min-width: 0; }
+.poe-popup__src a:hover { text-decoration-color: rgb(var(--m-accent-fg)); }
+.poe-popup__host { display: block; font-size: 12px; line-height: 16px; color: rgb(var(--m-fg-3)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.poe-popup__port { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 6px 0; border-bottom: 1px solid rgb(var(--m-line-soft)); }
+.poe-popup__port:last-child { border-bottom: 0; }
+.poe-popup__port-name { font-weight: 500; color: rgb(var(--m-fg)); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.poe-popup__port-score { font-variant-numeric: tabular-nums; color: rgb(var(--m-fg-2)); font-size: 12px; text-align: right; }
+.poe-popup__port-status { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.poe-popup__verdict { font-size: 12px; color: rgb(var(--m-fg-3)); }
+.poe-popup__verdict { display: inline-flex; align-items: center; gap: 4px; }
+.poe-popup__verdict--pass { color: rgb(var(--m-fg-2)); }
+.poe-popup__note { margin-top: 8px; color: rgb(var(--m-fg-2)); }
+.poe-popup__muted { font-size: 12px; line-height: 16px; color: rgb(var(--m-fg-3)); margin-top: 6px; }
+.poe-popup__warn { margin-top: 8px; padding: 6px 8px; border-radius: 6px; border: 1px solid color-mix(in oklab, rgb(var(--m-danger)) 30%, transparent); background: color-mix(in oklab, rgb(var(--m-danger)) 10%, transparent); color: rgb(var(--m-danger-fg)); font-size: 12px; line-height: 16px; }
+.poe-popup__info { margin-top: 8px; padding: 6px 8px; border-radius: 6px; border: 1px solid rgb(var(--m-line)); background: rgb(var(--m-panel)); font-size: 12px; line-height: 16px; color: rgb(var(--m-fg-2)); }
+.poe-popup__chip { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; font-size: 12px; line-height: 16px; font-weight: 500; color: rgb(var(--m-fg-2)); background: rgb(var(--m-fg) / 0.06); white-space: nowrap; }
+.poe-popup__chip--num { font-variant-numeric: tabular-nums; }
+.poe-popup__chip--danger { color: rgb(var(--m-danger-fg)); background: color-mix(in oklab, rgb(var(--m-danger)) 14%, transparent); }
+.poe-popup__chip--ok { color: rgb(var(--m-success-fg)); background: color-mix(in oklab, rgb(var(--m-success)) 14%, transparent); }
+.poe-popup__footer { margin-top: 10px; font-size: 11px; line-height: 14px; color: rgb(var(--m-fg-3)); }
+.poe-popup__details { margin-top: 6px; }
+.poe-popup__details > summary { list-style: none; cursor: pointer; color: rgb(var(--m-fg-3)); font-size: 12px; line-height: 16px; display: flex; align-items: center; gap: 6px; }
+.poe-popup__details > summary .m-disclosure { flex: none; transition: transform 150ms var(--m-ease); }
+.poe-popup__details[open] > summary .m-disclosure { transform: rotate(90deg); }
+.poe-popup__details > summary::-webkit-details-marker { display: none; }
+.poe-popup__details > summary:hover { color: rgb(var(--m-fg-2)); }
+.poe-popup__excerpt { margin: 4px 0 0 18px; padding-left: 8px; border-left: 1px solid rgb(var(--m-line-strong)); font-size: 12px; line-height: 16px; color: rgb(var(--m-fg-2)); white-space: pre-line; word-break: break-word; }
+
+/* Matched port name / entry term inside an evidence excerpt */
+.m-mark { background: color-mix(in oklab, rgb(var(--m-accent)) 22%, transparent); color: rgb(var(--m-fg)); border-radius: 3px; padding: 0 2px; }
+
+/* Attribution bar: never clipped at the map edge; neutral overlay surface in every mode */
+.leaflet-control-attribution { max-width: min(70vw, 960px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: rgb(var(--m-overlay) / 0.92) !important; color: rgb(var(--m-fg-3)); font-family: var(--m-font); font-size: 11px; line-height: 16px; padding: 2px 8px; }
+.leaflet-control-attribution a { color: rgb(var(--m-fg-2)); }
+
+/* Legend swatches */
+.legend-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; flex: none; }
+/* Marker dot: amber edge, dark ring, amber fill, all painted inside its own box (no
+   outer box-shadow, which Safari could leave behind as a sliver when the legend closed). */
+.legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 9999px; flex: none; background: var(--poe-marker); border: 1px solid var(--poe-marker); box-shadow: inset 0 0 0 1px #121212; }

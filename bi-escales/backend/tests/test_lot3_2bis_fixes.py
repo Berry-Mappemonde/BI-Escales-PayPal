@@ -147,7 +147,6 @@ def test_f5_en_capture_rule_appears_once_when_model_repeats_it():
     reply = _compose_chat_reply(
         model,
         suggested,
-        "",
         "en",
         treasurer=False,
         ask_escale=False,

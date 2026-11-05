@@ -373,7 +373,3 @@ def load_config() -> EscalesConfig:
         client_secret=os.environ.get("PAYPAL_CLIENT_SECRET", ""),
         env=env,
     )
-
-
-def membership_url() -> str:
-    return (os.environ.get("HELLOASSO_MEMBERSHIP_URL") or "").strip()

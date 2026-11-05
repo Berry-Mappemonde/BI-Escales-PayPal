@@ -54,7 +54,7 @@ def test_chat_assembly_fr_and_en_no_glued_stops(monkeypatch):
 def test_finish_text_keeps_lowercase_after_dot_in_urls():
     from app.escales.captain import _finish_text
 
-    text = "Membership: https://www.helloasso.com/associations/foo."
+    text = "Membership: https://www.example.com/associations/foo."
     finished = _finish_text(text)
-    assert "helloasso.com" in finished
+    assert "example.com" in finished
     _assert_no_sentence_glue(finished)

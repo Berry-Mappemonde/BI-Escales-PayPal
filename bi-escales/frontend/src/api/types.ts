@@ -232,7 +232,6 @@ export interface PledgeCart {
 
 export interface CaptainChatResponse {
   reply: string;
-  membership_url?: string;
   model_source?: { provider?: string; model?: string; reason?: string };
   model_label?: string;
   paypal_tools?: { tools?: string[]; called?: string[]; client?: string } | string[];

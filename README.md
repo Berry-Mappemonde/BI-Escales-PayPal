@@ -51,6 +51,14 @@ When `ESCALES_ZAPIER_ENABLED=1`, webhook responses may include a hint that you c
 
 Zapier never replaces the treasurer: capture and void remain explicit `POST` calls with `ESCALES_ADMIN_KEY`. With the flag off, no Zapier-specific behaviour runs.
 
+## PayPal MCP server
+
+PayPal hosts a **remote Model Context Protocol (MCP) server** so a treasurer (or developer) can connect an AI assistant such as **Claude Desktop** or **Cursor** to PayPal **sandbox** data with natural language— for example to inspect checkout orders, payment authorizations, disputes, or transaction search results—without pasting secrets into chat.
+
+Official setup (endpoints, OAuth with dashboard **client ID / secret**, SSE vs streamable HTTP, and local vs remote server) is documented in PayPal’s **[MCP server quickstart guide](https://developer.paypal.com/ai-tools/mcp-server)**. For sandbox, use the remote endpoint `https://mcp.sandbox.paypal.com` (production uses `https://mcp.paypal.com`). Configure the MCP client JSON as PayPal describes; store access tokens and credentials in environment variables or the client’s secret store, not in the repository.
+
+This is **separate** from the in-app Captain integration: `ESCALES_TOOLKIT_ENABLED` turns on read-only PayPal lookups inside BI Escales (see table above). The remote MCP server is optional tooling for humans exploring the same sandbox account from Claude or Cursor.
+
 ## Captain limits (production only)
 
 `ESCALES_ENV` defaults to `development`. In development and in tests the captain routes and the LLM cascade are not rate limited, and LLM usage is not capped.

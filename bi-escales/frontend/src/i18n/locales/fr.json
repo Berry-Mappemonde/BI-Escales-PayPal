@@ -254,6 +254,14 @@
     "marinaNet": "Net marina",
     "marinaNetSimulated": "Net marina (sim. bac à sable)",
     "marinaSimBanner": "Frais plateforme et net marina sont calculés dans l’app (simulation bac à sable) faute d’identifiants marchands PayPal partner. Aucun split sur les ordres PayPal.",
+    "marinaPayoutBanner": "Le net marina part en Payout PayPal (bac à sable) après chaque capture place de port ; les frais plateforme restent côté Escales.",
+    "marinaPayoutStatus": "Payout marina",
+    "marinaPayoutStatus.success": "Réussi",
+    "marinaPayoutStatus.processing": "En cours",
+    "marinaPayoutStatus.pending": "En attente",
+    "marinaPayoutStatus.denied": "Refusé",
+    "marinaPayoutStatus.failed": "Échec",
+    "marinaPayoutStatus.pending_email": "E-mail payout manquant",
     "marinaRefunds": "Remboursements",
     "marinaDisputes": "Litiges ouverts"
   }

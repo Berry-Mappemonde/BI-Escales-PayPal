@@ -403,10 +403,10 @@ async def ensure_finance_milestone(pledge: dict, milestone_id: str) -> None:
         await get_ledger().ensure_milestone(milestone_id, meta=leg_milestone_meta(leg))
 
 
-async def record_pledge_captured_once(pledge: dict, *, actor: str) -> dict:
-    """One ``pledge_captured`` line per pledge. Berth captures may add simulated platform fee."""
+async def record_pledge_captured_once(pledge: dict, *, actor: str, client: Any = None) -> dict:
+    """One ``pledge_captured`` line per pledge. Berth captures may trigger marina payout."""
     from .ledger import list_finance_entries, record_finance
-    from .platform_fee_simulation import apply_simulated_berth_platform_fee
+    from .marina_berth_settlement import apply_marina_berth_settlement
 
     pledge_id = str(pledge.get("_id") or "")
     if not pledge_id:
@@ -429,8 +429,8 @@ async def record_pledge_captured_once(pledge: dict, *, actor: str) -> dict:
         capture_id=pledge.get("capture_id"),
         **_identity(pledge),
     )
-    pledge = await apply_simulated_berth_platform_fee(pledge, actor=actor)
-    if pledge.get("platform_fee_simulated"):
+    pledge = await apply_marina_berth_settlement(pledge, actor=actor, client=client)
+    if pledge.get("platform_fee_eur") or pledge.get("marina_payout_batch_id") or pledge.get("marina_payout_status"):
         pledge = await get_ledger().save_pledge(pledge)
     return pledge
 
@@ -1181,6 +1181,7 @@ async def _capture_order_pledge(pledge_id: str, client: Any, pledge: dict) -> di
         pledge,
         payload,
         finance={"payment_mode": "CAPTURE", "order_id": order_id},
+        client=client,
     )
 
 
@@ -1294,6 +1295,7 @@ async def _finish_capture(
     *,
     finance: dict,
     effective_at: Optional[dt.datetime] = None,
+    client: Any = None,
 ) -> dict:
     """Record PayPal's capture status. COMPLETED and PENDING are kept; anything else can be retried."""
     from .audit import record
@@ -1342,7 +1344,7 @@ async def _finish_capture(
         pledge["history"] = list(pledge.get("history") or []) + ["captured"]
         saved = await get_ledger().save_pledge(pledge)
         await record("capture", status="captured", **audit_fields)
-        return await record_pledge_captured_once(saved, actor="treasurer")
+        return await record_pledge_captured_once(saved, actor="treasurer", client=client)
     if status == "PENDING":
         pledge["status"] = "pending"
         pledge["history"] = list(pledge.get("history") or []) + ["pending"]
@@ -1478,6 +1480,7 @@ async def capture_pledge(
             payload,
             finance={"vault_id": vault_id, "payment_mode": "VAULT"},
             effective_at=effective_at,
+            client=client,
         )
         if saved.get("status") == "captured":
             try:
@@ -1510,6 +1513,7 @@ async def capture_pledge(
         payload,
         finance={"authorization_id": pledge.get("authorization_id")},
         effective_at=effective_at,
+        client=client,
     )
 
 

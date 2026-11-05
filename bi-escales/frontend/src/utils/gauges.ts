@@ -9,6 +9,20 @@ export interface MarinaDashboardRow {
   refunds_eur: number;
   disputes_open: number;
   fees_simulated: boolean;
+  marina_payout_status: string;
+}
+
+function summarizeMarinaPayoutStatus(pledges: PublicPledge[]): string {
+  const statuses = pledges
+    .filter((p) => isCapturedBerth(p))
+    .map((p) => String(p.marina_payout_status || "").trim().toLowerCase())
+    .filter(Boolean);
+  if (statuses.length === 0) return "—";
+  if (statuses.some((s) => s === "denied" || s === "failed")) return "denied";
+  if (statuses.some((s) => s === "pending" || s === "processing" || s === "sent")) return "processing";
+  if (statuses.every((s) => s === "success")) return "success";
+  if (statuses.some((s) => s === "pending_email")) return "pending_email";
+  return statuses[0];
 }
 
 const CAPTURED_STATUSES = new Set<PublicPledge["status"]>([
@@ -88,6 +102,7 @@ export function buildMarinaDashboardRows(pledges: PublicPledge[]): MarinaDashboa
       );
       const marina_net_eur = captured.reduce((acc, row) => acc + parseEur(row.marina_net_eur), 0);
       const fees_simulated = captured.some((row) => row.platform_fee_simulated === true);
+      const marina_payout_status = summarizeMarinaPayoutStatus(list);
       return {
         marina_key,
         berth_bookings: list.length,
@@ -97,6 +112,7 @@ export function buildMarinaDashboardRows(pledges: PublicPledge[]): MarinaDashboa
         refunds_eur: refunds,
         disputes_open: 0,
         fees_simulated,
+        marina_payout_status,
       };
     });
 }

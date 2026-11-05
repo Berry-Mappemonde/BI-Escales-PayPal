@@ -336,8 +336,9 @@ async def _apply_event(event: dict) -> dict:
             pledge = await get_ledger().save_pledge(pledge)
             if target == "captured":
                 from .pledges import record_pledge_captured_once
+                from app.routers.escales import _paypal
 
-                pledge = await record_pledge_captured_once(pledge, actor="webhook")
+                pledge = await record_pledge_captured_once(pledge, actor="webhook", client=_paypal())
             else:
                 await record_finance(
                     "webhook_capture_denied",
@@ -420,6 +421,13 @@ async def _apply_event(event: dict) -> dict:
             event_type=event_type,
             batch_id=batch_id,
             status=resource.get("batch_status"),
+        )
+        from .marina_berth_settlement import apply_payout_batch_webhook
+
+        await apply_payout_batch_webhook(
+            batch_id=batch_id,
+            event_type=event_type,
+            batch_status=str(resource.get("batch_status") or "") or None,
         )
 
     return {

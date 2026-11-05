@@ -24,6 +24,9 @@ export interface PublicPledge {
   platform_fee_eur?: string | null;
   marina_net_eur?: string | null;
   platform_fee_simulated?: boolean;
+  marina_payout_batch_id?: string | null;
+  marina_payout_status?: string | null;
+  marina_payout_receiver?: string | null;
   contributor?: string | null;
   order_id?: string | null;
   approve_link?: string | null;

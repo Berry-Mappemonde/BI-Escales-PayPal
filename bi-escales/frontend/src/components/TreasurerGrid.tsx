@@ -12,10 +12,12 @@ function OptionalAgGrid({ rows }: AgTableProps) {
 
   useEffect(() => {
     let cancelled = false;
-    // Variable specifier so the core Vite/tsc build does not import ag-grid.
-    // ag-grid-community is not AG Studio and is not a prize claim.
-    const specifier = "./TreasurerGridAg.tsx";
-    import(/* @vite-ignore */ specifier)
+    // Build-time checks let Vite omit this optional chunk when disabled.
+    if (!(import.meta.env.VITE_ENABLE_AG_GRID === "1"
+      || import.meta.env.VITE_ENABLE_AG_GRID === "true"
+      || import.meta.env.VITE_ENABLE_AG_GRID === "yes"
+      || import.meta.env.VITE_ENABLE_AG_GRID === "on")) return;
+    import("./TreasurerGridAg")
       .then((mod: { default?: ComponentType<AgTableProps> }) => {
         if (!cancelled && mod.default) setTable(() => mod.default as ComponentType<AgTableProps>);
         else if (!cancelled) setFailed(true);

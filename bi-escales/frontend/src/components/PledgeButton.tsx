@@ -16,6 +16,7 @@ import { PayPalWalletPayBlock } from "./PayPalWalletPayBlock";
 import { subscribePledgeReturn } from "../paypal/pledgeReturnEvents";
 
 export interface PledgeFormValues {
+  quantity?: number;
   amount_eur: string;
   description: string;
   milestone_id: string;
@@ -146,6 +147,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
       const pledge = await createPledge(
         {
           amount_eur: v.amount_eur,
+            quantity: v.quantity,
           description: v.description,
           milestone_id: v.milestone_id,
           contributor: v.contributor?.trim() || undefined,
@@ -197,6 +199,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
           const pledge = await createPledge(
             {
               amount_eur: v.amount_eur,
+            quantity: v.quantity,
               description: v.description,
               milestone_id: v.milestone_id,
               contributor: v.contributor?.trim() || undefined,

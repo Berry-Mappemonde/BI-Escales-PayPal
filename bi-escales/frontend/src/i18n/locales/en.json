@@ -128,6 +128,7 @@
     "milestonesEmpty": "No milestones recorded yet."
   },
   "pledge": {
+    "quantity": "Quantity",
     "amount": "Amount (EUR)",
     "description": "Description",
     "kind": "Kind",

@@ -116,7 +116,7 @@ export function EscalesPanel({
                   </p>
                   {line.pledge ? (
                     <PledgeButton
-                      values={{ ...line.pledge, lang: line.pledge.lang || lang }}
+                      values={{ ...line.pledge, quantity: Number.isInteger(Number(line.quantity)) ? Number(line.quantity) : undefined, lang: line.pledge.lang || lang }}
                       onAuthorized={onAuthorized}
                     />
                   ) : null}

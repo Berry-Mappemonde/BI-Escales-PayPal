@@ -1,20 +1,17 @@
-/* The stop panel. Tokens come from captain-card.css; surfaces and text from the app's themes. */
+/*
+ * Everything inside the stop sheet. The card around it belongs to the shell.
+ * The PayPal hosts are left alone: only the form around them is styled.
+ */
 .escale-sheet {
-  --color-st-route: #3fb3c4;
-
   gap: 0;
   font-size: var(--text-ui);
   line-height: var(--text-ui--line-height);
   overflow-wrap: anywhere;
 }
 
-.stop-chip {
-  --color-st-route: #3fb3c4;
-}
-
 .escale-sheet .escale-sheet-head {
   margin-bottom: 0;
-  padding-bottom: 12px;
+  padding-bottom: var(--space-3);
 }
 
 .escale-sheet .escale-sheet-head button {
@@ -25,30 +22,24 @@
   padding: 0;
   border-radius: var(--radius-control);
   background: none;
-  color: var(--muted);
+  color: var(--color-fg-2);
   font-size: var(--text-title);
+  transition: background-color var(--duration-fast) ease-out;
 }
 
-.escale-sheet .escale-sheet-head button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.escale-sheet select {
-  margin-top: 0.25rem;
-  padding: 0.45rem 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--input-bg);
-  color: var(--text);
-  font: inherit;
+.escale-sheet .escale-kicker {
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .stop-title {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: var(--space-1) var(--space-2);
   margin: 2px 0 0;
 }
 
@@ -61,24 +52,24 @@
 }
 
 .stop-section {
-  padding: 12px 0;
-  border-top: 1px solid var(--border);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-line-strong);
 }
 
 .stop-rows {
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
   margin: 0;
 }
 
 .stop-rows > div {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .stop-rows dt {
-  color: var(--muted);
+  color: var(--color-fg-2);
 }
 
 .stop-rows dd {
@@ -88,25 +79,94 @@
 }
 
 .stop-money {
-  margin: 8px 0 0;
+  margin: var(--space-2) 0 0;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 
 .stop-next-title {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-3);
   font-size: var(--text-title);
   line-height: var(--text-title--line-height);
   font-weight: 500;
 }
 
+/* The pledge form */
 .escale-sheet .stop-next .pledge-form {
-  margin-bottom: 8px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.escale-sheet .pledge-form label {
+  gap: var(--space-1);
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.escale-sheet .pledge-form input,
+.escale-sheet .pledge-form select {
+  width: 100%;
+  min-height: 32px;
+  margin-top: 0;
+  padding: var(--space-1) 10px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font: inherit;
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  transition: border-color var(--duration-fast) ease-out;
+}
+
+/* Browsers inset a select's text by a few pixels, so this lines it up with the inputs. */
+.escale-sheet .pledge-form select {
+  padding-left: 6px;
+}
+
+.escale-sheet .pledge-form input:read-only {
+  color: var(--color-fg-2);
+}
+
+.escale-sheet .pledge-form input:focus-visible,
+.escale-sheet .pledge-form select:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 22%, transparent);
+}
+
+.escale-sheet .pledge-form .hint {
+  margin: var(--space-1) 0;
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.escale-sheet .pledge-form button {
+  min-height: 32px;
+  margin-top: var(--space-1);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--color-fg);
+  color: var(--color-canvas);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 500;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.escale-sheet .pledge-form button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.escale-sheet .pledge-form a {
+  color: var(--color-accent-fg);
 }
 
 .stop-note {
   margin: 0;
-  color: var(--muted);
+  color: var(--color-fg-3);
   font-size: var(--text-meta);
   line-height: var(--text-meta--line-height);
 }
@@ -116,8 +176,9 @@
   font-weight: 500;
 }
 
+/* Logbook and port info */
 .stop-more {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--color-line-strong);
 }
 
 .stop-more summary {
@@ -127,17 +188,65 @@
   font-weight: 500;
 }
 
-.stop-more summary:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
 .stop-more-body {
-  padding-bottom: 8px;
+  padding-bottom: var(--space-2);
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
 }
 
 .stop-more-body .stop-note {
-  margin-bottom: 6px;
+  margin-bottom: var(--space-2);
+}
+
+.stop-more-body .escale-kicker {
+  margin-top: var(--space-3);
+  color: var(--color-fg);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 500;
+}
+
+.stop-more-body .hint {
+  margin-top: var(--space-1);
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+}
+
+.stop-more-body .escale-items {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 var(--space-2);
+  padding-left: var(--space-4);
+}
+
+.stop-more-body a {
+  margin-left: var(--space-1);
+  color: var(--color-accent-fg);
+  text-decoration: none;
+}
+
+.escale-sheet .escale-sheet-head button:focus-visible,
+.escale-sheet .pledge-form button:focus-visible,
+.stop-more summary:focus-visible,
+.stop-more-body a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .escale-sheet .escale-sheet-head button:hover {
+    background: var(--color-selected);
+    color: var(--color-fg);
+  }
+
+  .escale-sheet .pledge-form button:hover:not(:disabled) {
+    background: var(--color-fg-2);
+  }
+
+  .stop-more-body a:hover {
+    text-decoration: underline;
+  }
 }
 
 @media (pointer: coarse) {
@@ -148,5 +257,22 @@
   .escale-sheet .escale-sheet-head button {
     width: 44px;
     height: 44px;
+  }
+
+  .escale-sheet .pledge-form button {
+    min-height: 44px;
+  }
+
+  /* Below 16px, iOS zooms the page on focus. */
+  .escale-sheet .pledge-form input,
+  .escale-sheet .pledge-form select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .escale-sheet .pledge-form button:active:not(:disabled) {
+    transform: none;
   }
 }

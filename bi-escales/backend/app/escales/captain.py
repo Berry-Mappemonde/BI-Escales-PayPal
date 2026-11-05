@@ -30,6 +30,7 @@ from .milestones import (
 )
 from .pledges import PLEDGE_KINDS, get_ledger, now_iso, pledges_for_milestone
 from .toolkit_tools import ReadOnlyTools
+from .captain_agentic import agentic_reply, agentic_suggested_pledge, parse_agentic_proposal
 
 log = logging.getLogger("escales.captain")
 

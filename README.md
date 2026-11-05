@@ -38,7 +38,8 @@ The API runs fully on local pytest and manual treasurer routes without any of th
 | PayPal webhooks | `ESCALES_WEBHOOKS_ENABLED` + `PAYPAL_WEBHOOK_ID` | Inbound `POST /api/escales/webhooks/paypal` with PayPal `verify-webhook-signature` and transmission idempotence |
 | PayPal Agent Toolkit | `ESCALES_TOOLKIT_ENABLED` | Read-only order lookups for the Captain |
 | Render deploy | `bi-escales/render.yaml` | Optional blueprint; set env vars in the Render dashboard (names only in the file) |
-| Postman | `bi-escales/postman/escales.postman_collection.json` | Sandbox walkthrough (create → authorize → capture / void); not loaded by the app |
+| Postman | `bi-escales/postman/escales.postman_collection.json` + `escales.sandbox.postman_environment.json` | Sandbox walkthrough (create → authorize → capture / void) against test2; admin key left empty; not loaded by the app |
+| Bryntum | `bi-escales/frontend/src/components/escales/BryntumTimeline.jsx` | Read-only stopover timeline (public npm trial `@bryntum/scheduler-trial`), only when `ESCALES_BRYNTUM_ENABLED=true`; falls back to the local list |
 | Zapier | `ESCALES_ZAPIER_ENABLED` | Optional automation layer (see below) |
 
 ### Optional Zapier Zap

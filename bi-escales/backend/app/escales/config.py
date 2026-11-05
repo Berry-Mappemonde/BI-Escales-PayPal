@@ -182,8 +182,15 @@ def vault_enabled() -> bool:
 
 
 def demo_treasurer_enabled() -> bool:
-    """Sandbox-only: treasurer queue/review/capture/void without x-admin-key."""
+    """Sandbox-only, read-only treasurer view without x-admin-key.
+
+    Requires ``ESCALES_DEMO_TREASURER``, ``PAYPAL_ENV=sandbox`` and ``ESCALES_ENV`` other
+    than ``production``. It only unlocks a redacted ``GET /pledges`` (no contributor names);
+    capture, void and captain-review approval always need the treasurer key.
+    """
     if os.environ.get("ESCALES_DEMO_TREASURER", "").strip().lower() not in _TRUTHY:
+        return False
+    if escales_env() == "production":
         return False
     env = (os.environ.get("PAYPAL_ENV") or "sandbox").strip().lower()
     return env == "sandbox"
@@ -194,7 +201,7 @@ def demo_treasurer_flag_set() -> bool:
 
 
 def demo_treasurer_env_forbidden() -> bool:
-    """Demo flag is on but PAYPAL_ENV is not sandbox."""
+    """Demo flag is on but PAYPAL_ENV is not sandbox or ESCALES_ENV is production."""
     return demo_treasurer_flag_set() and not demo_treasurer_enabled()
 
 
@@ -238,11 +245,11 @@ def marina_payout_email_default() -> str:
 
 
 def marina_payouts_enabled() -> bool:
-    """Pay marina net via Payouts API on berth capture when multiparty fees are off."""
-    raw = os.environ.get("ESCALES_MARINA_PAYOUTS_ENABLED", "1").strip().lower()
-    if raw in {"0", "false", "no", "off"}:
-        return False
-    return raw in _TRUTHY or raw == "1" or raw == ""
+    """Pay marina net via Payouts API on berth capture when multiparty fees are off.
+
+    Off by default like every other ESCALES_*_ENABLED flag; test2 sets it to 1 explicitly.
+    """
+    return os.environ.get("ESCALES_MARINA_PAYOUTS_ENABLED", "").strip().lower() in _TRUTHY
 
 
 def paypal_berth_platform_fees_on_order(target_id: str = "") -> bool:

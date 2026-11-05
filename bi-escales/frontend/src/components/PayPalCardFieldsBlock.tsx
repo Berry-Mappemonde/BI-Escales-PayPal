@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { authorizePledge, createPledge, isVaultPledge, registerVault } from "../api/escales";
 import type { PublicPledge } from "../api/types";
 import type { PledgeFormValues } from "./PledgeButton";
+import type { PayPalNamespace } from "../paypal/paypalSdk";
 
 type CardFieldsFactory = (config: Record<string, unknown>) => {
   isEligible: () => boolean;
@@ -15,6 +16,8 @@ type CardFieldsFactory = (config: Record<string, unknown>) => {
 export interface PayPalCardFieldsBlockProps {
   values: PledgeFormValues;
   appLang: string;
+  /** Namespaced SDK object loaded by PledgeButton (never `window.paypal`). */
+  paypal?: PayPalNamespace | null;
   disabled?: boolean;
   onAuthorized?: (pledge: PublicPledge) => void;
 }
@@ -23,6 +26,7 @@ export interface PayPalCardFieldsBlockProps {
 export function PayPalCardFieldsBlock({
   values,
   appLang,
+  paypal = null,
   disabled,
   onAuthorized,
 }: PayPalCardFieldsBlockProps) {
@@ -40,11 +44,11 @@ export function PayPalCardFieldsBlock({
   valuesRef.current = values;
 
   useEffect(() => {
-    const CardFields = (window.paypal as { CardFields?: CardFieldsFactory } | undefined)?.CardFields;
+    const CardFields = (paypal as { CardFields?: CardFieldsFactory } | null)?.CardFields;
     const numberHost = numberRef.current;
     const expiryHost = expiryRef.current;
     const cvvHost = cvvRef.current;
-    if (!CardFields || !numberHost || !expiryHost || !cvvHost || disabled) {
+    if (typeof CardFields !== "function" || !numberHost || !expiryHost || !cvvHost || disabled) {
       setReady(false);
       return;
     }
@@ -70,7 +74,9 @@ export function PayPalCardFieldsBlock({
       );
     };
 
-    const cardFields = CardFields({
+    let cardFields: ReturnType<CardFieldsFactory>;
+    try {
+      cardFields = CardFields({
       createOrder: async () => {
         const pledge = await buildPledge();
         activePledgeRef.current = pledge;
@@ -88,17 +94,34 @@ export function PayPalCardFieldsBlock({
         return token;
       },
     });
+    } catch {
+      setReady(false);
+      return;
+    }
 
-    if (!cardFields.isEligible()) {
+    let eligible = false;
+    try {
+      eligible = typeof cardFields?.isEligible === "function" && cardFields.isEligible();
+    } catch {
+      eligible = false;
+    }
+    if (!eligible) {
       if (!cancelled) setReady(false);
       return;
     }
 
     void (async () => {
       try {
-        await cardFields.NumberField().render(numberHost);
-        await cardFields.ExpiryField().render(expiryHost);
-        await cardFields.CVVField().render(cvvHost);
+        for (const [field, el] of [
+          [cardFields.NumberField, numberHost],
+          [cardFields.ExpiryField, expiryHost],
+          [cardFields.CVVField, cvvHost],
+        ] as const) {
+          if (typeof field !== "function") throw new Error("PayPal card field unavailable");
+          const instance = field.call(cardFields);
+          if (typeof instance?.render !== "function") throw new Error("PayPal card field cannot render");
+          await instance.render(el);
+        }
         if (!cancelled) {
           submitRef.current = () => cardFields.submit();
           setReady(true);
@@ -113,7 +136,7 @@ export function PayPalCardFieldsBlock({
       setReady(false);
       submitRef.current = null;
     };
-  }, [appLang, disabled, values.amount_eur, values.kind, values.milestone_id, values.description, values.target_id]);
+  }, [appLang, paypal, disabled, values.amount_eur, values.kind, values.milestone_id, values.description, values.target_id]);
 
   const onSubmit = async () => {
     const submit = submitRef.current;

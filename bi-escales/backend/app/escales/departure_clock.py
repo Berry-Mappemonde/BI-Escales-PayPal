@@ -81,14 +81,14 @@ def _cancelled(milestone: dict) -> bool:
     return meta.get("cancelled") is True
 
 
-async def departure_milestone(pledge: dict) -> Optional[dict]:
+async def departure_milestone(pledge: dict, *, read_only: bool = False) -> Optional[dict]:
     """Cabin legs and other milestones with ``capture_on=departure``."""
     from .naviguide_bridge import leg_by_id, leg_milestone_meta, resolve_schedule_milestone
 
     milestone_id = str(pledge.get("milestone_id") or "")
     if not milestone_id:
         return None
-    doc = await resolve_schedule_milestone(milestone_id)
+    doc = await resolve_schedule_milestone(milestone_id, read_only=True) if read_only else await resolve_schedule_milestone(milestone_id)
     meta = (doc or {}).get("meta") if isinstance(doc, dict) else None
     if isinstance(meta, dict) and meta.get("capture_on") == "departure":
         return doc
@@ -105,7 +105,7 @@ async def departure_milestone(pledge: dict) -> Optional[dict]:
     return None
 
 
-async def arrival_milestone(pledge: dict) -> Optional[dict]:
+async def arrival_milestone(pledge: dict, *, read_only: bool = False) -> Optional[dict]:
     """Stopover pledges captured on arrival."""
     from .naviguide_bridge import resolve_schedule_milestone
 
@@ -115,7 +115,7 @@ async def arrival_milestone(pledge: dict) -> Optional[dict]:
         return None
     if kind not in _ARRIVAL_KINDS and not milestone_id.startswith(("dep-", "ret-")):
         return None
-    doc = await resolve_schedule_milestone(milestone_id)
+    doc = await resolve_schedule_milestone(milestone_id, read_only=True) if read_only else await resolve_schedule_milestone(milestone_id)
     if not doc:
         return None
     meta = dict((doc.get("meta") or {}))
@@ -129,8 +129,10 @@ async def arrival_milestone(pledge: dict) -> Optional[dict]:
     return base
 
 
-async def timing_milestone(pledge: dict) -> Optional[dict]:
+async def timing_milestone(pledge: dict, *, read_only: bool = False) -> Optional[dict]:
     """Milestone that governs the 29-day authorization window."""
+    if read_only:
+        return await departure_milestone(pledge, read_only=True) or await arrival_milestone(pledge, read_only=True)
     return await departure_milestone(pledge) or await arrival_milestone(pledge)
 
 
@@ -141,9 +143,9 @@ async def refuse_cancelled_departure(pledge: dict) -> None:
         raise ValueError("departure is cancelled")
 
 
-async def refuse_early_authorization(pledge: dict, *, now: Optional[dt.datetime] = None) -> None:
+async def refuse_early_authorization(pledge: dict, *, now: Optional[dt.datetime] = None, read_only: bool = False) -> None:
     """An authorization lasts at most 29 days, so it is not opened earlier."""
-    doc = await timing_milestone(pledge)
+    doc = await timing_milestone(pledge, read_only=True) if read_only else await timing_milestone(pledge)
     if not doc:
         return
     meta = doc.get("meta") if isinstance(doc.get("meta"), dict) else {}

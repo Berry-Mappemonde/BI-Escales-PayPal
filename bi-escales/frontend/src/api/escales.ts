@@ -140,6 +140,15 @@ export async function fetchHealthRetrying(
   throw last instanceof Error ? last : new Error(String(last ?? "health failed"));
 }
 
+export async function fetchPledgeMode(milestoneId: string, kind = "mile"): Promise<{ payment_mode: "AUTHORIZE" | "VAULT" }> {
+  const params = new URLSearchParams({ milestone_id: milestoneId, kind });
+  const res = await fetch(url(`/api/escales/pledges/mode?${params}`));
+  if (!res.ok) throw new Error(await parseError(res));
+  const body = await res.json();
+  if (!["AUTHORIZE", "VAULT"].includes(body.payment_mode)) throw new Error("Invalid card payment mode");
+  return body;
+}
+
 export async function createPledge(
   body: {
     quantity?: number;

@@ -42,3 +42,24 @@ def select_payment_mode(
     """Default is AUTHORIZE. VAULT is chosen only in ``create_pledge`` when authorization is too early before departure."""
     _ = (arrival_iso, now)
     return "AUTHORIZE"
+
+
+async def resolve_pledge_mode(
+    draft: dict, *, mode: PaymentMode = "AUTHORIZE", read_only: bool = False,
+) -> PaymentMode:
+    """Use the same clock, timing anchor and Vault flag for preview and creation."""
+    from .config import vault_enabled
+    from .departure_clock import refuse_early_authorization
+
+    if mode == "VAULT":
+        return mode
+    try:
+        if read_only:
+            await refuse_early_authorization(draft, read_only=True)
+        else:
+            await refuse_early_authorization(draft)
+    except ValueError as exc:
+        if vault_enabled() and "29 days" in str(exc):
+            return "VAULT"
+        raise
+    return mode

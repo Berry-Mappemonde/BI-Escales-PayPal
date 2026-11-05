@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, createPledge, isVaultPledge, registerVault } from "../api/escales";
+import { authorizePledge, createPledge, fetchPledgeMode, isVaultPledge, registerVault } from "../api/escales";
 import type { PublicPledge } from "../api/types";
 import type { PledgeFormValues } from "./PledgeButton";
 import type { PayPalNamespace } from "../paypal/paypalSdk";
@@ -43,11 +43,16 @@ export function PayPalCardFieldsBlock({
   const [error, setError] = useState<string | null>(null);
   const activePledgeRef = useRef<PublicPledge | null>(null);
   const submitRef = useRef<(() => Promise<void>) | null>(null);
-  const preparedRef = useRef<{ key: string; pledge: Promise<PublicPledge> } | null>(null);
+  const attemptRef = useRef<{ key: string; values: PledgeFormValues; pledge?: Promise<PublicPledge> } | null>(null);
+  const submittingRef = useRef(false);
+  const generationRef = useRef(0);
   valuesRef.current = values;
 
   useEffect(() => {
+    generationRef.current += 1;
+    submittingRef.current = false;
     setReady(false);
+    setBusy(false);
     setError(null);
     submitRef.current = null;
     const CardFields = (paypal as { CardFields?: CardFieldsFactory } | null)?.CardFields;
@@ -64,21 +69,21 @@ export function PayPalCardFieldsBlock({
     submitRef.current = null;
 
     const buildPledge = async () => {
-      const v = valuesRef.current;
-      return createPledge(
-        {
-          amount_eur: v.amount_eur,
-            quantity: v.quantity,
-          description: v.description,
-          milestone_id: v.milestone_id,
+      if (cancelled || !submittingRef.current || !attemptRef.current) throw new Error("Press Pay to start card checkout");
+      const attempt = attemptRef.current;
+      if (!attempt.pledge) {
+        const v = attempt.values;
+        attempt.pledge = createPledge({
+          ...v,
           contributor: v.contributor?.trim() || undefined,
-          kind: v.kind,
-          target_id: v.target_id,
           lang: v.lang || appLang,
           checkout_method: "card",
-        },
-        crypto.randomUUID(),
-      );
+        }, attempt.key);
+      }
+      const pledge = await attempt.pledge;
+      if (cancelled) throw new Error("Card checkout closed");
+      activePledgeRef.current = pledge;
+      return pledge;
     };
 
     const instances: FieldInstance[] = [];
@@ -87,30 +92,19 @@ export function PayPalCardFieldsBlock({
         try { void Promise.resolve(instance.close?.()).catch(() => undefined); } catch { /* already closed */ }
       }
     };
-    // The server chooses AUTHORIZE/VAULT using its clock and feature flags.
-    // Prepare a draft (no charge) before selecting the mutually exclusive SDK callback.
-    const key = JSON.stringify([values, appLang]);
-    if (preparedRef.current?.key !== key) {
-      preparedRef.current = { key, pledge: buildPledge() };
-    }
-    const prepared = preparedRef.current;
     void (async () => {
       try {
-        const pledge = await prepared.pledge;
+        const { payment_mode } = await fetchPledgeMode(values.milestone_id, values.kind);
         if (cancelled) return;
-        const activate = () => {
-          if (cancelled) throw new Error("Card checkout closed");
-          activePledgeRef.current = pledge;
-        };
-        const callbacks = isVaultPledge(pledge)
+        const callbacks = payment_mode === "VAULT"
           ? { createVaultSetupToken: async () => {
-              activate();
-              if (!pledge.setup_token_id) throw new Error("setup_token_id missing");
+              const pledge = await buildPledge();
+              if (!isVaultPledge(pledge) || !pledge.setup_token_id) throw new Error("Payment mode changed; reopen checkout");
               return pledge.setup_token_id;
             } }
           : { createOrder: async () => {
-              activate();
-              if (!pledge.order_id) throw new Error("order_id missing");
+              const pledge = await buildPledge();
+              if (isVaultPledge(pledge) || !pledge.order_id) throw new Error("Payment mode changed; reopen checkout");
               return pledge.order_id;
             } };
         const cardFields = CardFields(callbacks);
@@ -130,7 +124,6 @@ export function PayPalCardFieldsBlock({
         setReady(true);
       } catch (e) {
         dispose();
-        if (preparedRef.current === prepared) preparedRef.current = null;
         if (!cancelled) {
           setReady(false);
           setError(e instanceof Error ? e.message : String(e));
@@ -140,19 +133,34 @@ export function PayPalCardFieldsBlock({
 
     return () => {
       cancelled = true;
+      generationRef.current += 1;
       submitRef.current = null;
       activePledgeRef.current = null;
+      attemptRef.current = null;
       dispose();
     };
-  }, [appLang, paypal, disabled, values.amount_eur, values.kind, values.milestone_id, values.description, values.target_id]);
+  }, [appLang, paypal, disabled, values.kind, values.milestone_id]);
 
   const onSubmit = async () => {
     const submit = submitRef.current;
-    if (!submit) return;
+    if (!submit || submittingRef.current) return;
+    const generation = generationRef.current;
+    const isClosed = () => generation !== generationRef.current;
+    submittingRef.current = true;
+    const snapshot = { ...valuesRef.current };
+    // Keep a failed attempt's key for a retry of identical values.
+    if (!attemptRef.current || JSON.stringify(attemptRef.current.values) !== JSON.stringify(snapshot)) {
+      attemptRef.current = { key: crypto.randomUUID(), values: snapshot };
+      activePledgeRef.current = null;
+    } else if (!activePledgeRef.current) {
+      // Reuse the same server idempotency key after a transport failure.
+      attemptRef.current.pledge = undefined;
+    }
     setBusy(true);
     setError(null);
     try {
       await submit();
+      if (isClosed()) return;
       let current = activePledgeRef.current;
       if (!current) {
         throw new Error("pledge missing after card submit");
@@ -162,13 +170,17 @@ export function PayPalCardFieldsBlock({
       } else {
         current = await authorizePledge(current.id);
       }
-      preparedRef.current = null;
+      if (isClosed()) return;
+      attemptRef.current = null;
       setReady(false);
       onAuthorized?.(current);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (!isClosed()) setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      if (!isClosed()) {
+        submittingRef.current = false;
+        setBusy(false);
+      }
     }
   };
 

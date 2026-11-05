@@ -52,7 +52,7 @@ def test_treasurer_readonly_chat_english_without_lang_and_nim_label():
     assert "PayPal transactions" in body["reply"]
     assert "Transactions PayPal" not in body["reply"]
     assert body["model_source"] == "paypal_readonly_tools"
-    assert body.get("model_label", "").startswith("NVIDIA NIM")
+    assert body["model_label"] == "rules"
     tools = body.get("paypal_tools") or {}
     assert "transactions.search" in tools.get("called", [])
     assert "transactions.search" in tools.get("tools", [])

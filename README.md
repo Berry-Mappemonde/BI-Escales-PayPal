@@ -7,7 +7,7 @@ A supporter's PayPal pledge is **authorized** (Orders v2 `intent=AUTHORIZE`), an
 - `bi-escales/` — FastAPI backend: pledges (authorize / capture / void), milestones and evidence, AI Captain, audit journal. Partner integrations (e.g. PayPal Agent Toolkit) are optional modules behind environment flags, off by default.
 - `naviguide-escales/` — NAVIGUIDE voyage simulator (snapshot, no history).
 
-Status: in development. PayPal **sandbox only**; no real money moves. Planned departure: 15 May 2027.
+Status: in development. PayPal **sandbox only**; no real money moves. Planned departure: 12 Nov 2026.
 
 ## Void id
 

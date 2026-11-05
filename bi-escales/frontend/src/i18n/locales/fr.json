@@ -110,7 +110,8 @@
     "empty": "Aucune escale planifiée.",
     "cabinLeg": "{{from}} → {{to}}",
     "cabinPrice": "{{amount}} EUR",
-    "cabinDescription": "Cabine {{from}} → {{to}}"
+    "cabinDescription": "Cabine {{from}} → {{to}}",
+    "loading": "Chargement du calendrier des escales…"
   },
   "escales": {
     "heading": "Escales & capitaine",

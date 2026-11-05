@@ -200,7 +200,7 @@ def test_pledges_stay_open_when_the_captain_is_limited(api, monkeypatch):
     assert created.status_code == 200, created.text
 
 
-def test_session_header_splits_buckets(api, monkeypatch):
+def test_rotating_session_header_cannot_escape_ip_bucket(api, monkeypatch):
     monkeypatch.setenv("ESCALES_RATE_LIMIT_ENABLED", "1")
     monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "1")
     base = {"x-forwarded-for": "203.0.113.60"}
@@ -208,8 +208,30 @@ def test_session_header_splits_buckets(api, monkeypatch):
     assert first.status_code == 200, first.text
     blocked = _chat(api, FR, headers={**base, "x-escales-session": "tab-a"})
     assert blocked.status_code == 429
-    other = _chat(api, FR, headers={**base, "x-escales-session": "tab-b"})
-    assert other.status_code == 200, other.text
+    rotated = _chat(api, FR, headers={**base, "x-escales-session": "tab-b"})
+    assert rotated.status_code == 429
+    no_session = _chat(api, FR, headers=base)
+    assert no_session.status_code == 429
+    other_ip = _chat(api, FR, headers={"x-forwarded-for": "203.0.113.61", "x-escales-session": "tab-a"})
+    assert other_ip.status_code == 200, other_ip.text
+
+
+def test_rotating_sessions_share_the_daily_ip_cap(monkeypatch):
+    import datetime as dt
+
+    monkeypatch.setenv("ESCALES_RATE_LIMIT_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY", "3")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "100")
+    reset()
+    start = dt.datetime(2027, 6, 12, 8, 0, tzinfo=dt.timezone.utc)
+    for n in range(3):
+        hit(captain_rate_key("198.51.100.7", f"rot-{n}"), now=start + dt.timedelta(minutes=n))
+    with pytest.raises(RateLimited) as caught:
+        hit(captain_rate_key("198.51.100.7", "rot-99"), now=start + dt.timedelta(minutes=5))
+    assert caught.value.kind == "day"
+    hit(captain_rate_key("198.51.100.8", "rot-99"), now=start + dt.timedelta(minutes=5))
+    reset()
 
 
 def test_captain_rate_key_composes_ip_and_session():

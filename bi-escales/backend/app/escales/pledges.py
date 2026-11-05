@@ -408,12 +408,18 @@ async def record_pledge_captured_once(pledge: dict, *, actor: str, client: Any =
     from .ledger import list_finance_entries, record_finance
     from .marina_berth_settlement import apply_marina_berth_settlement
 
+    from .marina_berth_settlement import marina_settlement_done
+
     pledge_id = str(pledge.get("_id") or "")
     if not pledge_id:
         return pledge
     for entry in await list_finance_entries():
         if entry.get("kind") == "pledge_captured" and entry.get("pledge_id") == pledge_id:
-            return pledge
+            # Already journaled: only retry an unfinished marina payout (retry-safe).
+            if marina_settlement_done(pledge):
+                return pledge
+            settled = await apply_marina_berth_settlement(pledge, actor=actor, client=client)
+            return await get_ledger().save_pledge(settled)
     milestone_id = finance_milestone_id(pledge)
     await ensure_finance_milestone(pledge, milestone_id)
     at = str(pledge.get("captured_at") or "").strip() or now_iso()
@@ -927,6 +933,7 @@ async def _create_authorize_pledge(
         cancel_url=cancel,
         checkout_locale=checkout_locale,
     )
+    platform_fees_on_order = False
     if method == "card":
         order = _create_card_authorize_order(client, **order_kwargs)
     elif vault_on_purchase_enabled():
@@ -946,6 +953,7 @@ async def _create_authorize_pledge(
                 platform_fee_eur=platform_fee_eur(),
                 platform_merchant_id=platform_payee_merchant_id(),
             )
+            platform_fees_on_order = True
         else:
             order = _create_authorize_order(client, **order_kwargs)
     order_id = order.get("id")
@@ -976,6 +984,8 @@ async def _create_authorize_pledge(
         "vault_source": None,
         "setup_token_id": None,
         "checkout_method": method,
+        # Card and vault orders never carry multiparty fees; settlement pays the marina instead.
+        "platform_fees_on_order": platform_fees_on_order,
         "vault_on_purchase": vault_on_purchase_enabled() and method != "card",
         "checkout_locale": (checkout_locale or "").strip() or None,
         "created_at": now_iso(),

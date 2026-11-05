@@ -16,14 +16,15 @@ function treasurerAccessHeaders(
   adminKey: string,
   access?: TreasurerAccessOptions,
 ): Record<string, string> {
+  const key = adminKey.trim();
+  if (key) {
+    // A key always wins: money routes refuse a keyless demo session.
+    return { "x-admin-key": key };
+  }
   if (access?.demoTreasurer) {
     return {};
   }
-  const key = adminKey.trim();
-  if (!key) {
-    throw new Error("Admin key required");
-  }
-  return { "x-admin-key": key };
+  throw new Error("Admin key required");
 }
 
 function url(path: string): string {

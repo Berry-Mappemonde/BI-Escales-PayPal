@@ -314,30 +314,60 @@ def _demo_treasurer_session(request: Request) -> bool:
     return demo_treasurer_enabled() and not _has_admin_key_header(request)
 
 
-def _require_treasurer_or_demo(request: Request) -> None:
-    if _has_admin_key_header(request):
-        _require_treasurer(request)
-        return
-    if demo_treasurer_env_forbidden():
-        raise HTTPException(
-            status_code=403,
-            detail="Demo treasurer requires PAYPAL_ENV=sandbox",
-        )
-    if _demo_treasurer_session(request):
-        return
-    _require_treasurer(request)
+def _demo_forbidden_http() -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail="Demo treasurer requires PAYPAL_ENV=sandbox and ESCALES_ENV other than production",
+    )
 
 
-def _treasurer_privileged(request: Request) -> bool:
+def _require_treasurer_or_demo(request: Request) -> bool:
+    """Key holder -> True. Read-only demo session (sandbox, non-production) -> False.
+
+    Only read routes may call this. Money routes (capture, void, approve) use
+    ``_require_treasurer`` so demo mode can never move funds.
+    """
     if _has_admin_key_header(request):
         _require_treasurer(request)
         return True
     if demo_treasurer_env_forbidden():
-        raise HTTPException(
-            status_code=403,
-            detail="Demo treasurer requires PAYPAL_ENV=sandbox",
-        )
-    return _demo_treasurer_session(request)
+        raise _demo_forbidden_http()
+    if _demo_treasurer_session(request):
+        return False
+    _require_treasurer(request)
+    return True
+
+
+def _treasurer_privileged(request: Request) -> bool:
+    """Full pledge detail only with a valid treasurer key; demo sessions stay redacted."""
+    if _has_admin_key_header(request):
+        _require_treasurer(request)
+        return True
+    if demo_treasurer_env_forbidden():
+        raise _demo_forbidden_http()
+    return False
+
+
+# Fields a keyless demo session may see in GET /pledges: no contributor, payer, or order ids.
+_DEMO_PLEDGE_FIELDS = (
+    "id",
+    "status",
+    "amount_eur",
+    "currency",
+    "kind",
+    "milestone_id",
+    "target_id",
+    "payment_mode",
+    "intent",
+    "simulated_price",
+    "price_label",
+    "created_at",
+    "updated_at",
+)
+
+
+def _demo_pledge_row(public: dict) -> dict:
+    return {key: public[key] for key in _DEMO_PLEDGE_FIELDS if key in public}
 
 
 def _require_treasurer(request: Request) -> None:
@@ -684,7 +714,7 @@ async def post_authorize(pledge_id: str):
 
 @router.post("/pledges/{pledge_id}/capture")
 async def post_capture(pledge_id: str, request: Request, body: CaptureIn = CaptureIn()):
-    _require_treasurer_or_demo(request)
+    _require_treasurer(request)
     effective_at = None
     if (body.now or "").strip():
         if not clock_now_pinned():
@@ -702,7 +732,7 @@ async def post_capture(pledge_id: str, request: Request, body: CaptureIn = Captu
 
 @router.post("/pledges/{pledge_id}/void")
 async def post_void(pledge_id: str, request: Request):
-    _require_treasurer_or_demo(request)
+    _require_treasurer(request)
     try:
         doc = await void_pledge(pledge_id, _paypal())
     except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
@@ -1060,10 +1090,12 @@ async def post_payout_approve(payout_id: str, request: Request, lang: Optional[s
 
 @router.get("/pledges")
 async def get_pledges(request: Request):
-    """Every pledge on the server. The treasurer key is required."""
-    _require_treasurer_or_demo(request)
+    """Every pledge on the server. The key sees everything; a sandbox demo session sees a
+    redacted list (status and amounts, never contributor names or PayPal ids)."""
+    keyed = _require_treasurer_or_demo(request)
     docs = await get_ledger().list_pledges()
-    return [_public_pledge(doc) for doc in docs]
+    rows = [_public_pledge(doc) for doc in docs]
+    return rows if keyed else [_demo_pledge_row(row) for row in rows]
 
 
 @router.get("/pledges/{pledge_id}")
@@ -1166,7 +1198,7 @@ async def post_review(milestone_id: str, request: Request, lang: Optional[str] =
 
 @router.post("/milestones/{milestone_id}/captain-review/approve")
 async def post_captain_review_approve(milestone_id: str, request: Request):
-    _require_treasurer_or_demo(request)
+    _require_treasurer(request)
     try:
         return await record_captain_review_approval(milestone_id)
     except ValueError as exc:

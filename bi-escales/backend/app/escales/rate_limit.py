@@ -74,12 +74,26 @@ def trusted_proxy_hops() -> int:
 
 
 def captain_rate_key(ip: str, session_id: str = "") -> str:
-    """Per-IP bucket, or per IP+session when the browser sends ``X-Escales-Session``."""
+    """``{ip}`` or ``{ip}|{session}`` when the browser sends ``X-Escales-Session``.
+
+    ``hit`` always charges the per-IP bucket; the session bucket only adds a second,
+    tighter-or-equal check on top. A rotating session header never gets a fresh quota.
+    """
     base = (ip or "").strip() or "unknown"
     session = (session_id or "").strip()[:128]
     if session:
         return f"{base}|{session}"
     return base
+
+
+def _bucket_keys(key: str) -> list[str]:
+    raw = (key or "").strip() or "unknown"
+    ip, sep, session = raw.partition("|")
+    ip = ip.strip() or "unknown"
+    keys = [ip]
+    if sep and session.strip():
+        keys.append(f"{ip}|{session.strip()}")
+    return keys
 
 
 def lang_for(accept_language: str, text: str = "") -> str:
@@ -114,17 +128,21 @@ def hit(ip: str, now: Optional[dt.datetime] = None) -> None:
         moment = moment.replace(tzinfo=dt.timezone.utc)
     else:
         moment = moment.astimezone(dt.timezone.utc)
-    key = (ip or "").strip() or "unknown"
-    today = [
-        stamp for stamp in _hits.get(key, [])
-        if stamp.date() == moment.date() and stamp <= moment
-    ]
-    recent = [stamp for stamp in today if moment - stamp < _MINUTE]
-    if len(today) >= per_day():
+    buckets: dict[str, list[dt.datetime]] = {}
+    for key in _bucket_keys(ip):
+        buckets[key] = [
+            stamp for stamp in _hits.get(key, [])
+            if stamp.date() == moment.date() and stamp <= moment
+        ]
+    # Check every bucket before storing anything: a rejected call is not counted.
+    for key, today in buckets.items():
+        recent = [stamp for stamp in today if moment - stamp < _MINUTE]
+        if len(today) >= per_day():
+            _hits.update(buckets)
+            raise RateLimited("day", per_day())
+        if len(recent) >= per_minute():
+            _hits.update(buckets)
+            raise RateLimited("minute", per_minute())
+    for key, today in buckets.items():
+        today.append(moment)
         _hits[key] = today
-        raise RateLimited("day", per_day())
-    if len(recent) >= per_minute():
-        _hits[key] = today
-        raise RateLimited("minute", per_minute())
-    today.append(moment)
-    _hits[key] = today

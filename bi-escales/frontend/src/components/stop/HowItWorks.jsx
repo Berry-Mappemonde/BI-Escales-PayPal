@@ -4,7 +4,7 @@ import "./stop-panel.css";
 const STEPS = [
   { key: "pledge" },
   { key: "held", tone: "held" },
-  { key: "arrives", tone: "route" },
+  { key: "arrives", tone: "accent" },
   { key: "approves" },
   { key: "captured", tone: "captured" },
   { key: "released", tone: "released" },

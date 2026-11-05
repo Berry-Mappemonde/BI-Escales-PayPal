@@ -148,6 +148,8 @@ body.ng-naviguide-shell {
   padding: var(--space-3);
   box-sizing: border-box;
   background: var(--shell-tools-gradient);
+  /* Keep the translucent gradient over a solid panel, not over the map. */
+  background-color: var(--color-shell);
   border-left: 1px solid var(--shell-border);
   overflow: auto;
   transition: transform 200ms ease;
@@ -502,12 +504,9 @@ body.ng-naviguide-shell {
   color: var(--color-accent-fg);
 }
 
-/* The Crew subscribe block: a card, so PayPal's button reads as part of it. */
+/* Keep the spacing; the inner PayPal host owns the single frame. */
 .crew-supporter-public {
   padding: var(--space-3);
-  border: 1px solid var(--shell-border);
-  border-radius: var(--radius-panel);
-  background: var(--shell-control-bg);
 }
 
 .crew-subscribe .hint {

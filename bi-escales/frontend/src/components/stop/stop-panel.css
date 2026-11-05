@@ -313,8 +313,8 @@
   --st: var(--color-status-held);
 }
 
-.how-steps li[data-tone="route"] {
-  --st: var(--color-status-route);
+.how-steps li[data-tone="accent"] {
+  --st: var(--color-accent);
 }
 
 .how-steps li[data-tone="captured"] {

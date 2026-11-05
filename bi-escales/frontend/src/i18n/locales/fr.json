@@ -115,6 +115,7 @@
   "escales": {
     "heading": "Escales & capitaine",
     "captainChat": "Message au capitaine IA",
+    "chatPlaceholder": "20 milles près de Mayotte",
     "sendChat": "Demander une formulation",
     "agenticConfirmInvoice": "Confirmer — créer la facture PayPal (bac à sable)",
     "cartHeading": "Panier",

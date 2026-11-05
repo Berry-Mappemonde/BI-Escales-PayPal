@@ -35,7 +35,7 @@ describe("HowItWorks", () => {
     expect(show().map((step) => step.dataset.tone ?? null)).toEqual([
       null,
       "held",
-      "route",
+      "accent",
       null,
       "captured",
       "released",

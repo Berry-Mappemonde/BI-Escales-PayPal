@@ -115,6 +115,7 @@
   "escales": {
     "heading": "Stops & AI Captain",
     "captainChat": "Message to AI Captain",
+    "chatPlaceholder": "Sponsor 20 miles near Mayotte",
     "sendChat": "Ask for wording",
     "agenticConfirmInvoice": "Confirm — create PayPal invoice (sandbox)",
     "cartHeading": "Cart",

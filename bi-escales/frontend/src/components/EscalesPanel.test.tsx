@@ -18,6 +18,33 @@ describe("EscalesPanel cart", () => {
     await i18n.changeLanguage("fr");
   });
 
+  it.each([
+    ["fr", "20 milles près de Mayotte", "Demander une formulation"],
+    ["en", "Sponsor 20 miles near Mayotte", "Ask for wording"],
+  ])("starts empty with a localized placeholder in %s and refuses blank submissions", async (lang, placeholder, action) => {
+    await i18n.changeLanguage(lang);
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EscalesPanel milestoneId="dep-mayotte" />
+      </I18nextProvider>,
+    );
+    const input = screen.getByRole("textbox");
+    const button = screen.getByRole("button", { name: action });
+    expect(input).toHaveValue("");
+    expect(input).toHaveAttribute("placeholder", placeholder);
+    expect(button).toBeDisabled();
+    fireEvent.submit(input.closest("form")!);
+    expect(captainChat).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: "  \n " } });
+    expect(button).toBeDisabled();
+    fireEvent.submit(input.closest("form")!);
+    expect(captainChat).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: "Sponsor 5 miles" } });
+    expect(button).toBeEnabled();
+    fireEvent.change(input, { target: { value: "" } });
+    expect(button).toBeDisabled();
+  });
+
   it("affiche chaque ligne et son objet pledge", async () => {
     vi.mocked(captainChat).mockResolvedValue({
       reply: "Promesse calculée.",
@@ -53,6 +80,7 @@ describe("EscalesPanel cart", () => {
         <EscalesPanel milestoneId="dep-mayotte" />
       </I18nextProvider>,
     );
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "20 milles près de Mayotte" } });
     fireEvent.click(screen.getByRole("button", { name: "Demander une formulation" }));
     expect(captainChat).toHaveBeenCalledWith("20 milles près de Mayotte", "fr", undefined);
     const line = await screen.findByTestId("cart-line");
@@ -78,6 +106,7 @@ describe("EscalesPanel cart", () => {
         <EscalesPanel milestoneId="dep-mayotte" />
       </I18nextProvider>,
     );
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "20 milles près de Mayotte" } });
     fireEvent.click(screen.getByRole("button", { name: "Demander une formulation" }));
     const line = await screen.findByTestId("captain-paypal-tools");
     expect(line).toHaveTextContent("transactions.search");
@@ -93,6 +122,7 @@ describe("EscalesPanel cart", () => {
         <EscalesPanel milestoneId="dep-mayotte" />
       </I18nextProvider>,
     );
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "20 milles près de Mayotte" } });
     fireEvent.click(screen.getByRole("button", { name: "Demander une formulation" }));
     expect(await screen.findByText(/Trop de requêtes vers le capitaine/)).toBeInTheDocument();
   });

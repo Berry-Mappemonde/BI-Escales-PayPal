@@ -22,7 +22,7 @@ export function EscalesPanel({
 }: EscalesPanelProps) {
   const { t, i18n } = useTranslation();
   const lang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
-  const [chatMessage, setChatMessage] = useState("20 milles près de Mayotte");
+  const [chatMessage, setChatMessage] = useState("");
   const [chatResult, setChatResult] = useState<CaptainChatResponse | null>(null);
   const [agenticNote, setAgenticNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,6 +30,7 @@ export function EscalesPanel({
 
   const onChat = async (event: FormEvent) => {
     event.preventDefault();
+    if (busy || !chatMessage.trim()) return;
     setBusy(true);
     setError(null);
     try {
@@ -52,8 +53,14 @@ export function EscalesPanel({
       <h2>{t("escales.captainChat")}</h2>
       {error ? <p className="notice error">{error}</p> : null}
       <form className="stack-form" onSubmit={onChat}>
-        <textarea value={chatMessage} onChange={(event) => setChatMessage(event.target.value)} rows={2} />
-        <button type="submit" disabled={busy}>{t("escales.sendChat")}</button>
+        <textarea
+          value={chatMessage}
+          onChange={(event) => setChatMessage(event.target.value)}
+          placeholder={t("escales.chatPlaceholder")}
+          aria-label={t("escales.captainChat")}
+          rows={2}
+        />
+        <button type="submit" disabled={busy || !chatMessage.trim()}>{t("escales.sendChat")}</button>
       </form>
       {chatResult ? (
         <div className="chat-result">

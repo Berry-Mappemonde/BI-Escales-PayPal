@@ -12,6 +12,10 @@
     "sidebarExpand": "Expand sidebar",
     "dismissNotice": "Dismiss"
   },
+  "common": {
+    "showSecret": "Show",
+    "hideSecret": "Hide"
+  },
   "tabs": {
     "voyage": "Voyage map",
     "marinas": "Marinas"
@@ -78,7 +82,8 @@
     "reserveDescription": "Berth (simulation) — {{name}}",
     "legendHeading": "Map legend",
     "legendVerified": "Verified Google place (within 1 km, marina name)",
-    "legendDefault": "Marina (search link on Maps)"
+    "legendDefault": "Marina — red on the map (Maps search link)",
+    "legendRejected": "Rejected Google place — red on the map"
   },
   "fund": {
     "heading": "Common fund",
@@ -111,6 +116,7 @@
     "sendChat": "Ask for wording",
     "cartHeading": "Cart",
     "chatReply": "Captain reply",
+    "paypalToolLine": "PayPal tool: {{tools}} ({{client}})",
     "suggestedPledge": "Suggested pledge",
     "milestonesEmpty": "No milestones recorded yet."
   },

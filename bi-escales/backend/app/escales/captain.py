@@ -76,13 +76,14 @@ _CHAT_MAX_TOKENS = 400
 _EN_HINT = re.compile(
     r"\b(?:i|i'd|i’m|i'm|would|like|sponsor|please|the|near|miles?|nautical|dinner|and"
     r"|my|you|your|will|is|are|was|old|days?|authorization|it|this"
-    r"|how|much|price|cost|costs|cabin|show|me|what|we|have|our|paypal|transactions?"
-    r"|disputes?|invoices?|treasurer|should|void|cancel)\b",
+    r"|how|much|price|cost|costs|cabin|show|me|what|we|have|our"
+    r"|disputes?|invoices?|treasurer|should|void|cancel|list)\b",
     re.IGNORECASE,
 )
 _FR_HINT = re.compile(
     r"\b(?:je|j'|voudrais|parrain\w*|milles?|près|pres|pour|dîner|diner|une|des|autorisation|est-ce"
-    r"|combien|co[uû]te|prix|cabine)\b",
+    r"|combien|co[uû]te|prix|cabine|liste|mes|mon|nos|les|du|de|la|au|aux|sandbox|factures?"
+    r"|litiges?|commandes?|promesses?|tr[ée]sorier|affiche|montre|consulte|transactions?)\b",
     re.IGNORECASE,
 )
 _TREASURER_Q = re.compile(

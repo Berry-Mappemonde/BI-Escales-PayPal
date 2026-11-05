@@ -163,6 +163,7 @@ describe("Treasurer panel (mini-mix lot 1)", () => {
     expect(keyInput).toHaveAttribute("autocomplete", "off");
 
     await user.type(keyInput, "secret-admin-key");
+    expect(screen.getByTestId("admin-key-input-visibility-toggle")).toBeInTheDocument();
     const persistedAdmin = storageSpy.mock.calls.some(
       ([, value]) => typeof value === "string" && value.includes("secret-admin"),
     );

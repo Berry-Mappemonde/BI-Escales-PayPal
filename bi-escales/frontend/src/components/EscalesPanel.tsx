@@ -61,6 +61,18 @@ export function EscalesPanel({
               {chatResult.model_label}
             </p>
           ) : null}
+          {(() => {
+            const payload = chatResult.paypal_tools;
+            if (!payload || Array.isArray(payload)) return null;
+            const called = payload.called;
+            if (!called?.length) return null;
+            const client = payload.client || "direct";
+            return (
+              <p className="hint" data-testid="captain-paypal-tools">
+                {t("escales.paypalToolLine", { tools: called.join(", "), client })}
+              </p>
+            );
+          })()}
           {chatResult.cart?.lines?.length ? (
             <div data-testid="captain-cart">
               <h3>{t("escales.cartHeading")}</h3>

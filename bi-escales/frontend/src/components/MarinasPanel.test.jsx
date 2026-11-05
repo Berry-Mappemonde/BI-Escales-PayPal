@@ -57,4 +57,31 @@ describe("MarinasPanel", () => {
     expect(screen.getByText(/Fiche Google vérifiée/)).toBeInTheDocument();
     expect(screen.getByText(/\(1\)/)).toBeInTheDocument();
   });
+
+  it("affiche la légende des fiches Google rejetées avec le décompte", async () => {
+    await i18n.changeLanguage("en");
+    const rejected = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [-61.53, 16.22] },
+          properties: {
+            id: "m3",
+            name: "Bas-du-Fort",
+            maps_place_rejected: "suspicious_name",
+          },
+        },
+        ...marinas.features,
+      ],
+    };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MarinasPanel marinas={rejected} milestoneId="dep-pointe-a-pitre" onFlyTo={() => {}} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(/Rejected Google place — red on the map/)).toBeInTheDocument();
+    expect(screen.getByText(/Marina — red on the map/)).toBeInTheDocument();
+    expect(screen.getAllByText(/\(1\)/).length).toBeGreaterThanOrEqual(1);
+  });
 });

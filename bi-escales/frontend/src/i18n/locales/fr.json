@@ -12,6 +12,10 @@
     "sidebarExpand": "Déplier le panneau latéral",
     "dismissNotice": "Fermer"
   },
+  "common": {
+    "showSecret": "Afficher",
+    "hideSecret": "Masquer"
+  },
   "tabs": {
     "voyage": "Carte du voyage",
     "marinas": "Marinas"
@@ -78,7 +82,8 @@
     "reserveDescription": "Amarrage (simulation) — {{name}}",
     "legendHeading": "Légende carte",
     "legendVerified": "Fiche Google vérifiée (≤ 1 km, nom marina)",
-    "legendDefault": "Marina (lien recherche Maps)"
+    "legendDefault": "Marina — rouge sur la carte (lien recherche Maps)",
+    "legendRejected": "Fiche Google rejetée — rouge sur la carte"
   },
   "fund": {
     "heading": "Caisse commune",
@@ -111,6 +116,7 @@
     "sendChat": "Demander une formulation",
     "cartHeading": "Panier",
     "chatReply": "Réponse du capitaine",
+    "paypalToolLine": "Outil PayPal : {{tools}} ({{client}})",
     "suggestedPledge": "Promesse suggérée",
     "milestonesEmpty": "Aucun jalon enregistré pour l’instant."
   },

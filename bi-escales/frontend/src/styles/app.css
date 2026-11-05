@@ -382,6 +382,28 @@ button:disabled {
   background: #ff4a4a;
 }
 
+.marinas-legend-swatch--rejected {
+  background: #ff4a4a;
+  box-shadow: inset 0 0 0 2px var(--panel-bg, #1a1a1a);
+}
+
+.masked-secret-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.masked-secret-row input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.masked-secret-toggle {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.5rem;
+}
+
 .marina-map-popup-inner {
   display: flex;
   flex-direction: column;

@@ -1,6 +1,7 @@
 import { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { FundView, PublicPledge } from "../api/types";
+import { MaskedSecretInput } from "./MaskedSecretInput";
 import { TreasurerPayPalPanel } from "./TreasurerPayPalPanel";
 import { TreasurerQueue } from "./TreasurerQueue";
 
@@ -110,16 +111,14 @@ export function TreasurerPanel({
       {open ? (
         <div className="treasurer-panel-body" id="treasurer-panel-body" data-testid="treasurer-panel-body">
           <p className="hint">{t("treasurer.adminKeyHint")}</p>
-          <label className="admin-key shared-admin">
-            {t("treasurer.adminKey")}
-            <input
-              type="password"
-              autoComplete="off"
-              value={adminKey}
-              onChange={(event) => onAdminKeyChange(event.target.value)}
-              data-testid="admin-key-input"
-            />
-          </label>
+          <MaskedSecretInput
+            className="admin-key shared-admin"
+            label={t("treasurer.adminKey")}
+            value={adminKey}
+            onChange={onAdminKeyChange}
+            testId="admin-key-input"
+            autoComplete="off"
+          />
           <p className="hint" data-testid="treasurer-milestone-hint">
             {t("treasurer.milestoneFromStop", { id: milestoneId.trim() || "—" })}
           </p>

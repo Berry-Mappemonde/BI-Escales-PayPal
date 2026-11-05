@@ -62,4 +62,25 @@ describe("EscalesPanel cart", () => {
     expect(screen.queryByTestId("pledge-authorize")).toBeNull();
     expect(screen.queryByRole("button", { name: /preuve/i })).toBeNull();
   });
+
+  it("shows PayPal tools called under the captain reply", async () => {
+    vi.mocked(captainChat).mockResolvedValue({
+      reply: "Read-only summary.",
+      model_label: "NVIDIA NIM — test",
+      paypal_tools: {
+        tools: ["transactions.search"],
+        called: ["transactions.search"],
+        client: "paypal-agent-toolkit",
+      },
+    });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EscalesPanel milestoneId="dep-mayotte" />
+      </I18nextProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Demander une formulation" }));
+    const line = await screen.findByTestId("captain-paypal-tools");
+    expect(line).toHaveTextContent("transactions.search");
+    expect(line).toHaveTextContent("paypal-agent-toolkit");
+  });
 });

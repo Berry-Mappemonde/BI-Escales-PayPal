@@ -32,6 +32,11 @@ export default function MarinasPanel({ marinas, onFlyTo, milestoneId, contributo
     [features],
   );
 
+  const rejectedCount = useMemo(
+    () => features.filter((f) => f.properties?.maps_place_rejected).length,
+    [features],
+  );
+
   return (
     <aside className="panel marinas-panel" data-testid="marinas-panel">
       <div className="escale-sheet-head">
@@ -49,6 +54,11 @@ export default function MarinasPanel({ marinas, onFlyTo, milestoneId, contributo
           <li>
             <span className="marinas-legend-swatch marinas-legend-swatch--default" aria-hidden />
             {t("marinas.legendDefault")}
+          </li>
+          <li>
+            <span className="marinas-legend-swatch marinas-legend-swatch--rejected" aria-hidden />
+            {t("marinas.legendRejected")}
+            {rejectedCount ? ` (${rejectedCount})` : ""}
           </li>
         </ul>
       </div>

@@ -264,11 +264,13 @@ export function MapScene({
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
       const props = feature.properties || {};
       const verified = Boolean(props.safe_google_place);
+      const rejected = Boolean(props.maps_place_rejected);
+      const markerColor = verified ? "#00c8ff" : "#ff4a4a";
       const marker = L.circleMarker([lat, lon], {
         radius: 5,
-        color: verified ? "#00c8ff" : "#ff4a4a",
-        weight: 1,
-        fillColor: verified ? "#00c8ff" : "#ff4a4a",
+        color: markerColor,
+        weight: rejected && !verified ? 2 : 1,
+        fillColor: markerColor,
         fillOpacity: 0.85,
       }).addTo(group);
       if (props.name) marker.bindTooltip(props.name, { direction: "top" });

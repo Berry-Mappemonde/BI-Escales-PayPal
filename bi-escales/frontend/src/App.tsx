@@ -19,6 +19,7 @@ import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
+import { isNarrowScreen } from "./utils/narrowScreen";
 import { formatCivilDate } from "./voyage/voyageClock.js";
 import { escaleArrivalIso, logbookEntriesForStop } from "./voyage/journalDisplay.js";
 import {
@@ -90,6 +91,8 @@ export default function App() {
   const [crewSubscribeNote, setCrewSubscribeNote] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [toolsOpen, setToolsOpen] = useState(true);
+  const toolsPanelRef = useRef<HTMLElement>(null);
+  const [panelFocusRequest, setPanelFocusRequest] = useState(0);
   const [allMarinas, setAllMarinas] = useState<{ type: string; features?: unknown[] }>({
     type: "FeatureCollection",
     features: [],
@@ -293,9 +296,19 @@ export default function App() {
     setTreasurerOpen(true);
   }, []);
 
+  // After the render, because the panel may only just have reopened.
+  useEffect(() => {
+    if (panelFocusRequest) toolsPanelRef.current?.focus({ preventScroll: true });
+  }, [panelFocusRequest]);
+
   const chooseStop = (next: VoyageStop) => {
     setStop(next);
     setMilestoneId(next.milestoneId);
+    if (isNarrowScreen()) {
+      setSidebarOpen(false);
+      setToolsOpen(true);
+      setPanelFocusRequest((count) => count + 1);
+    }
     if (Number.isFinite(next.lat) && Number.isFinite(next.lon)) {
       setFlyTo({ lat: next.lat, lon: next.lon, ts: Date.now() });
     }
@@ -814,6 +827,8 @@ export default function App() {
       </aside>
 
       <aside
+        ref={toolsPanelRef}
+        tabIndex={-1}
         className={`ng-tools-panel panel${toolsOpen ? "" : " ng-collapsed"}`}
         data-testid="ng-tools-panel"
         aria-hidden={!toolsOpen}

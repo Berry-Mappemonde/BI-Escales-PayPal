@@ -9,6 +9,7 @@ import { fetchPublicProjectFund } from "../api/escales";
 import { parseProjectPledgeAmount } from "../projects/projectPledgeAmount.js";
 import { subscribePledgeReturn } from "../paypal/pledgeReturnEvents";
 import { PledgeButton } from "./PledgeButton";
+import { ProjectFundProgress } from "./ProjectFundProgress";
 
 const MIN_EUR = "1.00";
 
@@ -66,13 +67,16 @@ export function ProjectMapPopup({ properties, contributorDefault = "", onAuthori
         </p>
       )}
       {publicTotal ? (
-        <p className="hint fund-line" data-testid="project-map-public-total">
-          {t("projects.publicTotal", {
-            amount: publicTotal.amount_eur,
-            currency: publicTotal.currency,
-            count: publicTotal.donation_count,
-          })}
-        </p>
+        <>
+          <p className="hint fund-line" data-testid="project-map-public-total">
+            {t("projects.publicTotal", {
+              amount: publicTotal.amount_eur,
+              currency: publicTotal.currency,
+              count: publicTotal.donation_count,
+            })}
+          </p>
+          <ProjectFundProgress properties={props} fund={publicTotal} />
+        </>
       ) : null}
       {siteUrl ? (
         <p className="project-map-popup-link-row">

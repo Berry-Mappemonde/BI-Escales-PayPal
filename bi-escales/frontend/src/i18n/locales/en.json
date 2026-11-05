@@ -69,7 +69,9 @@
     "pledgeDescription": "Project pledge — {{title}}",
     "visitSite": "Project website",
     "noDescription": "No description in the snapshot.",
-    "publicTotal": "{{amount}} {{currency}} collected · {{count}} donations"
+    "publicTotal": "{{amount}} {{currency}} collected · {{count}} donations",
+    "goalProgress": "{{amount}} / {{goal}} {{currency}} funded ({{pct}}%)",
+    "buyViaChannel3": "Buy via Channel3 (goal reached)"
   },
   "marinas": {
     "heading": "Marinas",

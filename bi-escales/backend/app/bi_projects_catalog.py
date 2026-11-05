@@ -13,6 +13,8 @@ from typing import Any, Optional
 
 import httpx
 
+from .gear_projects_catalog import merge_gear_properties
+
 DESCRIPTION_MAX = 160
 CACHE_TTL = 900.0  # 15 minutes — same as NAVIGUIDE _CATALOG_SOURCE_TTL
 DEFAULT_BI_API = "https://www.blueintelligence.online/api"
@@ -69,18 +71,19 @@ def _normalize_feature(raw: Any) -> Optional[dict[str, Any]]:
     if not project_id:
         return None
     category = props.get("category_group") or props.get("category") or "Other"
+    base_props = {
+        "id": project_id,
+        "title": str(props.get("title") or ""),
+        "funder": str(props.get("funder") or ""),
+        "url": str(props.get("url") or ""),
+        "category_group": str(category),
+        "location": str(props.get("location") or ""),
+        "description": _truncate_description(props.get("description")),
+    }
     return {
         "type": "Feature",
         "geometry": geometry,
-        "properties": {
-            "id": project_id,
-            "title": str(props.get("title") or ""),
-            "funder": str(props.get("funder") or ""),
-            "url": str(props.get("url") or ""),
-            "category_group": str(category),
-            "location": str(props.get("location") or ""),
-            "description": _truncate_description(props.get("description")),
-        },
+        "properties": merge_gear_properties({**props, **base_props}),
     }
 
 

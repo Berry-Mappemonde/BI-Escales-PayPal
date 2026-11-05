@@ -7,6 +7,7 @@ import { TreasurerWebhookPanel } from "./TreasurerWebhookPanel";
 import { TreasurerQueue } from "./TreasurerQueue";
 import { TreasurerGrid } from "./TreasurerGrid";
 import { TreasurerStudioSection } from "./TreasurerStudioSection";
+import "./treasurer-panel.css";
 
 function OpenFundTotals({
   title,

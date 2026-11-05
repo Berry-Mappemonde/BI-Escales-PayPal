@@ -1,6 +1,11 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { readPaypalReturn, readVaultReturn } from "../api/escales";
-import { featureAgGridEnabled } from "../config/features";
+import {
+  agGridLicenseKey,
+  agStudioLlmEndpoint,
+  featureAgGridEnabled,
+  featureAgStudioEnabled,
+} from "../config/features";
 import { loadTrackedPledgeIds, saveTrackedPledgeIds, trackPledgeId } from "../hooks/pledgeQueueStorage";
 
 describe("featureAgGridEnabled", () => {
@@ -15,6 +20,47 @@ describe("featureAgGridEnabled", () => {
   it("accepte la valeur truthy explicite", () => {
     vi.stubEnv("VITE_ENABLE_AG_GRID", "true");
     expect(featureAgGridEnabled()).toBe(true);
+  });
+});
+
+describe("featureAgStudioEnabled", () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("est désactivé si la variable est absente, vide ou à 0", () => {
+    expect(featureAgStudioEnabled()).toBe(false);
+    vi.stubEnv("VITE_ENABLE_AG_STUDIO", "");
+    expect(featureAgStudioEnabled()).toBe(false);
+    vi.stubEnv("VITE_ENABLE_AG_STUDIO", "0");
+    expect(featureAgStudioEnabled()).toBe(false);
+  });
+
+  it("accepte la valeur truthy explicite", () => {
+    vi.stubEnv("VITE_ENABLE_AG_STUDIO", "1");
+    expect(featureAgStudioEnabled()).toBe(true);
+    vi.stubEnv("VITE_ENABLE_AG_STUDIO", " TRUE ");
+    expect(featureAgStudioEnabled()).toBe(true);
+  });
+});
+
+describe("variables AG Studio", () => {
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("traite une licence ou un proxy vide comme absent", () => {
+    vi.stubEnv("VITE_AG_GRID_LICENSE_KEY", "  ");
+    vi.stubEnv("VITE_AG_STUDIO_LLM_ENDPOINT", "");
+    expect(agGridLicenseKey()).toBeUndefined();
+    expect(agStudioLlmEndpoint()).toBeUndefined();
+  });
+
+  it("retire les espaces autour des valeurs", () => {
+    vi.stubEnv("VITE_AG_GRID_LICENSE_KEY", " test-licence ");
+    vi.stubEnv("VITE_AG_STUDIO_LLM_ENDPOINT", " http://localhost:9000/llm ");
+    expect(agGridLicenseKey()).toBe("test-licence");
+    expect(agStudioLlmEndpoint()).toBe("http://localhost:9000/llm");
   });
 });
 

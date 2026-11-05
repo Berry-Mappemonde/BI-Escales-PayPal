@@ -177,6 +177,21 @@
     "crewSubscribePending": "L'abonnement n'est pas encore actif. Terminez l'approbation PayPal ou réessayez.",
     "crewSubscribeCancelled": "Abonnement Équipage annulé. Aucun prélèvement."
   },
+  "howItWorks": {
+    "heading": "Comment fonctionne une promesse d’escale",
+    "pledge": "Vous promettez",
+    "pledgeDetail": "Choisissez une escale et un montant.",
+    "held": "Retenu sur PayPal",
+    "heldDetail": "Rien n’est débité pour l’instant.",
+    "arrives": "Le bateau arrive",
+    "arrivesDetail": "Pour les cabines, au départ de l’étape.",
+    "approves": "Le trésorier approuve",
+    "approvesDetail": "Une personne décide, jamais le Capitaine seul.",
+    "captured": "Encaissé",
+    "capturedDetail": "Votre promesse est débitée.",
+    "released": "Ou libéré, si nous ne partons pas",
+    "releasedDetail": "Rien n’est débité."
+  },
   "stopPanel": {
     "status": {
       "upcoming": "À venir",

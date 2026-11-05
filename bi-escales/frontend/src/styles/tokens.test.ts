@@ -110,6 +110,11 @@ describe("naviguide-shell.css", () => {
     expect(shellCss.match(/(?<![-\w])(black|white)(?![-\w])/g)).toBeNull();
   });
 
+  it("keeps project titles plain, though they are buttons", () => {
+    const rule = shellCss.slice(shellCss.indexOf(".ng-sidebar .project-row > button:first-child {"));
+    expect(rule.slice(0, rule.indexOf("}"))).toContain("background: none");
+  });
+
   it("gives every shell colour a value in both themes", () => {
     const names = (selector: string) => {
       const start = shellCss.indexOf(selector);

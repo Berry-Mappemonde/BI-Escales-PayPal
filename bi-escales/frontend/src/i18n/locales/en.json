@@ -177,6 +177,21 @@
     "crewSubscribePending": "Subscription is not active yet. Finish approval in PayPal or try again shortly.",
     "crewSubscribeCancelled": "Crew supporter subscription cancelled. Nothing was charged."
   },
+  "howItWorks": {
+    "heading": "How a stop pledge works",
+    "pledge": "You pledge",
+    "pledgeDetail": "Pick a stop and an amount.",
+    "held": "Held on PayPal",
+    "heldDetail": "Nothing is charged yet.",
+    "arrives": "The boat arrives",
+    "arrivesDetail": "For cabins, when the leg departs.",
+    "approves": "The treasurer approves",
+    "approvesDetail": "A person decides, never the Captain alone.",
+    "captured": "Captured",
+    "capturedDetail": "Your pledge is charged.",
+    "released": "Or released, if we don't sail",
+    "releasedDetail": "Nothing is charged."
+  },
   "stopPanel": {
     "status": {
       "upcoming": "Upcoming",

@@ -276,3 +276,92 @@
     transform: none;
   }
 }
+
+/* The right panel before a stop is picked. */
+.how-it-works {
+  padding: var(--space-3);
+  border: 1px solid var(--shell-border);
+  border-radius: var(--radius-panel);
+  background: var(--shell-control-bg);
+}
+
+.how-it-works h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-title);
+  line-height: var(--text-title--line-height);
+  font-weight: 600;
+}
+
+.how-steps {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.how-steps li {
+  --st: var(--color-status-pending);
+
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding-left: var(--space-5);
+}
+
+.how-steps li[data-tone="held"] {
+  --st: var(--color-status-held);
+}
+
+.how-steps li[data-tone="route"] {
+  --st: var(--color-status-route);
+}
+
+.how-steps li[data-tone="captured"] {
+  --st: var(--color-status-captured);
+}
+
+.how-steps li[data-tone="released"] {
+  --st: var(--color-status-released);
+}
+
+.how-steps li::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--st);
+}
+
+/* The thread between steps, stopping before the two outcomes split. */
+.how-steps li:not(:last-child):not([data-tone="captured"])::after {
+  content: "";
+  position: absolute;
+  top: 17px;
+  bottom: calc(var(--space-3) * -1 + 4px);
+  left: 5px;
+  width: 2px;
+  background: var(--color-line-strong);
+}
+
+.how-steps strong {
+  font-weight: 500;
+}
+
+.how-steps span {
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.how-it-works-pick {
+  margin: var(--space-3) 0 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-line-strong);
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}

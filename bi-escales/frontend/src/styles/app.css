@@ -1,49 +1,31 @@
-:root,
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #0b1f33;
-  --panel: #122a42;
-  --text: #e8f1fa;
-  --muted: #9fb6cc;
-  --accent: #3d9be9;
-  --accent-fg: #041018;
-  --warn: #e8b84a;
-  --error: #f07178;
-  --ok: #7fd992;
-  --link: #7ec8ff;
-  --map-fallback: #0f172a;
-  --border: #2a4560;
-  --input-bg: #0a1828;
-  --body-gradient: linear-gradient(160deg, #071525, #0f2a44 45%, #071525);
-  --panel-border: color-mix(in srgb, var(--accent) 35%, transparent);
-  --panel-bg: color-mix(in srgb, var(--panel) 92%, black);
-  --secondary-bg: #35536d;
-  --gauge-track: #1a334a;
-  --proposal-bg: #0a1828;
-  font-family: "Segoe UI", system-ui, sans-serif;
-}
+@import "./tokens.css";
 
-:root[data-theme="light"] {
-  color-scheme: light;
-  --bg: #f8fafc;
-  --panel: #ffffff;
-  --text: #0f172a;
-  --muted: #334155;
-  --accent: #1d4ed8;
-  --accent-fg: #ffffff;
-  --warn: #9a3412;
-  --error: #b91c1c;
-  --ok: #047857;
-  --link: #075985;
-  --map-fallback: #d6d3cd;
-  --border: #cbd5e1;
-  --input-bg: #ffffff;
-  --body-gradient: linear-gradient(160deg, #f8fafc, #ffffff 45%, #f1f5f9);
-  --panel-border: color-mix(in srgb, var(--accent) 28%, var(--border));
-  --panel-bg: var(--panel);
-  --secondary-bg: #e2e8f0;
-  --gauge-track: #e2e8f0;
-  --proposal-bg: #f1f5f9;
+/*
+ * The names the app already uses, on top of the tokens. They follow the theme
+ * through the tokens, so this block needs no light variant. Note --accent-fg is
+ * text ON the accent, not --color-accent-fg, which is accent-coloured text.
+ */
+:root {
+  --bg: var(--color-canvas);
+  --panel: var(--color-panel);
+  --text: var(--color-fg);
+  --muted: var(--color-fg-2);
+  --accent: var(--color-accent);
+  --accent-fg: var(--color-on-accent);
+  --warn: var(--color-warning);
+  --error: var(--color-status-error);
+  --ok: var(--color-success);
+  --link: var(--color-accent-fg);
+  --map-fallback: var(--color-map-fallback);
+  --border: var(--color-line-strong);
+  --input-bg: var(--color-canvas);
+  --body-gradient: linear-gradient(160deg, var(--color-rail), var(--color-shell) 45%, var(--color-rail));
+  --panel-border: var(--color-line);
+  --panel-bg: var(--color-panel);
+  --secondary-bg: var(--color-selected);
+  --gauge-track: var(--color-selected);
+  --proposal-bg: var(--color-canvas);
+  font-family: var(--font-sans);
 }
 
 * {
@@ -96,7 +78,7 @@ body {
 .panel {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
-  border-radius: 12px;
+  border-radius: var(--radius-tray);
   padding: 1rem 1.1rem;
 }
 
@@ -128,7 +110,7 @@ button {
 
 input,
 textarea {
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--border);
   background: var(--input-bg);
   color: var(--text);
@@ -136,7 +118,7 @@ textarea {
 }
 
 button {
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   border: none;
   background: var(--accent);
   color: var(--accent-fg);
@@ -238,15 +220,15 @@ button:disabled {
 }
 
 .tone-auth {
-  background: var(--accent);
+  background: var(--color-status-held);
 }
 
 .tone-cap {
-  background: var(--ok);
+  background: var(--color-status-captured);
 }
 
 .tone-void {
-  background: #c77dff;
+  background: var(--color-status-released);
 }
 
 .captain-widget {
@@ -257,7 +239,7 @@ button:disabled {
 
 .proposal-box {
   background: var(--proposal-bg);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   padding: 0.75rem;
 }
 
@@ -268,14 +250,14 @@ button:disabled {
 .chat-result pre {
   background: var(--proposal-bg);
   padding: 0.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   overflow: auto;
 }
 
 .admin-key.shared-admin {
   background: var(--panel);
   padding: 0.75rem;
-  border-radius: 10px;
+  border-radius: var(--radius-panel);
 }
 
 .tab-bar {
@@ -292,7 +274,7 @@ button:disabled {
 .voyage-map {
   height: 480px;
   width: 100%;
-  border-radius: 12px;
+  border-radius: var(--radius-tray);
   overflow: hidden;
 }
 
@@ -348,7 +330,7 @@ button:disabled {
 }
 
 .marina-row--verified strong {
-  color: #00c8ff;
+  color: var(--color-marina-verified-fg);
 }
 
 .marinas-legend-list {
@@ -375,16 +357,16 @@ button:disabled {
 }
 
 .marinas-legend-swatch--verified {
-  background: #00c8ff;
+  background: var(--color-marina-verified);
 }
 
 .marinas-legend-swatch--default {
-  background: #ff4a4a;
+  background: var(--color-marina-default);
 }
 
 .marinas-legend-swatch--rejected {
-  background: #ff4a4a;
-  box-shadow: inset 0 0 0 2px var(--panel-bg, #1a1a1a);
+  background: var(--color-marina-default);
+  box-shadow: inset 0 0 0 2px var(--panel-bg);
 }
 
 .masked-secret-row {
@@ -410,7 +392,7 @@ button:disabled {
 }
 
 .demo-treasurer-banner {
-  border-left: 3px solid #00c8ff;
+  border-left: 3px solid var(--accent);
 }
 
 .marina-map-popup-inner {
@@ -420,7 +402,7 @@ button:disabled {
 }
 
 .marina-map-verified {
-  color: #00c8ff;
+  color: var(--color-marina-verified-fg);
 }
 
 .escale-kicker {

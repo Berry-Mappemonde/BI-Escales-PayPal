@@ -47,7 +47,12 @@ vi.mock("./components/EscalesPanel", () => ({ EscalesPanel: () => <div data-test
 vi.mock("./components/MarinasPanel.jsx", () => ({ default: () => <div data-testid="marinas-panel" /> }));
 vi.mock("./components/ProjectList.jsx", () => ({ default: () => null }));
 vi.mock("./components/CrewSubscribeButton", () => ({ CrewSubscribeButton: () => <span>Crew</span> }));
-vi.mock("./marinas/escaleFiche.js", () => ({ loadEscaleFiche: vi.fn(), ficheMarinas: vi.fn(() => []) }));
+vi.mock("./marinas/escaleFiche.js", () => ({
+  loadEscaleFiche: vi.fn(),
+  loadEscaleMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),
+  loadAllEscalesMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),
+  ficheMarinas: vi.fn(() => ({ type: "FeatureCollection", features: [] })),
+}));
 
 describe("NAVIGUIDE shell wiring", () => {
   beforeEach(async () => {
@@ -105,4 +110,30 @@ describe("NAVIGUIDE shell wiring", () => {
     });
     expect(screen.getByTestId("ng-shell")).toBeInTheDocument();
   });
+
+  it("reopens the left sidebar after collapse and closes the right tools panel", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+    const leftToggle = screen.getByTestId("ng-sidebar-toggle");
+    const toolsToggle = screen.getByTestId("ng-tools-toggle");
+    const sidebar = screen.getByTestId("ng-sidebar");
+    const tools = screen.getByTestId("ng-tools-panel");
+
+    expect(sidebar.className).not.toMatch(/ng-collapsed/);
+    await user.click(leftToggle);
+    expect(sidebar.className).toMatch(/ng-collapsed/);
+    await user.click(leftToggle);
+    expect(sidebar.className).not.toMatch(/ng-collapsed/);
+
+    expect(tools.className).not.toMatch(/ng-collapsed/);
+    await user.click(toolsToggle);
+    expect(tools.className).toMatch(/ng-collapsed/);
+    await user.click(toolsToggle);
+    expect(tools.className).not.toMatch(/ng-collapsed/);
+  });
+
 });

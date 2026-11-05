@@ -1,10 +1,19 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { RootErrorBoundary } from "./components/RootErrorBoundary";
 import "./i18n";
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const rootEl = document.getElementById("root");
+if (!rootEl) {
+  document.body.innerHTML =
+    '<main role="alert" style="min-height:100vh;display:grid;place-items:center;font-family:system-ui;background:#0f172a;color:#f8fafc">Missing #root</main>';
+} else {
+  createRoot(rootEl).render(
+    <StrictMode>
+      <RootErrorBoundary>
+        <App />
+      </RootErrorBoundary>
+    </StrictMode>,
+  );
+}

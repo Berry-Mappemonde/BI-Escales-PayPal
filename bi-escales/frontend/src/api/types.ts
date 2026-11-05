@@ -87,12 +87,29 @@ export interface ScheduleLeg {
   capture_on?: string;
 }
 
+export interface PriceUnit {
+  kind?: string;
+  amount_eur?: string;
+  currency?: string;
+  free_amount?: boolean;
+  label?: string;
+  simulated?: boolean;
+}
+
+export interface PriceCatalog {
+  label?: string;
+  simulated?: boolean;
+  prices?: PriceUnit[];
+}
+
 export interface ScheduleResponse {
   source?: string;
   export?: { escales?: ScheduleEscale[] };
   milestones?: ScheduleEscale[];
   legs?: ScheduleLeg[];
   logbook?: Record<string, LogbookEntry[]>;
+  prices?: PriceCatalog;
+  clock?: { start?: string };
 }
 
 export interface LogbookEntry {

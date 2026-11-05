@@ -10,7 +10,9 @@
     "escalesOff": "ESCALES_ENABLED est désactivé : l’API /api/escales renvoie 404.",
     "sidebarCollapse": "Replier le panneau latéral",
     "sidebarExpand": "Déplier le panneau latéral",
-    "dismissNotice": "Fermer"
+    "dismissNotice": "Fermer",
+    "toolsCollapse": "Masquer les outils",
+    "toolsExpand": "Afficher les réglages"
   },
   "common": {
     "showSecret": "Afficher",

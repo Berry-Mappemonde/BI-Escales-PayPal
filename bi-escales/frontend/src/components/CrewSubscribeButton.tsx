@@ -73,12 +73,17 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
     const clientId = String(import.meta.env.VITE_PAYPAL_CLIENT_ID ?? "").trim();
     if (!clientId || !planId.trim()) return;
     let cancelled = false;
+    // Locale change must drop ready so Buttons re-mount after SDK reload (EN→FR bug).
+    setReady(false);
     void loadPayPalSubscriptionSdk(clientId, appLang)
       .then(() => {
         if (!cancelled) setReady(true);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) {
+          setReady(false);
+          setError(e instanceof Error ? e.message : String(e));
+        }
       });
     return () => {
       cancelled = true;

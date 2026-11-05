@@ -42,7 +42,12 @@ vi.mock("./components/escales/EscalesScheduler.jsx", () => ({ default: () => nul
 vi.mock("./components/MarinasPanel.jsx", () => ({ default: () => null }));
 vi.mock("./components/ProjectList.jsx", () => ({ default: () => null }));
 vi.mock("./components/TreasurerQueue", () => ({ TreasurerQueue: () => null }));
-vi.mock("./marinas/escaleFiche.js", () => ({ loadEscaleFiche: vi.fn(), ficheMarinas: vi.fn(() => []) }));
+vi.mock("./marinas/escaleFiche.js", () => ({
+  loadEscaleFiche: vi.fn(),
+  loadEscaleMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),
+  loadAllEscalesMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),
+  ficheMarinas: vi.fn(() => ({ type: "FeatureCollection", features: [] })),
+}));
 
 describe("App vault return", () => {
   beforeEach(async () => {

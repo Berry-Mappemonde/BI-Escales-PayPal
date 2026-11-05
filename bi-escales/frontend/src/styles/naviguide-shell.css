@@ -84,17 +84,41 @@ body.ng-naviguide-shell {
 }
 
 .ng-sidebar.ng-collapsed {
-  transform: translateX(calc(-100% + 2.5rem));
+  transform: translateX(-100%);
+  pointer-events: none;
 }
 
-.ng-sidebar-toggle {
-  align-self: flex-start;
+.ng-sidebar-toggle,
+.ng-tools-toggle {
+  position: absolute;
+  top: 1rem;
+  z-index: 40;
   background: var(--shell-control-bg);
   border: 1px solid var(--shell-control-border);
   color: var(--text);
   border-radius: 6px;
   padding: 0.35rem 0.6rem;
   cursor: pointer;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+}
+
+.ng-sidebar-toggle--left {
+  left: 1rem;
+  transition: left 200ms ease;
+}
+
+.ng-sidebar-toggle--left.is-open {
+  left: calc(min(340px, 92vw) + 0.5rem);
+}
+
+.ng-tools-toggle--right {
+  right: 1rem;
+  transition: right 200ms ease;
+}
+
+.ng-tools-toggle--right.is-open {
+  right: calc(min(420px, 94vw) + 0.5rem);
 }
 
 .ng-tools-panel {
@@ -109,6 +133,12 @@ body.ng-naviguide-shell {
   background: var(--shell-tools-gradient);
   border-left: 1px solid var(--shell-border);
   overflow: auto;
+  transition: transform 200ms ease;
+}
+
+.ng-tools-panel.ng-collapsed {
+  transform: translateX(100%);
+  pointer-events: none;
 }
 
 .ng-shell-header h1 {
@@ -191,6 +221,18 @@ body.ng-naviguide-shell {
 
   .ng-sidebar.ng-collapsed {
     transform: translateX(-100%);
+  }
+
+  .ng-sidebar-toggle--left.is-open {
+    left: 1rem;
+    top: auto;
+    bottom: calc(45vh + 0.5rem);
+  }
+
+  .ng-tools-toggle--right.is-open {
+    right: 1rem;
+    top: auto;
+    bottom: calc(45vh + 0.5rem);
   }
 }
 

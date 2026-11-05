@@ -1,0 +1,163 @@
+/*
+ * Design tokens. The dark set is Meridian (Team_ops globals.css, commit 417b589),
+ * names and values unchanged. The light set is derived to match it.
+ *
+ * Use the semantic --color-status-* tokens for meaning. One colour per meaning:
+ * amber is money held and nothing else, so warnings have their own orange.
+ */
+:root {
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Type scale */
+  --text-micro: 11px;
+  --text-micro--line-height: 14px;
+  --text-meta: 12px;
+  --text-meta--line-height: 16px;
+  --text-ui: 13px;
+  --text-ui--line-height: 18px;
+  --text-read: 14px;
+  --text-read--line-height: 22px;
+  --text-title: 15px;
+  --text-title--line-height: 20px;
+  --text-heading: 19px;
+  --text-heading--line-height: 26px;
+
+  /* Spacing, on a 4px base */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radius */
+  --radius-control: 6px;
+  --radius-chip: 5px;
+  --radius-panel: 10px;
+  --radius-tray: 12px;
+
+  /* Motion */
+  --duration-fast: 100ms;
+  --duration-base: 150ms;
+  --duration-slow: 220ms;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* Semantic status colours. These follow the theme through the values below. */
+  --color-status-held: var(--color-st-progress);
+  --color-status-saved: var(--color-st-triage);
+  --color-status-captured: var(--color-st-done);
+  --color-status-released: var(--color-st-declined);
+  --color-status-refunded: var(--color-st-review);
+  --color-status-pending: var(--color-st-todo);
+  --color-status-route: var(--color-st-route);
+  --color-status-error: var(--color-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+  }
+}
+
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-rail: #0c0c0c;
+  --color-canvas: #121212;
+  --color-shell: #161616;
+  --color-panel: #191919;
+  --color-raised: #1f1f1f;
+  --color-selected: #252525;
+  --color-overlay: #1c1c1c;
+
+  --color-line: #262626;
+  --color-line-soft: #1f1f1f;
+  --color-line-strong: #333333;
+
+  --color-fg: #ededed;
+  --color-fg-2: #ababab;
+  --color-fg-3: #8f8f8f;
+  --color-fg-4: #5e5e5e;
+
+  --color-accent: #4f8cff;
+  --color-accent-fg: #8fb5ff;
+  --color-on-accent: #0c0c0c;
+  --color-danger: #eb5a5a;
+  --color-danger-fg: #f39a9a;
+  --color-success: #4fb67f;
+  --color-success-fg: #86d2a6;
+  --color-warning: #f0883e;
+
+  --color-st-triage: #5e9bff;
+  --color-st-todo: #8f8f8f;
+  --color-st-progress: #e2b53e;
+  --color-st-review: #9b87f5;
+  --color-st-done: #4fb67f;
+  --color-st-declined: #6f6f6f;
+  --color-st-route: #3fb3c4;
+
+  /* Marina markers are drawn in these two colours, so the legend has to match the map. */
+  --color-marina-verified: #00c8ff;
+  --color-marina-verified-fg: #00c8ff;
+  --color-marina-default: #ff4a4a;
+  --color-map-fallback: #0f172a;
+
+  --shadow-float: 0 0 0 1px rgb(0 0 0 / 0.4), 0 12px 32px -8px rgb(0 0 0 / 0.6);
+  --shadow-sheet: -12px 0 32px -12px rgb(0 0 0 / 0.7);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-rail: #ececeb;
+  --color-canvas: #f6f6f5;
+  --color-shell: #f0f0ef;
+  --color-panel: #ffffff;
+  --color-raised: #f7f7f6;
+  --color-selected: #ebebea;
+  --color-overlay: #ffffff;
+
+  --color-line: #e4e4e2;
+  --color-line-soft: #efefed;
+  --color-line-strong: #cfcfcc;
+
+  --color-fg: #171717;
+  --color-fg-2: #4a4a4a;
+  --color-fg-3: #6b6b6b;
+  --color-fg-4: #8a8a8a;
+
+  --color-accent: #2563d9;
+  --color-accent-fg: #1d4fb3;
+  --color-on-accent: #ffffff;
+  --color-danger: #c9302c;
+  --color-danger-fg: #a82520;
+  --color-success: #1a7f4b;
+  --color-success-fg: #176b42;
+  --color-warning: #b4500f;
+
+  --color-st-triage: #2f6fdb;
+  --color-st-todo: #6b6b6b;
+  --color-st-progress: #9a6700;
+  --color-st-review: #6a4fd0;
+  --color-st-done: #1a7f4b;
+  --color-st-declined: #737373;
+  --color-st-route: #0e7c8c;
+
+  --color-marina-verified: #00c8ff;
+  --color-marina-verified-fg: #00728f;
+  --color-marina-default: #ff4a4a;
+  --color-map-fallback: #d6d3cd;
+
+  --shadow-float: 0 0 0 1px rgb(0 0 0 / 0.06), 0 12px 32px -8px rgb(0 0 0 / 0.18);
+  --shadow-sheet: -12px 0 32px -12px rgb(0 0 0 / 0.2);
+}

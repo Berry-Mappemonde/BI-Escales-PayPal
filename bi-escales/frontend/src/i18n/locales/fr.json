@@ -34,7 +34,6 @@
     "loading": "Chargement de la fiche…",
     "empty": "Pas de liste pour cette escale.",
     "pick": "Choisissez une escale sur la carte pour la fiche et le bouton PayPal.",
-    "estimatedArrival": "Arrivée estimée (horloge officielle)",
     "logbookTitle": "Carnet de navigation (lecture seule)",
     "marina": {
       "website": "Site web",
@@ -177,6 +176,25 @@
     "crewSubscribeVerifying": "Vérification de l'abonnement Équipage auprès de PayPal…",
     "crewSubscribePending": "L'abonnement n'est pas encore actif. Terminez l'approbation PayPal ou réessayez.",
     "crewSubscribeCancelled": "Abonnement Équipage annulé. Aucun prélèvement."
+  },
+  "stopPanel": {
+    "status": {
+      "upcoming": "À venir",
+      "en_route": "En route",
+      "arrived": "Arrivé",
+      "cancelled": "Annulée"
+    },
+    "scheduledArrival": "Arrivée prévue",
+    "scheduledDeparture": "Départ prévu",
+    "held": "{{amount}} retenus pour cette escale · non débités",
+    "captured": "{{amount}} encaissés",
+    "backThisLeg": "Soutenir cette étape",
+    "rule": "Retenu par PayPal, non débité. Encaissé à l’arrivée (au départ pour les cabines), uniquement après approbation par une personne. Libéré si nous ne partons pas.",
+    "ruleCommonFund": "Les dons au fonds commun sont débités dès votre approbation dans PayPal.",
+    "cancelledNote": "Cette escale est annulée, les nouvelles promesses ne sont pas acceptées. Les retenues existantes sont libérées.",
+    "logbookNote": "Calculé à partir du calendrier, pas de la position réelle du bateau.",
+    "logbookEmpty": "Aucune entrée pour l’instant.",
+    "portInfo": "Marinas et infos du port"
   },
   "captainCard": {
     "heading": "Revue du Capitaine",

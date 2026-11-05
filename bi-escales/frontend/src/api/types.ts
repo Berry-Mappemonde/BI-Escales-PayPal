@@ -55,6 +55,9 @@ export interface FundView {
   milestone_id: string;
   currency: string;
   income_eur: string;
+  captured_eur?: string;
+  authorized_eur?: string;
+  refunded_eur?: string;
   spending_eur: string;
   balance_eur: string;
   overdrawn?: boolean;
@@ -167,6 +170,7 @@ export interface MilestoneEvidence {
 export interface Milestone {
   id: string;
   evidence: MilestoneEvidence[];
+  meta?: { cancelled?: boolean } | null;
   proposal?: CaptainProposal | null;
   updated_at?: string;
 }

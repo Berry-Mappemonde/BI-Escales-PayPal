@@ -1,0 +1,152 @@
+/* The stop panel. Tokens come from captain-card.css; surfaces and text from the app's themes. */
+.escale-sheet {
+  --color-st-route: #3fb3c4;
+
+  gap: 0;
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  overflow-wrap: anywhere;
+}
+
+.stop-chip {
+  --color-st-route: #3fb3c4;
+}
+
+.escale-sheet .escale-sheet-head {
+  margin-bottom: 0;
+  padding-bottom: 12px;
+}
+
+.escale-sheet .escale-sheet-head button {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--muted);
+  font-size: var(--text-title);
+}
+
+.escale-sheet .escale-sheet-head button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.escale-sheet select {
+  margin-top: 0.25rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.stop-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 2px 0 0;
+}
+
+.stop-title h2 {
+  margin: 0;
+  font-size: var(--text-heading);
+  line-height: var(--text-heading--line-height);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.stop-section {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.stop-rows {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.stop-rows > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.stop-rows dt {
+  color: var(--muted);
+}
+
+.stop-rows dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.stop-money {
+  margin: 8px 0 0;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.stop-next-title {
+  margin: 0 0 8px;
+  font-size: var(--text-title);
+  line-height: var(--text-title--line-height);
+  font-weight: 500;
+}
+
+.escale-sheet .stop-next .pledge-form {
+  margin-bottom: 8px;
+}
+
+.stop-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.stop-cancelled {
+  margin: 0;
+  font-weight: 500;
+}
+
+.stop-more {
+  border-top: 1px solid var(--border);
+}
+
+.stop-more summary {
+  min-height: 40px;
+  padding: 10px 0;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.stop-more summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.stop-more-body {
+  padding-bottom: 8px;
+}
+
+.stop-more-body .stop-note {
+  margin-bottom: 6px;
+}
+
+@media (pointer: coarse) {
+  .stop-more summary {
+    min-height: 44px;
+  }
+
+  .escale-sheet .escale-sheet-head button {
+    width: 44px;
+    height: 44px;
+  }
+}

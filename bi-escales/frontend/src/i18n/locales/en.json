@@ -34,7 +34,6 @@
     "loading": "Loading the sheet…",
     "empty": "No list for this stop.",
     "pick": "Pick a stop on the map for the sheet and the PayPal button.",
-    "estimatedArrival": "Estimated arrival (official clock)",
     "logbookTitle": "Navigation logbook (read-only)",
     "marina": {
       "website": "Website",
@@ -177,6 +176,25 @@
     "crewSubscribeVerifying": "Verifying Crew supporter subscription with PayPal…",
     "crewSubscribePending": "Subscription is not active yet. Finish approval in PayPal or try again shortly.",
     "crewSubscribeCancelled": "Crew supporter subscription cancelled. Nothing was charged."
+  },
+  "stopPanel": {
+    "status": {
+      "upcoming": "Upcoming",
+      "en_route": "En route",
+      "arrived": "Arrived",
+      "cancelled": "Cancelled"
+    },
+    "scheduledArrival": "Scheduled arrival",
+    "scheduledDeparture": "Scheduled departure",
+    "held": "{{amount}} held for this stop · not charged",
+    "captured": "{{amount}} captured",
+    "backThisLeg": "Back this leg",
+    "rule": "Held by PayPal, not charged. Captured on arrival (on departure for cabins), only after a person approves. Released if we don't sail.",
+    "ruleCommonFund": "Common fund gifts are charged as soon as you approve in PayPal.",
+    "cancelledNote": "This stop is cancelled, new pledges aren't accepted. Existing holds are released.",
+    "logbookNote": "Computed from the schedule, not the boat's live position.",
+    "logbookEmpty": "No entries yet.",
+    "portInfo": "Marinas and port info"
   },
   "captainCard": {
     "heading": "Captain review",

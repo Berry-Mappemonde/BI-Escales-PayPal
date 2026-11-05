@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { captainChat, createPayPalInvoice } from "../api/escales";
+import { isCaptainRateLimitMessage } from "../api/captainRateLimit";
 import type { CaptainChatResponse, PublicPledge } from "../api/types";
 import { PledgeButton } from "./PledgeButton";
 
@@ -39,7 +40,8 @@ export function EscalesPanel({
         onMilestoneId?.(res.suggested_pledge.milestone_id);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setError(isCaptainRateLimitMessage(message) ? t("escales.rateLimit") : message);
     } finally {
       setBusy(false);
     }

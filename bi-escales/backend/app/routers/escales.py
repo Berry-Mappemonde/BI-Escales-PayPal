@@ -106,6 +106,7 @@ from app.escales.app_i18n import (
 )
 from app.escales.rate_limit import (
     RateLimited,
+    captain_rate_key,
     client_ip,
     hit as hit_captain_rate,
     limit_message,
@@ -1135,9 +1136,10 @@ def _enforce_captain_rate(
 ) -> None:
     forwarded = request.headers.get("x-forwarded-for", "")
     host = request.client.host if request.client else ""
+    session = request.headers.get("x-escales-session", "")
     app_lang = resolve_app_language(lang)
     try:
-        hit_captain_rate(client_ip(forwarded, host))
+        hit_captain_rate(captain_rate_key(client_ip(forwarded, host), session))
     except RateLimited as exc:
         raise HTTPException(
             status_code=429,

@@ -7,6 +7,7 @@ import {
   refundPledge,
   voidPledge,
 } from "../api/escales";
+import { isCaptainRateLimitMessage } from "../api/captainRateLimit";
 import type { PublicPledge } from "../api/types";
 import { isQueuedPledge } from "../hooks/queueFilter";
 
@@ -33,6 +34,7 @@ export function TreasurerQueue({
 }: TreasurerQueueProps) {
   const { t, i18n } = useTranslation();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [reviewRateLimit, setReviewRateLimit] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [approvedMilestones, setApprovedMilestones] = useState<Record<string, boolean>>({});
 
@@ -50,9 +52,11 @@ export function TreasurerQueue({
     }
     if (!ids.length) {
       setVerdicts({});
+      setReviewRateLimit(null);
       return;
     }
     let cancel = false;
+    setReviewRateLimit(null);
     void (async () => {
       const next: Record<string, string> = {};
       for (const id of ids) {
@@ -68,7 +72,11 @@ export function TreasurerQueue({
           if (row.paypal_tool_calls?.length) {
             setToolCalls(row.paypal_tool_calls);
           }
-        } catch {
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (isCaptainRateLimitMessage(message)) {
+            setReviewRateLimit(t("escales.rateLimit"));
+          }
           next[id] = "";
         }
       }
@@ -77,7 +85,7 @@ export function TreasurerQueue({
     return () => {
       cancel = true;
     };
-  }, [adminKey, demoTreasurer, milestoneKey, i18n.language]);
+  }, [adminKey, demoTreasurer, milestoneKey, i18n.language, t]);
 
   const runAction = async (pledgeId: string, action: "capture" | "void" | "refund") => {
     if (!demoTreasurer && !adminKey.trim()) {
@@ -138,6 +146,11 @@ export function TreasurerQueue({
         </ul>
       ) : null}
       {actionError ? <p className="notice error">{actionError}</p> : null}
+      {reviewRateLimit ? (
+        <p className="notice warn" data-testid="captain-review-rate-limit">
+          {reviewRateLimit}
+        </p>
+      ) : null}
 
       {needsKey ? (
         <p className="hint">{t("treasurer.queueNeedsKey")}</p>

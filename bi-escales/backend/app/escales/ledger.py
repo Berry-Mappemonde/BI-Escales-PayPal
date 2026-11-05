@@ -70,6 +70,54 @@ def _mongo_wanted() -> bool:
     return bool((os.environ.get("MONGO_URL") or "").strip())
 
 
+def merge_concurrent_pledge(stored: Optional[dict], incoming: dict) -> dict:
+    """Merge a pledge write with the stored copy so a concurrent write is not lost.
+
+    Two handlers can read the same pledge, change it, and save it back, e.g. the
+    authorize call and the ``CHECKOUT.ORDER.APPROVED`` webhook. A whole-document
+    replace then lets the later write undo the earlier one (seen on test2: PayPal
+    held the authorization, the ledger said ``created``). This keeps both:
+
+    - ``history``: entries the stored copy has beyond the shared prefix are kept,
+      then the incoming ones.
+    - ``webhook_events``: union by ``transmission_id``, stored order first.
+    - status: a write that would move a pledge back to ``created`` keeps the stored
+      status and the stored values of fields the incoming copy lacks.
+
+    A normal sequential save (incoming history extends the stored one) is unchanged
+    apart from these unions. Nothing is ever removed.
+    """
+    if not stored:
+        return incoming
+    merged = copy.deepcopy(incoming)
+
+    old_hist = list(stored.get("history") or [])
+    new_hist = list(incoming.get("history") or [])
+    if new_hist[: len(old_hist)] != old_hist:
+        common = 0
+        for a, b in zip(old_hist, new_hist):
+            if a != b:
+                break
+            common += 1
+        merged["history"] = old_hist + new_hist[common:]
+
+    old_events = list(stored.get("webhook_events") or [])
+    new_events = list(incoming.get("webhook_events") or [])
+    if old_events:
+        seen = {e.get("transmission_id") for e in old_events if isinstance(e, dict)}
+        merged["webhook_events"] = old_events + [
+            e for e in new_events
+            if not (isinstance(e, dict) and e.get("transmission_id") in seen)
+        ]
+
+    if incoming.get("status") == "created" and stored.get("status") not in (None, "", "created"):
+        merged["status"] = stored["status"]
+        for key, value in stored.items():
+            if merged.get(key) in (None, "") and value not in (None, ""):
+                merged[key] = copy.deepcopy(value)
+    return merged
+
+
 class MemoryLedger:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -94,7 +142,8 @@ class MemoryLedger:
 
     async def save_pledge(self, doc: dict) -> dict:
         with self._lock:
-            stored = pledge_defaults(doc)
+            incoming = pledge_defaults(doc)
+            stored = merge_concurrent_pledge(self._pledges.get(incoming["_id"]), incoming)
             self._pledges[stored["_id"]] = stored
             key = stored.get("client_key")
             if key:
@@ -307,9 +356,25 @@ class MongoLedger:
 
     async def save_pledge(self, doc: dict) -> dict:
         await self._ensure()
-        stored = pledge_defaults(doc)
-        await self._pledges.replace_one({"_id": stored["_id"]}, copy.deepcopy(stored), upsert=True)
-        return stored
+        incoming = pledge_defaults(doc)
+        pledge_id = incoming["_id"]
+        # Compare-and-set on ``rev``: if another worker saved between our read and
+        # our write, the filter misses, so re-read and merge again. Without this,
+        # two workers could both read ``created`` and the later one revert the other.
+        for _attempt in range(8):
+            current = await self._pledges.find_one({"_id": pledge_id})
+            stored = merge_concurrent_pledge(pledge_defaults(current), incoming)
+            if current is None:
+                stored["rev"] = 1
+                await self._pledges.replace_one({"_id": pledge_id}, copy.deepcopy(stored), upsert=True)
+                return stored
+            rev = current.get("rev")
+            stored["rev"] = (rev or 0) + 1
+            match = {"_id": pledge_id, "rev": rev} if rev is not None else {"_id": pledge_id, "rev": {"$exists": False}}
+            result = await self._pledges.replace_one(match, copy.deepcopy(stored))
+            if result.matched_count:
+                return stored
+        raise RuntimeError(f"pledge {pledge_id}: concurrent writes kept conflicting")
 
     async def get_pledge(self, pledge_id: str) -> Optional[dict]:
         await self._ensure()

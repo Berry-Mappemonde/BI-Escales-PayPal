@@ -156,6 +156,8 @@
     "vaultRetry": "Enregistrement Vault annulé. Vous pouvez réessayer via le bouton Promettre.",
     "vaultCancelled": "Enregistrement Vault annulé. Rien n’a été enregistré.",
     "venmoNote": "PayPal ou carte (EUR). Venmo indisponible — USD uniquement.",
+    "cardFieldsHint": "Carte bancaire (sandbox) : enregistrement Vault ou autorisation selon l’échéance.",
+    "cardPay": "Payer par carte",
     "error": "Erreur promesse",
     "crewSubscribeHint": "Abonnement mensuel Équipage (EUR, sandbox).",
     "crewSubscribeSaved": "Abonnement Équipage enregistré. Merci.",

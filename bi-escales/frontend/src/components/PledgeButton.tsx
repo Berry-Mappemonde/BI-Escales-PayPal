@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, createPledge, registerVault, isVaultPledge } from "../api/escales";
+import { authorizePledge, createPledge, fetchFeatures, registerVault, isVaultPledge } from "../api/escales";
+import { PayPalCardFieldsBlock } from "./PayPalCardFieldsBlock";
 import type { PublicPledge } from "../api/types";
 import { loadPayPalSdk, payLaterEligible } from "../paypal/paypalSdk";
 import { subscribePledgeReturn } from "../paypal/pledgeReturnEvents";
@@ -29,6 +30,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
+  const [cardFieldsEnabled, setCardFieldsEnabled] = useState(false);
   const sdkHost = useRef<HTMLDivElement | null>(null);
   const activePledgeIdRef = useRef<string | null>(null);
   const vault = created ? isVaultPledge(created) : false;
@@ -37,6 +39,20 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
   const buttonsHost = useRef<HTMLDivElement | null>(null);
   const valuesRef = useRef(values);
   valuesRef.current = values;
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchFeatures()
+      .then((flags) => {
+        if (!cancelled) setCardFieldsEnabled(Boolean(flags.card_fields));
+      })
+      .catch(() => {
+        if (!cancelled) setCardFieldsEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -233,6 +249,9 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
         </button>
       ) : null}
       <div ref={buttonsHost} data-testid="paypal-smart-buttons" />
+      {cardFieldsEnabled && !isProjectPledge ? (
+        <PayPalCardFieldsBlock values={values} appLang={appLang} disabled={disabled || busy} onAuthorized={onAuthorized} />
+      ) : null}
       <div ref={sdkHost} data-testid="paypal-sdk-host" />
       {status ? <p className="status">{status}</p> : null}
       {error ? (

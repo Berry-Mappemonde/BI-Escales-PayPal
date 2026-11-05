@@ -14,7 +14,7 @@ const DATA_COORDS_RE = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/;
 
 /** Same intent as ``marina_maps_place.NON_MARINA_RE`` plus driving schools (Clément 19:43). */
 export const SUSPICIOUS_PLACE_RE =
-  /\b(auto[\s-]?école|auto[\s-]?ecole|bateau[\s-]?école|bateau[\s-]?ecole|driving\s+school|restaurant|hotel|hôtel|pizzeria|café|cafe|brasserie|nightclub|bar)\b/i;
+  /\b(auto[\s-]?[ée]coles?|bateaux?[\s-]?[ée]coles?|driving\s+school|restaurant|hotel|hôtel|pizzeria|café|cafe|brasserie|nightclub|bar)\b/i;
 
 export function googleMapsSearchUrl(lat, lon) {
   const la = Number(lat);

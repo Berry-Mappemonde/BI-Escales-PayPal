@@ -56,6 +56,14 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
   }, [appLang]);
 
   useEffect(() => {
+    setCreated(null);
+    setStatus(null);
+    setError(null);
+    setBusy(false);
+    activePledgeIdRef.current = null;
+  }, [values.amount_eur, values.kind, values.milestone_id, values.description, values.target_id]);
+
+  useEffect(() => {
     if (!created?.approve_link || !vault) return;
     window.location.assign(created.approve_link);
   }, [created, vault]);

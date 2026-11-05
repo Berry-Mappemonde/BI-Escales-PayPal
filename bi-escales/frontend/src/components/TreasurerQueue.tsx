@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { captainReview, capturePledge, voidPledge } from "../api/escales";
+import {
+  approveCaptainReview,
+  captainReview,
+  capturePledge,
+  voidPledge,
+} from "../api/escales";
 import type { PublicPledge } from "../api/types";
 import { isQueuedPledge } from "../hooks/queueFilter";
 
@@ -26,6 +31,7 @@ export function TreasurerQueue({
   const { t, i18n } = useTranslation();
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [approvedMilestones, setApprovedMilestones] = useState<Record<string, boolean>>({});
 
   const queue = pledges.filter((p) => isQueuedPledge(p.status));
   const [verdicts, setVerdicts] = useState<Record<string, string>>({});
@@ -81,6 +87,20 @@ export function TreasurerQueue({
     }
   };
 
+  const approveReview = async (milestoneId: string) => {
+    if (!adminKey.trim()) {
+      setActionError("Admin key required");
+      return;
+    }
+    setActionError(null);
+    try {
+      await approveCaptainReview(milestoneId, adminKey.trim());
+      setApprovedMilestones((prev) => ({ ...prev, [milestoneId]: true }));
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   return (
     <section className="panel treasurer-queue">
       <h2>{t("treasurer.heading")}</h2>
@@ -132,13 +152,28 @@ export function TreasurerQueue({
                   <button
                     type="button"
                     data-testid={`approve-${p.id}`}
-                    disabled={
-                      busyId === p.id
-                      || !["capture", "void"].includes(verdicts[p.milestone_id] || "")
-                    }
-                    onClick={() => void runAction(p.id, verdicts[p.milestone_id] as "capture" | "void")}
+                    disabled={busyId === p.id || approvedMilestones[p.milestone_id]}
+                    onClick={() => void approveReview(p.milestone_id)}
                   >
                     {t("treasurer.approveReview")}
+                  </button>
+                  {verdicts[p.milestone_id] === "capture" ? (
+                    <button
+                      type="button"
+                      data-testid={`capture-${p.id}`}
+                      disabled={busyId === p.id || !approvedMilestones[p.milestone_id]}
+                      onClick={() => void runAction(p.id, "capture")}
+                    >
+                      {t("treasurer.capturePledge")}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    data-testid={`void-${p.id}`}
+                    disabled={busyId === p.id}
+                    onClick={() => void runAction(p.id, "void")}
+                  >
+                    {t("treasurer.notSailingVoid")}
                   </button>
                 </td>
               </tr>

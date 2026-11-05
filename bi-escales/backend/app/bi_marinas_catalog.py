@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
+import unicodedata
 from pathlib import Path
 from typing import Any, Optional
 
@@ -132,12 +134,27 @@ def load_bundled_escale_snapshot() -> dict[str, Any]:
     return json.loads(_BUNDLED_ESCALE.read_text(encoding="utf-8"))
 
 
+def _normalize_stop_lookup(name: str) -> str:
+    text = unicodedata.normalize("NFKD", name or "")
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = text.split("(")[0].strip()
+    return re.sub(r"[^a-z0-9]+", "-", text.casefold()).strip("-")
+
+
 def bundled_escale_entry(stop_name: str) -> dict[str, Any]:
     snapshot = load_bundled_escale_snapshot()
-    row = (snapshot.get("escales") or {}).get(stop_name)
-    if not isinstance(row, dict):
-        return {"name": stop_name, "sections": {}}
-    return json.loads(json.dumps(row))
+    escales = snapshot.get("escales") or {}
+    if stop_name in escales and isinstance(escales[stop_name], dict):
+        return json.loads(json.dumps(escales[stop_name]))
+    wanted = _normalize_stop_lookup(stop_name)
+    for key, row in escales.items():
+        if not isinstance(row, dict):
+            continue
+        if _normalize_stop_lookup(str(key)) == wanted:
+            return json.loads(json.dumps(row))
+        if _normalize_stop_lookup(str(key).split("(")[0]) == wanted:
+            return json.loads(json.dumps(row))
+    return {"name": stop_name, "sections": {}}
 
 
 def _services_from_export_props(props: dict[str, Any]) -> list[str] | None:
@@ -215,6 +232,8 @@ def mooring_marinas_to_geojson(marinas: list[dict[str, Any]]) -> dict[str, Any]:
                     "website": row.get("url") or row.get("visit_url") or "",
                     "maps_url": row.get("maps_url"),
                     "safe_google_place": bool(row.get("safe_google_place")),
+                    "maps_place_rejected": row.get("maps_place_rejected"),
+                    "source": row.get("source") or "bundled",
                     "nm": row.get("nm"),
                 },
             }
@@ -250,17 +269,22 @@ async def merge_stopover_mooring_marinas(
 
     osm_ids = [str(m.get("osm_id") or "").strip() for m in marinas if m.get("osm_id")]
     enrichments: dict[str, dict[str, Any]] = {}
+    enrichment_sources: dict[str, str] = {}
     if bi_marinas_mongo_uri() and osm_ids:
         try:
             docs = await fetch_mongo_marina_docs(osm_ids)
             enrichments = {
                 oid: enrichment_from_mongo_doc(docs[oid]) for oid in osm_ids if oid in docs
             }
+            for oid in enrichments:
+                enrichment_sources[oid] = "atlas"
         except Exception:
             enrichments = {}
     if not enrichments and osm_ids:
         try:
             enrichments = await lookup_marina_enrichments(osm_ids, client=client)
+            for oid in enrichments:
+                enrichment_sources[oid] = "bi_export"
         except Exception:
             enrichments = {}
 
@@ -269,7 +293,10 @@ async def merge_stopover_mooring_marinas(
         if not isinstance(marina, dict):
             continue
         oid = str(marina.get("osm_id") or "").strip()
-        merged.append(merge_marina_row(marina, enrichments.get(oid)))
+        src = enrichment_sources.get(oid, "bundled")
+        merged.append(
+            merge_marina_row(marina, enrichments.get(oid), enrichment_source=src),
+        )
     return merged
 
 
@@ -316,10 +343,19 @@ async def get_escale_marinas_geojson(
             await client.aclose()
 
 
-def merge_marina_row(base: dict[str, Any], enrichment: dict[str, Any] | None) -> dict[str, Any]:
+def merge_marina_row(
+    base: dict[str, Any],
+    enrichment: dict[str, Any] | None,
+    *,
+    enrichment_source: str | None = None,
+) -> dict[str, Any]:
     """Same public shape as naviguide ``_slim`` mooring items + enrich fields."""
     keep = ("name", "lat", "lon", "nm", "url", "visit_url", "phone", "type", "kind", "source", "osm_id")
     out = {k: base[k] for k in keep if k in base and base[k] is not None}
+    if enrichment_source:
+        out["source"] = enrichment_source
+    elif "source" not in out:
+        out["source"] = "bundled"
     if not enrichment:
         return apply_maps_place_policy(out)
     if not out.get("url") and enrichment.get("website"):

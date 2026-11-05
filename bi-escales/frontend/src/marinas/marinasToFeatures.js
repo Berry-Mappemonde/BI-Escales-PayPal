@@ -28,6 +28,8 @@ export function marinasToFeatures(fiche) {
             website: row.url || row.visit_url || "",
             maps_url: row.maps_url || null,
             safe_google_place: Boolean(row.safe_google_place),
+            maps_place_rejected: row.maps_place_rejected || null,
+            source: row.source || "bundled",
             nm: row.nm,
           },
         };

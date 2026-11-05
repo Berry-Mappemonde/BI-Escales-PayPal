@@ -96,6 +96,7 @@ class ReadOnlyTools:
     def __init__(self, client: Any) -> None:
         orders_get: Callable[[str], dict] = client.get_order
         authorizations_get: Callable[[str], dict] = client.get_authorization
+        self.uses_toolkit = False
         for tool in _toolkit_tools() or []:
             if not _readonly_order_tool(tool):
                 continue
@@ -103,6 +104,7 @@ class ReadOnlyTools:
             if not callable(execute):
                 continue
             orders_get = _orders_get_via_toolkit(orders_get, execute)
+            self.uses_toolkit = True
             break
         self.call_log: list[dict[str, str]] = []
         self._calls: dict[str, Callable[..., dict]] = {

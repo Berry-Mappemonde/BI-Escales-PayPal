@@ -231,6 +231,21 @@ export async function voidPledge(pledgeId: string, adminKey: string): Promise<Pu
   return res.json();
 }
 
+export async function approveCaptainReview(
+  milestoneId: string,
+  adminKey: string,
+): Promise<{ milestone_id: string; approved: boolean }> {
+  const res = await fetch(
+    url(`/api/escales/milestones/${encodeURIComponent(milestoneId)}/captain-review/approve`),
+    {
+      method: "POST",
+      headers: { "x-admin-key": adminKey.trim() },
+    },
+  );
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
 export async function recordSpending(
   milestoneId: string,
   body: { amount_eur: string; description: string },
@@ -321,12 +336,19 @@ export async function captainReview(
   return res.json();
 }
 
-export async function captainChat(message: string, lang?: string): Promise<CaptainChatResponse> {
+export async function captainChat(
+  message: string,
+  lang?: string,
+  adminKey?: string,
+): Promise<CaptainChatResponse> {
   const body: { message: string; lang?: string } = { message };
   if (lang === "fr" || lang === "en") body.lang = lang;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const key = (adminKey || "").trim();
+  if (key) headers["x-admin-key"] = key;
   const res = await fetch(url("/api/escales/captain/chat"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await parseError(res));

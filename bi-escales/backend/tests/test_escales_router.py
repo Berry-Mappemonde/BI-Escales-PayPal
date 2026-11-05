@@ -1056,6 +1056,11 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     assert status(held["id"]) == "authorized"
     locked = client.post("/api/escales/clock/settle")
     assert locked.status_code == 401
+    approved = client.post(
+        f"/api/escales/milestones/{sailing}/captain-review/approve",
+        headers=ADMIN,
+    )
+    assert approved.status_code == 200, approved.text
     departed = client.post("/api/escales/clock/settle", headers=ADMIN)
     assert departed.status_code == 200
     cap_row = next(
@@ -1128,6 +1133,11 @@ def test_declined_capture_does_not_stop_the_clock(api, monkeypatch):
         return {"id": "CAP-OK", "status": "COMPLETED"}
 
     fake.capture_authorization = capture_authorization
+    approved = client.post(
+        f"/api/escales/milestones/{first_body.json()['milestone_id']}/captain-review/approve",
+        headers=ADMIN,
+    )
+    assert approved.status_code == 200, approved.text
     clock = client.post("/api/escales/clock/settle", headers=ADMIN)
     assert clock.status_code == 200, clock.text
     actions = {row["pledge_id"]: row for row in clock.json()["settled"]["actions"]}

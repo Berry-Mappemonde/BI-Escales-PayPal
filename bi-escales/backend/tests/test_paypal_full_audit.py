@@ -230,7 +230,8 @@ def test_treasurer_chat_exposes_readonly_paypal_tools():
     )
     body = ok.json()
     assert body["model_source"] == "paypal_readonly_tools"
-    assert "transactions.search" in body.get("paypal_tools", [])
+    assert "transactions.search" in (body.get("paypal_tools") or {}).get("tools", [])
+    assert body["paypal_tools"]["client"] in {"direct", "paypal-agent-toolkit"}
     assert "read-only" in body["reply"].lower()
     assert any(call[0] == "search" for call in spy.calls)
 

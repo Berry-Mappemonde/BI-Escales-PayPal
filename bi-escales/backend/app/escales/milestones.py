@@ -233,3 +233,28 @@ def latest_evidence(milestone: Optional[dict]) -> dict:
     if not evidence:
         return {}
     return evidence[-1]
+
+
+async def record_captain_review_approval(milestone_id: str) -> dict[str, Any]:
+    """Treasurer recorded human approval of the Captain review (N8 gate for settle)."""
+    from .ledger import now_iso, record_finance
+
+    mid = (milestone_id or "").strip()
+    if not mid:
+        raise ValueError("milestone_id is required")
+    await record_finance("captain_review_approved", milestone_id=mid, at=now_iso())
+    return {"milestone_id": mid, "approved": True}
+
+
+async def captain_review_approved(milestone_id: str) -> bool:
+    from .ledger import list_finance_entries
+
+    mid = (milestone_id or "").strip()
+    if not mid:
+        return False
+    for entry in await list_finance_entries():
+        if entry.get("kind") != "captain_review_approved":
+            continue
+        if str(entry.get("milestone_id") or "") == mid:
+            return True
+    return False

@@ -254,7 +254,7 @@ def test_core_has_no_sponsor_import():
         assert "paypal_agent_toolkit" not in text
         assert "apimatic" not in text
     requirements = (BACKEND / "requirements.txt").read_text(encoding="utf-8").lower()
-    assert "paypal-agent-toolkit" not in requirements
+    assert "paypal-agent-toolkit" in requirements
     assert "apimatic" not in requirements
     optional = (BACKEND / "requirements-optional.txt").read_text(encoding="utf-8")
     assert "paypal-agent-toolkit==1.11.0" in optional

@@ -148,3 +148,23 @@ def test_mongo_legacy_mile_row_defaults_on_read(mongo_store):
         assert "target_id" not in raw
 
     asyncio.run(body())
+
+
+def test_ensure_never_creates_an_index_on_id(mongo_store):
+    """Real MongoDB rejects ``unique`` on the ``_id`` index; mongomock does not, so spy."""
+    requested = []
+    ledger = get_ledger()
+    assert isinstance(ledger, MongoLedger)
+    for coll in (ledger._pledges, ledger._audit, ledger._finance, ledger._webhooks):
+        original = coll.create_index
+
+        async def spy(keys, *args, _original=original, **kwargs):
+            requested.append((keys, kwargs))
+            return await _original(keys, *args, **kwargs)
+
+        coll.create_index = spy
+    asyncio.run(ledger._ensure())
+    assert requested, "expected the ledger to create its indexes"
+    for keys, _kwargs in requested:
+        fields = [keys] if isinstance(keys, str) else [k for k, *_ in keys]
+        assert "_id" not in fields

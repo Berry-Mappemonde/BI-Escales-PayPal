@@ -281,9 +281,10 @@ class MongoLedger:
         await self._pledges.create_index("order_id", name="escales_pledges_order_id")
         await self._audit.create_index("at", name="escales_audit_at")
         await self._finance.create_index("at", name="escales_finance_at")
-        await self._webhooks.create_index(
-            "_id", unique=True, name="escales_webhooks_id",
-        )
+        # No index on ``_id`` for webhooks: MongoDB already keeps ``_id`` unique, and a
+        # ``unique`` option on the ``_id`` index is rejected by the server ("The field
+        # 'unique' is not valid for an _id index specification"), which left the
+        # ledger uninitialised and every route returning 500. mongomock accepted it.
         self._ready = True
 
     async def insert_pledge_once(self, doc: dict) -> dict:

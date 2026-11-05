@@ -17,13 +17,40 @@ def _money(raw: object) -> Decimal:
         return Decimal("0")
 
 
+def order_carried_platform_fees(pledge: dict) -> bool:
+    """True only when this pledge's PayPal order paid the marina directly (multiparty)."""
+    if "platform_fees_on_order" in pledge:
+        return bool(pledge.get("platform_fees_on_order"))
+    # Older rows: card and vault orders were never built with platform_fees.
+    if str(pledge.get("checkout_method") or "").strip().lower() == "card":
+        return False
+    if pledge.get("vault_on_purchase") or pledge.get("vault_id"):
+        return False
+    return paypal_berth_platform_fees_on_order(str(pledge.get("target_id") or ""))
+
+
 def should_settle_marina_berth_capture(pledge: dict) -> bool:
     if str(pledge.get("kind") or "").strip().lower() != "berth":
         return False
-    if not marina_payouts_enabled():
+    if order_carried_platform_fees(pledge):
         return False
-    target = str(pledge.get("target_id") or "")
-    return not paypal_berth_platform_fees_on_order(target)
+    if marina_payouts_enabled():
+        return True
+    # Fallback: multiparty is configured for this marina but the order (card / vault)
+    # could not carry platform_fees, so the marina is paid by Payouts instead.
+    return paypal_berth_platform_fees_on_order(str(pledge.get("target_id") or ""))
+
+
+_SETTLED_STATUSES = {"skipped_zero_net", "pending", "processing", "success", "sent", "new"}
+
+
+def marina_settlement_done(pledge: dict) -> bool:
+    """Nothing left to retry: not a settled berth, or payout already sent / not needed."""
+    if not should_settle_marina_berth_capture(pledge):
+        return True
+    if pledge.get("marina_payout_batch_id"):
+        return True
+    return str(pledge.get("marina_payout_status") or "") in _SETTLED_STATUSES
 
 
 def split_berth_capture_amount(amount_eur: str) -> tuple[str, str]:
@@ -98,20 +125,34 @@ async def apply_payout_batch_webhook(
         await get_ledger().save_pledge(pledge)
 
 
+async def _record_fee_once(fee: str, shared: dict) -> None:
+    if await _fee_recorded(str(shared.get("pledge_id") or "")):
+        return
+    await record_finance(
+        "marina_platform_fee",
+        amount_eur=fee,
+        status="retained",
+        description="Platform fee retained on berth capture",
+        **shared,
+    )
+
+
 async def apply_marina_berth_settlement(
     pledge: dict,
     *,
     actor: str,
     client: Optional[Any] = None,
 ) -> dict:
+    """Pay the marina its net, then retain the platform fee.
+
+    Retry-safe: the fee line is written only once the payout went out (or the net is
+    zero), so a failed or pending payout can be retried by the next capture/webhook
+    call. ``sender_batch_id`` is deterministic, so PayPal deduplicates a resend.
+    """
     if not should_settle_marina_berth_capture(pledge):
         return pledge
     pledge_id = str(pledge.get("_id") or "")
-    if not pledge_id or await _fee_recorded(pledge_id):
-        existing = await _payout_sent_entry(pledge_id)
-        if existing and not pledge.get("marina_payout_batch_id"):
-            pledge["marina_payout_batch_id"] = existing.get("payout_batch_id")
-            pledge["marina_payout_status"] = existing.get("status") or "sent"
+    if not pledge_id:
         return pledge
 
     from .pledges import _identity, finance_milestone_id
@@ -132,20 +173,23 @@ async def apply_marina_berth_settlement(
         "target_id": pledge.get("target_id"),
         **_identity(pledge),
     }
-    await record_finance(
-        "marina_platform_fee",
-        amount_eur=fee,
-        status="retained",
-        description="Platform fee retained on berth capture",
-        **shared,
-    )
 
-    receiver = resolve_marina_payout_email_sync(pledge)
-    pledge["marina_payout_receiver"] = receiver or None
+    existing = await _payout_sent_entry(pledge_id)
+    if existing:
+        pledge["marina_payout_batch_id"] = existing.get("payout_batch_id") or pledge.get("marina_payout_batch_id")
+        pledge["marina_payout_status"] = existing.get("status") or "sent"
+        pledge.pop("marina_payout_error", None)
+        await _record_fee_once(fee, shared)
+        return pledge
+
     net_amount = _money(net)
     if net_amount <= 0:
         pledge["marina_payout_status"] = "skipped_zero_net"
+        await _record_fee_once(fee, shared)
         return pledge
+
+    receiver = resolve_marina_payout_email_sync(pledge)
+    pledge["marina_payout_receiver"] = receiver or None
     if not receiver:
         pledge["marina_payout_status"] = "pending_email"
         return pledge
@@ -179,10 +223,12 @@ async def apply_marina_berth_settlement(
         return pledge
 
     batch_header = payload.get("batch_header") if isinstance(payload, dict) else {}
+    batch_header = batch_header if isinstance(batch_header, dict) else {}
     payout_batch_id = str(batch_header.get("payout_batch_id") or "").strip()
     batch_status = str(batch_header.get("batch_status") or "PENDING").lower()
     pledge["marina_payout_batch_id"] = payout_batch_id or None
     pledge["marina_payout_status"] = batch_status or "sent"
+    pledge.pop("marina_payout_error", None)
     await record_finance(
         "marina_payout_sent",
         amount_eur=f"{net_amount:.2f}",
@@ -192,4 +238,5 @@ async def apply_marina_berth_settlement(
         status=pledge["marina_payout_status"],
         **shared,
     )
+    await _record_fee_once(fee, shared)
     return pledge

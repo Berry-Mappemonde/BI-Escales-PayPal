@@ -764,25 +764,39 @@ def fund_milestone_for_pledge(pledge: dict) -> str:
     return target
 
 
+# Marina payout batches that never left the account do not reduce a fund.
+_PAYOUT_NOT_PAID = {"denied", "failed", "canceled", "cancelled", "returned", "blocked", "reversed"}
+
+
 async def _assemble_fund(milestone_id: str, entries: list[dict]) -> dict:
     """Same totals the stopover fund route already returns."""
     income = [entry for entry in entries if entry.get("kind") == "pledge_captured"]
     spending = [entry for entry in entries if entry.get("kind") == "spending"]
     refunds = [entry for entry in entries if entry.get("kind") == "pledge_refunded"]
+    payouts = [
+        entry
+        for entry in entries
+        if entry.get("kind") == "marina_payout_sent"
+        and str(entry.get("status") or "").strip().lower() not in _PAYOUT_NOT_PAID
+    ]
     income_total = sum((_euros(entry.get("amount_eur")) for entry in income), Decimal("0.00"))
     spending_total = sum((_euros(entry.get("amount_eur")) for entry in spending), Decimal("0.00"))
     refund_total = sum((_euros(entry.get("amount_eur")) for entry in refunds), Decimal("0.00"))
-    balance = income_total - spending_total - refund_total
+    payout_total = sum((_euros(entry.get("amount_eur")) for entry in payouts), Decimal("0.00"))
+    outflow = spending_total + refund_total + payout_total
+    balance = income_total - outflow
     return {
         "milestone_id": milestone_id,
         "currency": "EUR",
         "income_eur": _euros_text(income_total),
         "spending_eur": _euros_text(spending_total),
         "refunded_eur": _euros_text(refund_total),
+        "payouts_eur": _euros_text(payout_total),
         "balance_eur": _euros_text(balance),
-        "overdrawn": spending_total + refund_total > income_total,
+        "overdrawn": outflow > income_total,
         "income": [await _income_line(entry) for entry in income],
         "spending": [_public_finance(entry) for entry in spending],
+        "payouts": [_public_finance(entry) for entry in payouts],
         "captured_eur": _euros_text(income_total),
         "authorized_eur": "0.00",
     }

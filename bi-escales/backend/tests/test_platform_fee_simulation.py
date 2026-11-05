@@ -20,6 +20,7 @@ def memory_store(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_MARINA_PAYOUT_EMAIL", "marina-sandbox@example.com")
+    monkeypatch.setenv("ESCALES_MARINA_PAYOUTS_ENABLED", "1")
     reset_ledger()
     yield
     reset_ledger()

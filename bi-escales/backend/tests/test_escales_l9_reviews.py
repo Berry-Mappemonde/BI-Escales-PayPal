@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.llm import llm_enabled, nebius_enabled
 from app.escales.config import (
+    marina_payouts_enabled,
+    platform_fees_enabled,
     EscalesConfig,
     bryntum_scheduler_enabled,
     card_fields_enabled,
@@ -59,6 +61,8 @@ FLAG_GETTERS = {
     "ESCALES_LLM_ENABLED": llm_enabled,
     "ESCALES_LLM_NEBIUS_ENABLED": nebius_enabled,
     "ESCALES_RATE_LIMIT_ENABLED": limits_enabled,
+    "ESCALES_MARINA_PAYOUTS_ENABLED": marina_payouts_enabled,
+    "ESCALES_PLATFORM_FEES_ENABLED": platform_fees_enabled,
 }
 
 

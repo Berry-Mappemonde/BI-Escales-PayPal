@@ -34,6 +34,35 @@ function googleMapsUrl(lat, lon) {
   return `https://www.google.com/maps/search/?api=1&query=${la.toFixed(5)}%2C${lo.toFixed(5)}`;
 }
 
+function marinaMapsUrl(item) {
+  const direct = item.maps_url || item.maps_place_url;
+  if (direct) return String(direct);
+  return googleMapsUrl(item.lat, item.lon);
+}
+
+function marinaFactLines(item, t) {
+  const lines = [];
+  if (item.canal_vhf) {
+    lines.push(`${t("sheet.marina.vhf")}: ${item.canal_vhf}`);
+  }
+  if (item.places_visiteurs != null && item.places_visiteurs !== "") {
+    lines.push(`${t("sheet.marina.visitorBerths")}: ${item.places_visiteurs}`);
+  }
+  if (item.tirant_eau_max_metres != null && item.tirant_eau_max_metres !== "") {
+    lines.push(`${t("sheet.marina.maxDraft")}: ${item.tirant_eau_max_metres} m`);
+  }
+  if (item.score_protection_meteo != null && item.score_protection_meteo !== "") {
+    lines.push(`${t("sheet.marina.weatherShelter")}: ${item.score_protection_meteo}/5`);
+  }
+  if (Array.isArray(item.services) && item.services.length) {
+    lines.push(`${t("sheet.marina.services")}: ${item.services.join(", ")}`);
+  }
+  if (item.resume_avis) {
+    lines.push(`${t("sheet.marina.review")}: ${item.resume_avis}`);
+  }
+  return lines;
+}
+
 export function visibleSections(sections) {
   const out = {};
   Object.entries(sections || {}).forEach(([key, value]) => {
@@ -115,14 +144,28 @@ export const EscaleSheet = memo(function EscaleSheet({
                 <ul className="escale-items">
                   {items.map((item, index) => {
                     const site = item.url || item.visit_url || null;
-                    const maps = googleMapsUrl(item.lat, item.lon);
+                    const maps = marinaMapsUrl(item);
+                    const facts = sub === "marinas" ? marinaFactLines(item, t) : [];
                     return (
                       <li key={`${item.name}-${index}`}>
                         <span>{item.name}</span>
                         {Number.isFinite(item.nm) ? <span className="hint"> {item.nm} nm</span> : null}
                         {item.phone ? <a href={`tel:${item.phone}`}>{item.phone}</a> : null}
-                        {site ? <a href={site} target="_blank" rel="noopener noreferrer">↗</a> : null}
-                        {maps ? <a href={maps} target="_blank" rel="noopener noreferrer">◎</a> : null}
+                        {site ? (
+                          <a href={site} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.website")}>
+                            ↗
+                          </a>
+                        ) : null}
+                        {maps ? (
+                          <a href={maps} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.maps")}>
+                            ◎
+                          </a>
+                        ) : null}
+                        {facts.map((line) => (
+                          <div key={line} className="hint marina-fact" data-testid="marina-fact">
+                            {line}
+                          </div>
+                        ))}
                       </li>
                     );
                   })}

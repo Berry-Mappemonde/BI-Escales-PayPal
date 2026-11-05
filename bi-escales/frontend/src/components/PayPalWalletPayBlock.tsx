@@ -8,6 +8,8 @@ export interface PayPalWalletPayBlockProps {
   values: PledgeFormValues;
   appLang: string;
   sdkIntent: "authorize" | "capture";
+  /** Parent finished loading the PayPal SDK (with applepay/googlepay when wallet_pay is on). */
+  sdkReady?: boolean;
   disabled?: boolean;
   onAuthorized?: (pledge: import("../api/types").PublicPledge) => void;
 }
@@ -17,6 +19,7 @@ export function PayPalWalletPayBlock({
   values,
   appLang,
   sdkIntent,
+  sdkReady = false,
   disabled,
   onAuthorized,
 }: PayPalWalletPayBlockProps) {
@@ -27,10 +30,13 @@ export function PayPalWalletPayBlock({
   valuesRef.current = values;
 
   useEffect(() => {
-    if (disabled) return;
+    if (disabled || !sdkReady) return;
     const googleEl = googleHost.current;
     const appleEl = appleHost.current;
     if (!googleEl && !appleEl) return;
+    // Eligibility: Googlepay/Applepay may be absent (headless Chrome, non-Safari, no wallet).
+    // Wait for sdkReady so we do not miss a late SDK load (race vs Smart Buttons).
+    if (!window.paypal?.Googlepay && !window.paypal?.Applepay) return;
 
     const makeOrder = async () => {
       const v = valuesRef.current;
@@ -100,7 +106,7 @@ export function PayPalWalletPayBlock({
       void googleButtons?.close?.().catch(() => undefined);
       void appleButtons?.close?.().catch(() => undefined);
     };
-  }, [appLang, disabled, sdkIntent, onAuthorized, values.amount_eur, values.kind, values.milestone_id]);
+  }, [appLang, disabled, sdkReady, sdkIntent, onAuthorized, values.amount_eur, values.kind, values.milestone_id]);
 
   return (
     <div className="paypal-wallet-pay" data-testid="paypal-wallet-pay">

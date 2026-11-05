@@ -11,6 +11,8 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from tests.review_helpers import approve_capture_review, propose_capture_review
+
 from app.escales.audit import AUDIT_COLLECTION, list_entries
 from app.escales.pledges import reset_ledger
 from app.escales.config import cors_origins, paypal_webhook_url
@@ -147,6 +149,10 @@ def _ready_mayotte(client, key, monkeypatch, body=None):
     return created, authorized
 
 
+def _approve_capture(milestone_id):
+    asyncio.run(approve_capture_review(milestone_id))
+
+
 def _create(client, key, body=None):
     return client.post(
         "/api/escales/pledges",
@@ -277,6 +283,7 @@ def test_cabin_leg_capture_lands_in_the_leg_fund(api):
         "milestone_id": leg,
         "kind": "cabin_leg",
     })
+    _approve_capture(authorized["milestone_id"])
     captured = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
     assert captured.status_code == 200, captured.text
 
@@ -311,6 +318,7 @@ def test_leg_spending_is_charged_to_the_cabin_fund(api):
         "milestone_id": leg,
         "kind": "cabin_leg",
     })
+    _approve_capture(authorized["milestone_id"])
     assert client.post(
         f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN
     ).status_code == 200
@@ -427,12 +435,14 @@ def test_fund_counts_captured_income_and_treasurer_spending(api, monkeypatch):
     assert held["authorized_eur"] == "20.00"
     assert "income" not in held
 
+    _approve_capture(authorized["milestone_id"])
     captured = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
     assert captured.status_code == 200
-    other = _create(client, "fund-other", {**PLEDGE, "milestone_id": "dakar", "amount_eur": "60.00"})
+    other = _create(client, "fund-other", {**PLEDGE, "milestone_id": "dep-ajaccio-corse", "amount_eur": "60.00"})
     assert other.status_code == 200
     other_id = other.json()["id"]
     assert _authorize(client, other_id).status_code == 200
+    _approve_capture(other.json()["milestone_id"])
     assert client.post(f"/api/escales/pledges/{other_id}/capture", headers=ADMIN).status_code == 200
 
     refused = client.post(
@@ -468,10 +478,10 @@ def test_fund_counts_captured_income_and_treasurer_spending(api, monkeypatch):
     same = client.get("/api/escales/milestones/mayotte/fund").json()
     assert same["income_eur"] == "20.00"
     assert same["spending_eur"] == "5.00"
-    dakar = client.get("/api/escales/milestones/dakar/fund").json()
-    assert dakar["income_eur"] == "60.00"
-    assert dakar["spending_eur"] == "0.00"
-    assert dakar["balance_eur"] == "60.00"
+    other_fund = client.get("/api/escales/milestones/dep-ajaccio-corse/fund").json()
+    assert other_fund["income_eur"] == "60.00"
+    assert other_fund["spending_eur"] == "0.00"
+    assert other_fund["balance_eur"] == "60.00"
     assert captured.json()["fund"]["milestone_id"] == "dzaoudzi-mayotte"
     assert captured.json()["fund"]["income_eur"] == "20.00"
 
@@ -495,6 +505,7 @@ def test_fund_rejects_bad_amounts_and_unknown_stopovers(api, monkeypatch):
     assert unknown.status_code == 404
 
     _created, authorized = _ready_mayotte(client, "fund-alias", monkeypatch)
+    _approve_capture(authorized["milestone_id"])
     assert client.post(
         f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN
     ).status_code == 200
@@ -534,6 +545,7 @@ def test_fund_rejects_bad_amounts_and_unknown_stopovers(api, monkeypatch):
 def test_capture_ok_with_admin_key(api):
     client, fake = api
     _created, authorized = _ready(client, "cap-ok")
+    _approve_capture(authorized["milestone_id"])
     response = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
     assert response.status_code == 200
     assert response.json()["status"] == "captured"
@@ -544,6 +556,7 @@ def test_get_pledge_returns_captured_at_with_the_capture_id(api):
     """A completed capture stores captured_at. GET returns it next to capture_id."""
     client, _fake = api
     _created, authorized = _ready(client, "cap-when")
+    _approve_capture(authorized["milestone_id"])
     captured = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
     assert captured.status_code == 200, captured.text
     body = captured.json()
@@ -643,6 +656,7 @@ def test_declined_or_expired_capture_is_a_conflict(api, monkeypatch):
         await get_ledger().save_pledge(doc)
 
     asyncio.run(expire())
+    _approve_capture(authorized["milestone_id"])
     expired = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
     assert expired.status_code == 409
     assert "expired" in expired.json()["detail"].lower()
@@ -699,6 +713,7 @@ def test_forbidden_transition_returns_409(api):
     assert authorized.status_code == 200
     again = _authorize(client, pledge_id)
     assert again.status_code == 409
+    _approve_capture(created.json()["milestone_id"])
     captured = client.post(f"/api/escales/pledges/{pledge_id}/capture", headers=ADMIN)
     assert captured.status_code == 200
     after = client.post(f"/api/escales/pledges/{pledge_id}/void", headers=ADMIN)
@@ -818,6 +833,8 @@ def test_audit_records_proposal_and_treasurer_actions(api, monkeypatch):
     _created_b, authorized_b = _ready_mayotte(client, "audit-b", monkeypatch, dinner)
     review = client.post("/api/escales/captain/review/dep-mayotte")
     assert review.status_code == 200
+    approved = client.post("/api/escales/milestones/dep-mayotte/captain-review/approve", headers=ADMIN)
+    assert approved.status_code == 200, approved.text
     captured = client.post(f"/api/escales/pledges/{authorized_a['id']}/capture", headers=ADMIN)
     voided = client.post(f"/api/escales/pledges/{authorized_b['id']}/void", headers=ADMIN)
     assert captured.status_code == 200
@@ -1056,6 +1073,7 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     assert status(held["id"]) == "authorized"
     locked = client.post("/api/escales/clock/settle")
     assert locked.status_code == 401
+    asyncio.run(propose_capture_review(sailing))
     approved = client.post(
         f"/api/escales/milestones/{sailing}/captain-review/approve",
         headers=ADMIN,
@@ -1133,6 +1151,7 @@ def test_declined_capture_does_not_stop_the_clock(api, monkeypatch):
         return {"id": "CAP-OK", "status": "COMPLETED"}
 
     fake.capture_authorization = capture_authorization
+    asyncio.run(propose_capture_review(first_body.json()["milestone_id"]))
     approved = client.post(
         f"/api/escales/milestones/{first_body.json()['milestone_id']}/captain-review/approve",
         headers=ADMIN,
@@ -1344,6 +1363,7 @@ def test_unplaced_project_and_fund_totals_are_readable(api, monkeypatch):
         "amount_eur": "9.00",
         "description": "caisse de l'escale",
     })
+    _approve_capture(stop["milestone_id"])
     assert client.post(
         f"/api/escales/pledges/{stop['id']}/capture", headers=ADMIN
     ).status_code == 200
@@ -1383,6 +1403,7 @@ def _capture_open_and_stopover(client, monkeypatch):
         "amount_eur": "9.00",
         "description": "caisse de l'escale",
     })
+    _approve_capture(stop["milestone_id"])
     assert client.post(
         f"/api/escales/pledges/{stop['id']}/capture", headers=ADMIN
     ).status_code == 200

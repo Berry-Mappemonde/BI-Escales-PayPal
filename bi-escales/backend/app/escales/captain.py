@@ -2573,7 +2573,7 @@ async def review(
         "evidence_flag": evidence.get("flag"),
         "model_source": source,
         "llm_proposal": advisory,
-        "at": now_iso(),
+        "at": simulated_now().isoformat(),
     }
     from .provisioning_channel3 import attach_provisioning
 

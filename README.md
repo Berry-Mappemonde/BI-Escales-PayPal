@@ -4,6 +4,8 @@ PayPal AI Hackathon 2026 project by Association Berry-Mappemonde.
 
 A supporter's PayPal pledge is **authorized** (Orders v2 `intent=AUTHORIZE`), and **captured** only once the AI Captain has reviewed the evidence for a voyage stop and a human treasurer has approved it; otherwise it is **voided**. The AI Captain proposes, it never executes.
 
+For milestone pledges, approval records the verdict, its proposal time, and the approval time on the simulated voyage clock. Only the latest approved **capture** review permits capture, and both times must be at or after the stop's arrival (the leg's departure for cabins). Approving **wait** never permits capture. Settlement returns `await_review_approval` and direct capture returns HTTP 409 until a qualifying review is approved. Legacy approval records are retained and require a fresh review and approval.
+
 - `bi-escales/` — FastAPI backend: pledges (authorize / capture / void), milestones and evidence, AI Captain, audit journal. Partner integrations (e.g. PayPal Agent Toolkit) are optional modules behind environment flags, off by default.
 - `naviguide-escales/` — NAVIGUIDE voyage simulator (snapshot, no history).
 

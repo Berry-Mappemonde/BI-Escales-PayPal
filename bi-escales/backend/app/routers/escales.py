@@ -57,7 +57,12 @@ from app.escales.ledger import (
     to_public_project_donation_total,
 )
 from app.escales_names import display_name as escale_display_name
-from app.escales.milestones import list_milestones, record_captain_review_approval, record_evidence
+from app.escales.milestones import (
+    captain_review_approved,
+    list_milestones,
+    record_captain_review_approval,
+    record_evidence,
+)
 from app.escales.naviguide_bridge import (
     clock_legs,
     escales_to_milestones,
@@ -726,6 +731,22 @@ async def post_capture(pledge_id: str, request: Request, body: CaptureIn = Captu
             )
         effective_at = parse_clock_moment(str(body.now))
     try:
+        pledge = await require_pledge(pledge_id)
+        milestone_id = str(pledge.get("milestone_id") or "")
+        if milestone_id and pledge.get("status") in {
+            "authorized", "capture_failed", "vaulted", "charge_failed",
+        }:
+            from app.escales.departure_clock import refuse_early_capture
+
+            await refuse_early_capture(pledge, now=effective_at)
+            if not await captain_review_approved(milestone_id, now=effective_at):
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "capture requires an approved Captain capture review at or after "
+                        "stop arrival (leg departure for cabins)"
+                    ),
+                )
         doc = await capture_pledge(pledge_id, _paypal(), effective_at=effective_at)
     except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
         raise _money_http(exc) from exc

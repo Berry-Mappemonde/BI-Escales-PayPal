@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.escales.pledges import create_pledge, get_ledger, reset_ledger
+from tests.review_helpers import propose_capture_review
 from app.routers.escales import router, set_paypal_client_factory
 
 
@@ -150,6 +151,9 @@ def test_captain_review_approve_needs_key_in_demo(api, monkeypatch):
 
 def test_captain_review_approve_with_key_in_demo(api, monkeypatch):
     monkeypatch.setenv("ESCALES_DEMO_TREASURER", "true")
+    import asyncio
+
+    asyncio.run(propose_capture_review("dep-la-rochelle"))
     res = api.post(
         "/api/escales/milestones/dep-la-rochelle/captain-review/approve",
         headers={"x-admin-key": "super-secret-demo-key"},

@@ -29,6 +29,16 @@
     "pick": "Choisissez une escale sur la carte pour la fiche et le bouton PayPal.",
     "estimatedArrival": "Arrivée estimée (horloge officielle)",
     "logbookTitle": "Carnet de navigation (lecture seule)",
+    "marina": {
+      "website": "Site web",
+      "maps": "Google Maps",
+      "vhf": "VHF",
+      "visitorBerths": "Places visiteurs",
+      "maxDraft": "Tirant d'eau max.",
+      "weatherShelter": "Protection météo",
+      "services": "Services",
+      "review": "Avis"
+    },
     "sections": {
       "mooring": "Amarrage",
       "marinas": "Marinas",

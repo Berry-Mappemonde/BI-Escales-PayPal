@@ -6,6 +6,16 @@
  */
 import { marinasToFeatures } from "./marinasToFeatures.js";
 
+function apiBase() {
+  return String(import.meta.env.VITE_API_BASE ?? "").trim().replace(/\/$/, "");
+}
+
+function escaleFicheUrl(path) {
+  const base = apiBase();
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return base ? `${base}${p}` : p;
+}
+
 export async function loadEscaleFiche(stop, lang) {
   const base = String(import.meta.env.VITE_NAVIGUIDE_API_URL || "").trim().replace(/\/$/, "");
   if (base && stop?.name) {
@@ -16,6 +26,16 @@ export async function loadEscaleFiche(stop, lang) {
       lang: lang === "en" ? "en" : "fr",
     });
     const res = await fetch(`${base}/escale?${query}`);
+    if (res.ok) return res.json();
+  }
+  if (stop?.name) {
+    const query = new URLSearchParams({
+      name: stop.name,
+      lat: String(stop.lat),
+      lon: String(stop.lon),
+      lang: lang === "en" ? "en" : "fr",
+    });
+    const res = await fetch(`${escaleFicheUrl("/api/escale-fiche")}?${query}`);
     if (res.ok) return res.json();
   }
   const res = await fetch("/escale-marinas.json");

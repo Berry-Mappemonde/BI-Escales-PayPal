@@ -29,6 +29,16 @@
     "pick": "Pick a stop on the map for the sheet and the PayPal button.",
     "estimatedArrival": "Estimated arrival (official clock)",
     "logbookTitle": "Navigation logbook (read-only)",
+    "marina": {
+      "website": "Website",
+      "maps": "Google Maps",
+      "vhf": "VHF",
+      "visitorBerths": "Visitor berths",
+      "maxDraft": "Max. draft",
+      "weatherShelter": "Weather shelter",
+      "services": "Services",
+      "review": "Reviews"
+    },
     "sections": {
       "mooring": "Mooring",
       "marinas": "Marinas",

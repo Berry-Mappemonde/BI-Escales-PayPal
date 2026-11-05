@@ -4,7 +4,7 @@
  * Le bouton PayPal (PledgeButton, PR #2) est hébergé ici.
  * googleMapsUrl est la fonction du même nom dans engine/briefingLinks.js.
  */
-import { memo, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PledgeButton } from "./PledgeButton";
 import {
@@ -12,8 +12,18 @@ import {
   pledgeAmountReadOnly,
   pledgeOrderAmount,
 } from "../pledge/stopPledgeAmount.js";
-import { formatStopoverDate, portHoldHours } from "../voyage/voyageClock.js";
-import { formatLogbookEntry } from "../voyage/journalDisplay.js";
+import {
+  formatEurAmount,
+  formatScheduleDate,
+  fundTotals,
+  isMilestoneCancelled,
+  logbookLine,
+  logbookUpTo,
+  stopStatus,
+  stopTimeline,
+} from "../voyage/stopStatus.js";
+import { StopStatusChip } from "./stop/StopStatusChip.jsx";
+import { useStopContext } from "./stop/useStopContext.js";
 import { evaluateGooglePlaceLink, googleMapsSearchUrl } from "../marinas/marinaPlaceLink.js";
 
 const STOP_KINDS = ["mile", "berth", "night", "meal", "care", "cabin_leg", "common_fund"];
@@ -90,6 +100,16 @@ export const EscaleSheet = memo(function EscaleSheet({
   const { t, i18n } = useTranslation();
   const [quantity, setQuantity] = useState(1);
   const lang = i18n.language?.startsWith("en") ? "en" : "fr";
+  const context = useStopContext(stop?.milestoneId);
+  const { refresh } = context;
+  // PledgeButton re-renders the PayPal buttons when this changes, so it must stay stable.
+  const onAuthorized = useCallback(
+    (authorized) => {
+      refresh();
+      onPledgeAuthorized?.(authorized);
+    },
+    [refresh, onPledgeAuthorized],
+  );
   if (!stop) return null;
   const sections = visibleSections(fiche?.sections);
   const keys = Object.keys(sections);
@@ -104,23 +124,31 @@ export const EscaleSheet = memo(function EscaleSheet({
       ? cabinLegMilestoneId(schedule, pledge.milestoneId, stop.name) || pledge.milestoneId
       : pledge.milestoneId)
     : "";
-  const holdHours = portHoldHours(stop.name);
-  const arrivalLabel = arrivalIso
-    ? formatStopoverDate(arrivalIso, holdHours, lang)
-    : "";
-  const logLines = (logbookEntries || []).map((entry) => formatLogbookEntry(entry, lang));
+  const { startIso, departureIso } = stopTimeline(schedule, stop);
+  const arrivalLabel = formatScheduleDate(arrivalIso, lang);
+  const departureLabel = formatScheduleDate(departureIso, lang);
+  const milestone = context.milestones?.find((row) => row.id === stop.milestoneId);
+  const cancelled = isMilestoneCancelled(milestone);
+  // Status needs the clock and the milestones; if either call failed the chip is left out.
+  const status = context.milestones
+    ? stopStatus({ now: context.now, arrivalIso, startIso, cancelled })
+    : null;
+  const { heldEur, capturedEur } = fundTotals(context.fund);
+  const moneyParts = [
+    heldEur ? t("stopPanel.held", { amount: formatEurAmount(heldEur, lang) }) : "",
+    capturedEur ? t("stopPanel.captured", { amount: formatEurAmount(capturedEur, lang) }) : "",
+  ].filter(Boolean);
+  const logLines = logbookUpTo(logbookEntries, context.now).map((entry) => logbookLine(entry, lang));
 
   return (
     <div data-testid="escale-sheet" className="escale-sheet">
       <div className="escale-sheet-head">
         <div>
           <div className="escale-kicker">{t("sheet.title")}</div>
-          <strong>{stop.name}</strong>
-          {arrivalLabel ? (
-            <p className="hint escale-eta" data-testid="escale-estimated-arrival">
-              {t("sheet.estimatedArrival")}: {arrivalLabel}
-            </p>
-          ) : null}
+          <div className="stop-title">
+            <h2>{stop.name}</h2>
+            {status ? <StopStatusChip status={status} /> : null}
+          </div>
         </div>
         {onClose ? (
           <button type="button" data-testid="escale-close" onClick={onClose} aria-label={t("sheet.close")}>
@@ -128,107 +156,161 @@ export const EscaleSheet = memo(function EscaleSheet({
           </button>
         ) : null}
       </div>
-      {loading ? <p className="hint">{t("sheet.loading")}</p> : null}
-      {error ? <p className="notice error">{error}</p> : null}
-      {logLines.length ? (
-        <div className="escale-logbook" data-testid="escale-logbook">
-          <div className="escale-kicker">{t("sheet.logbookTitle")}</div>
-          <ul className="escale-items">
-            {logLines.map((line, index) => (
-              <li key={`${line}-${index}`}>{line}</li>
-            ))}
-          </ul>
+      {arrivalLabel || departureLabel || moneyParts.length ? (
+        <div className="stop-section">
+          {arrivalLabel || departureLabel ? (
+            <dl className="stop-rows">
+              {arrivalLabel ? (
+                <div data-testid="escale-estimated-arrival">
+                  <dt>{t("stopPanel.scheduledArrival")}</dt>
+                  <dd>{arrivalLabel}</dd>
+                </div>
+              ) : null}
+              {departureLabel ? (
+                <div data-testid="stop-scheduled-departure">
+                  <dt>{t("stopPanel.scheduledDeparture")}</dt>
+                  <dd>{departureLabel}</dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
+          {moneyParts.length ? (
+            <p className="stop-money" data-testid="stop-money">
+              {moneyParts.join(" · ")}
+            </p>
+          ) : null}
         </div>
       ) : null}
-      {!loading && fiche && !keys.length ? <p className="hint">{t("sheet.empty")}</p> : null}
-      {keys.map((section) => (
-        <div key={section}>
-          <div className="escale-kicker">{sectionLabel(section, t)}</div>
-          {Object.entries(sections[section] || {}).map(([sub, items]) => (
-            Array.isArray(items) ? (
-              <div key={sub}>
-                <div className="hint">{SECTION_KEYS.includes(sub) ? sectionLabel(sub, t) : sub}</div>
-                <ul className="escale-items">
-                  {items.map((item, index) => {
-                    const site = item.url || item.visit_url || null;
-                    const maps = marinaMapsUrl(item);
-                    const facts = sub === "marinas" ? marinaFactLines(item, t) : [];
-                    return (
-                      <li key={`${item.name}-${index}`}>
-                        <span>{item.name}</span>
-                        {Number.isFinite(item.nm) ? <span className="hint"> {item.nm} nm</span> : null}
-                        {item.phone ? <a href={`tel:${item.phone}`}>{item.phone}</a> : null}
-                        {site ? (
-                          <a href={site} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.website")}>
-                            ↗
-                          </a>
-                        ) : null}
-                        {maps ? (
-                          <a href={maps} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.maps")}>
-                            ◎
-                          </a>
-                        ) : null}
-                        {facts.map((line) => (
-                          <div key={line} className="hint marina-fact" data-testid="marina-fact">
-                            {line}
-                          </div>
-                        ))}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ) : null
-          ))}
-        </div>
-      ))}
-      {pledge ? (
-        <div className="pledge-form">
-          <label>
-            {t("pledge.kind")}
-            <select
-              data-testid="pledge-kind"
-              value={pledge.kind}
-              onChange={(event) => pledge.onKind(event.target.value)}
-            >
-              {STOP_KINDS.map((kind) => (
-                <option key={kind} value={kind}>{t(`pledge.kinds.${kind}`)}</option>
-              ))}
-            </select>
-          </label>
-          {perUnit ? <label>
-            {t("pledge.quantity")}
-            <input type="number" min={1} max={1000} step={1} data-testid="pledge-quantity"
-              value={quantity} onChange={(event) => setQuantity(Math.max(1, Math.min(1000, Math.trunc(Number(event.target.value) || 1))))} />
-          </label> : null}
-          <label>
-            {t("pledge.amount")}
-            <input
-              data-testid="pledge-amount"
-              value={orderAmount}
-              readOnly={readOnlyAmount}
-              onChange={(event) => {
-                if (!readOnlyAmount) pledge.onAmount(event.target.value);
+      {pledge && !cancelled ? (
+        <section className="stop-section stop-next" data-testid="stop-next-step">
+          <h3 className="stop-next-title">{t("stopPanel.backThisLeg")}</h3>
+          <div className="pledge-form">
+            <label>
+              {t("pledge.kind")}
+              <select
+                data-testid="pledge-kind"
+                value={pledge.kind}
+                onChange={(event) => pledge.onKind(event.target.value)}
+              >
+                {STOP_KINDS.map((kind) => (
+                  <option key={kind} value={kind}>{t(`pledge.kinds.${kind}`)}</option>
+                ))}
+              </select>
+            </label>
+            {perUnit ? <label>
+              {t("pledge.quantity")}
+              <input type="number" min={1} max={1000} step={1} data-testid="pledge-quantity"
+                value={quantity} onChange={(event) => setQuantity(Math.max(1, Math.min(1000, Math.trunc(Number(event.target.value) || 1))))} />
+            </label> : null}
+            <label>
+              {t("pledge.amount")}
+              <input
+                data-testid="pledge-amount"
+                value={orderAmount}
+                readOnly={readOnlyAmount}
+                onChange={(event) => {
+                  if (!readOnlyAmount) pledge.onAmount(event.target.value);
+                }}
+              />
+            </label>
+            <label>
+              {t("pledge.contributor")}
+              <input value={pledge.contributor} onChange={(event) => pledge.onContributor(event.target.value)} />
+            </label>
+            <PledgeButton
+              values={{
+                amount_eur: orderAmount,
+                quantity: perUnit ? quantity : undefined,
+                description: pledgeDescription,
+                milestone_id: pledgeMilestoneId,
+                contributor: pledge.contributor.trim() || undefined,
+                kind: pledge.kind,
+                target_id: pledge.kind === "cabin_leg" ? pledgeMilestoneId : pledge.milestoneId,
               }}
+              onAuthorized={onAuthorized}
             />
-          </label>
-          <label>
-            {t("pledge.contributor")}
-            <input value={pledge.contributor} onChange={(event) => pledge.onContributor(event.target.value)} />
-          </label>
-          <PledgeButton
-            values={{
-              amount_eur: orderAmount,
-              quantity: perUnit ? quantity : undefined,
-              description: pledgeDescription,
-              milestone_id: pledgeMilestoneId,
-              contributor: pledge.contributor.trim() || undefined,
-              kind: pledge.kind,
-              target_id: pledge.kind === "cabin_leg" ? pledgeMilestoneId : pledge.milestoneId,
-            }}
-            onAuthorized={onPledgeAuthorized}
-          />
+          </div>
+          <p className="stop-note" data-testid="stop-money-rule">
+            {pledge.kind === "common_fund" ? t("stopPanel.ruleCommonFund") : t("stopPanel.rule")}
+          </p>
+        </section>
+      ) : null}
+      {pledge && cancelled ? (
+        <div className="stop-section">
+          <p className="stop-cancelled" data-testid="stop-cancelled-note">
+            {t("stopPanel.cancelledNote")}
+          </p>
         </div>
+      ) : null}
+      {context.now ? (
+        <details className="stop-more" data-testid="escale-logbook">
+          <summary>{t("sheet.logbookTitle")}</summary>
+          <div className="stop-more-body">
+            {logLines.length ? (
+              <>
+                <p className="stop-note">{t("stopPanel.logbookNote")}</p>
+                <ul className="escale-items">
+                  {logLines.map((line, index) => (
+                    <li key={`${line}-${index}`}>{line}</li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="stop-note">{t("stopPanel.logbookEmpty")}</p>
+            )}
+          </div>
+        </details>
+      ) : null}
+      {loading ? <p className="hint">{t("sheet.loading")}</p> : null}
+      {error ? <p className="notice error">{error}</p> : null}
+      {!loading && fiche ? (
+        <details className="stop-more" data-testid="stop-port-info">
+          <summary>{t("stopPanel.portInfo")}</summary>
+          <div className="stop-more-body">
+            {!keys.length ? <p className="hint">{t("sheet.empty")}</p> : null}
+            {keys.map((section) => (
+              <div key={section}>
+                <div className="escale-kicker">{sectionLabel(section, t)}</div>
+                {Object.entries(sections[section] || {}).map(([sub, items]) => (
+                  Array.isArray(items) ? (
+                    <div key={sub}>
+                      <div className="hint">{SECTION_KEYS.includes(sub) ? sectionLabel(sub, t) : sub}</div>
+                      <ul className="escale-items">
+                        {items.map((item, index) => {
+                          const site = item.url || item.visit_url || null;
+                          const maps = marinaMapsUrl(item);
+                          const facts = sub === "marinas" ? marinaFactLines(item, t) : [];
+                          return (
+                            <li key={`${item.name}-${index}`}>
+                              <span>{item.name}</span>
+                              {Number.isFinite(item.nm) ? <span className="hint"> {item.nm} nm</span> : null}
+                              {item.phone ? <a href={`tel:${item.phone}`}>{item.phone}</a> : null}
+                              {site ? (
+                                <a href={site} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.website")}>
+                                  ↗
+                                </a>
+                              ) : null}
+                              {maps ? (
+                                <a href={maps} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.maps")}>
+                                  ◎
+                                </a>
+                              ) : null}
+                              {facts.map((line) => (
+                                <div key={line} className="hint marina-fact" data-testid="marina-fact">
+                                  {line}
+                                </div>
+                              ))}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ) : null
+                ))}
+              </div>
+            ))}
+          </div>
+        </details>
       ) : null}
     </div>
   );

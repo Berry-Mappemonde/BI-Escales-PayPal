@@ -4,6 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import i18n from "../i18n";
 import { EscaleSheet } from "./EscaleSheet.jsx";
 
+vi.mock("../api/escales", () => ({
+  fetchClock: vi.fn().mockResolvedValue({ now: "2026-11-20T08:00:00Z" }),
+  fetchFund: vi.fn().mockResolvedValue({}),
+  listMilestones: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("./PledgeButton", () => ({
   PledgeButton: ({ values }) => (
     <div data-testid="pledge-values">{JSON.stringify(values)}</div>
@@ -183,8 +189,8 @@ describe("EscaleSheet", () => {
         />
       </I18nextProvider>,
     );
-    expect(screen.getByTestId("escale-estimated-arrival")).toHaveTextContent(/Arrivée estimée/);
-    expect(screen.getByTestId("escale-logbook")).toHaveTextContent("en route vers La Rochelle");
+    expect(screen.getByTestId("escale-estimated-arrival")).toHaveTextContent(/Arrivée prévue/);
+    expect(await screen.findByTestId("escale-logbook")).toHaveTextContent("en route vers La Rochelle");
   });
 
   it("shows estimated arrival and logbook in EN", async () => {
@@ -206,8 +212,8 @@ describe("EscaleSheet", () => {
         />
       </I18nextProvider>,
     );
-    expect(screen.getByTestId("escale-estimated-arrival")).toHaveTextContent(/Estimated arrival/);
-    expect(screen.getByTestId("escale-logbook")).toHaveTextContent("arrival at La Rochelle");
+    expect(screen.getByTestId("escale-estimated-arrival")).toHaveTextContent(/Scheduled arrival/);
+    expect(await screen.findByTestId("escale-logbook")).toHaveTextContent("arrival at La Rochelle");
   });
 
   it("affiche les infos marina enrichies en FR (Amarrage)", async () => {

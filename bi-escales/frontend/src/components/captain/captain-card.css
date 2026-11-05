@@ -3,7 +3,8 @@
  * use the app's own variables, so the card follows the light and dark themes.
  */
 .captain-card,
-.pledge-chip {
+.pledge-chip,
+.escale-sheet {
   --color-st-triage: #5e9bff;
   --color-st-todo: #8f8f8f;
   --color-st-progress: #e2b53e;

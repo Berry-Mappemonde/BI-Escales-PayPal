@@ -201,6 +201,13 @@ export async function fetchSchedule(): Promise<ScheduleResponse> {
   return res.json();
 }
 
+/** Public voyage clock. ``now`` is the simulated instant, real UTC unless pinned. */
+export async function fetchClock(): Promise<{ start?: string; now?: string }> {
+  const res = await fetch(url("/api/escales/clock"));
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
 export async function fetchFeatures(): Promise<FeatureFlags> {
   const res = await fetch(url("/api/escales/features"));
   if (!res.ok) throw new Error(await parseError(res));

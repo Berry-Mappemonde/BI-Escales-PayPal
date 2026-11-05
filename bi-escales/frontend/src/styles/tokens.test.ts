@@ -100,6 +100,28 @@ describe("token sets", () => {
   });
 });
 
+describe("naviguide-shell.css", () => {
+  const shellCss = read("naviguide-shell.css").replace(/\/\*[\s\S]*?\*\//g, "");
+
+  it("has no hard-coded colours left", () => {
+    expect(shellCss.length).toBeGreaterThan(1000);
+    expect(shellCss.match(/#[0-9a-fA-F]{3,8}\b/g)).toBeNull();
+    expect(shellCss.match(/\b(rgba?|hsla?)\(/g)).toBeNull();
+    expect(shellCss.match(/(?<![-\w])(black|white)(?![-\w])/g)).toBeNull();
+  });
+
+  it("gives every shell colour a value in both themes", () => {
+    const names = (selector: string) => {
+      const start = shellCss.indexOf(selector);
+      const body = shellCss.slice(start, shellCss.indexOf("\n}", start));
+      return [...body.matchAll(/(--shell-[\w-]+):/g)].map((match) => match[1]);
+    };
+    const darkNames = names(':root[data-theme="dark"] {');
+    expect(darkNames).toHaveLength(11);
+    expect(names(':root[data-theme="light"] {')).toEqual(darkNames);
+  });
+});
+
 describe("app.css", () => {
   it("has no hard-coded colours left", () => {
     const withoutComments = appCss.replace(/\/\*[\s\S]*?\*\//g, "");

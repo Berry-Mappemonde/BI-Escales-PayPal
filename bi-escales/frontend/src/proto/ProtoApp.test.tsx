@@ -100,7 +100,7 @@ describe("proto preview", () => {
   it("lets Override release the hold and nothing else", () => {
     open("screen=captain&lang=en");
     fireEvent.click(screen.getByRole("button", { name: "Override" }));
-    expect(screen.getByText(/Capture needs arrival evidence/)).toBeInTheDocument();
+    expect(screen.getByText(/Captured on arrival \(on departure for cabins\), only after a person approves\./)).toBeInTheDocument();
     const decision = screen.getByRole("button", { name: "Release the hold" }).parentElement as HTMLElement;
     expect(within(decision).getAllByRole("button").map((button) => button.textContent)).toEqual([
       "Release the hold",

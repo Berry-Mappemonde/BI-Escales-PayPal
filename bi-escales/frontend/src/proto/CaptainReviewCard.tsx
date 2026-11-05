@@ -4,7 +4,7 @@ import { formatDay, type Lang } from "./format";
 import { review, stop } from "./mock";
 import { useFocusFirstButton } from "./useFocusFirstButton";
 
-/** Override can only release the hold. Capture needs arrival evidence, so it is never offered here. */
+/** Override can only release the hold, so capture is never offered here. */
 type Decision = "pending" | "overriding" | "approved" | "releasing" | "released";
 
 /** How long a release can still be undone. Once it ends, the void counts as sent and is final. */

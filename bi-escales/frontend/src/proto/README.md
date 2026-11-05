@@ -20,5 +20,5 @@ This page is its own Vite HTML entry, so `main.tsx`, `index.html` and the config
 - En route and Refunded have new glyphs, drawn on Meridian's 14px grid. The other glyphs are Meridian's.
 - Amber means money held and nothing else. En route uses `--color-st-route`, the one colour added to Meridian, defined in `proto.css` so `tokens.css` stays an exact copy.
 - Approve, Override and Back this leg only change local state.
-- Override can only release the hold. Capture needs arrival evidence, so the Captain card never offers it.
+- Override can only release the hold, so the Captain card never offers capture. Pledges are captured on arrival (on departure for cabins), only after a person approves.
 - A release can be undone for 5 seconds. After that it is final, and only a page reload clears it, because nothing is stored.

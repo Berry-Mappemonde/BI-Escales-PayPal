@@ -28,10 +28,12 @@ function sdkParams(clientId: string, locale: string, extra: Record<string, strin
   });
 }
 
-export function paypalSdkUrl(clientId: string, appLang?: string): string {
+export type SdkIntent = "authorize" | "capture";
+
+export function paypalSdkUrl(clientId: string, appLang?: string, intent: SdkIntent = "authorize"): string {
   const params = sdkParams(clientId, paypalLocale(appLang), {
-    components: "buttons,messages",
-    intent: "authorize",
+    components: "buttons,card-fields,messages",
+    intent,
     currency: "EUR",
     vault: "true",
     "disable-funding": "venmo",
@@ -88,24 +90,28 @@ let loadedLocale: string | null = null;
 
 function clearPayPalSdk(): void {
   loadedLocale = null;
+  loadedSrc = null;
   delete window.paypal;
   for (const node of document.querySelectorAll("script[data-paypal-sdk-src]")) {
     node.remove();
   }
 }
 
-export function loadPayPalSdk(clientId: string, appLang?: string): Promise<void> {
+let loadedSrc: string | null = null;
+
+export function loadPayPalSdk(clientId: string, appLang?: string, intent: SdkIntent = "authorize"): Promise<void> {
   const trimmed = clientId.trim();
   if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
   const locale = paypalLocale(appLang);
-  const src = paypalSdkUrl(trimmed, appLang);
-  if (loadedLocale && loadedLocale !== locale) {
+  const src = paypalSdkUrl(trimmed, appLang, intent);
+  if ((loadedLocale && loadedLocale !== locale) || (loadedSrc && loadedSrc !== src)) {
     clearPayPalSdk();
   }
-  if (window.paypal?.Buttons && loadedLocale === locale) {
+  if (window.paypal?.Buttons && loadedLocale === locale && loadedSrc === src) {
     return Promise.resolve();
   }
   loadedLocale = locale;
+  loadedSrc = src;
   return loadScript(src);
 }
 

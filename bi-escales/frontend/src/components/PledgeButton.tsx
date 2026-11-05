@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { createPledge, registerVault, isVaultPledge } from "../api/escales";
+import { authorizePledge, createPledge, registerVault, isVaultPledge } from "../api/escales";
 import type { PublicPledge } from "../api/types";
 import { loadPayPalSdk, payLaterEligible } from "../paypal/paypalSdk";
 import { subscribePledgeReturn } from "../paypal/pledgeReturnEvents";
@@ -33,6 +33,10 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
   const activePledgeIdRef = useRef<string | null>(null);
   const vault = created ? isVaultPledge(created) : false;
   const isProjectPledge = (values.kind || "") === "project_pledge";
+  const sdkIntent = isProjectPledge ? "capture" : "authorize";
+  const buttonsHost = useRef<HTMLDivElement | null>(null);
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
 
   useEffect(() => {
     let cancelled = false;
@@ -43,7 +47,8 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
         cancelled = true;
       };
     }
-    void loadPayPalSdk(clientId, appLang)
+    setSdkReady(false);
+    void loadPayPalSdk(clientId, appLang, sdkIntent)
       .then(() => {
         if (!cancelled) setSdkReady(true);
       })
@@ -53,7 +58,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
     return () => {
       cancelled = true;
     };
-  }, [appLang]);
+  }, [appLang, sdkIntent]);
 
   useEffect(() => {
     setCreated(null);
@@ -120,6 +125,58 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
     }
   };
 
+  /** In-page Smart Buttons (PayPal wallet, Pay Later, card): no approve_link redirect. */
+  useEffect(() => {
+    const host = buttonsHost.current;
+    if (!sdkReady || !host || disabled || !window.paypal?.Buttons) return;
+    host.innerHTML = "";
+    let pledgeId: string | null = null;
+    const buttons = window.paypal.Buttons({
+      style: { layout: "vertical", label: isProjectPledge ? "donate" : "pay" },
+      createOrder: async () => {
+        setError(null);
+        setStatus(t("pledge.creating"));
+        const v = valuesRef.current;
+        const pledge = await createPledge(
+          {
+            amount_eur: v.amount_eur,
+            description: v.description,
+            milestone_id: v.milestone_id,
+            contributor: v.contributor?.trim() || undefined,
+            kind: v.kind,
+            target_id: v.target_id,
+            lang: v.lang || appLang,
+          },
+          crypto.randomUUID(),
+        );
+        if (!pledge.order_id) throw new Error("order_id missing");
+        pledgeId = pledge.id;
+        activePledgeIdRef.current = pledge.id;
+        return pledge.order_id;
+      },
+      onApprove: async () => {
+        if (!pledgeId) return;
+        setBusy(true);
+        try {
+          const done = await authorizePledge(pledgeId);
+          setStatus(isProjectPledge ? t("pledge.returnPendingProject") : t("pledge.returnPending"));
+          onAuthorized?.(done);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        } finally {
+          setBusy(false);
+        }
+      },
+      onCancel: () => setStatus(null),
+      onError: (err: unknown) => setError(err instanceof Error ? err.message : String(err)),
+    });
+    void buttons.render(host).catch(() => undefined);
+    host.dataset.smartButtons = "1";
+    return () => {
+      void buttons.close().catch(() => undefined);
+    };
+  }, [sdkReady, disabled, isProjectPledge, appLang, t, onAuthorized]);
+
   const confirmVault = async () => {
     if (!created || !vault) return;
     setBusy(true);
@@ -175,6 +232,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
           {t("pledge.vaultConfirm")}
         </button>
       ) : null}
+      <div ref={buttonsHost} data-testid="paypal-smart-buttons" />
       <div ref={sdkHost} data-testid="paypal-sdk-host" />
       {status ? <p className="status">{status}</p> : null}
       {error ? (

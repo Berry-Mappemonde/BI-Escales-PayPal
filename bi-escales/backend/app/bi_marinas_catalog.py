@@ -389,7 +389,7 @@ def merge_marina_row(
     enrichment_source: str | None = None,
 ) -> dict[str, Any]:
     """Same public shape as naviguide ``_slim`` mooring items + enrich fields."""
-    keep = ("name", "lat", "lon", "nm", "url", "visit_url", "phone", "type", "kind", "source", "osm_id")
+    keep = ("name", "lat", "lon", "nm", "url", "visit_url", "phone", "payout_email", "paypal_payout_email", "type", "kind", "source", "osm_id")
     out = {k: base[k] for k in keep if k in base and base[k] is not None}
     if enrichment_source:
         out["source"] = enrichment_source

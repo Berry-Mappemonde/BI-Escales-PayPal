@@ -113,9 +113,9 @@ export function TreasurerGrid(props: TreasurerGridProps) {
     </section>
     <section className="panel treasurer-marina-grid" data-testid="treasurer-marina-dashboard">
       <h2>{t("grid.marinaHeading")}</h2>
-      {marinaRows.some((row) => row.fees_simulated) ? (
-        <p className="hint" data-testid="marina-fee-simulation-banner">
-          {t("grid.marinaSimBanner")}
+      {marinaRows.some((row) => row.marina_payout_status !== "—") ? (
+        <p className="hint" data-testid="marina-payout-banner">
+          {t("grid.marinaPayoutBanner")}
         </p>
       ) : null}
       {marinaRows.length === 0 ? (
@@ -137,6 +137,7 @@ export function TreasurerGrid(props: TreasurerGridProps) {
                   ? t("grid.marinaNetSimulated")
                   : t("grid.marinaNet")}
               </th>
+              <th>{t("grid.marinaPayoutStatus")}</th>
               <th>{t("grid.marinaRefunds")}</th>
               <th>{t("grid.marinaDisputes")}</th>
             </tr>
@@ -149,6 +150,13 @@ export function TreasurerGrid(props: TreasurerGridProps) {
                 <td>{row.gross_eur.toFixed(2)} €</td>
                 <td>{row.platform_fees_eur.toFixed(2)} €</td>
                 <td>{row.marina_net_eur.toFixed(2)} €</td>
+                <td data-testid={`marina-payout-status-${row.marina_key}`}>
+                  {row.marina_payout_status === "—"
+                    ? "—"
+                    : t(`grid.marinaPayoutStatus.${row.marina_payout_status}`, {
+                        defaultValue: row.marina_payout_status,
+                      })}
+                </td>
                 <td>{row.refunds_eur.toFixed(2)} €</td>
                 <td>{row.disputes_open}</td>
               </tr>

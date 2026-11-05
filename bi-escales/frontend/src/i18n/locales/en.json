@@ -254,6 +254,14 @@
     "marinaNet": "Net to marina",
     "marinaNetSimulated": "Net to marina (sandbox sim.)",
     "marinaSimBanner": "Platform fee and net to marina are computed in-app (sandbox simulation) because PayPal partner merchant IDs are not configured. PayPal orders are not split.",
+    "marinaPayoutBanner": "Marina net is sent via PayPal Payouts (sandbox) after each berth capture; platform fee is retained in Escales.",
+    "marinaPayoutStatus": "Marina payout",
+    "marinaPayoutStatus.success": "Success",
+    "marinaPayoutStatus.processing": "Processing",
+    "marinaPayoutStatus.pending": "Pending",
+    "marinaPayoutStatus.denied": "Denied",
+    "marinaPayoutStatus.failed": "Failed",
+    "marinaPayoutStatus.pending_email": "Missing payout email",
     "marinaRefunds": "Refunds",
     "marinaDisputes": "Open disputes"
   }

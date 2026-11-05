@@ -233,6 +233,18 @@ def marina_seller_merchant_id(_target_id: str = "") -> str:
     return (os.environ.get("ESCALES_MARINA_SELLER_MERCHANT_ID") or "").strip()
 
 
+def marina_payout_email_default() -> str:
+    return (os.environ.get("ESCALES_MARINA_PAYOUT_EMAIL") or "").strip()
+
+
+def marina_payouts_enabled() -> bool:
+    """Pay marina net via Payouts API on berth capture when multiparty fees are off."""
+    raw = os.environ.get("ESCALES_MARINA_PAYOUTS_ENABLED", "1").strip().lower()
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    return raw in _TRUTHY or raw == "1" or raw == ""
+
+
 def paypal_berth_platform_fees_on_order(target_id: str = "") -> bool:
     """True when PayPal Orders v2 will carry multiparty platform_fees for this berth."""
     if not platform_fees_enabled():

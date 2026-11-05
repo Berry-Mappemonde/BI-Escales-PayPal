@@ -54,33 +54,50 @@ body.ng-naviguide-shell {
   transition: transform 200ms ease;
 }
 
+/* Shell surfaces, on the tokens. The mixes keep each panel's see-through strength over the map. */
 :root,
 :root[data-theme="dark"] {
-  --shell-bg: #0f172a;
-  --shell-sidebar-gradient: linear-gradient(90deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88));
-  --shell-tools-gradient: linear-gradient(270deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88));
-  --shell-border: rgba(59, 130, 246, 0.35);
-  --shell-control-bg: rgba(30, 41, 59, 0.9);
-  --shell-control-border: rgba(148, 163, 184, 0.35);
-  --shell-tab-bg: rgba(30, 41, 59, 0.85);
-  --shell-tab-text: #cbd5e1;
-  --shell-tab-active-bg: rgba(37, 99, 235, 0.35);
-  --shell-tab-active-text: #f8fafc;
-  --shell-treasurer-toggle-bg: rgba(15, 23, 42, 0.6);
+  --shell-bg: var(--color-canvas);
+  --shell-sidebar-gradient: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-shell) 96%, transparent),
+    color-mix(in srgb, var(--color-shell) 88%, transparent)
+  );
+  --shell-tools-gradient: linear-gradient(
+    270deg,
+    color-mix(in srgb, var(--color-shell) 96%, transparent),
+    color-mix(in srgb, var(--color-shell) 88%, transparent)
+  );
+  --shell-border: var(--color-line);
+  --shell-control-bg: color-mix(in srgb, var(--color-panel) 90%, transparent);
+  --shell-control-border: var(--color-line-strong);
+  --shell-tab-bg: color-mix(in srgb, var(--color-raised) 85%, transparent);
+  --shell-tab-text: var(--color-fg-2);
+  --shell-tab-active-bg: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  --shell-tab-active-text: var(--color-fg);
+  --shell-treasurer-toggle-bg: color-mix(in srgb, var(--color-raised) 60%, transparent);
 }
 
 :root[data-theme="light"] {
-  --shell-bg: #f8fafc;
-  --shell-sidebar-gradient: linear-gradient(90deg, rgba(248, 250, 252, 0.98), rgba(255, 255, 255, 0.95));
-  --shell-tools-gradient: linear-gradient(270deg, rgba(248, 250, 252, 0.98), rgba(255, 255, 255, 0.95));
-  --shell-border: rgba(29, 78, 216, 0.25);
-  --shell-control-bg: rgba(241, 245, 249, 0.95);
-  --shell-control-border: rgba(148, 163, 184, 0.45);
-  --shell-tab-bg: rgba(241, 245, 249, 0.95);
-  --shell-tab-text: var(--muted);
-  --shell-tab-active-bg: rgba(29, 78, 216, 0.12);
-  --shell-tab-active-text: var(--text);
-  --shell-treasurer-toggle-bg: rgba(255, 255, 255, 0.9);
+  --shell-bg: var(--color-canvas);
+  --shell-sidebar-gradient: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-canvas) 98%, transparent),
+    color-mix(in srgb, var(--color-panel) 95%, transparent)
+  );
+  --shell-tools-gradient: linear-gradient(
+    270deg,
+    color-mix(in srgb, var(--color-canvas) 98%, transparent),
+    color-mix(in srgb, var(--color-panel) 95%, transparent)
+  );
+  --shell-border: var(--color-line);
+  --shell-control-bg: color-mix(in srgb, var(--color-raised) 95%, transparent);
+  --shell-control-border: var(--color-line-strong);
+  --shell-tab-bg: color-mix(in srgb, var(--color-raised) 95%, transparent);
+  --shell-tab-text: var(--color-fg-2);
+  --shell-tab-active-bg: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  --shell-tab-active-text: var(--color-fg);
+  --shell-treasurer-toggle-bg: color-mix(in srgb, var(--color-panel) 90%, transparent);
 }
 
 .ng-sidebar.ng-collapsed {

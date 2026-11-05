@@ -672,14 +672,18 @@ async def post_schedule_sync():
 @router.get("/pledges/mode")
 async def get_pledge_mode(milestone_id: str, kind: str = "mile"):
     """Read-only card checkout preview: no PayPal calls or ledger writes."""
-    from app.escales.pledges import _kind
+    from app.escales.pledges import _kind, _resolve_target
     from app.escales.naviguide_bridge import resolve_milestone, leg_departing_from
     from app.escales.payment_mode import resolve_pledge_mode
     try:
+        milestone_id = milestone_id.strip()
         pledge_kind = _kind(kind)
         if pledge_kind == "project_pledge":
             raise ValueError("project_pledge uses PayPal wallet checkout only")
-        canonical = "" if pledge_kind == "common_fund" and not milestone_id.strip() else resolve_milestone(milestone_id)
+        canonical = (
+            "" if pledge_kind == "common_fund" and not milestone_id
+            else resolve_milestone(milestone_id)
+        )
         if canonical is None:
             if not await get_ledger().get_milestone(milestone_id):
                 raise ValueError("milestone_id must name a known stopover")
@@ -688,6 +692,7 @@ async def get_pledge_mode(milestone_id: str, kind: str = "mile"):
             leg = leg_departing_from(canonical)
             if leg:
                 canonical = str(leg["id"])
+        await _resolve_target(None, canonical, pledge_kind)
         mode = await resolve_pledge_mode({"milestone_id": canonical, "kind": pledge_kind}, read_only=True)
         return {"payment_mode": mode}
     except ValueError as exc:

@@ -44,10 +44,13 @@ def select_payment_mode(
     return "AUTHORIZE"
 
 
-async def resolve_pledge_mode(draft: dict, *, mode: PaymentMode = "AUTHORIZE", read_only: bool = False) -> PaymentMode:
+async def resolve_pledge_mode(
+    draft: dict, *, mode: PaymentMode = "AUTHORIZE", read_only: bool = False,
+) -> PaymentMode:
     """Use the same clock, timing anchor and Vault flag for preview and creation."""
     from .config import vault_enabled
     from .departure_clock import refuse_early_authorization
+
     if mode == "VAULT":
         return mode
     try:

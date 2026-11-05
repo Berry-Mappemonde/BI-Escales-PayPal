@@ -45,10 +45,14 @@ export function PayPalCardFieldsBlock({
   const submitRef = useRef<(() => Promise<void>) | null>(null);
   const attemptRef = useRef<{ key: string; values: PledgeFormValues; pledge?: Promise<PublicPledge> } | null>(null);
   const submittingRef = useRef(false);
+  const generationRef = useRef(0);
   valuesRef.current = values;
 
   useEffect(() => {
+    generationRef.current += 1;
+    submittingRef.current = false;
     setReady(false);
+    setBusy(false);
     setError(null);
     submitRef.current = null;
     const CardFields = (paypal as { CardFields?: CardFieldsFactory } | null)?.CardFields;
@@ -129,6 +133,7 @@ export function PayPalCardFieldsBlock({
 
     return () => {
       cancelled = true;
+      generationRef.current += 1;
       submitRef.current = null;
       activePledgeRef.current = null;
       attemptRef.current = null;
@@ -139,12 +144,15 @@ export function PayPalCardFieldsBlock({
   const onSubmit = async () => {
     const submit = submitRef.current;
     if (!submit || submittingRef.current) return;
+    const generation = generationRef.current;
+    const isClosed = () => generation !== generationRef.current;
     submittingRef.current = true;
     const snapshot = { ...valuesRef.current };
     // Keep a failed attempt's key for a retry of identical values.
     if (!attemptRef.current || JSON.stringify(attemptRef.current.values) !== JSON.stringify(snapshot)) {
       attemptRef.current = { key: crypto.randomUUID(), values: snapshot };
-    } else if (attemptRef.current.pledge) {
+      activePledgeRef.current = null;
+    } else if (!activePledgeRef.current) {
       // Reuse the same server idempotency key after a transport failure.
       attemptRef.current.pledge = undefined;
     }
@@ -152,6 +160,7 @@ export function PayPalCardFieldsBlock({
     setError(null);
     try {
       await submit();
+      if (isClosed()) return;
       let current = activePledgeRef.current;
       if (!current) {
         throw new Error("pledge missing after card submit");
@@ -161,14 +170,17 @@ export function PayPalCardFieldsBlock({
       } else {
         current = await authorizePledge(current.id);
       }
+      if (isClosed()) return;
       attemptRef.current = null;
       setReady(false);
       onAuthorized?.(current);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (!isClosed()) setError(e instanceof Error ? e.message : String(e));
     } finally {
-      submittingRef.current = false;
-      setBusy(false);
+      if (!isClosed()) {
+        submittingRef.current = false;
+        setBusy(false);
+      }
     }
   };
 

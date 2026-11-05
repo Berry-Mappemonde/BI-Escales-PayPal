@@ -79,3 +79,63 @@ describe("Card Fields checkout", () => {
   });
 
 });
+
+it("retries authorization without creating another pledge", async () => {
+  const pledge = { id: "P", order_id: "O" };
+  vi.mocked(createPledge).mockResolvedValue(pledge);
+  vi.mocked(authorizePledge).mockRejectedValueOnce(new Error("Authorization unavailable")).mockResolvedValue(pledge);
+  const s = sdk();
+  const done = vi.fn();
+  render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} onAuthorized={done} />);
+  const button = screen.getByTestId("paypal-card-submit");
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+  await screen.findByText(/Authorization unavailable/);
+  fireEvent.click(button);
+  await waitFor(() => expect(done).toHaveBeenCalledWith(pledge));
+  expect(createPledge).toHaveBeenCalledTimes(1);
+  expect(authorizePledge).toHaveBeenCalledTimes(2);
+});
+
+it("does not configure fields after closing during the mode lookup", async () => {
+  let finish!: (mode: { payment_mode: "AUTHORIZE" }) => void;
+  vi.mocked(fetchPledgeMode).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  const s = sdk();
+  const view = render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} />);
+  view.unmount();
+  await act(async () => { finish({ payment_mode: "AUTHORIZE" }); });
+  expect(s.CardFields).not.toHaveBeenCalled();
+  expect(createPledge).not.toHaveBeenCalled();
+});
+
+it("does not authorize a pledge returned after checkout closes", async () => {
+  let finish!: (pledge: { id: string; order_id: string }) => void;
+  vi.mocked(createPledge).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  const s = sdk();
+  const done = vi.fn();
+  const view = render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} onAuthorized={done} />);
+  await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+  fireEvent.click(screen.getByTestId("paypal-card-submit"));
+  view.unmount();
+  await act(async () => { finish({ id: "P", order_id: "O" }); });
+  expect(createPledge).toHaveBeenCalledTimes(1);
+  expect(authorizePledge).not.toHaveBeenCalled();
+  expect(registerVault).not.toHaveBeenCalled();
+  expect(done).not.toHaveBeenCalled();
+  for (const field of s.fields) expect(field.close).toHaveBeenCalledTimes(1);
+});
+
+it("does not report an authorization completed after checkout closes", async () => {
+  let finish!: (pledge: { id: string }) => void;
+  vi.mocked(createPledge).mockResolvedValue({ id: "P", order_id: "O" });
+  vi.mocked(authorizePledge).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  const s = sdk();
+  const done = vi.fn();
+  const view = render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} onAuthorized={done} />);
+  await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+  fireEvent.click(screen.getByTestId("paypal-card-submit"));
+  await waitFor(() => expect(authorizePledge).toHaveBeenCalled());
+  view.unmount();
+  await act(async () => { finish({ id: "P" }); });
+  expect(done).not.toHaveBeenCalled();
+});

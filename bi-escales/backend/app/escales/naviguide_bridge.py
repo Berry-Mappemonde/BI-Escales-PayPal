@@ -665,7 +665,7 @@ def _stop_shell_meta(milestone_id: str) -> Optional[dict[str, Any]]:
     return None
 
 
-async def resolve_schedule_milestone(milestone_id: str) -> Optional[dict]:
+async def resolve_schedule_milestone(milestone_id: str, *, read_only: bool = False) -> Optional[dict]:
     """Ensure ledger meta from the frozen schedule (no prior GET /milestones)."""
     from .pledges import get_ledger
 
@@ -674,12 +674,14 @@ async def resolve_schedule_milestone(milestone_id: str) -> Optional[dict]:
         return None
     resolved = resolve_milestone(token) or token
     leg = leg_by_id(resolved)
-    if leg:
-        meta = leg_milestone_meta(leg)
-        return await get_ledger().ensure_milestone(str(leg["id"]), meta=meta)
-    shell = _stop_shell_meta(resolved)
-    if shell:
-        return await get_ledger().ensure_milestone(resolved, meta=shell)
+    meta = leg_milestone_meta(leg) if leg else _stop_shell_meta(resolved)
+    if read_only:
+        existing = await get_ledger().get_milestone(resolved)
+        if meta:
+            return {**(existing or {"_id": resolved}), "meta": {**((existing or {}).get("meta") or {}), **meta}}
+        return existing
+    if meta:
+        return await get_ledger().ensure_milestone(resolved, meta=meta)
     return await get_ledger().get_milestone(resolved)
 
 

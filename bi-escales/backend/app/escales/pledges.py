@@ -765,7 +765,7 @@ async def _create_pledge(
             checkout_method=checkout_method,
         )
     mode: PaymentMode = payment_mode or "AUTHORIZE"
-    from .departure_clock import refuse_cancelled_departure, refuse_early_authorization
+    from .departure_clock import refuse_cancelled_departure
 
     draft = {
         "milestone_id": milestone_id,
@@ -775,14 +775,8 @@ async def _create_pledge(
     await refuse_cancelled_departure(draft)
     # An authorization lasts 29 days. Refuse before PayPal creates the order.
     # When Vault is on, a far departure falls back to saving the payment method.
-    if mode != "VAULT":
-        try:
-            await refuse_early_authorization(draft)
-        except ValueError as exc:
-            if vault_enabled() and "29 days" in str(exc):
-                mode = "VAULT"
-            else:
-                raise
+    from .payment_mode import resolve_pledge_mode
+    mode = await resolve_pledge_mode(draft, mode=mode)
     if mode == "VAULT":
         return await _create_vault_pledge(
             amount=amount,

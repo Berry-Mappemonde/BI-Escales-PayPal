@@ -194,6 +194,8 @@ export interface CaptainProposal {
   pending_authorizations?: PendingAuthorization[];
   paypal_tool_calls?: { tool: string; resource_id?: string }[];
   evidence_flag?: string;
+  model_source?: { provider?: string; model?: string };
+  llm_proposal?: { proposal?: string | null; reason?: string | null };
   at?: string;
 }
 

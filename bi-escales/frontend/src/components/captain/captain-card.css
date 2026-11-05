@@ -1,0 +1,309 @@
+/*
+ * Meridian tokens from the proto, scoped to these components. Surfaces and text
+ * use the app's own variables, so the card follows the light and dark themes.
+ */
+.captain-card,
+.pledge-chip {
+  --color-st-triage: #5e9bff;
+  --color-st-todo: #8f8f8f;
+  --color-st-progress: #e2b53e;
+  --color-st-review: #9b87f5;
+  --color-st-done: #4fb67f;
+  --color-st-declined: #6f6f6f;
+
+  --text-micro: 11px;
+  --text-meta: 12px;
+  --text-meta--line-height: 16px;
+  --text-ui: 13px;
+  --text-ui--line-height: 18px;
+  --text-read: 14px;
+  --text-read--line-height: 22px;
+  --text-title: 15px;
+  --text-title--line-height: 20px;
+  --text-heading: 19px;
+  --text-heading--line-height: 26px;
+
+  --radius-control: 6px;
+  --radius-chip: 5px;
+  --radius-panel: 10px;
+
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Status chip */
+.pledge-chip {
+  --pledge-chip-cut: var(--bg);
+
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px 0 6px;
+  border-radius: var(--radius-chip);
+  background: color-mix(in oklab, var(--st) 14%, transparent);
+  color: color-mix(in oklab, var(--st) 60%, white);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pledge-chip svg {
+  flex-shrink: 0;
+}
+
+.captain-decision .pledge-chip {
+  justify-self: start;
+}
+
+:root[data-theme="light"] .pledge-chip {
+  background: color-mix(in oklab, var(--st) 18%, transparent);
+  color: color-mix(in oklab, var(--st) 42%, black);
+}
+
+/* The treasurer column is narrow, so the table scrolls inside itself and Actions stay reachable. */
+.treasurer-queue-table {
+  overflow-x: auto;
+}
+
+/* Card: one border, hairlines inside */
+.captain-cards {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.captain-card {
+  min-width: 0;
+  max-width: 640px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--proposal-bg);
+  color: var(--text);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  overflow-wrap: anywhere;
+}
+
+.captain-card p,
+.captain-card h3,
+.captain-card ul,
+.captain-card ol {
+  margin: 0;
+  padding: 0;
+}
+
+.captain-card ul,
+.captain-card ol {
+  list-style: none;
+}
+
+.captain-card button {
+  margin: 0;
+  min-height: 32px;
+  border-radius: var(--radius-control);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 500;
+}
+
+.captain-card button:focus-visible,
+.captain-decision:focus-visible,
+.captain-sources li:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.captain-card-head {
+  display: grid;
+  gap: 2px;
+  padding: 16px;
+}
+
+.captain-card-head h3 {
+  font-size: var(--text-title);
+  line-height: var(--text-title--line-height);
+  font-weight: 500;
+}
+
+.captain-section {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.captain-meta,
+.captain-label {
+  color: var(--muted);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.captain-meta:empty,
+.captain-ui:empty {
+  display: none;
+}
+
+.captain-proposal {
+  font-size: var(--text-heading);
+  line-height: var(--text-heading--line-height);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.captain-read {
+  color: var(--muted);
+  font-size: var(--text-read);
+  line-height: var(--text-read--line-height);
+}
+
+.captain-card .captain-advisory {
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+  color: var(--muted);
+}
+
+.captain-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+/* Claims and citations: every claim points at its source. */
+.captain-claims {
+  display: grid;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.captain-card .captain-sources-title {
+  margin-top: 8px;
+}
+
+.captain-card .captain-cite,
+.captain-cite-num {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--text) 12%, transparent);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: 1;
+  font-weight: 400;
+}
+
+.captain-card .captain-cite {
+  position: relative;
+  vertical-align: 1px;
+}
+
+/* A 16px badge reads right in a line; the hit area stays comfortable. */
+.captain-cite::after {
+  content: "";
+  position: absolute;
+  inset: -8px -6px;
+}
+
+.captain-card .captain-sources {
+  display: grid;
+  margin: 0 -8px;
+}
+
+.captain-sources li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 8px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: var(--radius-control);
+  transition: background-color 150ms ease-out;
+}
+
+.captain-sources li[data-active] {
+  background: color-mix(in oklab, var(--text) 10%, transparent);
+}
+
+.captain-ids {
+  grid-column: 2;
+  color: var(--muted);
+}
+
+/* Decision */
+.captain-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.captain-card .captain-primary {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.captain-card .captain-ghost {
+  background: none;
+  color: var(--muted);
+}
+
+.captain-countdown {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.captain-dot {
+  color: var(--muted);
+}
+
+.captain-card .captain-undo {
+  flex-shrink: 0;
+  margin-left: -8px;
+  padding: 0 8px;
+  background: none;
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.captain-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.captain-failed {
+  display: grid;
+  gap: 4px;
+  color: var(--error);
+}
+
+.captain-answered {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+@media (pointer: coarse) {
+  .captain-card button:not(.captain-cite) {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .captain-sources li {
+    transition-duration: 0ms;
+  }
+}

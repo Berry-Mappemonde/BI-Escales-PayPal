@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
-from app.bi_marinas_catalog import build_escale_fiche
+from app.bi_marinas_catalog import build_escale_fiche, get_escale_marinas_geojson
 from app.bi_projects_catalog import get_bi_projects_geojson
 from app.escales.config import cors_origins
 
@@ -58,6 +58,15 @@ async def escale_fiche(name: str = ""):
         raise HTTPException(status_code=400, detail="name required")
     payload = await build_escale_fiche(stop_name)
     return JSONResponse(content=payload)
+
+
+@app.get("/api/escale-marinas.geojson", include_in_schema=False)
+async def escale_marinas_geojson(name: str = ""):
+    stop_name = (name or "").strip()
+    if not stop_name:
+        raise HTTPException(status_code=400, detail="name required")
+    payload = await get_escale_marinas_geojson(stop_name)
+    return JSONResponse(content=payload, media_type="application/geo+json")
 
 
 _escales_on = os.environ.get("ESCALES_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}

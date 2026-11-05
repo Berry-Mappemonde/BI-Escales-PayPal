@@ -44,6 +44,16 @@ export async function loadEscaleFiche(stop, lang) {
   return snapshot.escales?.[stop?.name] || { name: stop?.name, sections: {} };
 }
 
+export async function loadEscaleMarinasGeojson(stop) {
+  if (stop?.name) {
+    const query = new URLSearchParams({ name: stop.name });
+    const res = await fetch(`${escaleFicheUrl("/api/escale-marinas.geojson")}?${query}`);
+    if (res.ok) return res.json();
+  }
+  const fiche = await loadEscaleFiche(stop, "fr");
+  return marinasToFeatures(fiche);
+}
+
 export function ficheMarinas(fiche) {
   return marinasToFeatures(fiche);
 }

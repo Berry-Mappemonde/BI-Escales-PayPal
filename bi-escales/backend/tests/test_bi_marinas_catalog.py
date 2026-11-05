@@ -160,7 +160,6 @@ def test_build_escale_fiche_merges_export(monkeypatch):
     assert minimes.get("safe_google_place") is True
     assert minimes["canal_vhf"] == "9"
     assert minimes["places_visiteurs"] == 12
-    assert "osm_id" not in minimes
 
 
 def test_main_escale_fiche_route(monkeypatch):

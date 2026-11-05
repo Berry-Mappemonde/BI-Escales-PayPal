@@ -60,6 +60,8 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   const buttonsHost = useRef<HTMLDivElement | null>(null);
   const valuesRef = useRef(values);
   valuesRef.current = values;
+  // Bumped on every amount/target change; an order answered for an older revision is dropped.
+  const formRevisionRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +106,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   }, [appLang, sdkIntent, walletPayEnabled, featuresKnown]);
 
   useEffect(() => {
+    formRevisionRef.current += 1;
     setCreated(null);
     setStatus(null);
     setError(null);
@@ -133,6 +136,8 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   }, [created?.id, t]);
 
   const createOrder = async () => {
+    const revision = formRevisionRef.current;
+    const isStale = () => revision !== formRevisionRef.current;
     setBusy(true);
     setError(null);
     setStatus(t("pledge.creating"));
@@ -150,6 +155,8 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
         },
         crypto.randomUUID(),
       );
+      // The form changed while this order was being created: never show its old approve link.
+      if (isStale()) return;
       if (!pledge.approve_link) throw new Error("approve_link missing");
       activePledgeIdRef.current = pledge.id;
       setCreated(pledge);
@@ -161,11 +168,12 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
         setStatus(t("pledge.returnPending"));
       }
     } catch (e) {
+      if (isStale()) return;
       activePledgeIdRef.current = null;
       setCreated(null);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      if (!isStale()) setBusy(false);
     }
   };
 
@@ -182,6 +190,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
       {
         style: { layout: "vertical", label: isProjectPledge ? "donate" : "pay" },
         createOrder: async () => {
+          const revision = formRevisionRef.current;
           setError(null);
           setStatus(t("pledge.creating"));
           const v = valuesRef.current;
@@ -197,6 +206,10 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
             },
             crypto.randomUUID(),
           );
+          if (revision !== formRevisionRef.current) {
+            // Amount changed mid-request: refuse the old order so PayPal never approves it.
+            throw new Error("pledge form changed, order discarded");
+          }
           if (!pledge.order_id) throw new Error("order_id missing");
           pledgeId = pledge.id;
           activePledgeIdRef.current = pledge.id;

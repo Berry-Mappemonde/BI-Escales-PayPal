@@ -19,6 +19,8 @@ export interface PublicPledge {
   amount_eur: string;
   description: string;
   milestone_id: string;
+  kind?: string;
+  target_id?: string;
   contributor?: string | null;
   order_id?: string | null;
   approve_link?: string | null;

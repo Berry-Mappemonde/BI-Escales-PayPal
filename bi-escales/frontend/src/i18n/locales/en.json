@@ -243,6 +243,14 @@
     "humanValidation": "Human validation required — the captain never debits alone.",
     "applyCapture": "Capture (per proposal)",
     "applyVoid": "Void (per proposal)",
-    "noProposal": "No proposal stored for this milestone."
+    "noProposal": "No proposal stored for this milestone.",
+    "marinaHeading": "Marinas — bookings, fees, refunds",
+    "marinaEmpty": "No berth pledges on the server.",
+    "marinaStop": "Stopover / milestone",
+    "marinaBookings": "Bookings",
+    "marinaGross": "Gross EUR",
+    "marinaFees": "Platform fees (est.)",
+    "marinaRefunds": "Refunds",
+    "marinaDisputes": "Open disputes"
   }
 }

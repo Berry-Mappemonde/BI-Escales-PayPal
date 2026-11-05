@@ -310,6 +310,10 @@ async def _apply_event(event: dict) -> dict:
             pledge = await get_ledger().save_pledge(pledge)
     if event_type == "PAYMENT.AUTHORIZATION.VOIDED" and pledge:
         pledge["history"] = list(pledge.get("history") or []) + ["webhook_authorization_voided"]
+        if str(pledge.get("status") or "") in {"authorized", "created", "vaulted"}:
+            pledge["status"] = "voided"
+            if not str(pledge.get("voided_at") or "").strip():
+                pledge["voided_at"] = simulated_now().replace(microsecond=0).isoformat()
         pledge = await get_ledger().save_pledge(pledge)
     if event_type == "CHECKOUT.ORDER.APPROVED" and pledge:
         pledge["history"] = list(pledge.get("history") or []) + ["webhook_order_approved"]

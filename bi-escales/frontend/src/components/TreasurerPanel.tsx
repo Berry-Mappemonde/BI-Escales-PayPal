@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { FundView, PublicPledge } from "../api/types";
 import { MaskedSecretInput } from "./MaskedSecretInput";
 import { TreasurerPayPalPanel } from "./TreasurerPayPalPanel";
+import { TreasurerWebhookPanel } from "./TreasurerWebhookPanel";
 import { TreasurerQueue } from "./TreasurerQueue";
 
 function OpenFundTotals({
@@ -189,6 +190,7 @@ export function TreasurerPanel({
           {!demoMode ? (
             <>
           <TreasurerPayPalPanel adminKey={adminKey} />
+          <TreasurerWebhookPanel adminKey={adminKey} />
           <form className="stack-form" onSubmit={onSpendSubmit}>
             <h2>{t("fund.heading")}</h2>
             <label>

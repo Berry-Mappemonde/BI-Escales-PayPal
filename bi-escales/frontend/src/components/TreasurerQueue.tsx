@@ -4,6 +4,7 @@ import {
   approveCaptainReview,
   captainReview,
   capturePledge,
+  refundPledge,
   voidPledge,
 } from "../api/escales";
 import type { PublicPledge } from "../api/types";
@@ -78,7 +79,7 @@ export function TreasurerQueue({
     };
   }, [adminKey, demoTreasurer, milestoneKey, i18n.language]);
 
-  const runAction = async (pledgeId: string, action: "capture" | "void") => {
+  const runAction = async (pledgeId: string, action: "capture" | "void" | "refund") => {
     if (!demoTreasurer && !adminKey.trim()) {
       setActionError("Admin key required");
       return;
@@ -90,7 +91,9 @@ export function TreasurerQueue({
       const updated =
         action === "capture"
           ? await capturePledge(pledgeId, adminKey.trim(), access)
-          : await voidPledge(pledgeId, adminKey.trim(), access);
+          : action === "refund"
+            ? await refundPledge(pledgeId, adminKey.trim(), undefined, access)
+            : await voidPledge(pledgeId, adminKey.trim(), access);
       onUpdated(updated);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : String(e));
@@ -191,6 +194,16 @@ export function TreasurerQueue({
                   >
                     {t("treasurer.notSailingVoid")}
                   </button>
+                  {p.status === "captured" || p.status === "partially_refunded" ? (
+                    <button
+                      type="button"
+                      data-testid={`refund-${p.id}`}
+                      disabled={busyId === p.id}
+                      onClick={() => void runAction(p.id, "refund")}
+                    >
+                      {t("treasurer.refundPledge")}
+                    </button>
+                  ) : null}
                 </td>
               </tr>
             ))}

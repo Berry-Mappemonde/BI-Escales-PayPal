@@ -257,6 +257,40 @@ export async function voidPledge(
   return res.json();
 }
 
+export async function refundPledge(
+  pledgeId: string,
+  adminKey: string,
+  amountEur?: string,
+  access?: TreasurerAccessOptions,
+): Promise<PublicPledge> {
+  const body = amountEur?.trim() ? { amount_eur: amountEur.trim() } : {};
+  const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}/refund`), {
+    method: "POST",
+    headers: { ...treasurerAccessHeaders(adminKey, access), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export interface WebhookOutcomeRow {
+  transmission_id?: string;
+  event_type?: string | null;
+  resource_id?: string | null;
+  pledge_id?: string | null;
+  time?: string;
+  outcome?: string;
+}
+
+export async function fetchRecentWebhooks(adminKey: string): Promise<WebhookOutcomeRow[]> {
+  const res = await fetch(url("/api/escales/webhooks/recent"), {
+    headers: { "x-admin-key": adminKey.trim() },
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  const body = (await res.json()) as { events?: WebhookOutcomeRow[] };
+  return Array.isArray(body.events) ? body.events : [];
+}
+
 export async function approveCaptainReview(
   milestoneId: string,
   adminKey: string,

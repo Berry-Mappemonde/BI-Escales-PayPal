@@ -185,6 +185,7 @@
     "approveReview": "Approuver la revue",
     "capturePledge": "Capturer la promesse",
     "notSailingVoid": "On ne part pas (annuler)",
+    "refundPledge": "Rembourser (PayPal)",
     "verdict": "Verdict",
     "loadError": "La file n’a pas pu être actualisée. Les lignes déjà chargées sont conservées.",
     "status": "Statut",
@@ -215,6 +216,14 @@
       "setupDone": "Catalogue Équipage déjà configuré.",
       "setupCreated": "Produit et plan Équipage créés.",
       "reconcileLag": "Le rapprochement lie capture_id et transaction_id PayPal ; le sandbox accuse ~3 h de retard."
+    },
+    "webhooks": {
+      "heading": "Webhooks PayPal récents",
+      "empty": "Aucun webhook enregistré sur ce serveur.",
+      "time": "Heure",
+      "event": "Événement",
+      "outcome": "Résultat",
+      "pledge": "Promesse"
     }
   },
   "grid": {

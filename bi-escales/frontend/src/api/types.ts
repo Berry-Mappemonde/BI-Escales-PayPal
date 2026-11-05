@@ -202,7 +202,7 @@ export interface CaptainChatResponse {
   membership_url?: string;
   model_source?: { provider?: string; model?: string; reason?: string };
   model_label?: string;
-  paypal_tools?: { tools?: string[]; client?: string } | string[];
+  paypal_tools?: { tools?: string[]; called?: string[]; client?: string } | string[];
   suggested_pledge?: {
     amount_eur: string;
     currency: string;

@@ -16,7 +16,7 @@ from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
 from .config import AUTH_MAX_DAYS, membership_url, simulated_now
-from .app_i18n import default_app_language, normalize_app_lang, resolve_app_language
+from .app_i18n import default_app_language, forced_app_lang, normalize_app_lang, resolve_app_language
 from .departure_clock import CAPTURE_RULES_EN, CAPTURE_RULES_FR
 from .paypal_txn_search import default_transaction_search_window
 from .milestones import (
@@ -582,9 +582,14 @@ def resolve_chat_lang(
     requested: Optional[str] = None,
     accept_language: str = "",
 ) -> str:
-    """App language from the client overrides message text and Accept-Language."""
-    del message, accept_language  # kept for API compatibility
-    return resolve_app_language(requested)
+    """Explicit app ``lang`` wins; else infer from message text (``message_lang``)."""
+    if (requested or "").strip():
+        return resolve_app_language(requested)
+    text = message or ""
+    if text.strip():
+        return message_lang(text)
+    header = (accept_language or "").split(",")[0].split(";")[0].strip()
+    return forced_app_lang(header) or default_app_language()
 
 
 # A distorted spelling maps onto a slug from the display table.
@@ -1674,8 +1679,6 @@ def model_display_label(source: Any) -> str:
     model = str(source.get("model") or "").strip()
     if provider == "nim":
         return f"NVIDIA NIM — {model}" if model else "NVIDIA NIM"
-    if provider == "paypal_readonly_tools":
-        return ""
     if model:
         return model
     if provider == "rules":
@@ -1683,9 +1686,27 @@ def model_display_label(source: Any) -> str:
     return provider
 
 
+def _nim_model_source() -> dict[str, str]:
+    """Primary NIM id used for chat/review (same family as ``llm_proposal``)."""
+    try:
+        from app.core import llm
+
+        return {"provider": "nim", "model": llm.nim_model()}
+    except Exception:
+        return {"provider": "nim", "model": ""}
+
+
 def _paypal_tools_payload(reader: ReadOnlyTools) -> dict[str, Any]:
+    called: list[str] = []
+    seen: set[str] = set()
+    for entry in reader.call_log:
+        tool = str(entry.get("tool") or "").strip()
+        if tool and tool not in seen:
+            seen.add(tool)
+            called.append(tool)
     return {
         "tools": list(reader.allowed()),
+        "called": called,
         "client": "paypal-agent-toolkit" if reader.uses_toolkit else "direct",
     }
 
@@ -2980,7 +3001,7 @@ async def chat(
                 "suggested_pledge": None,
                 "cart": None,
                 "model_source": "paypal_readonly_tools",
-                "model_label": "",
+                "model_label": model_display_label(_nim_model_source()),
                 "fund": None,
                 "paypal_tools": _paypal_tools_payload(reader),
             }
@@ -2992,7 +3013,7 @@ async def chat(
                 "suggested_pledge": None,
                 "cart": None,
                 "model_source": "paypal_readonly_tools",
-                "model_label": "",
+                "model_label": model_display_label(_nim_model_source()),
                 "fund": None,
                 "paypal_tools": _paypal_tools_payload(reader),
             }

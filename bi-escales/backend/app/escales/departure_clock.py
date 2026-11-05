@@ -262,7 +262,7 @@ async def _settle_timed_pledge(
         from .milestones import captain_review_approved
 
         milestone_id = str(pledge.get("milestone_id") or doc.get("id") or doc.get("_id") or "")
-        if milestone_id and not await captain_review_approved(milestone_id):
+        if not await captain_review_approved(milestone_id, now=moment):
             actions.append({"pledge_id": pledge_id, "action": "await_review_approval"})
             return
         saved = await capture_pledge(pledge_id, client, effective_at=moment)

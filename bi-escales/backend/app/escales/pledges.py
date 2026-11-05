@@ -403,16 +403,17 @@ async def ensure_finance_milestone(pledge: dict, milestone_id: str) -> None:
         await get_ledger().ensure_milestone(milestone_id, meta=leg_milestone_meta(leg))
 
 
-async def record_pledge_captured_once(pledge: dict, *, actor: str) -> bool:
-    """One ``pledge_captured`` line per pledge. A webhook and a direct capture share it."""
+async def record_pledge_captured_once(pledge: dict, *, actor: str) -> dict:
+    """One ``pledge_captured`` line per pledge. Berth captures may add simulated platform fee."""
     from .ledger import list_finance_entries, record_finance
+    from .platform_fee_simulation import apply_simulated_berth_platform_fee
 
     pledge_id = str(pledge.get("_id") or "")
     if not pledge_id:
-        return False
+        return pledge
     for entry in await list_finance_entries():
         if entry.get("kind") == "pledge_captured" and entry.get("pledge_id") == pledge_id:
-            return False
+            return pledge
     milestone_id = finance_milestone_id(pledge)
     await ensure_finance_milestone(pledge, milestone_id)
     at = str(pledge.get("captured_at") or "").strip() or now_iso()
@@ -428,7 +429,10 @@ async def record_pledge_captured_once(pledge: dict, *, actor: str) -> bool:
         capture_id=pledge.get("capture_id"),
         **_identity(pledge),
     )
-    return True
+    pledge = await apply_simulated_berth_platform_fee(pledge, actor=actor)
+    if pledge.get("platform_fee_simulated"):
+        pledge = await get_ledger().save_pledge(pledge)
+    return pledge
 
 
 def _require_text(value: str, field: str) -> str:
@@ -929,24 +933,19 @@ async def _create_authorize_pledge(
         order = _create_authorize_vault_order(client, **order_kwargs)
     else:
         from .config import (
-            marina_seller_merchant_id,
+            paypal_berth_platform_fees_on_order,
             platform_fee_eur,
-            platform_fees_enabled,
             platform_payee_merchant_id,
+            marina_seller_merchant_id,
         )
 
-        if kind == "berth" and platform_fees_enabled():
-            seller = marina_seller_merchant_id(target_id)
-            platform_id = platform_payee_merchant_id()
-            if seller and platform_id:
-                order = client.create_authorize_order(
-                    **order_kwargs,
-                    payee_merchant_id=seller,
-                    platform_fee_eur=platform_fee_eur(),
-                    platform_merchant_id=platform_id,
-                )
-            else:
-                order = _create_authorize_order(client, **order_kwargs)
+        if kind == "berth" and paypal_berth_platform_fees_on_order(target_id):
+            order = client.create_authorize_order(
+                **order_kwargs,
+                payee_merchant_id=marina_seller_merchant_id(target_id),
+                platform_fee_eur=platform_fee_eur(),
+                platform_merchant_id=platform_payee_merchant_id(),
+            )
         else:
             order = _create_authorize_order(client, **order_kwargs)
     order_id = order.get("id")
@@ -1343,8 +1342,7 @@ async def _finish_capture(
         pledge["history"] = list(pledge.get("history") or []) + ["captured"]
         saved = await get_ledger().save_pledge(pledge)
         await record("capture", status="captured", **audit_fields)
-        await record_pledge_captured_once(saved, actor="treasurer")
-        return saved
+        return await record_pledge_captured_once(saved, actor="treasurer")
     if status == "PENDING":
         pledge["status"] = "pending"
         pledge["history"] = list(pledge.get("history") or []) + ["pending"]

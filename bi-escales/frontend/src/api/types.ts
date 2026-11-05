@@ -21,6 +21,9 @@ export interface PublicPledge {
   milestone_id: string;
   kind?: string;
   target_id?: string;
+  platform_fee_eur?: string | null;
+  marina_net_eur?: string | null;
+  platform_fee_simulated?: boolean;
   contributor?: string | null;
   order_id?: string | null;
   approve_link?: string | null;

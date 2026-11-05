@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from starlette.responses import Response
 
 from app.core import llm
-from app.gear_projects_catalog import funded_percent, lookup_project_fund_meta
+from app.gear_projects_catalog import funded_percent, get_gear_feature_collection, lookup_project_fund_meta
 from app.escales.captain import chat as captain_chat
 from app.escales.captain import review as captain_review
 from app.escales.captain import simulated_price_label, simulated_prices, simulated_unit
@@ -979,6 +979,12 @@ async def post_subscription_approve(body: SubscriptionApproveIn):
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc) from exc
+
+
+@router.get("/gear")
+async def get_public_gear_list():
+    """Expedition Gear projects (sandbox seed + optional Channel3 search when enabled)."""
+    return await get_gear_feature_collection()
 
 
 @router.get("/projects/{project_id}/fund")

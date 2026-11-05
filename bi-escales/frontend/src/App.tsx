@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatSettleCaptureNote } from "./api/settleCaptureNote";
-import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchHealthRetrying, fetchPublicCommonFund, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchGearProjects, fetchHealthRetrying, fetchPublicCommonFund, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { emitCrewSubscribeReturn } from "./paypal/crewSubscribeReturnEvents";
 import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
 import { nextStopover } from "./voyage/nextStopover.js";
@@ -134,7 +134,33 @@ export default function App() {
         if (!cancelled) setHealthOk((current) => (current === true ? true : false));
       });
     void fetchJson("/route.geojson").then(setRouteFc).catch(() => setRouteFc(null));
-    void fetchJson("/bi-projects.geojson").then(setProjects).catch(() => setProjects({ features: [] }));
+    void fetchJson("/bi-projects.geojson")
+      .then((base) => {
+        if (cancelled) return;
+        void fetchGearProjects().then((gear) => {
+          if (cancelled) return;
+          const baseFeatures = Array.isArray((base as { features?: unknown[] })?.features)
+            ? (base as { features: unknown[] }).features
+            : [];
+          const gearFeatures = Array.isArray(gear?.features) ? gear.features : [];
+          const seen = new Set(
+            gearFeatures
+              .map((row) => String((row as { properties?: { id?: string } })?.properties?.id || ""))
+              .filter(Boolean),
+          );
+          const merged = [
+            ...gearFeatures,
+            ...baseFeatures.filter((row) => {
+              const id = String((row as { properties?: { id?: string } })?.properties?.id || "");
+              return !id || !seen.has(id);
+            }),
+          ];
+          setProjects({ ...(base as object), features: merged });
+        }).catch(() => {
+          if (!cancelled) setProjects(base as { features?: unknown[] });
+        });
+      })
+      .catch(() => setProjects({ features: [] }));
     void fetchFeatures()
       .then((flags) => {
         if (cancelled) return;

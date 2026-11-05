@@ -330,6 +330,28 @@ export async function fetchFund(milestoneId: string, adminKey?: string): Promise
   return res.json();
 }
 
+/** Public GET /gear — expedition Gear features (seed + optional Channel3). */
+export interface GearFeatureCollection {
+  type: "FeatureCollection";
+  name?: string;
+  source?: string;
+  features: Array<{
+    type: "Feature";
+    geometry?: { type: string; coordinates?: number[] };
+    properties?: Record<string, unknown>;
+  }>;
+}
+
+export async function fetchGearProjects(): Promise<GearFeatureCollection | null> {
+  try {
+    const res = await fetch(url("/api/escales/gear"));
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 /** Public project crowdfunding totals (pattern: ``fetchFund`` without admin key). */
 export async function fetchPublicProjectFund(projectId: string): Promise<PublicProjectDonationTotal | null> {
   const id = String(projectId || "").trim();

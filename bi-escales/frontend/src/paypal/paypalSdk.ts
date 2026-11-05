@@ -106,7 +106,16 @@ function clearPayPalSdk(): void {
   loadedLocale = null;
   loadedSrc = null;
   delete window.paypal;
-  for (const node of document.querySelectorAll("script[data-paypal-sdk-src]")) {
+  // Tear down the primary SDK tag and PayPal's follow-on paypalobjects scripts/iframes.
+  // Leaving those behind is why a second inject after EN→FR never exposes Buttons again.
+  for (const node of document.querySelectorAll(
+    "script[data-paypal-sdk-src], script[src*='paypal.com/sdk'], script[src*='paypalobjects.com']",
+  )) {
+    node.remove();
+  }
+  for (const node of document.querySelectorAll(
+    "iframe[src*='paypal.com'], iframe[src*='paypalobjects.com'], iframe[name*='paypal' i]",
+  )) {
     node.remove();
   }
 }
@@ -171,7 +180,18 @@ export function loadPayPalSubscriptionSdk(clientId: string, appLang?: string): P
   if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
   const locale = paypalLocale(appLang);
   const src = paypalSubscriptionSdkUrl(trimmed, appLang);
-  // Always tear down when locale/src changes so subscription Buttons can remount (EN→FR).
+  // PayPal's browser SDK does not reliably re-initialize after script removal.
+  // If subscription Buttons are already live, keep them and let the React host remount
+  // (UI language can change without swapping the SDK locale — fixes EN→FR vanish).
+  if (
+    window.paypal?.Buttons &&
+    loadedSrc &&
+    loadedSrc.includes("intent=subscription") &&
+    loadedSrc.includes(`client-id=${trimmed}`)
+  ) {
+    loadedLocale = locale;
+    return Promise.resolve();
+  }
   if ((loadedLocale && loadedLocale !== locale) || (loadedSrc && loadedSrc !== src)) {
     clearPayPalSdk();
   }
@@ -184,7 +204,21 @@ export function loadPayPalSubscriptionSdk(clientId: string, appLang?: string): P
   }
   loadedLocale = locale;
   loadedSrc = src;
-  return loadScript(src).then(() => waitForPayPalButtons());
+  return loadScript(src)
+    .then(() => waitForPayPalButtons())
+    .catch(async (err) => {
+      // One hard retry with a cache-busted URL after a deeper clear.
+      clearPayPalSdk();
+      loadedLocale = locale;
+      const bust = `${src}&_=${Date.now()}`;
+      loadedSrc = bust;
+      await loadScript(bust);
+      try {
+        await waitForPayPalButtons();
+      } catch {
+        throw err instanceof Error ? err : new Error(String(err));
+      }
+    });
 }
 
 function findPayPalScript(src: string): HTMLScriptElement | null {

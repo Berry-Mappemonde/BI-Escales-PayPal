@@ -70,6 +70,24 @@ describe("loadPayPalSubscriptionSdk", () => {
   it("uses locale in subscription SDK URL", () => {
     expect(paypalSubscriptionSdkUrl("cid", "en")).toContain("locale=en_US");
   });
+
+  it("keeps live subscription Buttons across locale change instead of clearing", async () => {
+    const enSrc = paypalSubscriptionSdkUrl("client-sub", "en");
+    const script = document.createElement("script");
+    script.src = enSrc;
+    script.dataset.paypalSdkSrc = enSrc;
+    script.dataset.loaded = "1";
+    document.body.appendChild(script);
+    const buttons = vi.fn();
+    window.paypal = { Buttons: buttons };
+    // Prime cache via first load
+    await expect(loadPayPalSubscriptionSdk("client-sub", "en")).resolves.toBeUndefined();
+    await expect(loadPayPalSubscriptionSdk("client-sub", "fr")).resolves.toBeUndefined();
+    expect(window.paypal?.Buttons).toBe(buttons);
+    expect(document.querySelectorAll("script[data-paypal-sdk-src]").length).toBe(1);
+    script.remove();
+    delete window.paypal;
+  });
 });
 
 describe("loadPayPalSdk locale cache", () => {

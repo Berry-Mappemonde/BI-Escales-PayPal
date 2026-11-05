@@ -6,7 +6,9 @@ export type PledgeStatus =
   | "captured"
   | "settled"
   | "failed"
-  | "voided";
+  | "voided"
+  | "partially_refunded"
+  | "refunded";
 
 export interface PublicPledge {
   id: string;

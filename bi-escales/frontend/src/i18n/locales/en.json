@@ -185,6 +185,7 @@
     "approveReview": "Approve the review",
     "capturePledge": "Capture pledge",
     "notSailingVoid": "We are not sailing (void)",
+    "refundPledge": "Refund (PayPal)",
     "verdict": "Verdict",
     "loadError": "The queue could not be refreshed. Rows already loaded were kept.",
     "status": "Status",
@@ -215,6 +216,14 @@
       "setupDone": "Crew supporter catalog already configured.",
       "setupCreated": "Crew supporter product and plan created.",
       "reconcileLag": "Reconcile matches capture_id to PayPal transaction_id; sandbox reporting can lag about 3 hours."
+    },
+    "webhooks": {
+      "heading": "Recent PayPal webhooks",
+      "empty": "No webhooks recorded on this server.",
+      "time": "Time",
+      "event": "Event",
+      "outcome": "Outcome",
+      "pledge": "Pledge"
     }
   },
   "grid": {

@@ -204,6 +204,26 @@ def wallet_pay_enabled() -> bool:
     return os.environ.get("ESCALES_WALLET_PAY_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def platform_fees_enabled() -> bool:
+    """Multiparty marina platform fees (berth only). Off until Platform partner-referrals ACTIVE."""
+    return os.environ.get("ESCALES_PLATFORM_FEES_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def platform_fee_eur() -> str:
+    raw = (os.environ.get("ESCALES_PLATFORM_FEE_EUR") or "3.00").strip().replace(",", ".")
+    return raw or "3.00"
+
+
+def platform_payee_merchant_id() -> str:
+    """PayPal merchant id receiving the platform fee (marina multiparty)."""
+    return (os.environ.get("ESCALES_PLATFORM_PAYEE_MERCHANT_ID") or "").strip()
+
+
+def marina_seller_merchant_id(_target_id: str = "") -> str:
+    """Marina seller merchant id (from partner-referrals onboarding)."""
+    return (os.environ.get("ESCALES_MARINA_SELLER_MERCHANT_ID") or "").strip()
+
+
 def apple_pay_domain_association_file() -> str:
     """Optional override path to the Apple Pay domain association file."""
     return (os.environ.get("ESCALES_APPLE_PAY_DOMAIN_ASSOCIATION_FILE") or "").strip()

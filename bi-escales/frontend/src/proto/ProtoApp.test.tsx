@@ -1,6 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pledgeStates } from "./mock";
+import protoCss from "./proto.css?raw";
+import statusChipSource from "./StatusChip.tsx?raw";
 import { ProtoApp } from "./ProtoApp";
 import { en, fr } from "./strings";
 
@@ -28,6 +30,7 @@ describe("proto preview", () => {
     expect(document.querySelector('script[src*="paypal"]')).toBeNull();
     expect("paypal" in window).toBe(false);
     cleanup();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -113,20 +116,82 @@ describe("proto preview", () => {
     expect(screen.queryByRole("button", { name: /encaiss/i })).toBeNull();
   });
 
-  it("can back out of Override, and Undo reverses a release", () => {
+  it("can back out of Override before starting a release", () => {
     open("screen=captain&lang=en");
     fireEvent.click(screen.getByRole("button", { name: "Override" }));
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("button", { name: "Approve" })).toHaveFocus();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "Override" }));
-    fireEvent.click(screen.getByRole("button", { name: "Release the hold" }));
-    expect(screen.getByRole("status")).toHaveTextContent("release the hold");
-    expect(screen.getByRole("button", { name: "Undo" })).toHaveFocus();
+  describe("release undo window", () => {
+    const wait = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
 
-    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
-    expect(screen.getByRole("button", { name: "Approve" })).toHaveFocus();
-    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    function startRelease() {
+      vi.useFakeTimers();
+      open("screen=captain&lang=en");
+      fireEvent.click(screen.getByRole("button", { name: "Override" }));
+      fireEvent.click(screen.getByRole("button", { name: "Release the hold" }));
+    }
+
+    it("counts down from 5 s with Undo available", () => {
+      startRelease();
+      expect(screen.getByText("Releasing the hold in 5 s")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Undo" })).toHaveFocus();
+      wait(1000);
+      expect(screen.getByText("Releasing the hold in 4 s")).toBeInTheDocument();
+      wait(3000);
+      expect(screen.getByText("Releasing the hold in 1 s")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
+    });
+
+    it("announces once rather than every second", () => {
+      startRelease();
+      const announced = screen.getByRole("status").textContent;
+      expect(announced).toContain("5 seconds");
+      wait(2000);
+      expect(screen.getByRole("status").textContent).toBe(announced);
+    });
+
+    it("is final after 5 s: Undo goes and no decision can be made", () => {
+      startRelease();
+      wait(5000);
+      expect(screen.getByRole("status")).toHaveTextContent("Hold released. This is final.");
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Override" })).toBeNull();
+      expect(screen.getByRole("status").closest("section")).toHaveFocus();
+    });
+
+    it("undo cancels the release for good", () => {
+      startRelease();
+      wait(3000);
+      fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+      wait(10000);
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+      expect(screen.getByRole("button", { name: "Approve" })).toHaveFocus();
+    });
+
+    it("keeps counting on another tab and stays final on return", () => {
+      startRelease();
+      fireEvent.click(screen.getByRole("tab", { name: "Stop" }));
+      wait(5000);
+      fireEvent.click(screen.getByRole("tab", { name: "Captain" }));
+      expect(screen.getByRole("status")).toHaveTextContent("This is final.");
+      expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    });
+  });
+
+  it("keeps amber for money held: En route has its own colour and glyph", () => {
+    open("screen=stop&lang=en");
+    const chip = screen.getByText("En route");
+    expect(chip.style.getPropertyValue("--st")).toBe("var(--color-st-route)");
+
+    const held = screen.getByTestId("pledge-held");
+    expect(held.querySelector("[style]")?.getAttribute("style")).toContain("--color-st-progress");
+    expect(chip.querySelector("svg")?.innerHTML).not.toBe(held.querySelector("svg")?.innerHTML);
+
+    expect(statusChipSource.match(/--color-st-progress/g)).toHaveLength(1);
+    expect(protoCss).not.toContain("--color-st-progress");
   });
 
   it("gives every pledge state its own glyph and a label", () => {

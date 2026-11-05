@@ -59,7 +59,9 @@ export const en = {
     cancel: "Cancel",
     undo: "Undo",
     resultApproved: "Approved. Waiting until arrival is logged. No money moved.",
-    resultRelease: "Overridden: release the hold. Preview only, no PayPal call was made.",
+    releasing: "Releasing the hold in {{seconds}} s",
+    releasingAnnounce: "Releasing the hold in {{seconds}} seconds. You can undo until then.",
+    resultRelease: "Hold released. This is final. Preview only, no PayPal call was made.",
   },
   pledges: {
     title: "Pledge status",
@@ -138,7 +140,9 @@ export const fr: Strings = {
     cancel: "Annuler",
     undo: "Annuler",
     resultApproved: "Approuvé. Attente jusqu’à l’arrivée consignée. Aucun mouvement d’argent.",
-    resultRelease: "Proposition remplacée : libérer la retenue. Aperçu seulement, aucun appel PayPal.",
+    releasing: "Retenue libérée dans {{seconds}} s",
+    releasingAnnounce: "Libération de la retenue dans {{seconds}} secondes. Vous pouvez annuler d’ici là.",
+    resultRelease: "Retenue libérée. C’est définitif. Aperçu seulement, aucun appel PayPal.",
   },
   pledges: {
     title: "États des promesses",

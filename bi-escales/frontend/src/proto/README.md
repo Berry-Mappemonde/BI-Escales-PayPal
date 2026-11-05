@@ -17,6 +17,8 @@ This page is its own Vite HTML entry, so `main.tsx`, `index.html` and the config
 - `tokens.css` is the Team_ops `@theme` block as plain custom properties, because this frontend has no Tailwind.
 - Strings live in `strings.ts` on a private i18next instance. The app's locale files and language are untouched.
 - The display labels map to `PledgeStatus` in `src/api/types.ts`: held = `authorized`, saved = `vaulted`, released = `voided`. Captured and refunded keep their names.
-- Refunded has a new glyph, drawn on Meridian's 14px grid. The other glyphs are Meridian's.
+- En route and Refunded have new glyphs, drawn on Meridian's 14px grid. The other glyphs are Meridian's.
+- Amber means money held and nothing else. En route uses `--color-st-route`, the one colour added to Meridian, defined in `proto.css` so `tokens.css` stays an exact copy.
 - Approve, Override and Back this leg only change local state.
 - Override can only release the hold. Capture needs arrival evidence, so the Captain card never offers it.
+- A release can be undone for 5 seconds. After that it is final, and only a page reload clears it, because nothing is stored.

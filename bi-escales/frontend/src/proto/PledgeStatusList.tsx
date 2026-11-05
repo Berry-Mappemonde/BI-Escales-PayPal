@@ -2,11 +2,11 @@ import { useTranslation } from "react-i18next";
 import { pledgeStates } from "./mock";
 import { StatusChip } from "./StatusChip";
 
-export function PledgeStatusList() {
+export function PledgeStatusList({ hidden }: { hidden: boolean }) {
   const { t } = useTranslation();
 
   return (
-    <article className="proto-card proto-pledges" aria-labelledby="proto-pledges-title">
+    <article className="proto-card proto-pledges" aria-labelledby="proto-pledges-title" hidden={hidden}>
       <header className="proto-card-head">
         <h1 id="proto-pledges-title" className="proto-card-title">
           {t("pledges.title")}

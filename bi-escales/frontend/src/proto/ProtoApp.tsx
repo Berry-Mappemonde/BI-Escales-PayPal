@@ -96,9 +96,10 @@ function Preview({ initialScreen }: { initialScreen: Screen }) {
         </div>
       </header>
       <main id="proto-screen" className="proto-main" role="tabpanel" aria-labelledby={`proto-tab-${screen}`}>
-        {screen === "stop" ? <StopPanel lang={lang} /> : null}
-        {screen === "captain" ? <CaptainReviewCard lang={lang} /> : null}
-        {screen === "pledges" ? <PledgeStatusList /> : null}
+        {/* All stay mounted: a release keeps counting on another tab and stays final on return. */}
+        <StopPanel lang={lang} hidden={screen !== "stop"} />
+        <CaptainReviewCard lang={lang} hidden={screen !== "captain"} />
+        <PledgeStatusList hidden={screen !== "pledges"} />
       </main>
     </div>
   );

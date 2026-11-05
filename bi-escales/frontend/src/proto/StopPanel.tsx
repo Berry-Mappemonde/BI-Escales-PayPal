@@ -5,14 +5,14 @@ import { stop } from "./mock";
 import { StatusChip, StatusGlyph } from "./StatusChip";
 import { useFocusFirstButton } from "./useFocusFirstButton";
 
-export function StopPanel({ lang }: { lang: Lang }) {
+export function StopPanel({ lang, hidden }: { lang: Lang; hidden: boolean }) {
   const { t } = useTranslation();
   const [backed, setBacked] = useState(false);
   const nextStepRef = useFocusFirstButton<HTMLElement>(backed);
   const eta = formatDay(stop.arrivalEta, lang);
 
   return (
-    <article className="proto-card proto-stop" aria-labelledby="proto-stop-title">
+    <article className="proto-card proto-stop" aria-labelledby="proto-stop-title" hidden={hidden}>
       <header className="proto-card-head">
         <div className="proto-title-row">
           <h1 id="proto-stop-title" className="proto-heading">

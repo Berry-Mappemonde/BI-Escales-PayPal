@@ -12,17 +12,35 @@ const CUT = {
   strokeLinejoin: "round",
 } as const;
 
-const half = (
-  <>
-    <circle {...RING} />
-    <path d="M7 3.75a3.25 3.25 0 0 1 0 6.5z" fill="currentColor" />
-  </>
-);
-
-/** Meridian's glyphs on their 14px grid. Refunded is new: a return arrow, drawn to match. */
+/**
+ * Meridian's glyphs on their 14px grid. En route (forward arrow) and Refunded
+ * (return arrow) are new, drawn to match. Amber means money held, and nothing else.
+ */
 const STATUS: Record<ChipStatus, { color: string; glyph: ReactNode }> = {
-  en_route: { color: "var(--color-st-progress)", glyph: half },
-  held: { color: "var(--color-st-progress)", glyph: half },
+  en_route: {
+    color: "var(--color-st-route)",
+    glyph: (
+      <>
+        <circle {...RING} />
+        <path
+          d="M4.6 7h4.6M7.4 5.2 9.2 7 7.4 8.8"
+          stroke="currentColor"
+          strokeWidth="1.25"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </>
+    ),
+  },
+  held: {
+    color: "var(--color-st-progress)",
+    glyph: (
+      <>
+        <circle {...RING} />
+        <path d="M7 3.75a3.25 3.25 0 0 1 0 6.5z" fill="currentColor" />
+      </>
+    ),
+  },
   saved: {
     color: "var(--color-st-triage)",
     glyph: <circle {...RING} strokeDasharray="2.1 1.9" />,

@@ -1,23 +1,44 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatDay, type Lang } from "./format";
 import { review, stop } from "./mock";
 import { useFocusFirstButton } from "./useFocusFirstButton";
 
 /** Override can only release the hold. Capture needs arrival evidence, so it is never offered here. */
-type Decision = "pending" | "overriding" | "approved" | "released";
+type Decision = "pending" | "overriding" | "approved" | "releasing" | "released";
+
+/** How long a release can still be undone. Once it ends, the void counts as sent and is final. */
+const UNDO_WINDOW_SECONDS = 5;
 
 const RESULT_KEY: Partial<Record<Decision, string>> = {
   approved: "captain.resultApproved",
   released: "captain.resultRelease",
 };
 
-export function CaptainReviewCard({ lang }: { lang: Lang }) {
+export function CaptainReviewCard({ lang, hidden }: { lang: Lang; hidden: boolean }) {
   const { t } = useTranslation();
   const [decision, setDecision] = useState<Decision>("pending");
+  const [secondsLeft, setSecondsLeft] = useState(UNDO_WINDOW_SECONDS);
   const [activeCite, setActiveCite] = useState<number | null>(null);
   const sourceRefs = useRef(new Map<number, HTMLLIElement>());
   const decisionRef = useFocusFirstButton<HTMLElement>(decision);
+
+  // Timed against a deadline, so a throttled background tab still ends on time.
+  useEffect(() => {
+    if (decision !== "releasing") return;
+    const deadline = Date.now() + UNDO_WINDOW_SECONDS * 1000;
+    const timer = setInterval(() => {
+      const left = Math.ceil((deadline - Date.now()) / 1000);
+      if (left > 0) setSecondsLeft(left);
+      else setDecision("released");
+    }, 200);
+    return () => clearInterval(timer);
+  }, [decision]);
+
+  function startRelease() {
+    setSecondsLeft(UNDO_WINDOW_SECONDS);
+    setDecision("releasing");
+  }
 
   const eta = formatDay(stop.arrivalEta, lang);
   const validTo = formatDay(review.authorizationValidTo, lang);
@@ -64,7 +85,7 @@ export function CaptainReviewCard({ lang }: { lang: Lang }) {
     });
 
   return (
-    <article className="proto-card proto-captain" aria-labelledby="proto-captain-title">
+    <article className="proto-card proto-captain" aria-labelledby="proto-captain-title" hidden={hidden}>
       <header className="proto-card-head">
         <h1 id="proto-captain-title" className="proto-card-title">
           {t("captain.title")}
@@ -111,7 +132,7 @@ export function CaptainReviewCard({ lang }: { lang: Lang }) {
         </ol>
       </section>
 
-      <section ref={decisionRef} className="proto-section proto-decision" aria-label={t("captain.title")}>
+      <section ref={decisionRef} className="proto-section proto-decision" aria-label={t("captain.title")} tabIndex={-1}>
         {decision === "pending" ? (
           <div className="proto-actions">
             <button type="button" className="proto-btn" data-variant="primary" onClick={() => setDecision("approved")}>
@@ -127,7 +148,7 @@ export function CaptainReviewCard({ lang }: { lang: Lang }) {
           <>
             <p className="proto-ui">{t("captain.overrideRule")}</p>
             <div className="proto-actions">
-              <button type="button" className="proto-btn" onClick={() => setDecision("released")}>
+              <button type="button" className="proto-btn" onClick={startRelease}>
                 {t("captain.releaseHold")}
               </button>
               <button type="button" className="proto-btn" data-variant="ghost" onClick={() => setDecision("pending")}>
@@ -137,19 +158,38 @@ export function CaptainReviewCard({ lang }: { lang: Lang }) {
           </>
         ) : null}
 
-        <p className="proto-ui" role="status">
-          {resultKey ? t(resultKey) : ""}
+        {decision === "releasing" ? (
+          <div className="proto-countdown">
+            {/* Hidden from screen readers so they hear one announcement, not one per second. */}
+            <span aria-hidden="true">{t("captain.releasing", { seconds: secondsLeft })}</span>
+            <span aria-hidden="true" className="proto-countdown-dot">
+              ·
+            </span>
+            <button type="button" className="proto-btn" data-variant="ghost" onClick={() => setDecision("pending")}>
+              {t("captain.undo")}
+            </button>
+          </div>
+        ) : null}
+
+        <p className={decision === "releasing" ? "proto-sr-only" : "proto-ui"} role="status">
+          {decision === "releasing"
+            ? t("captain.releasingAnnounce", { seconds: UNDO_WINDOW_SECONDS })
+            : resultKey
+              ? t(resultKey)
+              : ""}
         </p>
 
-        {resultKey ? (
+        {decision === "approved" ? (
           <div className="proto-actions">
             <button type="button" className="proto-btn" data-variant="ghost" onClick={() => setDecision("pending")}>
               {t("captain.undo")}
             </button>
           </div>
-        ) : (
+        ) : null}
+
+        {decision === "pending" || decision === "overriding" ? (
           <p className="proto-meta">{t("captain.humanRule")}</p>
-        )}
+        ) : null}
       </section>
     </article>
   );

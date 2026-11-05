@@ -2,6 +2,9 @@
 .proto {
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
+  /* The one colour added to Meridian: every status hue there already has a meaning here. */
+  --color-st-route: #3fb3c4;
+
   min-height: 100dvh;
   box-sizing: border-box;
   color-scheme: dark;
@@ -389,6 +392,36 @@
     background: var(--color-line-strong);
     color: var(--color-fg);
   }
+}
+
+/* Undo window for a release */
+.proto-countdown {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.proto-countdown-dot {
+  color: var(--color-fg-3);
+}
+
+.proto-countdown .proto-btn {
+  flex-shrink: 0;
+  margin-left: -8px;
+  padding: 0 8px;
+  color: var(--color-fg);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.proto-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* Citations: the trust layer. Every claim in the proposal points at a source row. */

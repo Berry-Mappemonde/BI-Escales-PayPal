@@ -10,6 +10,7 @@ import { HELLOASSO_MEMBERSHIP_URL } from "../config/helloasso.js";
 import { PledgeButton } from "./PledgeButton";
 import { formatStopoverDate, portHoldHours } from "../voyage/voyageClock.js";
 import { formatLogbookEntry } from "../voyage/journalDisplay.js";
+import { evaluateGooglePlaceLink, googleMapsSearchUrl } from "../marinas/marinaPlaceLink.js";
 
 const STOP_KINDS = ["mile", "night", "meal", "care", "common_fund"];
 const FIXED_AMOUNT = { night: "60.00", meal: "60.00", care: "40.00" };
@@ -27,17 +28,9 @@ const SECTION_KEYS = [
   "projects",
 ];
 
-function googleMapsUrl(lat, lon) {
-  const la = Number(lat);
-  const lo = Number(lon);
-  if (!Number.isFinite(la) || !Number.isFinite(lo)) return null;
-  return `https://www.google.com/maps/search/?api=1&query=${la.toFixed(5)}%2C${lo.toFixed(5)}`;
-}
-
 function marinaMapsUrl(item) {
-  const direct = item.maps_url || item.maps_place_url;
-  if (direct) return String(direct);
-  return googleMapsUrl(item.lat, item.lon);
+  const ev = evaluateGooglePlaceLink(item);
+  return ev.mapsLink || googleMapsSearchUrl(item.lat, item.lon);
 }
 
 function marinaFactLines(item, t) {

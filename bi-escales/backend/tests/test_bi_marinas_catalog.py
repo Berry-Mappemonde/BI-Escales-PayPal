@@ -40,10 +40,11 @@ def _export_feature(osm_id: str, **extra: object) -> dict:
 
 def test_merge_prefers_base_url_then_enrichment():
     base = {"name": "Minimes", "lat": 1.0, "lon": 2.0, "nm": 0.4, "url": "https://keep.me"}
+    safe_place = "https://www.google.com/maps/place/Port+Minimes/@1.0001,2.0001,17z"
     enrich = enrichment_from_props(
         {
             "website": "https://other.example",
-            "maps_place_url": "https://maps.example/place",
+            "maps_place_url": safe_place,
             "telephone_capitainerie": "+33 1 23 45 67 89",
             "canal_vhf": "9",
             "services_disponibles": ["eau", "électricité"],
@@ -51,7 +52,8 @@ def test_merge_prefers_base_url_then_enrichment():
     )
     row = merge_marina_row(base, enrich)
     assert row["url"] == "https://keep.me"
-    assert row["maps_url"] == "https://maps.example/place"
+    assert row["maps_url"] == safe_place
+    assert row.get("safe_google_place") is True
     assert row["phone"] == "+33 1 23 45 67 89"
     assert row["canal_vhf"] == "9"
     assert row["services"] == ["eau", "électricité"]
@@ -139,7 +141,9 @@ def test_build_escale_fiche_merges_export(monkeypatch):
             "way/741789648": enrichment_from_props(
                 {
                     "website": "https://merged.example",
-                    "maps_place_url": "https://maps.example/merged",
+                    "maps_place_url": (
+                        "https://www.google.com/maps/place/Port+des+Minimes/@46.1468,-1.1661,17z"
+                    ),
                     "canal_vhf": "9",
                     "places_visiteurs": 12,
                 }
@@ -152,7 +156,8 @@ def test_build_escale_fiche_merges_export(monkeypatch):
         m for m in body["sections"]["mooring"]["marinas"] if m["name"] == "Port des Minimes"
     )
     assert minimes["url"] == "https://portlarochelle.com"
-    assert minimes["maps_url"] == "https://maps.example/merged"
+    assert "google.com/maps/place/Port+des+Minimes" in minimes["maps_url"]
+    assert minimes.get("safe_google_place") is True
     assert minimes["canal_vhf"] == "9"
     assert minimes["places_visiteurs"] == 12
     assert "osm_id" not in minimes

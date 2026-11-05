@@ -347,6 +347,51 @@ button:disabled {
   padding: 0.45rem 0;
 }
 
+.marina-row--verified strong {
+  color: #00c8ff;
+}
+
+.marinas-legend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.marinas-legend-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+}
+
+.marinas-legend-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.marinas-legend-swatch--verified {
+  background: #00c8ff;
+}
+
+.marinas-legend-swatch--default {
+  background: #ff4a4a;
+}
+
+.marina-map-popup-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.marina-map-verified {
+  color: #00c8ff;
+}
+
 .escale-kicker {
   font-size: 0.75rem;
   letter-spacing: 0.04em;

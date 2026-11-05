@@ -57,3 +57,25 @@ export async function loadEscaleMarinasGeojson(stop) {
 export function ficheMarinas(fiche) {
   return marinasToFeatures(fiche);
 }
+
+export async function loadAllEscalesMarinasGeojson() {
+  const res = await fetch(`${escaleFicheUrl("/api/escale-marinas.geojson")}`);
+  if (res.ok) return res.json();
+  const snapRes = await fetch("/escale-marinas.json");
+  if (!snapRes.ok) return { type: "FeatureCollection", features: [] };
+  const snapshot = await snapRes.json();
+  const features = [];
+  for (const [stopName, fiche] of Object.entries(snapshot.escales || {})) {
+    const fc = marinasToFeatures(fiche);
+    for (const feature of fc.features || []) {
+      features.push({
+        ...feature,
+        properties: {
+          ...(feature.properties || {}),
+          stopover: stopName,
+        },
+      });
+    }
+  }
+  return { type: "FeatureCollection", features };
+}

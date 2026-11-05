@@ -111,6 +111,14 @@ export function MapScene({
     createPanes(map);
     mapRef.current = map;
     layersRef.current = new SceneLayerRegistry();
+    // Hard reload can mount before layout; force Leaflet to measure the pane.
+    requestAnimationFrame(() => {
+      try {
+        map.invalidateSize(false);
+      } catch {
+        /* map already removed */
+      }
+    });
     return () => {
       layersRef.current?.clear();
       map.remove();

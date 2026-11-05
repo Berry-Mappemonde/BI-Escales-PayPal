@@ -159,11 +159,11 @@ export function loadPayPalSubscriptionSdk(clientId: string, appLang?: string): P
   if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
   const locale = paypalLocale(appLang);
   const src = paypalSubscriptionSdkUrl(trimmed, appLang);
-  if (loadedLocale && loadedLocale !== locale) {
+  if ((loadedLocale && loadedLocale !== locale) || (loadedSrc && loadedSrc !== src)) {
     clearPayPalSdk();
   }
   const loaded = findPayPalScript(src);
-  if (loaded?.dataset.loaded === "1" && loadedLocale === locale) {
+  if (loaded?.dataset.loaded === "1" && loadedLocale === locale && loadedSrc === src) {
     return Promise.resolve();
   }
   loadedLocale = locale;

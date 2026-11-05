@@ -4,7 +4,6 @@ import { formatSettleCaptureNote } from "./api/settleCaptureNote";
 import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchGearProjects, fetchHealthRetrying, fetchPublicCommonFund, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { emitCrewSubscribeReturn } from "./paypal/crewSubscribeReturnEvents";
 import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
-import { nextStopover } from "./voyage/nextStopover.js";
 import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
 import { EscalePopup } from "./components/EscalePopup.jsx";
@@ -17,7 +16,7 @@ import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { useTheme } from "./hooks/useTheme";
 import { setLanguage } from "./i18n";
 import { MapScene } from "./map/MapScene.jsx";
-import { ficheMarinas, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
+import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
 import { formatCivilDate } from "./voyage/voyageClock.js";
@@ -74,7 +73,6 @@ export default function App() {
   const [amount, setAmount] = useState("1.00");
   const [contributor, setContributor] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const prevTabRef = useRef<TabId>("voyage");
   const [kind, setKind] = useState("mile");
   const [milestoneId, setMilestoneId] = useState("");
   const [fund, setFund] = useState<FundView | null>(null);
@@ -91,6 +89,11 @@ export default function App() {
   const [publicCommonFund, setPublicCommonFund] = useState<FundView | null>(null);
   const [crewSubscribeNote, setCrewSubscribeNote] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [toolsOpen, setToolsOpen] = useState(true);
+  const [allMarinas, setAllMarinas] = useState<{ type: string; features?: unknown[] }>({
+    type: "FeatureCollection",
+    features: [],
+  });
   const [treasurerOpen, setTreasurerOpen] = useState(false);
   const [bryntumEnabled, setBryntumEnabled] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
@@ -119,6 +122,20 @@ export default function App() {
   useEffect(() => {
     document.body.classList.add("ng-naviguide-shell");
     return () => document.body.classList.remove("ng-naviguide-shell");
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadAllEscalesMarinasGeojson()
+      .then((fc) => {
+        if (!cancelled) setAllMarinas(fc as { type: string; features?: unknown[] });
+      })
+      .catch(() => {
+        if (!cancelled) setAllMarinas({ type: "FeatureCollection", features: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -529,16 +546,14 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    if (tab === "marinas" && prevTabRef.current !== "marinas" && voyage?.stops?.length) {
-      const next = nextStopover(voyage.stops, cumNm);
-      if (next) chooseStop(next);
-    }
-    prevTabRef.current = tab;
-  }, [tab, voyage?.stops, cumNm]);
-
-  const marinaFeatures =
+  // Prefer the all-stops marina catalog so the zoomed-out map always shows dots.
+  // Per-stop geojson remains available for the tools panel when a stop is open.
+  const stopMarinaFeatures =
     (marinaGeojson as { features?: unknown[] } | null) ?? ficheMarinas(fiche);
+  const marinaFeatures =
+    Array.isArray(allMarinas?.features) && allMarinas.features.length > 0
+      ? allMarinas
+      : stopMarinaFeatures;
   const onFlyTo = (_id: string, lat: number, lon: number) => {
     setFlyTo({ lat, lon, ts: Date.now() });
   };
@@ -610,7 +625,7 @@ export default function App() {
           projects={projects}
           marinas={marinaFeatures}
           showProjects={tab === "voyage"}
-          showMarinas={tab === "marinas"}
+          showMarinas
           flyTo={flyTo}
           theme={theme}
           onSelectStop={chooseStop}
@@ -626,20 +641,32 @@ export default function App() {
 
       <div className="ng-notices">{paypalNotices}</div>
 
+      <button
+        type="button"
+        className={`ng-sidebar-toggle ng-sidebar-toggle--left${sidebarOpen ? " is-open" : ""}`}
+        data-testid="ng-sidebar-toggle"
+        aria-expanded={sidebarOpen}
+        aria-label={sidebarOpen ? t("app.sidebarCollapse") : t("app.sidebarExpand")}
+        onClick={() => setSidebarOpen((open) => !open)}
+      >
+        {sidebarOpen ? "◀" : "▶"}
+      </button>
+
+      <button
+        type="button"
+        className={`ng-tools-toggle ng-tools-toggle--right${toolsOpen ? " is-open" : ""}`}
+        data-testid="ng-tools-toggle"
+        aria-expanded={toolsOpen}
+        aria-label={toolsOpen ? t("app.toolsCollapse") : t("app.toolsExpand")}
+        onClick={() => setToolsOpen((open) => !open)}
+      >
+        {toolsOpen ? "▶" : "⚙"}
+      </button>
+
       <aside
         className={`ng-sidebar panel${sidebarOpen ? "" : " ng-collapsed"}`}
         data-testid="ng-sidebar"
       >
-        <button
-          type="button"
-          className="ng-sidebar-toggle"
-          data-testid="ng-sidebar-toggle"
-          aria-expanded={sidebarOpen}
-          aria-label={sidebarOpen ? t("app.sidebarCollapse") : t("app.sidebarExpand")}
-          onClick={() => setSidebarOpen((open) => !open)}
-        >
-          {sidebarOpen ? "◀" : "▶"}
-        </button>
         <div className="ng-shell-header">
           <h1>{t("app.title")}</h1>
           <p>{t("app.tagline")}</p>
@@ -786,7 +813,11 @@ export default function App() {
         />
       </aside>
 
-      <aside className="ng-tools-panel panel" data-testid="ng-tools-panel">
+      <aside
+        className={`ng-tools-panel panel${toolsOpen ? "" : " ng-collapsed"}`}
+        data-testid="ng-tools-panel"
+        aria-hidden={!toolsOpen}
+      >
         {tab === "voyage" ? (
           stop ? (
             <EscalePopup

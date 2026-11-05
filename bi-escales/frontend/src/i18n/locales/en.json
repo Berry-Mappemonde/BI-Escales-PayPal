@@ -10,7 +10,9 @@
     "escalesOff": "ESCALES_ENABLED is off: /api/escales returns 404.",
     "sidebarCollapse": "Collapse sidebar",
     "sidebarExpand": "Expand sidebar",
-    "dismissNotice": "Dismiss"
+    "dismissNotice": "Dismiss",
+    "toolsCollapse": "Hide tools",
+    "toolsExpand": "Show settings"
   },
   "common": {
     "showSecret": "Show",

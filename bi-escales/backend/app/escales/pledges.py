@@ -506,12 +506,30 @@ def _create_authorize_order(client: Any, **kwargs: Any) -> dict:
         return client.create_authorize_order(**kwargs)
     except TypeError as exc:
         message = str(exc)
-        if not any(token in message for token in ("return_url", "cancel_url", "checkout_locale")):
+        if not any(
+            token in message
+            for token in (
+                "return_url",
+                "cancel_url",
+                "checkout_locale",
+                "payee_merchant_id",
+                "platform_fee_eur",
+                "platform_merchant_id",
+            )
+        ):
             raise
         slim = {
             key: value
             for key, value in kwargs.items()
-            if key not in {"return_url", "cancel_url", "checkout_locale"}
+            if key
+            not in {
+                "return_url",
+                "cancel_url",
+                "checkout_locale",
+                "payee_merchant_id",
+                "platform_fee_eur",
+                "platform_merchant_id",
+            }
         }
         return client.create_authorize_order(**slim)
 
@@ -910,7 +928,27 @@ async def _create_authorize_pledge(
     elif vault_on_purchase_enabled():
         order = _create_authorize_vault_order(client, **order_kwargs)
     else:
-        order = _create_authorize_order(client, **order_kwargs)
+        from .config import (
+            marina_seller_merchant_id,
+            platform_fee_eur,
+            platform_fees_enabled,
+            platform_payee_merchant_id,
+        )
+
+        if kind == "berth" and platform_fees_enabled():
+            seller = marina_seller_merchant_id(target_id)
+            platform_id = platform_payee_merchant_id()
+            if seller and platform_id:
+                order = client.create_authorize_order(
+                    **order_kwargs,
+                    payee_merchant_id=seller,
+                    platform_fee_eur=platform_fee_eur(),
+                    platform_merchant_id=platform_id,
+                )
+            else:
+                order = _create_authorize_order(client, **order_kwargs)
+        else:
+            order = _create_authorize_order(client, **order_kwargs)
     order_id = order.get("id")
     if not order_id:
         raise PayPalError(502, "order id missing")

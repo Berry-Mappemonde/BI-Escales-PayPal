@@ -218,9 +218,18 @@ class PayPalClient:
             "shipping_preference": "NO_SHIPPING",
         }
 
-    def _purchase_unit(self, reference_id: str, description: str, amount_eur: str) -> dict:
+    def _purchase_unit(
+        self,
+        reference_id: str,
+        description: str,
+        amount_eur: str,
+        *,
+        payee_merchant_id: Optional[str] = None,
+        platform_fee_eur: Optional[str] = None,
+        platform_merchant_id: Optional[str] = None,
+    ) -> dict:
         ref = str(reference_id or "")[:256]
-        return {
+        unit: dict = {
             "reference_id": ref,
             "description": str(description or "")[:127],
             "custom_id": ref[:127],
@@ -228,6 +237,21 @@ class PayPalClient:
             "soft_descriptor": SOFT_DESCRIPTOR,
             "amount": {"currency_code": self.cfg.currency, "value": amount_eur},
         }
+        if payee_merchant_id:
+            unit["payee"] = {"merchant_id": payee_merchant_id}
+        fee = (platform_fee_eur or "").strip()
+        platform_id = (platform_merchant_id or "").strip()
+        if fee and platform_id:
+            unit["payment_instruction"] = {
+                "disbursement_mode": "INSTANT",
+                "platform_fees": [
+                    {
+                        "amount": {"currency_code": self.cfg.currency, "value": fee},
+                        "payee": {"merchant_id": platform_id},
+                    }
+                ],
+            }
+        return unit
 
     def _access_token(self) -> str:
         if self._token and time.time() < self._token_exp - 60:
@@ -312,6 +336,9 @@ class PayPalClient:
         return_url: Optional[str] = None,
         cancel_url: Optional[str] = None,
         checkout_locale: Optional[str] = None,
+        payee_merchant_id: Optional[str] = None,
+        platform_fee_eur: Optional[str] = None,
+        platform_merchant_id: Optional[str] = None,
     ) -> dict:
         """Classic AUTHORIZE order. Return and cancel URLs match the vault order."""
         back = (return_url or "").strip() or order_return_url()
@@ -325,7 +352,16 @@ class PayPalClient:
                     ),
                 },
             },
-            "purchase_units": [self._purchase_unit(reference_id, description, amount_eur)],
+            "purchase_units": [
+                self._purchase_unit(
+                    reference_id,
+                    description,
+                    amount_eur,
+                    payee_merchant_id=payee_merchant_id,
+                    platform_fee_eur=platform_fee_eur,
+                    platform_merchant_id=platform_merchant_id,
+                )
+            ],
         }
         return self._req(
             "POST",

@@ -5,6 +5,7 @@ import { MaskedSecretInput } from "./MaskedSecretInput";
 import { TreasurerPayPalPanel } from "./TreasurerPayPalPanel";
 import { TreasurerWebhookPanel } from "./TreasurerWebhookPanel";
 import { TreasurerQueue } from "./TreasurerQueue";
+import { TreasurerGrid } from "./TreasurerGrid";
 
 function OpenFundTotals({
   title,
@@ -191,6 +192,15 @@ export function TreasurerPanel({
             <>
           <TreasurerPayPalPanel adminKey={adminKey} />
           <TreasurerWebhookPanel adminKey={adminKey} />
+          <TreasurerGrid
+            pledges={pledges}
+            milestones={[]}
+            adminKey={adminKey}
+            selectedMilestoneId={milestoneId}
+            onSelectMilestone={_onMilestoneIdChange}
+            onMilestonesChange={() => {}}
+            onPledgeUpdated={onPledgeUpdated}
+          />
           <form className="stack-form" onSubmit={onSpendSubmit}>
             <h2>{t("fund.heading")}</h2>
             <label>

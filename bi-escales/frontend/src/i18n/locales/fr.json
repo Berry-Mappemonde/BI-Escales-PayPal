@@ -243,6 +243,14 @@
     "humanValidation": "Validation humaine requise — le capitaine ne débite jamais seul.",
     "applyCapture": "Encaisser (selon proposition)",
     "applyVoid": "Annuler (selon proposition)",
-    "noProposal": "Aucune proposition enregistrée pour ce jalon."
+    "noProposal": "Aucune proposition enregistrée pour ce jalon.",
+    "marinaHeading": "Marinas — réservations, frais, remboursements",
+    "marinaEmpty": "Aucune promesse d’amarrage (berth) sur le serveur.",
+    "marinaStop": "Escale / jalon",
+    "marinaBookings": "Réservations",
+    "marinaGross": "Brut EUR",
+    "marinaFees": "Frais plateforme (est.)",
+    "marinaRefunds": "Remboursements",
+    "marinaDisputes": "Litiges ouverts"
   }
 }

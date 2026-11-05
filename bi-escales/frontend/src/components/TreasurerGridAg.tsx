@@ -2,11 +2,14 @@
 // This is not AG Studio and not the Studio Agent Framework.
 import { useMemo } from "react";
 import { AgGridReact } from "ag-grid-react";
+import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
 import type { ColDef } from "ag-grid-community";
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import type { PledgeGaugeRow } from "../api/types";
 import { gaugePercent } from "../utils/gauges";
+
+ModuleRegistry.registerModules([AllCommunityModule]);
 
 export interface AgProps {
   rows: PledgeGaugeRow[];
@@ -44,7 +47,7 @@ export default function TreasurerGridAg({ rows }: AgProps) {
 
   return (
     <div className="ag-theme-quartz" style={{ height: 280, width: "100%" }} data-testid="treasurer-ag-grid">
-      <AgGridReact rowData={rows} columnDefs={columnDefs} domLayout="autoHeight" />
+      <AgGridReact theme="legacy" rowData={rows} columnDefs={columnDefs} domLayout="autoHeight" />
     </div>
   );
 }

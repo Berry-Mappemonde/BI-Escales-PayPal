@@ -142,6 +142,7 @@ export async function fetchHealthRetrying(
 
 export async function createPledge(
   body: {
+    quantity?: number;
     amount_eur: string;
     description: string;
     milestone_id: string;

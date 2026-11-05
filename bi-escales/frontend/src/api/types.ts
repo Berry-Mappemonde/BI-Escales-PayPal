@@ -194,6 +194,8 @@ export interface CaptainProposal {
   pending_authorizations?: PendingAuthorization[];
   paypal_tool_calls?: { tool: string; resource_id?: string }[];
   evidence_flag?: string;
+  model_source?: { provider?: string; model?: string };
+  llm_proposal?: { proposal?: string | null; reason?: string | null };
   at?: string;
 }
 
@@ -207,6 +209,7 @@ export interface CartPledge {
 }
 
 export interface CartLine {
+  quantity?: string | number;
   kind?: string;
   description?: string;
   amount_eur?: string;
@@ -231,7 +234,6 @@ export interface PledgeCart {
 
 export interface CaptainChatResponse {
   reply: string;
-  membership_url?: string;
   model_source?: { provider?: string; model?: string; reason?: string };
   model_label?: string;
   paypal_tools?: { tools?: string[]; called?: string[]; client?: string } | string[];

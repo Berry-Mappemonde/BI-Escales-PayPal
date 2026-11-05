@@ -60,7 +60,7 @@ def test_compose_chat_reply_drops_fund_label_filler_sentences():
         "The fund label is the fund at Ajaccio. The fund is not specified. "
         "Ten miles for Ajaccio."
     )
-    reply = _compose_chat_reply(model, suggested, "", "en", treasurer=False, ask_escale=False)
+    reply = _compose_chat_reply(model, suggested, "en", treasurer=False, ask_escale=False)
     lowered = reply.casefold()
     assert "the fund label is the fund at" not in lowered
     assert "the fund is not specified" not in lowered

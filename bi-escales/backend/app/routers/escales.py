@@ -166,6 +166,7 @@ webhooks_router = APIRouter(prefix="/api/escales", route_class=_WebhooksRoute, t
 
 
 class PledgeIn(BaseModel):
+    quantity: Optional[int] = Field(None, ge=1, le=1000, strict=True)
     amount_eur: str
     description: str
     milestone_id: str = Field(
@@ -668,6 +669,7 @@ async def post_pledge(body: PledgeIn, request: Request):
     client_key = request.headers.get("paypal-request-id")
     try:
         doc = await create_pledge(
+            quantity=body.quantity,
             amount_eur=body.amount_eur,
             description=body.description,
             milestone_id=body.milestone_id,

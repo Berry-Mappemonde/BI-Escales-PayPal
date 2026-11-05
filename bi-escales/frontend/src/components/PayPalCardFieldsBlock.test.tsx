@@ -1,24 +1,44 @@
-import { render, screen } from "@testing-library/react";
-import { I18nextProvider } from "react-i18next";
-import { describe, expect, it } from "vitest";
-import i18n from "../i18n";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { PayPalCardFieldsBlock } from "./PayPalCardFieldsBlock";
-
-const values = {
-  amount_eur: "5.00",
-  description: "5 milles",
-  milestone_id: "dep-mayotte",
-  kind: "mile",
-};
-
-describe("PayPalCardFieldsBlock", () => {
-  it("affiche le bloc sans SDK CardFields", async () => {
-    render(
-      <I18nextProvider i18n={i18n}>
-        <PayPalCardFieldsBlock values={values} appLang="fr" />
-      </I18nextProvider>,
-    );
-    expect(screen.getByTestId("paypal-card-fields")).toBeInTheDocument();
-    expect(screen.getByTestId("paypal-card-submit")).toBeDisabled();
+import { authorizePledge, createPledge, registerVault } from "../api/escales";
+import "../i18n";
+vi.mock("../api/escales", () => ({createPledge: vi.fn(), authorizePledge: vi.fn(), registerVault: vi.fn(), isVaultPledge: (p: {payment_mode?: string}) => p.payment_mode === "VAULT"}));
+const values = {amount_eur: "5.00", description: "5 miles", milestone_id: "dep-mayotte", kind: "mile"};
+beforeEach(() => {vi.clearAllMocks();});
+function sdk(pending?: Promise<void>) {
+  let callbacks: Record<string, () => Promise<string>> = {};
+  const fields = [0,1,2].map(() => ({render: vi.fn().mockResolvedValue(undefined), close: vi.fn()}));
+  if (pending) fields[0].render.mockReturnValue(pending);
+  const CardFields = vi.fn((c) => {callbacks = c; return {isEligible: () => true, NumberField: () => fields[0], ExpiryField: () => fields[1], CVVField: () => fields[2], submit: async () => {await (callbacks.createOrder || callbacks.createVaultSetupToken)();}};});
+  return {paypal: {CardFields}, fields, CardFields};
+}
+describe("Card Fields checkout", () => {
+  it.each(["AUTHORIZE", "VAULT"])("passes only the %s callback and completes first submit", async (mode) => {
+    const pledge = {id: "P", payment_mode: mode, order_id: "O", setup_token_id: "S"};
+    vi.mocked(createPledge).mockResolvedValue(pledge);
+    vi.mocked(authorizePledge).mockResolvedValue(pledge);vi.mocked(registerVault).mockResolvedValue(pledge);
+    const s = sdk(); const onAuthorized = vi.fn();
+    render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} onAuthorized={onAuthorized} />);
+    await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+    const config = s.CardFields.mock.calls[0][0];
+    expect(Object.keys(config)).toEqual([mode === "VAULT" ? "createVaultSetupToken" : "createOrder"]);
+    fireEvent.click(screen.getByTestId("paypal-card-submit"));
+    await waitFor(() => expect(onAuthorized).toHaveBeenCalledWith(pledge));
+    if (mode === "VAULT") {expect(registerVault).toHaveBeenCalledWith("P", "S");expect(authorizePledge).not.toHaveBeenCalled();}
+    else {expect(authorizePledge).toHaveBeenCalledWith("P");expect(registerVault).not.toHaveBeenCalled();}
+  });
+  it("closes all rendered fields on unmount", async () => {
+    vi.mocked(createPledge).mockResolvedValue({id: "P", order_id: "O"});const s=sdk();
+    const view=render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} />);
+    await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());view.unmount();
+    for (const f of s.fields) expect(f.close).toHaveBeenCalledTimes(1);
+  });
+  it("stops rendering subsequent fields when closed during rendering", async () => {
+    let finish!: () => void;const pending=new Promise<void>(r => {finish=r;});
+    vi.mocked(createPledge).mockResolvedValue({id: "P", order_id: "O"});const s=sdk(pending);
+    const view=render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} />);
+    await waitFor(() => expect(s.fields[0].render).toHaveBeenCalled());view.unmount();await act(async () => finish());
+    expect(s.fields[0].close).toHaveBeenCalledTimes(1);expect(s.fields[1].render).not.toHaveBeenCalled();expect(s.fields[2].render).not.toHaveBeenCalled();
   });
 });

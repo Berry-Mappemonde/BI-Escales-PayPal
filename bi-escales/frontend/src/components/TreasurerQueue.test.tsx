@@ -1,7 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
-import { approveCaptainReview, captainReview, capturePledge, refundPledge, voidPledge } from "../api/escales";
+import {
+  approveCaptainReview,
+  captainReview,
+  capturePledge,
+  fetchSchedule,
+  refundPledge,
+  voidPledge,
+} from "../api/escales";
 import i18n from "../i18n";
 import { TreasurerQueue } from "./TreasurerQueue";
 
@@ -9,6 +16,7 @@ vi.mock("../api/escales", () => ({
   approveCaptainReview: vi.fn(),
   captainReview: vi.fn(),
   capturePledge: vi.fn(),
+  fetchSchedule: vi.fn().mockResolvedValue({}),
   refundPledge: vi.fn(),
   voidPledge: vi.fn(),
 }));
@@ -47,8 +55,8 @@ describe("TreasurerQueue", () => {
         />
       </I18nextProvider>,
     );
-    expect(await screen.findByTestId("verdict-p-1")).toHaveTextContent("capture");
-    fireEvent.click(screen.getByRole("button", { name: "Approuver la revue" }));
+    expect(await screen.findByTestId("captain-proposal-dep-la-rochelle")).toHaveTextContent("Encaisser");
+    fireEvent.click(screen.getByTestId("captain-approve-dep-la-rochelle"));
     expect(approveCaptainReview).toHaveBeenCalledWith("dep-la-rochelle", "test-admin-key", undefined);
     await waitFor(() => {
       expect(screen.getByTestId("capture-p-1")).not.toBeDisabled();
@@ -105,10 +113,12 @@ describe("TreasurerQueue", () => {
       </I18nextProvider>,
     );
     expect(screen.getByTestId("treasurer-demo-readonly")).toBeInTheDocument();
-    expect(screen.getByTestId("approve-p-1")).toBeDisabled();
-    expect(screen.getByTestId("void-p-1")).toBeDisabled();
+    await screen.findByTestId("captain-proposal-dep-la-rochelle");
+    expect(screen.getByTestId("captain-approve-dep-la-rochelle")).toBeDisabled();
+    expect(screen.getByTestId("captain-override-dep-la-rochelle")).toBeDisabled();
     expect(screen.getByTestId("refund-p-cap")).toBeDisabled();
-    fireEvent.click(screen.getByTestId("void-p-1"));
+    fireEvent.click(screen.getByTestId("captain-override-dep-la-rochelle"));
+    expect(screen.queryByTestId("captain-release-dep-la-rochelle")).toBeNull();
     expect(voidPledge).not.toHaveBeenCalled();
   });
 });

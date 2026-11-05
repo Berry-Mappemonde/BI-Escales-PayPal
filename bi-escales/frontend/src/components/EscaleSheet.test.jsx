@@ -70,7 +70,6 @@ describe("EscaleSheet", () => {
         />
       </I18nextProvider>,
     );
-    expect(screen.getByText(/HelloAsso/)).toBeInTheDocument();
     expect(screen.queryByTestId("captain-review")).toBeNull();
     fireEvent.change(screen.getByTestId("pledge-kind"), { target: { value: "night" } });
     expect(onKind).toHaveBeenCalledWith("night");
@@ -236,3 +235,13 @@ describe("EscaleSheet", () => {
     expect(screen.getByText(/Services: eau, électricité/)).toBeInTheDocument();
   });
 });
+
+ it.each([["mile", "4.00"], ["berth", "120.00"], ["night", "240.00"], ["meal", "240.00"], ["care", "160.00"], ["cabin_leg", "320.00"]])("multiplies %s unit price by quantity", (kind, total) => {
+  render(<EscaleSheet stop={stop} fiche={null} priceCatalog={priceCatalog} schedule={schedule}
+    pledge={{kind, amount: "1.00", milestoneId: "dep-la-rochelle", contributor: "", onKind: vi.fn(), onAmount: vi.fn(), onContributor: vi.fn()}} />);
+  fireEvent.change(screen.getByTestId("pledge-quantity"), {target: {value: "4"}});
+  expect(screen.getByTestId("pledge-amount")).toHaveValue(total);
+  expect(screen.getByTestId("pledge-amount")).toHaveAttribute("readonly");
+  const payload=JSON.parse(screen.getByTestId("pledge-values").textContent);
+  expect(payload.quantity).toBe(4); expect(payload.amount_eur).toBe(total);
+ });

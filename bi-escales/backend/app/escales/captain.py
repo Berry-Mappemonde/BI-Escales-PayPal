@@ -15,7 +15,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
-from .config import AUTH_MAX_DAYS, membership_url, simulated_now
+from .config import AUTH_MAX_DAYS, simulated_now
 from .app_i18n import default_app_language, forced_app_lang, normalize_app_lang, resolve_app_language
 from .departure_clock import CAPTURE_RULES_EN, CAPTURE_RULES_FR
 from .paypal_txn_search import default_transaction_search_window
@@ -142,7 +142,7 @@ _URL_RE = re.compile(
     re.IGNORECASE,
 )
 _MEMBERSHIP_WORD = re.compile(
-    r"helloasso|adh[ée]sions?|membership|adhesion-\[",
+    r"adh[ée]sions?|membership|adhesion-\[",
     re.IGNORECASE,
 )
 _AWAY_CLAIM = re.compile(
@@ -547,8 +547,7 @@ def _chat_system_en() -> str:
         f"{CAPTURE_RULES_EN} "
         "A pledge is authorized as close to departure as possible. "
         "Do not send the reader to the treasurer for that rule. "
-        "Mention membership only by repeating the HelloAsso URL you were given. "
-        "If no URL was given, do not mention membership and do not write any URL. "
+        "Do not mention association membership and do not write any URL. "
         "Write complete sentences and never stop mid-sentence. "
         "Sign once, and do not repeat your name. At most 120 words."
     )
@@ -566,8 +565,7 @@ def _chat_system_fr() -> str:
         f"{CAPTURE_RULES_FR} "
         "Une promesse est autorisée au plus près du départ. "
         "N'envoie pas le lecteur vers le trésorier pour cette règle. "
-        "Mentionne l'adhésion seulement en répétant l'URL HelloAsso qu'on t'a donnée. "
-        "Sans URL, ne parle pas d'adhésion et n'écris aucune URL. "
+        "Ne parle pas d'adhésion à l'association et n'écris aucune URL. "
         "Écris des phrases complètes et ne t'arrête jamais au milieu d'une phrase. "
         "Signe une seule fois, sans répéter ton nom. Au plus 120 mots."
     )
@@ -933,7 +931,7 @@ def _report_language(text: str, requested: Optional[str] = None) -> str:
 def _normalize_dots(text: str) -> str:
     """One period, then a space when the next sentence is glued on.
 
-    ``250 nm.The boat`` becomes two sentences. ``www.helloasso.com`` stays,
+    ``250 nm.The boat`` becomes two sentences. ``www.example.com`` stays,
     because the letter after that dot is lowercase.
     """
     cleaned = re.sub(r"\.{2,}", ".", text or "")
@@ -1002,7 +1000,7 @@ def _fix_sentence_starts(text: str) -> str:
     """Capitalize after a sentence stop. Dots inside a URL stay as they are.
 
     ``tracée.en route`` is split because the word before the stop carries an
-    accent. ``www.helloasso.com`` does not.
+    accent. ``www.example.com`` does not.
     """
     cleaned = re.sub(
         r"([A-Za-zÀ-ÿ]*[À-ÿ][.!?…])(?=[A-Za-zÀ-ÿ])",
@@ -1333,12 +1331,6 @@ def _period_after_link(text: str, url: str) -> str:
     )
 
 
-def _membership_line(url: str, lang: str) -> str:
-    """The only membership sentence. It exists only when code has a URL."""
-    if lang == "en":
-        return f"For membership, the HelloAsso link is {url}."
-    return f"Pour l'adhésion, le lien HelloAsso est {url}."
-
 
 def _clean_model_urls(text: str, url: str) -> str:
     """Drop URLs the model invented. Code inserts the configured URL later."""
@@ -1516,7 +1508,6 @@ def _fit_words(prose: str, required: list[str], limit: int = _CHAT_WORD_LIMIT) -
 def _compose_chat_reply(
     model_text: str,
     suggested: Optional[dict],
-    url: str,
     lang: str,
     *,
     treasurer: bool,
@@ -1552,8 +1543,7 @@ def _compose_chat_reply(
         prose = _prepare_model_narrative(model_text, lang)
     port_id = str(suggested.get("milestone_id") or "")
     prose = _fix_port_typos(prose, port_id)
-    prose = _clean_model_urls(prose, url)
-    prose = _period_after_link(prose, url)
+    prose = _clean_model_urls(prose, "")
     prose = _drop_sentences(prose, _CHAT_DECIDE_RE)
     prose = _drop_sentences(prose, _REFUSAL_RE)
     prose = _drop_sentences(prose, _TREASURER_ONLY)
@@ -1585,13 +1575,10 @@ def _compose_chat_reply(
     joined = " ".join(required)
     if lang == "en" and not re.search(r"\bintent\s+authorize\b", f"{prose} {joined}", re.I):
         required.append("intent AUTHORIZE.")
-    if url and url not in prose and url not in " ".join(required):
-        required.append(_membership_line(url, lang))
     required.append(_signature(lang))
     reply = _fit_words(prose, required)
     port = str(suggested.get("milestone_id") or "") if suggested else ""
     reply = _fix_port_typos(_capitalize_ports(reply, port), port)
-    reply = _period_after_link(reply, url)
     if lang == "fr":
         reply = _standardise_french(reply)
     elif lang == "en":
@@ -2984,7 +2971,7 @@ async def chat(
     accept_language: str = "",
     reader: Optional[ReadOnlyTools] = None,
 ) -> dict:
-    """Help a contributor phrase a pledge and offer the HelloAsso membership URL.
+    """Help a contributor phrase a pledge.
 
     ``treasurer`` is true only when the request carried a valid ``x-admin-key``.
     ``lang`` is the app language. It wins over Accept-Language and the message.
@@ -2992,7 +2979,6 @@ async def chat(
     text = (message or "").strip()
     if not text:
         raise ValueError("message is required")
-    url = membership_url()
     lang = resolve_chat_lang(text, lang, accept_language)
     if treasurer and reader is not None:
         agentic = parse_agentic_proposal(text, lang)
@@ -3000,7 +2986,6 @@ async def chat(
             suggested = agentic_suggested_pledge(agentic, lang)
             return {
                 "reply": _fit_words("", [agentic_reply(agentic, lang), _signature(lang)]),
-                "membership_url": url,
                 "suggested_pledge": suggested,
                 "cart": None,
                 "model_source": "paypal_agentic_proposal",
@@ -3013,7 +2998,6 @@ async def chat(
         if pledge_reply:
             return {
                 "reply": _fit_words("", [pledge_reply, _signature(lang)]),
-                "membership_url": url,
                 "suggested_pledge": None,
                 "cart": None,
                 "model_source": "paypal_readonly_tools",
@@ -3025,7 +3009,6 @@ async def chat(
         if tool_reply:
             return {
                 "reply": _fit_words("", [tool_reply, _signature(lang)]),
-                "membership_url": url,
                 "suggested_pledge": None,
                 "cart": None,
                 "model_source": "paypal_readonly_tools",
@@ -3036,7 +3019,6 @@ async def chat(
     if _is_capture_rule_question(text):
         return {
             "reply": _capture_rule_reply(lang),
-            "membership_url": url,
             "suggested_pledge": None,
             "cart": None,
             "model_source": _rules_source(),
@@ -3046,7 +3028,6 @@ async def chat(
         reply, source, fund = await _answer_fund(text, lang, treasurer=treasurer)
         return {
             "reply": reply,
-            "membership_url": url,
             "suggested_pledge": None,
             "cart": None,
             "model_source": source,
@@ -3062,16 +3043,14 @@ async def chat(
                 prose = "Quelle escale ? Indiquez son nom pour que je calcule la promesse."
             return {
                 "reply": _fit_words("", [prose, _signature(lang)]),
-                "membership_url": url,
                 "suggested_pledge": None,
                 "cart": None,
                 "model_source": _rules_source(),
                 "fund": None,
             }
-        reply = _compose_chat_reply("", suggested, url, lang, treasurer=False, ask_escale=False)
+        reply = _compose_chat_reply("", suggested, lang, treasurer=False, ask_escale=False)
         return {
             "reply": reply,
-            "membership_url": url,
             "suggested_pledge": suggested,
             "cart": pledge_cart(text, lang, suggested),
             "model_source": _rules_source(),
@@ -3081,7 +3060,7 @@ async def chat(
     suggested = suggest_pledge(text, lang)
     cart = pledge_cart(text, lang, suggested)
     ask_escale = suggested is None and not treasurer and not _is_status_question(text)
-    allowed = {"message": text, "suggested": suggested, "membership_url": url}
+    allowed = {"message": text, "suggested": suggested}
     if suggested:
         mid = str(suggested.get("milestone_id") or "").strip()
         target = str(suggested.get("target_id") or "").strip()
@@ -3111,11 +3090,10 @@ async def chat(
         else:
             raw, source = "", _rules_source()
     reply = _compose_chat_reply(
-        raw or "", suggested, url, lang, treasurer=treasurer, ask_escale=ask_escale,
+        raw or "", suggested, lang, treasurer=treasurer, ask_escale=ask_escale,
     )
     return {
         "reply": reply,
-        "membership_url": url,
         "suggested_pledge": suggested,
         "cart": cart,
         "model_source": source,

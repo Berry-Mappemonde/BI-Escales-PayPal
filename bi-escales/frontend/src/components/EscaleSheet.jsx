@@ -4,9 +4,8 @@
  * Le bouton PayPal (PledgeButton, PR #2) est hébergé ici.
  * googleMapsUrl est la fonction du même nom dans engine/briefingLinks.js.
  */
-import { memo } from "react";
+import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { HELLOASSO_MEMBERSHIP_URL } from "../config/helloasso.js";
 import { PledgeButton } from "./PledgeButton";
 import {
   cabinLegMilestoneId,
@@ -89,6 +88,7 @@ export const EscaleSheet = memo(function EscaleSheet({
   logbookEntries,
 }) {
   const { t, i18n } = useTranslation();
+  const [quantity, setQuantity] = useState(1);
   const lang = i18n.language?.startsWith("en") ? "en" : "fr";
   if (!stop) return null;
   const sections = visibleSections(fiche?.sections);
@@ -96,8 +96,9 @@ export const EscaleSheet = memo(function EscaleSheet({
   const pledgeDescription = pledge
     ? `${stop.name} — ${t(`pledge.kinds.${pledge.kind}`)}`
     : "";
-  const orderAmount = pledge ? pledgeOrderAmount(pledge.kind, pledge.amount, priceCatalog) : "";
-  const readOnlyAmount = pledge ? pledgeAmountReadOnly(pledge.kind, priceCatalog) : false;
+  const perUnit = pledge && ["mile", "night", "meal", "care", "berth", "cabin_leg"].includes(pledge.kind);
+  const orderAmount = pledge ? pledgeOrderAmount(pledge.kind, pledge.amount, priceCatalog, perUnit ? quantity : undefined) : "";
+  const readOnlyAmount = pledge ? perUnit || pledgeAmountReadOnly(pledge.kind, priceCatalog) : false;
   const pledgeMilestoneId = pledge
     ? (pledge.kind === "cabin_leg"
       ? cabinLegMilestoneId(schedule, pledge.milestoneId, stop.name) || pledge.milestoneId
@@ -181,10 +182,6 @@ export const EscaleSheet = memo(function EscaleSheet({
           ))}
         </div>
       ))}
-      <p className="fund-line">
-        {t("fund.line")}{" "}
-        <a href={HELLOASSO_MEMBERSHIP_URL} target="_blank" rel="noreferrer">{t("fund.helloasso")}</a>
-      </p>
       {pledge ? (
         <div className="pledge-form">
           <label>
@@ -199,6 +196,11 @@ export const EscaleSheet = memo(function EscaleSheet({
               ))}
             </select>
           </label>
+          {perUnit ? <label>
+            {t("pledge.quantity")}
+            <input type="number" min={1} max={1000} step={1} data-testid="pledge-quantity"
+              value={quantity} onChange={(event) => setQuantity(Math.max(1, Math.min(1000, Math.trunc(Number(event.target.value) || 1))))} />
+          </label> : null}
           <label>
             {t("pledge.amount")}
             <input
@@ -217,6 +219,7 @@ export const EscaleSheet = memo(function EscaleSheet({
           <PledgeButton
             values={{
               amount_eur: orderAmount,
+              quantity: perUnit ? quantity : undefined,
               description: pledgeDescription,
               milestone_id: pledgeMilestoneId,
               contributor: pledge.contributor.trim() || undefined,

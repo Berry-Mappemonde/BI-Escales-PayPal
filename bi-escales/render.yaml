@@ -44,8 +44,6 @@ services:
         sync: false
       - key: ESCALES_ZAPIER_ENABLED
         sync: false
-      - key: HELLOASSO_MEMBERSHIP_URL
-        sync: false
       # Captain IP limit and LLM daily cap are off unless this is production.
       - key: ESCALES_ENV
         value: production

@@ -31,7 +31,6 @@ from app.escales.toolkit_tools import (
 def isolated(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
-    monkeypatch.delenv("HELLOASSO_MEMBERSHIP_URL", raising=False)
     monkeypatch.delenv("ESCALES_TOOLKIT_ENABLED", raising=False)
     reset_ledger()
     import app.core.llm as llm
@@ -239,16 +238,9 @@ def test_review_strips_numbers_not_in_the_evidence(monkeypatch):
     asyncio.run(body())
 
 
-def test_chat_offers_membership_url_and_does_not_order(monkeypatch):
-    monkeypatch.setenv(
-        "HELLOASSO_MEMBERSHIP_URL",
-        "https://www.helloasso.com/associations/blue-intelligence/adhesions/membre",
-    )
-
+def test_chat_suggests_pledge_and_does_not_order(monkeypatch):
     async def body():
         result = await chat("Je veux adhérer et parrainer 20 milles près de Mayotte", lang="fr")
-        assert result["membership_url"].startswith("https://www.helloasso.com/")
-        assert result["membership_url"] in result["reply"]
         pledge = result["suggested_pledge"]
         assert pledge["amount_eur"] == "20.00"
         assert pledge["currency"] == "EUR"
@@ -337,13 +329,11 @@ def test_chat_strips_an_invented_price(monkeypatch):
 
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
     monkeypatch.setattr(llm, "ask_text", fake_ask_text)
-    monkeypatch.setenv("HELLOASSO_MEMBERSHIP_URL", "https://www.helloasso.com/associations/blue-intelligence/adhesions/membre")
 
     async def body():
         result = await chat("Parraine 20 milles près de Mayotte", lang="fr")
         assert "999" not in result["reply"]
         assert "[?]" not in result["reply"]
-        assert result["membership_url"] in result["reply"]
         assert result["suggested_pledge"]["amount_eur"] == "20.00"
         assert result["model_source"] == {"provider": "llm", "model": ""}
 
@@ -362,10 +352,6 @@ def test_chat_repeats_the_pledge_in_the_message_language(monkeypatch):
 
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
     monkeypatch.setattr(llm, "ask_text", fake_ask_text)
-    monkeypatch.setenv(
-        "HELLOASSO_MEMBERSHIP_URL",
-        "https://www.helloasso.com/associations/blue-intelligence/adhesions/membre",
-    )
 
     async def body():
         result = await chat("I'd like to sponsor 120 nautical miles near Lorient", lang="en")
@@ -380,7 +366,6 @@ def test_chat_repeats_the_pledge_in_the_message_language(monkeypatch):
         assert "milles parrainés" not in reply
         assert "Lorient" in reply
         assert "AUTHORIZE" in reply
-        assert result["membership_url"] in reply
         assert reply.count("— The captain") == 1
         assert "— Le capitaine" not in reply
         assert len(reply.split()) <= 120
@@ -874,28 +859,25 @@ def test_model_signature_collapses_to_one_in_both_languages(monkeypatch):
     asyncio.run(body())
 
 
-def test_unset_membership_url_strips_invented_links(monkeypatch):
+def test_chat_strips_invented_membership_links(monkeypatch):
     import app.core.llm as llm
 
     async def fake_ask_text(*_args, **_kwargs):
         return (
             "Promesse notée. Membership: "
-            "https://www.helloasso.com/associations/berry-mappemonde/adhesions/adhesion-[?]-[?]."
+            "https://example.org/associations/berry/adhesions/adhesion-[?]-[?]."
         )
 
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
     monkeypatch.setattr(llm, "ask_text", fake_ask_text)
-    monkeypatch.delenv("HELLOASSO_MEMBERSHIP_URL", raising=False)
 
     async def body():
         result = await chat("Je parraine 120 milles près de Lorient", lang="fr")
         reply = result["reply"]
-        assert result["membership_url"] == ""
         assert "http" not in reply.lower()
-        assert "helloasso" not in reply.lower()
-        assert "adhesion" not in reply.lower()
         assert "membership" not in reply.lower()
         assert "adhésion" not in reply.lower()
+        assert "adhesion" not in reply.lower()
         assert "configur" not in reply.lower()
         assert "[?]" not in reply
         assert "120,00 €" in reply
@@ -904,23 +886,19 @@ def test_unset_membership_url_strips_invented_links(monkeypatch):
     asyncio.run(body())
 
 
-def test_only_the_configured_membership_url_is_injected(monkeypatch):
+def test_chat_strips_model_invented_membership_urls(monkeypatch):
     import app.core.llm as llm
 
-    official = "https://www.helloasso.com/associations/blue-intelligence/adhesions/membre"
-
     async def fake_ask_text(*_args, **_kwargs):
-        return "Membership: https://www.helloasso.com/associations/berry-mappemonde/adhesions/adhesion-2026."
+        return "Membership: https://example.org/associations/berry/adhesions/adhesion-2026."
 
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
     monkeypatch.setattr(llm, "ask_text", fake_ask_text)
-    monkeypatch.setenv("HELLOASSO_MEMBERSHIP_URL", official)
 
     async def body():
         result = await chat("I'd like to sponsor 120 nautical miles near Lorient", lang="en")
         reply = result["reply"]
-        assert reply.count(official) == 1
-        assert "berry-mappemonde" not in reply
+        assert "example.org" not in reply
         assert "adhesion-2026" not in reply
         assert "[?]" not in reply
         assert "120.00 EUR" in reply
@@ -1535,27 +1513,6 @@ def test_verbless_bleu_signature_is_removed(monkeypatch):
     asyncio.run(body())
 
 
-def test_membership_link_closes_the_sentence_when_text_continues(monkeypatch):
-    import app.core.llm as llm
-
-    url = "https://www.helloasso.com/associations/blue-intelligence/adhesions/membre"
-    monkeypatch.setenv("HELLOASSO_MEMBERSHIP_URL", url)
-
-    async def fake_ask_text(*_args, **_kwargs):
-        return f"Le lien est {url} et le détail suit, 10,00 €, Brest, autorisation."
-
-    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
-    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
-
-    async def body():
-        result = await chat("Je parraine 10 milles près de Brest", lang="fr")
-        reply = result["reply"]
-        assert f"{url}." in reply
-        assert f"{url} et" not in reply
-
-    asyncio.run(body())
-
-
 def test_bare_arrival_is_kept_and_a_dated_sentence_is_dropped(monkeypatch, caplog):
     import logging
 
@@ -2039,8 +1996,8 @@ def test_glued_period_is_split_and_duplicate_sentences_drop():
     text = captain._finish_text(raw)
     assert "250 nm. The boat" in text
     assert text.lower().count("heading toward dakar") == 1
-    url = captain._finish_text("See www.helloasso.com today.")
-    assert "www.helloasso.com" in url
+    url = captain._finish_text("See www.example.com today.")
+    assert "www.example.com" in url
     assert "www. Hello" not in url
 
 

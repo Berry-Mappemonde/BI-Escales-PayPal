@@ -1,9 +1,13 @@
-function envFlag(raw: string | undefined): boolean {
-  return ["1", "true", "yes", "on"].includes(String(raw ?? "0").trim().toLowerCase());
+// Explicit comparisons are folded by Vite, so disabled builds omit the AG Grid chunk.
+export function featureAgGridEnabled(): boolean {
+  return import.meta.env.VITE_ENABLE_AG_GRID === "1"
+    || import.meta.env.VITE_ENABLE_AG_GRID === "true"
+    || import.meta.env.VITE_ENABLE_AG_GRID === "yes"
+    || import.meta.env.VITE_ENABLE_AG_GRID === "on";
 }
 
-export function featureAgGridEnabled(): boolean {
-  return envFlag(import.meta.env.VITE_ENABLE_AG_GRID);
+function envFlag(raw: string | undefined): boolean {
+  return ["1", "true", "yes", "on"].includes(String(raw ?? "0").trim().toLowerCase());
 }
 
 /** Off unless explicitly enabled. With it off the Studio module is never imported. */

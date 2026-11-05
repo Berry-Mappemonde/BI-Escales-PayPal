@@ -5,11 +5,13 @@ import type { PublicPledge } from "../api/types";
 import type { PledgeFormValues } from "./PledgeButton";
 import type { PayPalNamespace } from "../paypal/paypalSdk";
 
+type FieldInstance = { render: (el: HTMLElement) => Promise<void>; close?: () => void | Promise<void> };
+
 type CardFieldsFactory = (config: Record<string, unknown>) => {
   isEligible: () => boolean;
-  NumberField: () => { render: (el: HTMLElement) => Promise<void> };
-  ExpiryField: () => { render: (el: HTMLElement) => Promise<void> };
-  CVVField: () => { render: (el: HTMLElement) => Promise<void> };
+  NumberField: () => FieldInstance;
+  ExpiryField: () => FieldInstance;
+  CVVField: () => FieldInstance;
   submit: () => Promise<void>;
 };
 
@@ -41,9 +43,13 @@ export function PayPalCardFieldsBlock({
   const [error, setError] = useState<string | null>(null);
   const activePledgeRef = useRef<PublicPledge | null>(null);
   const submitRef = useRef<(() => Promise<void>) | null>(null);
+  const preparedRef = useRef<{ key: string; pledge: Promise<PublicPledge> } | null>(null);
   valuesRef.current = values;
 
   useEffect(() => {
+    setReady(false);
+    setError(null);
+    submitRef.current = null;
     const CardFields = (paypal as { CardFields?: CardFieldsFactory } | null)?.CardFields;
     const numberHost = numberRef.current;
     const expiryHost = expiryRef.current;
@@ -62,6 +68,7 @@ export function PayPalCardFieldsBlock({
       return createPledge(
         {
           amount_eur: v.amount_eur,
+            quantity: v.quantity,
           description: v.description,
           milestone_id: v.milestone_id,
           contributor: v.contributor?.trim() || undefined,
@@ -74,79 +81,79 @@ export function PayPalCardFieldsBlock({
       );
     };
 
-    let cardFields: ReturnType<CardFieldsFactory>;
-    try {
-      cardFields = CardFields({
-      createOrder: async () => {
-        const pledge = await buildPledge();
-        activePledgeRef.current = pledge;
-        if (isVaultPledge(pledge)) {
-          throw new Error("vault card uses setup token flow");
-        }
-        if (!pledge.order_id) throw new Error("order_id missing");
-        return pledge.order_id;
-      },
-      createVaultSetupToken: async () => {
-        const pledge = await buildPledge();
-        activePledgeRef.current = pledge;
-        const token = String(pledge.setup_token_id || "").trim();
-        if (!token) throw new Error("setup_token_id missing");
-        return token;
-      },
-    });
-    } catch {
-      setReady(false);
-      return;
+    const instances: FieldInstance[] = [];
+    const dispose = () => {
+      for (const instance of instances.splice(0)) {
+        try { void Promise.resolve(instance.close?.()).catch(() => undefined); } catch { /* already closed */ }
+      }
+    };
+    // The server chooses AUTHORIZE/VAULT using its clock and feature flags.
+    // Prepare a draft (no charge) before selecting the mutually exclusive SDK callback.
+    const key = JSON.stringify([values, appLang]);
+    if (preparedRef.current?.key !== key) {
+      preparedRef.current = { key, pledge: buildPledge() };
     }
-
-    let eligible = false;
-    try {
-      eligible = typeof cardFields?.isEligible === "function" && cardFields.isEligible();
-    } catch {
-      eligible = false;
-    }
-    if (!eligible) {
-      if (!cancelled) setReady(false);
-      return;
-    }
-
+    const prepared = preparedRef.current;
     void (async () => {
       try {
+        const pledge = await prepared.pledge;
+        if (cancelled) return;
+        const activate = () => {
+          if (cancelled) throw new Error("Card checkout closed");
+          activePledgeRef.current = pledge;
+        };
+        const callbacks = isVaultPledge(pledge)
+          ? { createVaultSetupToken: async () => {
+              activate();
+              if (!pledge.setup_token_id) throw new Error("setup_token_id missing");
+              return pledge.setup_token_id;
+            } }
+          : { createOrder: async () => {
+              activate();
+              if (!pledge.order_id) throw new Error("order_id missing");
+              return pledge.order_id;
+            } };
+        const cardFields = CardFields(callbacks);
+        if (!cardFields.isEligible()) return;
         for (const [field, el] of [
           [cardFields.NumberField, numberHost],
           [cardFields.ExpiryField, expiryHost],
           [cardFields.CVVField, cvvHost],
         ] as const) {
-          if (typeof field !== "function") throw new Error("PayPal card field unavailable");
+          if (cancelled) return;
           const instance = field.call(cardFields);
-          if (typeof instance?.render !== "function") throw new Error("PayPal card field cannot render");
+          instances.push(instance);
           await instance.render(el);
+          if (cancelled) return;
         }
+        submitRef.current = () => cardFields.submit();
+        setReady(true);
+      } catch (e) {
+        dispose();
+        if (preparedRef.current === prepared) preparedRef.current = null;
         if (!cancelled) {
-          submitRef.current = () => cardFields.submit();
-          setReady(true);
+          setReady(false);
+          setError(e instanceof Error ? e.message : String(e));
         }
-      } catch {
-        if (!cancelled) setReady(false);
       }
     })();
 
     return () => {
       cancelled = true;
-      setReady(false);
       submitRef.current = null;
+      activePledgeRef.current = null;
+      dispose();
     };
   }, [appLang, paypal, disabled, values.amount_eur, values.kind, values.milestone_id, values.description, values.target_id]);
 
   const onSubmit = async () => {
     const submit = submitRef.current;
-    const pledge = activePledgeRef.current;
     if (!submit) return;
     setBusy(true);
     setError(null);
     try {
       await submit();
-      let current = pledge;
+      let current = activePledgeRef.current;
       if (!current) {
         throw new Error("pledge missing after card submit");
       }
@@ -155,6 +162,8 @@ export function PayPalCardFieldsBlock({
       } else {
         current = await authorizePledge(current.id);
       }
+      preparedRef.current = null;
+      setReady(false);
       onAuthorized?.(current);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

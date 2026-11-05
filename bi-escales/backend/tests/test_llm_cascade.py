@@ -29,7 +29,6 @@ LLM_ENV = (
     "ANTHROPIC_API_KEY",
     "NEBIUS_API_KEY",
     "NAVIGUIDE_TF_BASE",
-    "HELLOASSO_MEMBERSHIP_URL",
     "ESCALES_TOOLKIT_ENABLED",
     "NIM_MODEL",
     "NIM_TEMPERATURE",
@@ -513,10 +512,6 @@ def test_captain_strips_invented_figures_and_keeps_the_source(monkeypatch):
 
 def test_captain_chat_exposes_the_model_and_does_not_order(monkeypatch):
     _enable("openrouter")
-    monkeypatch.setenv(
-        "HELLOASSO_MEMBERSHIP_URL",
-        "https://www.helloasso.com/associations/blue-intelligence/adhesions/membre",
-    )
     monkeypatch.setattr(
         llm,
         "_client",
@@ -528,7 +523,6 @@ def test_captain_chat_exposes_the_model_and_does_not_order(monkeypatch):
     async def body():
         result = await chat("Je veux parrainer 20 milles près de Mayotte")
         assert result["model_source"] == {"provider": "openrouter", "model": "openai/gpt-4o-mini"}
-        assert result["membership_url"] in result["reply"]
         assert result["suggested_pledge"]["amount_eur"] == "20.00"
         assert result["suggested_pledge"]["intent"] == "AUTHORIZE"
         assert "order_id" not in result

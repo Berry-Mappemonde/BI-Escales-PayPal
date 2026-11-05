@@ -116,6 +116,7 @@
     "heading": "Stops & AI Captain",
     "captainChat": "Message to AI Captain",
     "sendChat": "Ask for wording",
+    "agenticConfirmInvoice": "Confirm — create PayPal invoice (sandbox)",
     "cartHeading": "Cart",
     "chatReply": "Captain reply",
     "paypalToolLine": "PayPal tool: {{tools}} ({{client}})",

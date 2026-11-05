@@ -2994,6 +2994,20 @@ async def chat(
     url = membership_url()
     lang = resolve_chat_lang(text, lang, accept_language)
     if treasurer and reader is not None:
+        agentic = parse_agentic_proposal(text, lang)
+        if agentic:
+            suggested = agentic_suggested_pledge(agentic, lang)
+            return {
+                "reply": _fit_words("", [agentic_reply(agentic, lang), _signature(lang)]),
+                "membership_url": url,
+                "suggested_pledge": suggested,
+                "cart": None,
+                "model_source": "paypal_agentic_proposal",
+                "model_label": model_display_label(_nim_model_source()),
+                "fund": None,
+                "paypal_tools": _paypal_tools_payload(reader),
+                "agentic_action": agentic,
+            }
         pledge_reply = await _pledge_status_readonly_reply(text, lang, reader)
         if pledge_reply:
             return {

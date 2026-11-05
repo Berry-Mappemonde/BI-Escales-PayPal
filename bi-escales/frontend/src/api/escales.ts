@@ -440,6 +440,19 @@ export async function fetchPayPalInvoices(adminKey: string): Promise<{ paypal: {
   return res.json();
 }
 
+export async function createPayPalInvoice(
+  adminKey: string,
+  body: { recipient_email: string; amount_eur: string; description: string; reference?: string; lang?: string },
+): Promise<Record<string, unknown>> {
+  const res = await fetch(url("/api/escales/paypal/invoices"), {
+    method: "POST",
+    headers: { ...treasurerHeaders(adminKey), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
 export async function fetchPayPalSubscriptions(adminKey: string): Promise<{ items: unknown[] }> {
   const res = await fetch(url("/api/escales/paypal/subscriptions"), { headers: treasurerHeaders(adminKey) });
   if (!res.ok) throw new Error(await parseError(res));

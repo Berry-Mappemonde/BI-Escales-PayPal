@@ -259,6 +259,7 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
           values={values}
           appLang={appLang}
           sdkIntent={sdkIntent}
+          sdkReady={sdkReady}
           disabled={disabled || busy}
           onAuthorized={onAuthorized}
         />

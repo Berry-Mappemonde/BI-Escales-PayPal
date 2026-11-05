@@ -94,13 +94,39 @@ describe("proto preview", () => {
     expect(screen.getByRole("button", { name: "Approve" })).toHaveFocus();
   });
 
-  it("overrides with a named replacement, and can back out", () => {
+  it("lets Override release the hold and nothing else", () => {
+    open("screen=captain&lang=en");
+    fireEvent.click(screen.getByRole("button", { name: "Override" }));
+    expect(screen.getByText(/Capture needs arrival evidence/)).toBeInTheDocument();
+    const decision = screen.getByRole("button", { name: "Release the hold" }).parentElement as HTMLElement;
+    expect(within(decision).getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "Release the hold",
+      "Cancel",
+    ]);
+    expect(screen.queryByRole("button", { name: /capture/i })).toBeNull();
+  });
+
+  it("offers no capture action in French either", () => {
+    open("screen=captain&lang=fr");
+    fireEvent.click(screen.getByRole("button", { name: "Passer outre" }));
+    expect(screen.getByRole("button", { name: "Libérer la retenue" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /encaiss/i })).toBeNull();
+  });
+
+  it("can back out of Override, and Undo reverses a release", () => {
     open("screen=captain&lang=en");
     fireEvent.click(screen.getByRole("button", { name: "Override" }));
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Approve" })).toHaveFocus();
+
     fireEvent.click(screen.getByRole("button", { name: "Override" }));
     fireEvent.click(screen.getByRole("button", { name: "Release the hold" }));
     expect(screen.getByRole("status")).toHaveTextContent("release the hold");
+    expect(screen.getByRole("button", { name: "Undo" })).toHaveFocus();
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(screen.getByRole("button", { name: "Approve" })).toHaveFocus();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
   it("gives every pledge state its own glyph and a label", () => {

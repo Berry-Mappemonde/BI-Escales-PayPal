@@ -19,3 +19,4 @@ This page is its own Vite HTML entry, so `main.tsx`, `index.html` and the config
 - The display labels map to `PledgeStatus` in `src/api/types.ts`: held = `authorized`, saved = `vaulted`, released = `voided`. Captured and refunded keep their names.
 - Refunded has a new glyph, drawn on Meridian's 14px grid. The other glyphs are Meridian's.
 - Approve, Override and Back this leg only change local state.
+- Override can only release the hold. Capture needs arrival evidence, so the Captain card never offers it.

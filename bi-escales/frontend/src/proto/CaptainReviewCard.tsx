@@ -4,12 +4,12 @@ import { formatDay, type Lang } from "./format";
 import { review, stop } from "./mock";
 import { useFocusFirstButton } from "./useFocusFirstButton";
 
-type Decision = "pending" | "choosing" | "approved" | "capture" | "release";
+/** Override can only release the hold. Capture needs arrival evidence, so it is never offered here. */
+type Decision = "pending" | "overriding" | "approved" | "released";
 
 const RESULT_KEY: Partial<Record<Decision, string>> = {
   approved: "captain.resultApproved",
-  capture: "captain.resultCapture",
-  release: "captain.resultRelease",
+  released: "captain.resultRelease",
 };
 
 export function CaptainReviewCard({ lang }: { lang: Lang }) {
@@ -117,20 +117,17 @@ export function CaptainReviewCard({ lang }: { lang: Lang }) {
             <button type="button" className="proto-btn" data-variant="primary" onClick={() => setDecision("approved")}>
               {t("captain.approve")}
             </button>
-            <button type="button" className="proto-btn" onClick={() => setDecision("choosing")}>
+            <button type="button" className="proto-btn" onClick={() => setDecision("overriding")}>
               {t("captain.override")}
             </button>
           </div>
         ) : null}
 
-        {decision === "choosing" ? (
+        {decision === "overriding" ? (
           <>
-            <p className="proto-ui">{t("captain.overrideTitle")}</p>
+            <p className="proto-ui">{t("captain.overrideRule")}</p>
             <div className="proto-actions">
-              <button type="button" className="proto-btn" onClick={() => setDecision("capture")}>
-                {t("captain.captureNow")}
-              </button>
-              <button type="button" className="proto-btn" onClick={() => setDecision("release")}>
+              <button type="button" className="proto-btn" onClick={() => setDecision("released")}>
                 {t("captain.releaseHold")}
               </button>
               <button type="button" className="proto-btn" data-variant="ghost" onClick={() => setDecision("pending")}>

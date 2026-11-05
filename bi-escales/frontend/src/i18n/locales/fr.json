@@ -69,7 +69,9 @@
     "pledgeDescription": "Promesse projet — {{title}}",
     "visitSite": "Site du projet",
     "noDescription": "Pas de description dans l’instantané.",
-    "publicTotal": "{{amount}} {{currency}} collectés · {{count}} dons"
+    "publicTotal": "{{amount}} {{currency}} collectés · {{count}} dons",
+    "goalProgress": "{{amount}} / {{goal}} {{currency}} financés ({{pct}} %)",
+    "buyViaChannel3": "Acheter via Channel3 (objectif atteint)"
   },
   "marinas": {
     "heading": "Marinas",

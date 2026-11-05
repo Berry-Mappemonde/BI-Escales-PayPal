@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from starlette.responses import Response
 
 from app.core import llm
+from app.gear_projects_catalog import funded_percent, lookup_project_fund_meta
 from app.escales.captain import chat as captain_chat
 from app.escales.captain import review as captain_review
 from app.escales.captain import simulated_price_label, simulated_prices, simulated_unit
@@ -993,6 +994,18 @@ async def get_public_project_fund(project_id: str):
         fund = await fund_for_milestone(project_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Project fund not found") from exc
+    meta = lookup_project_fund_meta(project_id)
+    goal = str((meta or {}).get("goal_eur") or "").strip()
+    if goal:
+        base = to_public_project_donation_total(fund)
+        pct = funded_percent(base["amount_eur"], goal)
+        payload = to_public_project_donation_total(fund, goal_eur=goal, funded_pct=pct)
+        if meta:
+            for key in ("channel3_buy_url", "channel3_image_url", "project_kind", "channel3_product_name"):
+                if meta.get(key):
+                    payload[key] = meta[key]
+        payload["fully_funded"] = pct >= 100
+        return payload
     return to_public_project_donation_total(fund)
 
 

@@ -603,7 +603,7 @@ def to_public_fund(fund: dict) -> dict:
     }
 
 
-def to_public_project_donation_total(fund: dict) -> dict:
+def to_public_project_donation_total(fund: dict, *, goal_eur: Optional[str] = None, funded_pct: Optional[int] = None) -> dict:
     """Public BI project crowdfunding totals only (pattern: ``to_public_fund`` stopover aggregates).
 
     Donor-facing read: captured amount, donation count, refunds. No journal lines or ids.
@@ -611,13 +611,18 @@ def to_public_project_donation_total(fund: dict) -> dict:
     income = fund.get("income")
     donation_count = len(income) if isinstance(income, list) else 0
     captured = str(fund.get("captured_eur") or fund.get("income_eur") or "0.00")
-    return {
+    out = {
         "project_id": fund.get("milestone_id"),
         "currency": fund.get("currency") or "EUR",
         "amount_eur": captured,
         "donation_count": donation_count,
         "refunded_eur": str(fund.get("refunded_eur") or "0.00"),
     }
+    if goal_eur:
+        out["goal_eur"] = goal_eur
+    if funded_pct is not None:
+        out["funded_pct"] = funded_pct
+    return out
 
 
 def _public_finance(entry: dict) -> dict:
@@ -734,6 +739,10 @@ async def _project_fund_target(milestone_id: str) -> Optional[str]:
             continue
         if str(row.get("milestone_id") or "").strip() and str(row.get("milestone_id") or "").strip().casefold() not in _PROJECT_ALIASES:
             continue
+        return slug
+    from app.gear_projects_catalog import lookup_project_fund_meta
+
+    if lookup_project_fund_meta(slug):
         return slug
     return None
 

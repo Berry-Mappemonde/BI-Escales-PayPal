@@ -140,7 +140,7 @@ export const fr: Strings = {
     cancel: "Annuler",
     undo: "Annuler",
     resultApproved: "Approuvé. Attente jusqu’à l’arrivée consignée. Aucun mouvement d’argent.",
-    releasing: "Retenue libérée dans {{seconds}} s",
+    releasing: "Libération dans {{seconds}} s",
     releasingAnnounce: "Libération de la retenue dans {{seconds}} secondes. Vous pouvez annuler d’ici là.",
     resultRelease: "Retenue libérée. C’est définitif. Aperçu seulement, aucun appel PayPal.",
   },

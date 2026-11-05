@@ -238,7 +238,22 @@ def mooring_marinas_to_geojson(marinas: list[dict[str, Any]]) -> dict[str, Any]:
                 },
             }
         )
-    return {"type": "FeatureCollection", "features": features}
+    payload: dict[str, Any] = {"type": "FeatureCollection", "features": features}
+    payload["source"] = geojson_collection_source(marinas or [])
+    return payload
+
+
+def geojson_collection_source(rows: list[dict[str, Any]]) -> str:
+    """Top-level atlas vs bundled label for escale marina GeoJSON."""
+    if any(str(row.get("source") or "") == "atlas" for row in rows if isinstance(row, dict)):
+        return "atlas"
+    return "bundled"
+
+
+def bundled_stop_names() -> list[str]:
+    snapshot = load_bundled_escale_snapshot()
+    escales = snapshot.get("escales") or {}
+    return [str(name) for name in escales if isinstance(escales.get(name), dict)]
 
 
 async def fetch_mongo_marina_docs(osm_ids: list[str]) -> dict[str, dict[str, Any]]:
@@ -307,7 +322,7 @@ async def get_escale_marinas_geojson(
     """Cached mooring marinas for one stop (live Mongo → last good → bundled only)."""
     name = (stop_name or "").strip()
     if not name:
-        return {"type": "FeatureCollection", "features": []}
+        return {"type": "FeatureCollection", "features": [], "source": "bundled"}
 
     now = time.monotonic()
     cached = _stop_marinas_cache.get(name)
@@ -341,6 +356,30 @@ async def get_escale_marinas_geojson(
     finally:
         if owns_client:
             await client.aclose()
+
+
+async def get_all_escale_marinas_geojson(
+    client: Optional[httpx.AsyncClient] = None,
+) -> dict[str, Any]:
+    """All stopover mooring marinas (deduped by ``osm_id``)."""
+    features: list[dict[str, Any]] = []
+    sources: list[str] = []
+    seen_osm: set[str] = set()
+    for stop_name in bundled_stop_names():
+        block = await get_escale_marinas_geojson(stop_name, client=client)
+        sources.append(str(block.get("source") or "bundled"))
+        for feature in block.get("features") or []:
+            if not isinstance(feature, dict):
+                continue
+            props = feature.get("properties") if isinstance(feature.get("properties"), dict) else {}
+            osm_id = str(props.get("osm_id") or "").strip()
+            if osm_id:
+                if osm_id in seen_osm:
+                    continue
+                seen_osm.add(osm_id)
+            features.append(feature)
+    top_source = "atlas" if "atlas" in sources else "bundled"
+    return {"type": "FeatureCollection", "features": features, "source": top_source}
 
 
 def merge_marina_row(

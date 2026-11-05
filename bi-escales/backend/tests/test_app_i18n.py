@@ -29,8 +29,10 @@ def test_unknown_language_falls_back_to_fr():
 
 def test_resolve_chat_lang_honours_app_language_over_message():
     french_text = "Je voudrais parrainer 120 milles près d'Ajaccio"
+    english_text = "I would like to sponsor 120 miles near Ajaccio"
     assert resolve_chat_lang(french_text, requested="en") == "en"
     assert resolve_chat_lang(french_text, requested="de") == "fr"
     assert resolve_chat_lang(french_text, requested="fr-FR") == "fr"
     assert resolve_chat_lang(french_text, requested=None) == "fr"
+    assert resolve_chat_lang(english_text, requested=None) == "en"
     assert resolve_chat_lang(french_text, accept_language="fr-FR,fr;q=0.9") == "fr"

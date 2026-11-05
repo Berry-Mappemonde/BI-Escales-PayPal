@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   loadPayPalSdk,
   loadPayPalSubscriptionSdk,
@@ -61,8 +61,10 @@ describe("loadPayPalSubscriptionSdk", () => {
     script.dataset.paypalSdkSrc = src;
     script.dataset.loaded = "1";
     document.body.appendChild(script);
+    window.paypal = { Buttons: vi.fn() };
     await expect(loadPayPalSubscriptionSdk("client-sub", "fr")).resolves.toBeUndefined();
     script.remove();
+    delete window.paypal;
   });
 
   it("uses locale in subscription SDK URL", () => {

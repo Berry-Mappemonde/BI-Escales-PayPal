@@ -154,21 +154,37 @@ export function loadPayPalWalletPaySdk(
   return loadScript(src);
 }
 
+async function waitForPayPalButtons(timeoutMs = 8000): Promise<void> {
+  if (window.paypal?.Buttons) return;
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (window.paypal?.Buttons) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  // Script onload can fire before paypal global is attached; last chance.
+  if (window.paypal?.Buttons) return;
+  throw new Error("PayPal Buttons unavailable after SDK load");
+}
+
 export function loadPayPalSubscriptionSdk(clientId: string, appLang?: string): Promise<void> {
   const trimmed = clientId.trim();
   if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
   const locale = paypalLocale(appLang);
   const src = paypalSubscriptionSdkUrl(trimmed, appLang);
+  // Always tear down when locale/src changes so subscription Buttons can remount (EN→FR).
   if ((loadedLocale && loadedLocale !== locale) || (loadedSrc && loadedSrc !== src)) {
     clearPayPalSdk();
   }
   const loaded = findPayPalScript(src);
   if (loaded?.dataset.loaded === "1" && loadedLocale === locale && loadedSrc === src) {
-    return Promise.resolve();
+    loadedLocale = locale;
+    loadedSrc = src;
+    if (window.paypal?.Buttons) return Promise.resolve();
+    return waitForPayPalButtons(500).catch(() => undefined);
   }
   loadedLocale = locale;
   loadedSrc = src;
-  return loadScript(src);
+  return loadScript(src).then(() => waitForPayPalButtons());
 }
 
 function findPayPalScript(src: string): HTMLScriptElement | null {

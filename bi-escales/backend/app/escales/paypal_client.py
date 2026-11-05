@@ -13,7 +13,7 @@ from typing import Any, Optional
 
 import httpx
 
-from .config import EscalesConfig, order_cancel_url, order_return_url
+from .config import SANDBOX_BASE, EscalesConfig, order_cancel_url, order_return_url
 from .paypal_idempotency import paypal_request_id
 
 SOFT_DESCRIPTOR = "BERRYMAPPEMONDE"
@@ -195,6 +195,8 @@ def setup_token_approve_link(payload: dict) -> str:
 
 class PayPalClient:
     def __init__(self, cfg: EscalesConfig, transport: Optional[httpx.BaseTransport] = None):
+        if cfg.env != "sandbox" or cfg.base_url.rstrip("/") != SANDBOX_BASE:
+            raise ValueError("PayPal sandbox only: live endpoints are not allowed")
         self.cfg = cfg
         self._http = httpx.Client(base_url=cfg.base_url, transport=transport, timeout=30)
         self._token: Optional[str] = None
@@ -278,6 +280,8 @@ class PayPalClient:
         *,
         paypal_idempotent: bool = True,
     ) -> Any:
+        if not path.startswith("/") or path.startswith("//"):
+            raise ValueError("PayPal requests must use a sandbox-relative path")
         headers = {
             "Authorization": f"Bearer {self._access_token()}",
             "Content-Type": "application/json",

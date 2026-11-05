@@ -2980,6 +2980,29 @@ async def chat(
     if not text:
         raise ValueError("message is required")
     lang = resolve_chat_lang(text, lang, accept_language)
+    # Reject sensitive input before any model or PayPal tool sees the message.
+    card_like = re.search(r"(?<![\w])(?:\d[ -]?){12,18}\d(?![\w])", text)
+    write_request = re.search(
+        r"\b(?:capture|capturer|void|refund|rembourser)\b"
+        r"|\b(?:accept|accepter)\b.{0,40}\b(?:claim|dispute|litige)\b"
+        r"|\b(?:create|send|cancel|cr[ée]er|envoyer|annuler)\b.{0,40}\b(?:invoices?|factures?)\b",
+        text, re.I,
+    )
+    if card_like or (write_request and not _is_capture_rule_question(text)):
+        if card_like:
+            reply = (
+                "Do not share card numbers here. Use PayPal's secure card fields instead."
+                if lang == "en" else "Ne partagez pas de numéro de carte ici. Utilisez les champs sécurisés de PayPal."
+            )
+        else:
+            reply = (
+                "I cannot execute PayPal write actions. Use the treasurer review controls for an explicit decision."
+                if lang == "en" else "Je ne peux pas exécuter d’action d’écriture PayPal. Utilisez les contrôles du trésorier pour une décision explicite."
+            )
+        return {
+            "reply": _fit_words("", [reply, _signature(lang)]),
+            "suggested_pledge": None, "cart": None, "model_source": _rules_source(),
+        }
     if treasurer and reader is not None:
         agentic = parse_agentic_proposal(text, lang)
         if agentic:

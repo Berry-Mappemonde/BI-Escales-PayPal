@@ -37,6 +37,22 @@ def _parse_amount(text: str) -> Optional[str]:
     return None
 
 
+def _named_route_stop(message: str) -> Optional[str]:
+    """Match complete route names/aliases, never a fuzzy substring or a default."""
+    from .naviguide_bridge import _CHAT_ALIASES, _schedule_index, _slug
+
+    index = _schedule_index()
+    text = f"-{_slug(message)}-"
+    ids = set(index.values())
+    explicit = {mid for mid in ids if f"-{mid}-" in text}
+    if explicit:
+        return next(iter(explicit)) if len(explicit) == 1 else None
+    aliases = dict(index)
+    aliases.update({alias: index[target] for alias, target in _CHAT_ALIASES.items() if target in index})
+    matches = {mid for name, mid in aliases.items() if f"-{name}-" in text}
+    return next(iter(matches)) if len(matches) == 1 else None
+
+
 def parse_agentic_proposal(message: str, lang: str) -> Optional[dict[str, Any]]:
     """Return a treasurer-only proposed PayPal action (never executes PayPal)."""
     text = (message or "").strip()
@@ -70,6 +86,7 @@ def parse_agentic_proposal(message: str, lang: str) -> Optional[dict[str, Any]]:
             "preview": {
                 "amount_eur": amount,
                 "description": "Captain proposed order (use pledge button after confirm)",
+                "milestone_id": _named_route_stop(text),
             },
             "toolkit_note": "orders.create is not auto-run; use Escales pledge flow after review.",
         }
@@ -79,6 +96,11 @@ def parse_agentic_proposal(message: str, lang: str) -> Optional[dict[str, Any]]:
 def agentic_reply(proposal: dict[str, Any], lang: str) -> str:
     kind = str(proposal.get("kind") or "")
     preview = proposal.get("preview") or {}
+    if kind == "create_pledge_order" and not preview.get("milestone_id"):
+        return (
+            "Which stop? Name one route stop before I propose a pledge."
+            if lang == "en" else "Quelle escale ? Nommez une escale de la route pour proposer la promesse."
+        )
     if kind == "create_invoice":
         if lang == "en":
             return (
@@ -101,9 +123,12 @@ def agentic_suggested_pledge(proposal: dict[str, Any], lang: str) -> Optional[di
     amount = str(preview.get("amount_eur") or "").strip()
     if not amount:
         return None
+    milestone_id = preview.get("milestone_id")
+    if not milestone_id:
+        return None
     return {
         "amount_eur": amount,
         "description": "Promesse proposée par le Capitaine" if lang != "en" else "Captain proposed pledge",
-        "milestone_id": "dep-mayotte",
+        "milestone_id": milestone_id,
         "kind": "mile",
     }

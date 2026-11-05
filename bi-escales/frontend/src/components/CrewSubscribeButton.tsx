@@ -17,6 +17,7 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
   const host = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [sdkEpoch, setSdkEpoch] = useState(0);
   const [planId, setPlanId] = useState(() => (planIdProp || "").trim());
   const [status, setStatus] = useState<string | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
@@ -73,11 +74,13 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
     const clientId = String(import.meta.env.VITE_PAYPAL_CLIENT_ID ?? "").trim();
     if (!clientId || !planId.trim()) return;
     let cancelled = false;
-    // Locale change must drop ready so Buttons re-mount after SDK reload (EN→FR bug).
     setReady(false);
+    setError(null);
     void loadPayPalSubscriptionSdk(clientId, appLang)
       .then(() => {
-        if (!cancelled) setReady(true);
+        if (cancelled) return;
+        setSdkEpoch((n) => n + 1);
+        setReady(true);
       })
       .catch((e) => {
         if (!cancelled) {
@@ -91,10 +94,14 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
   }, [planId, appLang]);
 
   useEffect(() => {
-    if (!ready || !host.current || !window.paypal?.Buttons || !planId.trim()) return;
-    const container = host.current;
-    container.replaceChildren();
-    const buttons = window.paypal.Buttons({
+    if (!ready || !window.paypal?.Buttons || !planId.trim()) return;
+    let closed = false;
+    let buttons: { render: (el: HTMLElement) => Promise<void>; close?: () => Promise<void> } | null = null;
+    const timer = window.setTimeout(() => {
+      const container = host.current;
+      if (closed || !container || !window.paypal?.Buttons) return;
+      container.replaceChildren();
+      buttons = window.paypal.Buttons({
       style: { label: "subscribe", layout: "vertical" },
       createSubscription: (_data: unknown, actions: { subscription: { create: (body: unknown) => Promise<string> } }) =>
         actions.subscription.create({ plan_id: planId }),
@@ -119,12 +126,17 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
         }
       },
     });
-    void buttons.render(container);
+      void buttons.render(container).catch((e: unknown) => {
+        if (!closed) setError(e instanceof Error ? e.message : String(e));
+      });
+    }, 0);
     return () => {
-      void buttons.close?.().catch(() => undefined);
-      container.replaceChildren();
+      closed = true;
+      window.clearTimeout(timer);
+      void buttons?.close?.().catch(() => undefined);
+      host.current?.replaceChildren();
     };
-  }, [ready, planId, adminKey, i18n.language, t]);
+  }, [ready, sdkEpoch, planId, adminKey, appLang, t]);
 
   if (!planId && !error && planLoading) {
     return (
@@ -138,6 +150,11 @@ export function CrewSubscribeButton({ planId: planIdProp, adminKey }: CrewSubscr
   return (
     <div className="crew-subscribe" data-testid="crew-subscribe">
       <p className="hint">{t("pledge.crewSubscribeHint")}</p>
+      {!ready && !error ? (
+        <p className="status" data-testid="crew-subscribe-loading">
+          {t("pledge.crewSubscribeLoading")}
+        </p>
+      ) : null}
       <div ref={host} data-testid="crew-subscribe-host" />
       {status ? <p className="status">{status}</p> : null}
       {error ? <p className="notice error">{error}</p> : null}

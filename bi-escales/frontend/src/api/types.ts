@@ -207,6 +207,7 @@ export interface CartPledge {
 }
 
 export interface CartLine {
+  quantity?: string | number;
   kind?: string;
   description?: string;
   amount_eur?: string;

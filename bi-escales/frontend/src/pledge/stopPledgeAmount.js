@@ -33,7 +33,11 @@ export function defaultAmountForKind(kind, catalog) {
 }
 
 /** Montant réellement envoyé à l'API (tarif fixe prioritaire). */
-export function pledgeOrderAmount(kind, userAmount, catalog) {
+export function pledgeOrderAmount(kind, userAmount, catalog, quantity) {
+  if (quantity !== undefined) {
+    const unit = catalogExactPrice(kind, catalog) || (kind === "mile" ? "1.00" : null);
+    if (unit) return (Math.round(Number(unit) * 100) * quantity / 100).toFixed(2);
+  }
   return catalogExactPrice(kind, catalog) || String(userAmount ?? "").trim() || "1.00";
 }
 

@@ -128,6 +128,7 @@
     "milestonesEmpty": "Aucun jalon enregistré pour l’instant."
   },
   "pledge": {
+    "quantity": "Quantité",
     "amount": "Montant (EUR)",
     "description": "Description",
     "kind": "Type",

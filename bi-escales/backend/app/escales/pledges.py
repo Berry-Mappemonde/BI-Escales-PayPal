@@ -662,8 +662,30 @@ async def resolve_payment_mode(milestone_id: str) -> PaymentMode:
     return "AUTHORIZE"
 
 
-async def create_pledge(
+async def create_pledge(*, quantity: Optional[int] = None, **kwargs: Any) -> dict:
+    """Validate explicit unit quantities before any PayPal side effect."""
+    kind = _kind(kwargs.get("kind"))
+    if quantity is not None:
+        if isinstance(quantity, bool) or not isinstance(quantity, int) or not 1 <= quantity <= 1000:
+            raise ValueError("quantity must be an integer between 1 and 1000")
+        unit = _UNIT_FLOOR.get(kind) if kind != "project_pledge" else None
+        if unit is None:
+            raise ValueError("quantity is only supported for per-unit pledges")
+        expected = unit * quantity
+        if Decimal(normalize_amount(kwargs["amount_eur"])) != expected:
+            raise ValueError(f"amount must match unit price × quantity ({expected:.2f} EUR)")
+        kwargs["amount_eur"] = f"{expected:.2f}"
+    saved = await _create_pledge(quantity=quantity, **kwargs)
+    if (quantity is not None and saved.get("quantity") is None
+            and saved.get("kind") == kind and Decimal(saved["amount_eur"]) == expected):
+        saved["quantity"] = quantity
+        saved = await get_ledger().save_pledge(saved)
+    return saved
+
+
+async def _create_pledge(
     *,
+    quantity: Optional[int] = None,
     amount_eur: str,
     description: str,
     milestone_id: str,
@@ -683,6 +705,8 @@ async def create_pledge(
     description = _require_text(description, "description")
     pledge_kind = _kind(kind)
     exact = _EXACT_PRICE.get(pledge_kind)
+    if exact is not None:
+        exact *= quantity or 1
     if exact is not None and Decimal(amount) != exact:
         raise ValueError(f"{pledge_kind} amount must be {exact:.2f} EUR")
     floor = _UNIT_FLOOR.get(pledge_kind)

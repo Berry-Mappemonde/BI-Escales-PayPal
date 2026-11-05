@@ -68,6 +68,7 @@ export function PayPalCardFieldsBlock({
       return createPledge(
         {
           amount_eur: v.amount_eur,
+            quantity: v.quantity,
           description: v.description,
           milestone_id: v.milestone_id,
           contributor: v.contributor?.trim() || undefined,

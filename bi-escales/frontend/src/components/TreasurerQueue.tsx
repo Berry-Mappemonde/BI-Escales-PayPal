@@ -9,7 +9,7 @@ import {
 } from "../api/escales";
 import { isCaptainRateLimitMessage } from "../api/captainRateLimit";
 import type { PublicPledge } from "../api/types";
-import { isQueuedPledge } from "../hooks/queueFilter";
+import { isQueuedPledge, isRefundablePledge, isTreasurerQueueRow } from "../hooks/queueFilter";
 
 export interface TreasurerQueueProps {
   pledges: PublicPledge[];
@@ -38,10 +38,13 @@ export function TreasurerQueue({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [approvedMilestones, setApprovedMilestones] = useState<Record<string, boolean>>({});
 
-  const queue = pledges.filter((p) => isQueuedPledge(p.status));
+  const queue = pledges.filter((p) => isTreasurerQueueRow(p.status));
+  const pending = queue.filter((p) => isQueuedPledge(p.status));
+  // Capture, void, refund and review approval always need the treasurer key, even in demo.
+  const canMoveMoney = Boolean(adminKey.trim());
   const [verdicts, setVerdicts] = useState<Record<string, string>>({});
   const [toolCalls, setToolCalls] = useState<{ tool: string; resource_id?: string }[]>([]);
-  const milestoneKey = queue.map((pledge) => pledge.milestone_id).join("|");
+  const milestoneKey = pending.map((pledge) => pledge.milestone_id).join("|");
 
   useEffect(() => {
     const key = adminKey.trim();
@@ -88,20 +91,19 @@ export function TreasurerQueue({
   }, [adminKey, demoTreasurer, milestoneKey, i18n.language, t]);
 
   const runAction = async (pledgeId: string, action: "capture" | "void" | "refund") => {
-    if (!demoTreasurer && !adminKey.trim()) {
-      setActionError("Admin key required");
+    if (!canMoveMoney) {
+      setActionError(t("treasurer.moneyNeedsKey"));
       return;
     }
     setBusyId(pledgeId);
     setActionError(null);
-    const access = demoTreasurer ? { demoTreasurer: true as const } : undefined;
     try {
       const updated =
         action === "capture"
-          ? await capturePledge(pledgeId, adminKey.trim(), access)
+          ? await capturePledge(pledgeId, adminKey.trim(), undefined)
           : action === "refund"
-            ? await refundPledge(pledgeId, adminKey.trim(), undefined, access)
-            : await voidPledge(pledgeId, adminKey.trim(), access);
+            ? await refundPledge(pledgeId, adminKey.trim(), undefined, undefined)
+            : await voidPledge(pledgeId, adminKey.trim(), undefined);
       onUpdated(updated);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : String(e));
@@ -111,17 +113,13 @@ export function TreasurerQueue({
   };
 
   const approveReview = async (milestoneId: string) => {
-    if (!adminKey.trim()) {
-      setActionError("Admin key required");
+    if (!canMoveMoney) {
+      setActionError(t("treasurer.moneyNeedsKey"));
       return;
     }
     setActionError(null);
     try {
-      await approveCaptainReview(
-        milestoneId,
-        adminKey.trim(),
-        demoTreasurer ? { demoTreasurer: true } : undefined,
-      );
+      await approveCaptainReview(milestoneId, adminKey.trim(), undefined);
       setApprovedMilestones((prev) => ({ ...prev, [milestoneId]: true }));
     } catch (e) {
       setActionError(e instanceof Error ? e.message : String(e));
@@ -152,6 +150,11 @@ export function TreasurerQueue({
         </p>
       ) : null}
 
+      {demoTreasurer && !canMoveMoney && queue.length ? (
+        <p className="hint" data-testid="treasurer-demo-readonly">
+          {t("treasurer.moneyNeedsKey")}
+        </p>
+      ) : null}
       {needsKey ? (
         <p className="hint">{t("treasurer.queueNeedsKey")}</p>
       ) : queue.length === 0 ? (
@@ -181,37 +184,41 @@ export function TreasurerQueue({
                 <td>{p.milestone_id}</td>
                 <td data-testid={`verdict-${p.id}`}>{verdicts[p.milestone_id] || ""}</td>
                 <td className="actions">
-                  <button
-                    type="button"
-                    data-testid={`approve-${p.id}`}
-                    disabled={busyId === p.id || approvedMilestones[p.milestone_id]}
-                    onClick={() => void approveReview(p.milestone_id)}
-                  >
-                    {t("treasurer.approveReview")}
-                  </button>
-                  {verdicts[p.milestone_id] === "capture" ? (
-                    <button
-                      type="button"
-                      data-testid={`capture-${p.id}`}
-                      disabled={busyId === p.id || !approvedMilestones[p.milestone_id]}
-                      onClick={() => void runAction(p.id, "capture")}
-                    >
-                      {t("treasurer.capturePledge")}
-                    </button>
+                  {isQueuedPledge(p.status) ? (
+                    <>
+                      <button
+                        type="button"
+                        data-testid={`approve-${p.id}`}
+                        disabled={!canMoveMoney || busyId === p.id || approvedMilestones[p.milestone_id]}
+                        onClick={() => void approveReview(p.milestone_id)}
+                      >
+                        {t("treasurer.approveReview")}
+                      </button>
+                      {verdicts[p.milestone_id] === "capture" ? (
+                        <button
+                          type="button"
+                          data-testid={`capture-${p.id}`}
+                          disabled={!canMoveMoney || busyId === p.id || !approvedMilestones[p.milestone_id]}
+                          onClick={() => void runAction(p.id, "capture")}
+                        >
+                          {t("treasurer.capturePledge")}
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        data-testid={`void-${p.id}`}
+                        disabled={!canMoveMoney || busyId === p.id}
+                        onClick={() => void runAction(p.id, "void")}
+                      >
+                        {t("treasurer.notSailingVoid")}
+                      </button>
+                    </>
                   ) : null}
-                  <button
-                    type="button"
-                    data-testid={`void-${p.id}`}
-                    disabled={busyId === p.id}
-                    onClick={() => void runAction(p.id, "void")}
-                  >
-                    {t("treasurer.notSailingVoid")}
-                  </button>
-                  {p.status === "captured" || p.status === "partially_refunded" ? (
+                  {isRefundablePledge(p.status) ? (
                     <button
                       type="button"
                       data-testid={`refund-${p.id}`}
-                      disabled={busyId === p.id}
+                      disabled={!canMoveMoney || busyId === p.id}
                       onClick={() => void runAction(p.id, "refund")}
                     >
                       {t("treasurer.refundPledge")}

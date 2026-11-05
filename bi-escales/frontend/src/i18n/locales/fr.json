@@ -190,6 +190,7 @@
     "capture": "Encaisser",
     "void": "Annuler l’autorisation",
     "queueEmpty": "Aucune promesse autorisée, vaultée ou en attente sur le serveur.",
+    "moneyNeedsKey": "La vue démo est en lecture seule : saisissez la clé trésorier pour capturer, annuler, rembourser ou approuver.",
     "queueNeedsKey": "Saisissez la clé trésorier pour lire la file sur le serveur.",
     "approveReview": "Approuver la revue",
     "capturePledge": "Capturer la promesse",

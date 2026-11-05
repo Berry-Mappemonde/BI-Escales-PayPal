@@ -190,6 +190,7 @@
     "capture": "Capture",
     "void": "Void authorization",
     "queueEmpty": "No authorized, vaulted, or pending pledges on the server.",
+    "moneyNeedsKey": "Demo view is read-only: enter the treasurer key to capture, void, refund or approve.",
     "queueNeedsKey": "Enter the treasurer key to read the queue from the server.",
     "approveReview": "Approve the review",
     "capturePledge": "Capture pledge",

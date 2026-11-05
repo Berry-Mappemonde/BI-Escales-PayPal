@@ -8,12 +8,16 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { HELLOASSO_MEMBERSHIP_URL } from "../config/helloasso.js";
 import { PledgeButton } from "./PledgeButton";
+import {
+  cabinLegMilestoneId,
+  pledgeAmountReadOnly,
+  pledgeOrderAmount,
+} from "../pledge/stopPledgeAmount.js";
 import { formatStopoverDate, portHoldHours } from "../voyage/voyageClock.js";
 import { formatLogbookEntry } from "../voyage/journalDisplay.js";
 import { evaluateGooglePlaceLink, googleMapsSearchUrl } from "../marinas/marinaPlaceLink.js";
 
-const STOP_KINDS = ["mile", "night", "meal", "care", "common_fund"];
-const FIXED_AMOUNT = { night: "60.00", meal: "60.00", care: "40.00" };
+const STOP_KINDS = ["mile", "berth", "night", "meal", "care", "cabin_leg", "common_fund"];
 
 const SECTION_KEYS = [
   "mooring",
@@ -78,6 +82,8 @@ export const EscaleSheet = memo(function EscaleSheet({
   error,
   onClose,
   pledge,
+  priceCatalog,
+  schedule,
   onPledgeAuthorized,
   arrivalIso,
   logbookEntries,
@@ -89,6 +95,13 @@ export const EscaleSheet = memo(function EscaleSheet({
   const keys = Object.keys(sections);
   const pledgeDescription = pledge
     ? `${stop.name} — ${t(`pledge.kinds.${pledge.kind}`)}`
+    : "";
+  const orderAmount = pledge ? pledgeOrderAmount(pledge.kind, pledge.amount, priceCatalog) : "";
+  const readOnlyAmount = pledge ? pledgeAmountReadOnly(pledge.kind, priceCatalog) : false;
+  const pledgeMilestoneId = pledge
+    ? (pledge.kind === "cabin_leg"
+      ? cabinLegMilestoneId(schedule, pledge.milestoneId, stop.name) || pledge.milestoneId
+      : pledge.milestoneId)
     : "";
   const holdHours = portHoldHours(stop.name);
   const arrivalLabel = arrivalIso
@@ -190,10 +203,10 @@ export const EscaleSheet = memo(function EscaleSheet({
             {t("pledge.amount")}
             <input
               data-testid="pledge-amount"
-              value={FIXED_AMOUNT[pledge.kind] || pledge.amount}
-              readOnly={Boolean(FIXED_AMOUNT[pledge.kind])}
+              value={orderAmount}
+              readOnly={readOnlyAmount}
               onChange={(event) => {
-                if (!FIXED_AMOUNT[pledge.kind]) pledge.onAmount(event.target.value);
+                if (!readOnlyAmount) pledge.onAmount(event.target.value);
               }}
             />
           </label>
@@ -203,12 +216,12 @@ export const EscaleSheet = memo(function EscaleSheet({
           </label>
           <PledgeButton
             values={{
-              amount_eur: FIXED_AMOUNT[pledge.kind] || pledge.amount,
+              amount_eur: orderAmount,
               description: pledgeDescription,
-              milestone_id: pledge.milestoneId,
+              milestone_id: pledgeMilestoneId,
               contributor: pledge.contributor.trim() || undefined,
               kind: pledge.kind,
-              target_id: pledge.milestoneId,
+              target_id: pledge.kind === "cabin_leg" ? pledgeMilestoneId : pledge.milestoneId,
             }}
             onAuthorized={onPledgeAuthorized}
           />

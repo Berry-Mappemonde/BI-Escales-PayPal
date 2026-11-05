@@ -115,15 +115,16 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
     setError(null);
     setStatus(t("pledge.creating"));
     try {
+      const v = valuesRef.current;
       const pledge = await createPledge(
         {
-          amount_eur: values.amount_eur,
-          description: values.description,
-          milestone_id: values.milestone_id,
-          contributor: values.contributor?.trim() || undefined,
-          kind: values.kind,
-          target_id: values.target_id,
-          lang: values.lang || appLang,
+          amount_eur: v.amount_eur,
+          description: v.description,
+          milestone_id: v.milestone_id,
+          contributor: v.contributor?.trim() || undefined,
+          kind: v.kind,
+          target_id: v.target_id,
+          lang: v.lang || appLang,
         },
         crypto.randomUUID(),
       );

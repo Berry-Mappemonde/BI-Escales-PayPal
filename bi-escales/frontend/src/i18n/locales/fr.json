@@ -130,9 +130,11 @@
     "kind": "Type",
     "kinds": {
       "mile": "Milles parrainés (simulation)",
+      "berth": "Poste de port / amarrage (simulation)",
       "night": "Nuit à bord (simulation)",
       "meal": "Repas (simulation)",
       "care": "Programme bien-être (simulation)",
+      "cabin_leg": "Cabine sur un leg (simulation)",
       "common_fund": "Caisse commune"
     },
     "milestone": "Jalon",

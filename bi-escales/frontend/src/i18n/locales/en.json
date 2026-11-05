@@ -130,9 +130,11 @@
     "kind": "Kind",
     "kinds": {
       "mile": "Sponsored miles (simulation)",
+      "berth": "Berth reservation (simulation)",
       "night": "Night aboard (simulation)",
       "meal": "Meal (simulation)",
       "care": "Wellness programme (simulation)",
+      "cabin_leg": "Cabin on a leg (simulation)",
       "common_fund": "Common fund"
     },
     "milestone": "Milestone",

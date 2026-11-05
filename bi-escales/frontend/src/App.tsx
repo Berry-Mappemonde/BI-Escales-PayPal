@@ -22,6 +22,11 @@ import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
 import { formatCivilDate } from "./voyage/voyageClock.js";
 import { escaleArrivalIso, logbookEntriesForStop } from "./voyage/journalDisplay.js";
+import {
+  amountFromSuggestedPledge,
+  cabinLegMilestoneId,
+  defaultAmountForKind,
+} from "./pledge/stopPledgeAmount.js";
 import "./styles/app.css";
 import "./styles/naviguide-shell.css";
 
@@ -36,14 +41,6 @@ type VoyageStop = {
 };
 
 type FlyTarget = { lat: number; lon: number; ts: number };
-
-const KIND_AMOUNT: Record<string, string | null> = {
-  mile: null,
-  night: "60.00",
-  meal: "60.00",
-  care: "40.00",
-  common_fund: null,
-};
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -459,9 +456,14 @@ export default function App() {
 
   const onKind = (next: string) => {
     setKind(next);
-    const priced = KIND_AMOUNT[next];
+    const priced = defaultAmountForKind(next, schedule?.prices);
     if (priced) setAmount(priced);
-    else if (next === "mile") setAmount("1.00");
+    if (next === "cabin_leg" && stop?.milestoneId) {
+      const legId = cabinLegMilestoneId(schedule, stop.milestoneId, stop.name);
+      if (legId) setMilestoneId(legId);
+    } else if (stop?.milestoneId && next !== "cabin_leg") {
+      setMilestoneId(stop.milestoneId);
+    }
   };
 
   const runSettle = async (atIso?: string) => {
@@ -516,9 +518,15 @@ export default function App() {
 
   const onSuggested = (pledge: CaptainChatResponse["suggested_pledge"]) => {
     if (!pledge) return;
-    setAmount(pledge.amount_eur);
-    setMilestoneId(pledge.milestone_id);
-    if (pledge.kind) setKind(pledge.kind);
+    const nextKind = pledge.kind || kind;
+    setKind(nextKind);
+    setAmount(amountFromSuggestedPledge(pledge, schedule?.prices));
+    if (nextKind === "cabin_leg" && stop?.milestoneId) {
+      const legId = cabinLegMilestoneId(schedule, stop.milestoneId, stop.name);
+      setMilestoneId(legId || pledge.milestone_id);
+    } else {
+      setMilestoneId(pledge.milestone_id);
+    }
   };
 
   useEffect(() => {
@@ -789,6 +797,8 @@ export default function App() {
               onClose={() => setStop(null)}
               arrivalIso={sheetArrivalIso}
               logbookEntries={sheetLogbook}
+              priceCatalog={schedule?.prices}
+              schedule={schedule}
               pledge={{
                 amount,
                 milestoneId,

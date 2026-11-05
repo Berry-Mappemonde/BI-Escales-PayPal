@@ -295,7 +295,7 @@
     "colContributor": "Contributor",
     "colDescription": "Description",
     "sourceName": "Pledges",
-    "datasetDescription": "BI Escales PayPal sandbox pledges. Held and saved pledges are captured only after the treasurer's human validation; project pledges are charged when the supporter approves. Planned departure 15 May 2027.",
+    "datasetDescription": "BI Escales PayPal sandbox pledges. Held and saved pledges are captured only after the treasurer's human validation; project pledges are charged when the supporter approves.",
     "sourceDescription": "One row per pledge. Amounts are in euros; net_eur is the amount less refunds. Status is one of created, authorized (held), vaulted (saved, not charged yet), pending, captured, partially_refunded, refunded, voided (released), capture_failed, charge_failed or token_delete_pending.",
     "widgetLabel": "Human validation",
     "widgetAiDescription": "Scoreboard of held, saved, captured and released pledge totals. States that a human treasurer must validate before a held or saved pledge is captured.",

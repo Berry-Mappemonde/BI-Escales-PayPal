@@ -295,7 +295,7 @@
     "colContributor": "Contributeur",
     "colDescription": "Description",
     "sourceName": "Promesses",
-    "datasetDescription": "Promesses PayPal sandbox BI Escales. Les promesses retenues ou enregistrées ne sont encaissées qu’après validation humaine du trésorier ; les promesses projet sont débitées quand le contributeur approuve. Départ prévu le 15 mai 2027.",
+    "datasetDescription": "Promesses PayPal sandbox BI Escales. Les promesses retenues ou enregistrées ne sont encaissées qu’après validation humaine du trésorier ; les promesses projet sont débitées quand le contributeur approuve.",
     "sourceDescription": "Une ligne par promesse. Les montants sont en euros ; net_eur est le montant moins les remboursements. Le statut vaut created, authorized (retenue), vaulted (enregistrée, pas encore débitée), pending, captured, partially_refunded, refunded, voided (libérée), capture_failed, charge_failed ou token_delete_pending.",
     "widgetLabel": "Validation humaine",
     "widgetAiDescription": "Jauge des totaux retenus, enregistrés, encaissés et libérés. Rappelle qu’un trésorier humain doit valider avant d’encaisser une promesse retenue ou enregistrée.",

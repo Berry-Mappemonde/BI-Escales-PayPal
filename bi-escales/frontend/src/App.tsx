@@ -11,6 +11,7 @@ import MarinasPanel from "./components/MarinasPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
 import { TreasurerPanel } from "./components/TreasurerPanel";
 import { CrewSubscribeButton } from "./components/CrewSubscribeButton";
+import { HowItWorks } from "./components/stop/HowItWorks.jsx";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { useTheme } from "./hooks/useTheme";
@@ -683,6 +684,16 @@ export default function App() {
         <div className="ng-shell-header">
           <h1>{t("app.title")}</h1>
           <p>{t("app.tagline")}</p>
+        </div>
+        <div className="ng-controls">
+          <div className="lang-switch">
+            <button type="button" className={i18n.language === "fr" ? "active" : ""} onClick={() => setLanguage("fr")}>
+              {t("app.langFr")}
+            </button>
+            <button type="button" className={i18n.language === "en" ? "active" : ""} onClick={() => setLanguage("en")}>
+              {t("app.langEn")}
+            </button>
+          </div>
           <div className="theme-switch" data-testid="theme-switch">
             <button
               type="button"
@@ -693,14 +704,6 @@ export default function App() {
               {theme === "light" ? t("app.themeDark") : t("app.themeLight")}
             </button>
           </div>
-        </div>
-        <div className="lang-switch">
-          <button type="button" className={i18n.language === "fr" ? "active" : ""} onClick={() => setLanguage("fr")}>
-            {t("app.langFr")}
-          </button>
-          <button type="button" className={i18n.language === "en" ? "active" : ""} onClick={() => setLanguage("en")}>
-            {t("app.langEn")}
-          </button>
         </div>
         <div className="ng-tab-bar tab-bar" role="tablist">
           <button type="button" role="tab" aria-selected={tab === "voyage"} className={tab === "voyage" ? "active" : ""} onClick={() => setTab("voyage")}>
@@ -858,7 +861,7 @@ export default function App() {
               onPledgeAuthorized={onAuthorized}
             />
           ) : (
-            <p className="hint">{t("sheet.pick")}</p>
+            <HowItWorks />
           )
         ) : (
           <MarinasPanel

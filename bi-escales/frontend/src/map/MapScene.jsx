@@ -206,11 +206,12 @@ export function MapScene({
       const groupName = feature.properties?.category_group;
       const color = FALLBACK_COLORS[groupName] || FALLBACK_COLORS.Other;
       const marker = L.circleMarker([lat, lon], {
-        radius: 4,
+        radius: 3,
         color,
         weight: 1,
+        opacity: 0.5,
         fillColor: color,
-        fillOpacity: 0.85,
+        fillOpacity: 0.4,
         pane: "overlayPane",
       }).addTo(group);
       if (feature.properties?.title) marker.bindTooltip(feature.properties.title, { direction: "top" });

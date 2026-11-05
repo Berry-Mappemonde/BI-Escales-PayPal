@@ -33,7 +33,6 @@ def api(monkeypatch):
     monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     monkeypatch.delenv("ESCALES_ENV", raising=False)
     monkeypatch.delenv("ESCALES_RATE_LIMIT_ENABLED", raising=False)
-    monkeypatch.delenv("HELLOASSO_MEMBERSHIP_URL", raising=False)
     monkeypatch.delenv("ESCALES_LLM_ENABLED", raising=False)
     reset()
     reset_ledger()

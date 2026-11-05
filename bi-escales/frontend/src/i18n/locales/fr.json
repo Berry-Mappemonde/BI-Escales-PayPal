@@ -91,8 +91,6 @@
   },
   "fund": {
     "heading": "Caisse commune",
-    "line": "Adhésion de l’association :",
-    "helloasso": "HelloAsso",
     "figures": "solde {{balance}} {{currency}} (recettes {{income}}, dépenses {{spending}})",
     "income": "Recettes",
     "spending": "Dépenses",

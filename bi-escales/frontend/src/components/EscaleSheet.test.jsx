@@ -70,7 +70,6 @@ describe("EscaleSheet", () => {
         />
       </I18nextProvider>,
     );
-    expect(screen.getByText(/HelloAsso/)).toBeInTheDocument();
     expect(screen.queryByTestId("captain-review")).toBeNull();
     fireEvent.change(screen.getByTestId("pledge-kind"), { target: { value: "night" } });
     expect(onKind).toHaveBeenCalledWith("night");

@@ -6,7 +6,6 @@
  */
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { HELLOASSO_MEMBERSHIP_URL } from "../config/helloasso.js";
 import { PledgeButton } from "./PledgeButton";
 import {
   cabinLegMilestoneId,
@@ -183,10 +182,6 @@ export const EscaleSheet = memo(function EscaleSheet({
           ))}
         </div>
       ))}
-      <p className="fund-line">
-        {t("fund.line")}{" "}
-        <a href={HELLOASSO_MEMBERSHIP_URL} target="_blank" rel="noreferrer">{t("fund.helloasso")}</a>
-      </p>
       {pledge ? (
         <div className="pledge-form">
           <label>

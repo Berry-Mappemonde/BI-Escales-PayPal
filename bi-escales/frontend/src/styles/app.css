@@ -193,6 +193,18 @@ button:disabled {
   text-align: left;
 }
 
+.treasurer-confirmation {
+  max-width: 28rem;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--color-raised);
+}
+
+.treasurer-confirmation p {
+  margin: 0 0 var(--space-2);
+}
+
 .actions button {
   margin-right: 0.35rem;
 }

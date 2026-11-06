@@ -1676,16 +1676,6 @@ def model_display_label(source: Any) -> str:
     return provider
 
 
-def _nim_model_source() -> dict[str, str]:
-    """Primary NIM id used for chat/review (same family as ``llm_proposal``)."""
-    try:
-        from app.core import llm
-
-        return {"provider": "nim", "model": llm.nim_model()}
-    except Exception:
-        return {"provider": "nim", "model": ""}
-
-
 def _paypal_tools_payload(reader: ReadOnlyTools) -> dict[str, Any]:
     called: list[str] = []
     seen: set[str] = set()
@@ -1698,7 +1688,19 @@ def _paypal_tools_payload(reader: ReadOnlyTools) -> dict[str, Any]:
         "tools": list(reader.allowed()),
         "called": called,
         "client": "paypal-agent-toolkit" if reader.uses_toolkit else "direct",
+        "calls": list(reader.call_log),
     }
+
+
+def _with_trace(result: dict, reader: Optional[ReadOnlyTools], started: float) -> dict:
+    # Legacy string sources describe deterministic paths, not the configured model.
+    source = result.get("model_source")
+    result["model_label"] = model_display_label(source) or "rules"
+    result["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
+    result["paypal_tools"] = _paypal_tools_payload(reader) if reader is not None else {
+        "tools": [], "called": [], "calls": [], "client": "direct",
+    }
+    return result
 
 
 def _text_of(raw: Any) -> str:
@@ -2467,6 +2469,7 @@ async def review(
     lang: Optional[str] = None,
 ) -> dict:
     """Propose capture or void from evidence. Does not execute either."""
+    started = time.perf_counter()
     from .naviguide_bridge import resolve_milestone
 
     report_lang = resolve_app_language(lang)
@@ -2579,6 +2582,7 @@ async def review(
     from .provisioning_channel3 import attach_provisioning
 
     proposal = attach_provisioning(proposal, milestone_id)
+    proposal = _with_trace(proposal, reader, started)
     await get_ledger().set_proposal(milestone_id, proposal)
     from .audit import record
     await record(
@@ -2970,7 +2974,7 @@ def _paypal_readonly_reply(message: str, lang: str, reader: ReadOnlyTools) -> Op
     return "\n".join(lines)
 
 
-async def chat(
+async def _chat(
     message: str,
     *,
     treasurer: bool = False,
@@ -2996,7 +3000,7 @@ async def chat(
                 "suggested_pledge": suggested,
                 "cart": None,
                 "model_source": "paypal_agentic_proposal",
-                "model_label": model_display_label(_nim_model_source()),
+                "model_label": "rules",
                 "fund": None,
                 "paypal_tools": _paypal_tools_payload(reader),
                 "agentic_action": agentic,
@@ -3008,7 +3012,7 @@ async def chat(
                 "suggested_pledge": None,
                 "cart": None,
                 "model_source": "paypal_readonly_tools",
-                "model_label": model_display_label(_nim_model_source()),
+                "model_label": "rules",
                 "fund": None,
                 "paypal_tools": _paypal_tools_payload(reader),
             }
@@ -3019,7 +3023,7 @@ async def chat(
                 "suggested_pledge": None,
                 "cart": None,
                 "model_source": "paypal_readonly_tools",
-                "model_label": model_display_label(_nim_model_source()),
+                "model_label": "rules",
                 "fund": None,
                 "paypal_tools": _paypal_tools_payload(reader),
             }
@@ -3106,6 +3110,18 @@ async def chat(
         "model_source": source,
         "model_label": model_display_label(source),
     }
+
+
+async def chat(
+    message: str, *, treasurer: bool = False, lang: Optional[str] = None,
+    accept_language: str = "", reader: Optional[ReadOnlyTools] = None,
+) -> dict:
+    started = time.perf_counter()
+    result = await _chat(
+        message, treasurer=treasurer, lang=lang,
+        accept_language=accept_language, reader=reader,
+    )
+    return _with_trace(result, reader, started)
 
 
 # Kinds other than mile and meal. Same catalogue as ``_SIMULATED_EUR`` /

@@ -36,6 +36,8 @@ export interface PublicPledge {
   vault_id?: string | null;
   paypal_status?: string | null;
   capture_id?: string | null;
+  refunded_amount_eur?: string;
+  pending_refund?: { key: string; amount: string } | null;
   created_at?: string;
   history?: string[];
 }
@@ -189,14 +191,31 @@ export interface PendingAuthorization {
   authorization_age_days?: number | null;
 }
 
-export interface CaptainProposal {
+export interface CaptainToolCall {
+  tool: string;
+  resource_id?: string;
+  read_only?: boolean;
+  latency_ms?: number;
+  status?: "ok" | "error";
+  http_status?: number;
+  debug_id?: string;
+}
+
+export interface CaptainTrace {
+  model_label?: string;
+  model_source?: { provider?: string; model?: string; reason?: string };
+  latency_ms?: number;
+  paypal_tools?: { tools?: string[]; called?: string[]; client?: string; calls?: CaptainToolCall[] } | string[];
+  paypal_tool_calls?: CaptainToolCall[];
+}
+
+export interface CaptainProposal extends CaptainTrace {
   milestone_id: string;
   proposal: "capture" | "void" | "wait" | string;
   report?: string;
   justification?: string;
   pledge_ids: string[];
   pending_authorizations?: PendingAuthorization[];
-  paypal_tool_calls?: { tool: string; resource_id?: string }[];
   evidence_flag?: string;
   model_source?: { provider?: string; model?: string };
   llm_proposal?: { proposal?: string | null; reason?: string | null };
@@ -236,11 +255,10 @@ export interface PledgeCart {
   price_label?: string;
 }
 
-export interface CaptainChatResponse {
+export interface CaptainChatResponse extends CaptainTrace {
   reply: string;
   model_source?: { provider?: string; model?: string; reason?: string };
   model_label?: string;
-  paypal_tools?: { tools?: string[]; called?: string[]; client?: string } | string[];
   suggested_pledge?: {
     amount_eur: string;
     currency: string;

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any, Callable, Optional
 
 from .config import toolkit_enabled
-from .paypal_client import PayPalClient
+from .paypal_client import PayPalClient, PayPalError
 from .paypal_limits import PayPalCallBudget, PayPalCallLimitExceeded
 
 ALLOWED_TOOLS = (
@@ -112,7 +113,7 @@ class ReadOnlyTools:
             orders_get = _orders_get_via_toolkit(orders_get, execute)
             self.uses_toolkit = True
             break
-        self.call_log: list[dict[str, str]] = []
+        self.call_log: list[dict[str, Any]] = []
         self._calls: dict[str, Callable[..., dict]] = {
             "orders.get": lambda resource_id: orders_get(resource_id),
             "authorizations.get": lambda resource_id: authorizations_get(resource_id),
@@ -131,13 +132,32 @@ class ReadOnlyTools:
         call = self._calls.get(tool)
         if call is None:
             raise ToolNotAllowed(tool)
-        if self._budget.remaining <= 0:
-            raise PayPalCallLimitExceeded("PayPal read limit reached for this turn (3 calls)")
-        if not self._http_metered:
-            self._budget.consume()
-        result = call(resource_id)
-        self.call_log.append({"tool": tool, "resource_id": resource_id})
-        return result
+        entry = {"tool": tool, "resource_id": resource_id, "read_only": True}
+        started = time.perf_counter()
+        try:
+            if self._budget.remaining <= 0:
+                raise PayPalCallLimitExceeded("PayPal read limit reached for this turn (3 calls)")
+            if not self._http_metered:
+                self._budget.consume()
+            result = call(resource_id)
+            entry["status"] = "ok"
+            return result
+        except Exception as exc:
+            entry["status"] = "error"
+            if isinstance(exc, PayPalError):
+                entry["http_status"] = exc.status
+                body = exc.body
+                if isinstance(body, str):
+                    try:
+                        body = json.loads(body)
+                    except ValueError:
+                        body = {}
+                if isinstance(body, dict) and isinstance(body.get("debug_id"), str):
+                    entry["debug_id"] = body["debug_id"]
+            raise
+        finally:
+            entry["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
+            self.call_log.append(entry)
 
 
 def toolkit_installed() -> bool:

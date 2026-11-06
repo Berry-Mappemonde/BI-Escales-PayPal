@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   approveCaptainReview,
@@ -14,6 +14,18 @@ import { CaptainReviewCard } from "./captain/CaptainReviewCard";
 import { releasableHolds, stopOnSchedule } from "./captain/captainEvidence";
 import { PledgeStatusChip } from "./captain/PledgeStatusChip";
 import { useHoldRelease } from "./captain/useHoldRelease";
+
+// The API refunds the remaining balance, or resumes an already keyed refund.
+function refundableAmount(pledge: PublicPledge): string | null {
+  const captured = Math.round(Number(pledge.amount_eur) * 100);
+  const refunded = pledge.refunded_amount_eur == null && pledge.status === "partially_refunded"
+    ? NaN : Math.round(Number(pledge.refunded_amount_eur ?? 0) * 100);
+  const remaining = captured - refunded;
+  const cents = pledge.pending_refund?.key
+    ? Math.round(Number(pledge.pending_refund.amount) * 100) : remaining;
+  return Number.isSafeInteger(cents) && cents > 0 && cents <= remaining
+    ? (cents / 100).toFixed(2) : null;
+}
 
 export interface TreasurerQueueProps {
   pledges: PublicPledge[];
@@ -40,6 +52,13 @@ export function TreasurerQueue({
   const [actionError, setActionError] = useState<string | null>(null);
   const [reviewRateLimit, setReviewRateLimit] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const actionRunning = useRef(false);
+  const refundTrigger = useRef<HTMLElement | null>(null);
+  const [refundConfirmation, setRefundConfirmation] = useState<{ id: string; amount: string } | null>(null);
+  const cancelRefund = () => {
+    setRefundConfirmation(null);
+    requestAnimationFrame(() => refundTrigger.current?.querySelector<HTMLButtonElement>("button")?.focus());
+  };
   const [approvedMilestones, setApprovedMilestones] = useState<Record<string, boolean>>({});
 
   const queue = pledges.filter((p) => isTreasurerQueueRow(p.status));
@@ -113,25 +132,44 @@ export function TreasurerQueue({
     };
   }, [needsSchedule]);
 
-  const runAction = async (pledgeId: string, action: "capture" | "refund") => {
+  const runAction = async (pledgeId: string, action: "capture" | "refund", amount?: string) => {
+    if (actionRunning.current) return;
+    if (action === "refund") {
+      const pledge = pledges.find((row) => row.id === pledgeId);
+      if (!pledge || !isRefundablePledge(pledge.status) || !amount ||
+          refundConfirmation?.id !== pledgeId || refundConfirmation.amount !== amount ||
+          refundableAmount(pledge) !== amount) return;
+    }
     if (!canMoveMoney) {
       setActionError(t("treasurer.moneyNeedsKey"));
       return;
     }
+    actionRunning.current = true;
     setBusyId(pledgeId);
     setActionError(null);
     try {
       const updated =
         action === "capture"
           ? await capturePledge(pledgeId, adminKey.trim(), undefined)
-          : await refundPledge(pledgeId, adminKey.trim(), undefined, undefined);
+          : await refundPledge(pledgeId, adminKey.trim(), amount, undefined);
+      if (action === "refund") setRefundConfirmation(null);
       onUpdated(updated);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : String(e));
     } finally {
+      actionRunning.current = false;
       setBusyId(null);
     }
   };
+
+  useEffect(() => {
+    if (!refundConfirmation) return;
+    const pledge = pledges.find((row) => row.id === refundConfirmation.id);
+    if (!pledge || !isRefundablePledge(pledge.status) ||
+        refundableAmount(pledge) !== refundConfirmation.amount) {
+      setRefundConfirmation(null);
+    }
+  }, [pledges, refundConfirmation]);
 
   const approveReview = async (milestoneId: string) => {
     if (!canMoveMoney) {
@@ -231,7 +269,7 @@ export function TreasurerQueue({
                       data-testid={`capture-${p.id}`}
                       disabled={
                         !canMoveMoney ||
-                        busyId === p.id ||
+                        busyId !== null ||
                         !approvedMilestones[p.milestone_id] ||
                         releaseRunning(p.milestone_id)
                       }
@@ -241,14 +279,40 @@ export function TreasurerQueue({
                     </button>
                   ) : null}
                   {isRefundablePledge(p.status) ? (
-                    <button
-                      type="button"
-                      data-testid={`refund-${p.id}`}
-                      disabled={!canMoveMoney || busyId === p.id}
-                      onClick={() => void runAction(p.id, "refund")}
-                    >
-                      {t("treasurer.refundPledge")}
-                    </button>
+                    refundConfirmation?.id === p.id && refundConfirmation.amount === refundableAmount(p) ? (
+                      <div className="treasurer-confirmation" role="group" aria-labelledby={`refund-question-${p.id}`}>
+                        <p id={`refund-question-${p.id}`}>
+                          {t("treasurer.refundConfirmation", {
+                            amount: new Intl.NumberFormat(i18n.language === "fr" ? "fr-FR" : "en-GB", {
+                              style: "currency", currency: p.currency,
+                            }).format(Number(refundConfirmation.amount)),
+                          })}
+                        </p>
+                        <button type="button" disabled={!canMoveMoney || busyId !== null}
+                          onClick={() => void runAction(p.id, "refund", refundConfirmation.amount)}>
+                          {t("treasurer.confirm")}
+                        </button>
+                        <button type="button" autoFocus disabled={busyId !== null} onClick={cancelRefund}>
+                          {t("treasurer.cancel")}
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        data-testid={`refund-${p.id}`}
+                        disabled={!canMoveMoney || busyId !== null || !refundableAmount(p)}
+                        title={!refundableAmount(p) ? t("treasurer.refundAmountUnavailable") : undefined}
+                        onClick={(event) => {
+                          const amount = refundableAmount(p);
+                          if (!amount) return;
+                          refundTrigger.current = event.currentTarget.parentElement;
+                          setActionError(null);
+                          setRefundConfirmation({ id: p.id, amount });
+                        }}
+                      >
+                        {t("treasurer.refundPledge")}
+                      </button>
+                    )
                   ) : null}
                 </td>
               </tr>

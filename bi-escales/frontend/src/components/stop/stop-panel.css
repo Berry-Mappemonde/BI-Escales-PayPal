@@ -365,3 +365,50 @@
   font-size: var(--text-meta);
   line-height: var(--text-meta--line-height);
 }
+
+/* Keep the voyage summary, the pledge calculation and checkout in reading order. */
+.stop-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.stop-identity img { height: var(--space-4); border-radius: var(--space-1); }
+.escale-sheet .stop-summary { background: var(--color-raised); border: 0; border-radius: var(--radius-control); padding: var(--space-3); }
+.stop-summary .stop-rows { grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: var(--space-3); }
+.stop-summary .stop-rows > div { display: grid; grid-template-columns: 1fr; gap: var(--space-1); }
+.stop-summary dt { font-size: var(--text-meta); }
+.stop-summary dd { text-align: start; font-weight: 600; }
+.escale-sheet .stop-next { padding-top: var(--space-5); border: 0; }
+.escale-sheet .pledge-calculation {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  background: var(--color-raised);
+  border-radius: var(--radius-control);
+}
+.pledge-calculation > label { flex: 1; min-width: 0; }
+.escale-sheet .pledge-calculation input:read-only {
+  padding-inline: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-fg);
+  font-size: var(--text-heading);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.money-heading { margin: var(--space-3) 0 var(--space-2); font-size: var(--text-ui); }
+.money-steps { margin: 0; padding: 0; list-style: none; }
+.money-steps li { position: relative; margin-inline-start: var(--space-1); padding: 0 0 var(--space-2) var(--space-4); font-size: var(--text-meta); color: var(--color-fg-2); }
+.money-steps li:first-child { border-inline-start: 1px solid var(--color-line-strong); }
+.money-steps li::before { content: ""; position: absolute; inset-inline-start: calc(-1 * var(--space-1)); top: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--color-status-held); }
+.money-steps li:nth-child(2)::before { background: var(--color-status-captured); }
+.money-steps li:last-child::before { background: var(--color-status-released); }
+.stop-checkout {
+  padding: var(--space-3);
+  background: var(--color-raised);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-panel);
+}
+.stop-checkout h4 { margin: 0 0 var(--space-2); font-size: var(--text-title); }

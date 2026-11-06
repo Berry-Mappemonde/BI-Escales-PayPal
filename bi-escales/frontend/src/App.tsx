@@ -682,8 +682,12 @@ export default function App() {
         data-testid="ng-sidebar"
       >
         <div className="ng-shell-header">
-          <h1>{t("app.title")}</h1>
-          <p>{t("app.tagline")}</p>
+          <svg className="voyage-emblem" width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M16 3v19H5L16 3Z" fill="currentColor" />
+            <path d="m19 8 8 14h-8V8Z" fill="currentColor" opacity=".6" />
+            <path d="M4 25h24l-5 4H9l-5-4Z" fill="currentColor" />
+          </svg>
+          <h1 aria-label={t("app.title")}>BI Escales <small>Pay Only If We Sail</small></h1>
         </div>
         <div className="ng-controls">
           <div className="lang-switch">
@@ -747,19 +751,19 @@ export default function App() {
         ) : null}
         {tab === "voyage" ? (
           <>
+            <EscalesPanel
+              milestoneId={milestoneId}
+              adminKey={adminKey.trim() || undefined}
+              onMilestoneId={setMilestoneId}
+              onSuggested={onSuggested}
+              onAuthorized={onAuthorized}
+            />
             <ProjectList
               projects={projects}
               selectedProjectId={selectedProjectId}
               onSelectProject={setSelectedProjectId}
               contributor={contributor}
               onFlyTo={onFlyTo}
-              onAuthorized={onAuthorized}
-            />
-            <EscalesPanel
-              milestoneId={milestoneId}
-              adminKey={adminKey.trim() || undefined}
-              onMilestoneId={setMilestoneId}
-              onSuggested={onSuggested}
               onAuthorized={onAuthorized}
             />
             {bryntumEnabled && schedule ? (

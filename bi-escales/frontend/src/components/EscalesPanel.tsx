@@ -50,23 +50,13 @@ export function EscalesPanel({
   };
 
   return (
-    <section className="panel" data-milestone={milestoneId}>
+    <section className="panel captain-chat" data-milestone={milestoneId}>
       <h2>{t("escales.captainChat")}</h2>
       {error ? <p className="notice error">{error}</p> : null}
-      <form className="stack-form" onSubmit={onChat}>
-        <textarea
-          value={chatMessage}
-          onChange={(event) => setChatMessage(event.target.value)}
-          placeholder={t("escales.chatPlaceholder")}
-          aria-label={t("escales.captainChat")}
-          rows={2}
-        />
-        <button type="submit" disabled={busy || !chatMessage.trim()}>{t("escales.sendChat")}</button>
-      </form>
       {chatResult ? (
         <div className="chat-result">
           <h3>{t("escales.chatReply")}</h3>
-          <p>{chatResult.reply}</p>
+          <p className="captain-bubble">{chatResult.reply}</p>
           <CaptainToolTrace trace={chatResult} modelTestId="captain-model-label" />
           {chatResult.agentic_action?.kind === "create_invoice" && adminKey?.trim() ? (
             <div data-testid="captain-agentic-invoice">
@@ -118,6 +108,26 @@ export function EscalesPanel({
           ) : null}
         </div>
       ) : null}
+      {busy ? <p className="captain-thinking" role="status">{t("escales.working")}</p> : null}
+      {!chatResult && !busy ? (
+        <ul className="captain-prompts" aria-label={t("escales.exampleQuestions")}>
+          <li>{t("escales.whenCharged")}</li>
+          <li>{t("escales.cancelledStop")}</li>
+        </ul>
+      ) : null}
+      <form className="stack-form" onSubmit={onChat}>
+        <label className="captain-draft">
+          {t("escales.yourMessage")}
+          <textarea
+            value={chatMessage}
+            onChange={(event) => setChatMessage(event.target.value)}
+            placeholder={t("escales.chatPlaceholder")}
+            aria-label={t("escales.captainChat")}
+            rows={2}
+          />
+        </label>
+        <button type="submit" disabled={busy || !chatMessage.trim()}>{t("escales.sendChat")}</button>
+      </form>
     </section>
   );
 }

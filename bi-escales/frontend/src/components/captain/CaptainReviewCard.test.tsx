@@ -240,7 +240,7 @@ describe("Captain review card", () => {
       expect(within(result).getByRole("status")).toHaveTextContent("2 holds released · €32.50 total. This is final.");
       expect(within(result).queryByRole("button", { name: "Undo" })).toBeNull();
       expect(within(result).queryByRole("button", { name: "Approve" })).toBeNull();
-      expect(within(result).queryByRole("button", { name: "Override" })).toBeNull();
+      expect(within(result).queryByRole("button", { name: "Void holds…" })).toBeNull();
     });
 
     it("undo cancels for good and sends nothing", async () => {

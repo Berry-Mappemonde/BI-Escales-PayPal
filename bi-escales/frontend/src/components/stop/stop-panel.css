@@ -279,29 +279,45 @@
 
 /* The right panel before a stop is picked. */
 .how-it-works {
-  padding: var(--space-3);
-  border: 1px solid var(--shell-border);
-  border-radius: var(--radius-panel);
-  background: var(--shell-control-bg);
+  padding: var(--space-6);
+  border: 0;
+  background: none;
+}
+
+.how-it-works-eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  letter-spacing: 0.08em;
 }
 
 .how-it-works h2 {
   margin: 0 0 var(--space-3);
-  font-size: var(--text-title);
-  line-height: var(--text-title--line-height);
+  color: var(--color-fg);
+  font-size: var(--text-display);
+  line-height: var(--text-display--line-height);
   font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.how-it-works-intro {
+  margin: 0 0 var(--space-5);
+  color: var(--color-fg);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
 }
 
 .how-steps {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .how-steps li {
-  --st: var(--color-status-pending);
+  --st: var(--color-fg-3);
 
   position: relative;
   display: grid;
@@ -336,34 +352,48 @@
   background: var(--st);
 }
 
-/* The thread between steps, stopping before the two outcomes split. */
-.how-steps li:not(:last-child):not([data-tone="captured"])::after {
-  content: "";
-  position: absolute;
-  top: 17px;
-  bottom: calc(var(--space-3) * -1 + 4px);
-  left: 5px;
-  width: 2px;
-  background: var(--color-line-strong);
-}
-
 .how-steps strong {
-  font-weight: 500;
+  color: var(--color-fg);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  font-weight: 600;
 }
 
 .how-steps span {
+  color: var(--color-fg-2);
+  font-size: var(--text-support);
+  line-height: var(--text-support--line-height);
+}
+
+.how-it-works-notes {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+.how-it-works-notes p {
+  margin: 0;
   color: var(--color-fg-3);
-  font-size: var(--text-meta);
-  line-height: var(--text-meta--line-height);
+  font-size: var(--text-support);
+  line-height: var(--text-support--line-height);
 }
 
 .how-it-works-pick {
-  margin: var(--space-3) 0 0;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-line-strong);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-6) 0 0;
+  color: var(--color-fg);
+  font-size: var(--text-read);
+  line-height: var(--text-read--line-height);
+}
+
+.how-it-works-pick svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
   color: var(--color-fg-2);
-  font-size: var(--text-meta);
-  line-height: var(--text-meta--line-height);
 }
 
 /* Keep the voyage summary, the pledge calculation and checkout in reading order. */

@@ -168,8 +168,8 @@ body.ng-naviguide-shell {
 
 .ng-sidebar,
 .ng-tools-panel {
-  font-size: var(--text-ui);
-  line-height: var(--text-ui--line-height);
+  font-size: var(--text-support);
+  line-height: var(--text-support--line-height);
 }
 
 .ng-shell-header h1 {
@@ -190,17 +190,18 @@ body.ng-naviguide-shell {
 /* Language and theme share one row and one control style. */
 .ng-controls {
   display: flex;
+  align-items: center;
   gap: var(--space-2);
 }
 
 .ng-controls .lang-switch {
-  flex: 2;
+  flex: 1;
   min-width: 0;
 }
 
 .ng-controls .theme-switch {
   display: flex;
-  flex: 1;
+  flex: none;
   min-width: 0;
 }
 
@@ -214,7 +215,7 @@ body.ng-naviguide-shell {
 .ng-tab-bar button {
   flex: 1;
   min-width: 7rem;
-  min-height: 32px;
+  min-height: 36px;
   margin: 0;
   padding: 0 var(--space-2);
   border-radius: var(--radius-control);
@@ -326,8 +327,8 @@ body.ng-naviguide-shell {
 .ng-tools-panel .panel h2,
 .escales-scheduler h2 {
   margin: 0 0 var(--space-2);
-  font-size: var(--text-title);
-  line-height: var(--text-title--line-height);
+  font-size: var(--text-panel-heading);
+  line-height: var(--text-panel-heading--line-height);
   font-weight: 600;
 }
 
@@ -384,19 +385,25 @@ body.ng-naviguide-shell {
 
 .ng-sidebar .lang-switch {
   display: flex;
-  gap: var(--space-2);
+  min-height: 32px;
+  overflow: hidden;
+  border: 1px solid var(--shell-control-border);
+  border-radius: var(--radius-control);
 }
 
 .ng-sidebar .lang-switch button,
 .ng-sidebar .theme-switch button {
+  display: inline-flex;
   flex: 1;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
   min-height: 32px;
   margin: 0;
   padding: 0 var(--space-2);
-  border-radius: var(--radius-control);
-  border: 1px solid var(--shell-control-border);
-  background: var(--shell-tab-bg);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--shell-tab-text);
   font-size: var(--text-ui);
   line-height: var(--text-ui--line-height);
@@ -404,9 +411,25 @@ body.ng-naviguide-shell {
 }
 
 .ng-sidebar .lang-switch button.active {
-  border-color: var(--shell-border);
   background: var(--shell-tab-active-bg);
   color: var(--shell-tab-active-text);
+}
+
+.ng-sidebar .lang-switch button + button {
+  border-left: 1px solid var(--shell-control-border);
+}
+
+.ng-sidebar .theme-switch button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--shell-control-border);
+  border-radius: var(--radius-control);
+}
+
+.ng-sidebar .theme-switch svg {
+  width: 16px;
+  height: 16px;
 }
 
 .escale-sheet-head {
@@ -494,11 +517,21 @@ body.ng-naviguide-shell {
 
 /* Keep the spacing; the inner PayPal host owns the single frame. */
 .crew-supporter-public {
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-5);
 }
 
 .crew-subscribe .hint {
   margin: 0 0 var(--space-2);
+  color: var(--color-fg);
+  font-size: var(--text-support);
+  line-height: var(--text-support--line-height);
+}
+
+.crew-sandbox-note {
+  display: block;
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
 }
 
 /* The host itself only gets a frame: PayPal renders inside it, sized to its width. */
@@ -520,6 +553,44 @@ body.ng-naviguide-shell {
 
 .ng-sidebar .project-row:last-child {
   border-bottom: 0;
+}
+
+.ng-sidebar .captain-chat,
+.ng-sidebar [data-testid="project-list"] {
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.ng-sidebar [data-testid="project-list"] {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-line);
+}
+
+.ng-sidebar .captain-chat h2,
+.ng-sidebar [data-testid="project-list"] h2 {
+  margin: 0 0 var(--space-2);
+  color: var(--color-fg);
+  font-size: var(--text-panel-heading);
+  line-height: var(--text-panel-heading--line-height);
+  font-weight: 600;
+}
+
+.ng-sidebar .project-list-total {
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.ng-sidebar .captain-chat .captain-draft {
+  color: var(--color-fg-2);
+  font-size: var(--text-support);
+  line-height: var(--text-support--line-height);
+}
+
+.ng-sidebar .captain-chat .captain-prompts li {
+  color: var(--color-fg-2);
 }
 
 .ng-sidebar .project-row > button:first-child {
@@ -611,8 +682,8 @@ body.ng-naviguide-shell {
 @media (pointer: coarse) {
   .ng-sidebar .project-row > button:not(:first-child),
   .ng-sidebar .project-row > a,
-  .ng-controls button,
-  .ng-tab-bar button {
+  .ng-sidebar-toggle,
+  .ng-tools-toggle {
     min-height: 44px;
   }
 
@@ -658,14 +729,14 @@ body.ng-naviguide-shell {
 .ng-shell-header h1 { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); margin: 0; }
 .ng-shell-header h1 small { font: 500 var(--text-meta)/var(--text-meta--line-height) var(--font-sans); color: var(--color-fg-2); }
 .ng-shell .ng-tab-bar { gap: 0; border-bottom: 1px solid var(--color-line); }
-.ng-shell .ng-tab-bar button { border: 0; border-radius: 0; background: transparent; color: var(--color-fg-2); }
-.ng-shell .ng-tab-bar button[aria-selected="true"] { box-shadow: inset 0 -2px var(--color-accent); color: var(--color-fg); }
+.ng-shell .ng-tab-bar button { min-height: 36px; border: 0; border-radius: 0; background: transparent; color: var(--color-fg-2); }
+.ng-shell .ng-tab-bar button[aria-selected="true"] { box-shadow: inset 0 -2px var(--color-line-strong); color: var(--color-fg); }
 .ng-shell .ng-clock-line { font-variant-numeric: tabular-nums; color: var(--color-fg-2); }
 .ng-shell .ng-tools-panel .escale-popup-card { background: var(--color-panel); padding: var(--space-4); }
 .ng-shell .ng-sidebar, .ng-shell .ng-tools-panel { transition-duration: var(--duration-base); }
 
 /* Conversation. The composer is the user's editable side of the current turn. */
-.ng-sidebar .captain-chat { padding: var(--space-4); background: var(--color-panel); }
+.ng-sidebar .captain-chat { padding: 0 var(--space-5); background: none; }
 .captain-chat .chat-result { min-width: 0; overflow-wrap: anywhere; }
 .captain-chat .chat-result h3 { font-size: var(--text-meta); color: var(--color-fg-2); margin: var(--space-3) 0 var(--space-1); }
 .captain-bubble, .captain-thinking { margin: 0; padding: var(--space-3); border-radius: var(--radius-panel) var(--radius-panel) var(--radius-panel) 0; background: var(--color-raised); font-size: var(--text-read); line-height: var(--text-read--line-height); }

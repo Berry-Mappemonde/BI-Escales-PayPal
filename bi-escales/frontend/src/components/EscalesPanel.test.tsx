@@ -30,6 +30,10 @@ describe("EscalesPanel cart", () => {
       </I18nextProvider>,
     );
     const input = screen.getByRole("textbox");
+    expect(screen.getByRole("heading", { name: lang === "en" ? "Ask the AI Captain" : "Poser une question au capitaine IA" })).toBeInTheDocument();
+    expect(input).toHaveAccessibleName(lang === "en" ? "Your question" : "Votre question");
+    expect(screen.getByText(lang === "en" ? "When am I charged?" : "Quand suis-je débité ?")).toBeInTheDocument();
+    expect(screen.getByText(lang === "en" ? "What happens if a stop is cancelled?" : "Que se passe-t-il si une escale est annulée ?")).toBeInTheDocument();
     const button = screen.getByRole("button", { name: action });
     expect(input).toHaveValue("");
     expect(input).toHaveAttribute("placeholder", placeholder);

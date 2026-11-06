@@ -4,6 +4,7 @@
     "tagline": "Promesses escale à l'arrivée du bateau ; cabines au départ de l'étape ; fonds commun immédiatement.",
     "langFr": "Français",
     "langEn": "English",
+    "language": "Langue",
     "themeLight": "Clair",
     "themeDark": "Sombre",
     "healthFail": "Backend indisponible",
@@ -24,10 +25,10 @@
     "marinas": "Marinas"
   },
   "clock": {
-    "waiting": "départ dans {{hours}} h",
+    "waiting": "Départ dans {{days}} j {{hours}} h",
     "devT0": "Départ de développement (ISO)",
     "sailed": "{{nm}} milles parcourus",
-    "simulated": "(horloge simulée)"
+    "simulated": "Horloge de démonstration"
   },
   "sheet": {
     "title": "Fiche d’escale",
@@ -60,12 +61,12 @@
     }
   },
   "projects": {
-    "heading": "Projets Blue Intelligence",
+    "heading": "Explorer les projets",
     "empty": "Aucun projet dans l’instantané.",
     "open": "Page",
     "pledge": "Promettre",
-    "search": "Chercher un projet",
-    "truncated": "{{shown}} sur {{total}} projets (affinez avec la recherche)",
+    "search": "Rechercher des projets…",
+    "truncated": "Affichage de {{shown}} projets sur {{total}}",
     "minAmount": "Minimum 1,00 EUR.",
     "invalidAmount": "Montant invalide (deux décimales maximum).",
     "pledgeDescription": "Promesse projet — {{title}}",
@@ -103,7 +104,7 @@
     "openHeading": "Totaux hors escale",
     "projectTotals": "Promesses projet",
     "boatTotals": "Fonds commun",
-    "publicCommon": "Solde du fonds commun : {{balance}} {{currency}} (public)"
+    "publicCommon": "Fonds communautaire · {{balance}}"
   },
   "scheduler": {
     "heading": "Calendrier des escales",
@@ -115,12 +116,12 @@
   },
   "escales": {
     "heading": "Escales & capitaine",
-    "captainChat": "Message au capitaine IA",
+    "captainChat": "Poser une question au capitaine IA",
     "working": "Le Capitaine prépare sa réponse…",
     "exampleQuestions": "Exemples de questions",
     "whenCharged": "Quand suis-je débité ?",
-    "cancelledStop": "Si l’escale est annulée ?",
-    "yourMessage": "Votre message",
+    "cancelledStop": "Que se passe-t-il si une escale est annulée ?",
+    "yourMessage": "Votre question",
     "chatPlaceholder": "20 milles près de Mayotte",
     "sendChat": "Demander au capitaine",
     "agenticConfirmInvoice": "Confirmer — créer la facture PayPal (bac à sable)",
@@ -174,7 +175,8 @@
     "cardPay": "Payer par carte",
     "walletPayHint": "Google Pay (Chrome) ou Apple Pay (Safari), sandbox TEST EUR.",
     "error": "Erreur promesse",
-    "crewSubscribeHint": "Abonnement mensuel Équipage (EUR, sandbox).",
+    "crewSubscribeHint": "Soutenir l’équipage chaque mois",
+    "crewSubscribeSandbox": "Bac à sable PayPal",
     "crewSubscribeSaved": "Abonnement Équipage enregistré. Merci.",
     "crewSubscribeLoading": "Chargement du plan Équipage…",
     "crewSubscribePlanTimeout": "Impossible de charger le plan Équipage. Réessayez dans un instant.",
@@ -185,19 +187,18 @@
     "crewSubscribeCancelled": "Abonnement Équipage annulé. Aucun prélèvement."
   },
   "howItWorks": {
-    "heading": "Comment fonctionne une promesse d’escale",
-    "pledge": "Vous promettez",
-    "pledgeDetail": "Choisissez une escale et un montant.",
-    "held": "Retenu sur PayPal",
-    "heldDetail": "Rien n’est débité pour l’instant.",
-    "arrives": "Le bateau arrive",
-    "arrivesDetail": "Pour les cabines, au départ de l’étape.",
-    "approves": "Le trésorier approuve",
-    "approvesDetail": "Une personne décide, jamais le Capitaine seul.",
-    "captured": "Encaissé",
-    "capturedDetail": "Votre promesse est débitée.",
-    "released": "Ou libéré, si nous ne partons pas",
-    "releasedDetail": "Rien n’est débité."
+    "eyebrow": "PROMESSES D’ESCALE",
+    "heading": "Soutenez une escale. Vous ne payez que si nous arrivons.",
+    "intro": "Choisissez une escale sur la carte du voyage. Votre promesse est autorisée maintenant, mais encaissée seulement après l’arrivée et l’approbation du trésorier.",
+    "authorize": "Autorisation de votre promesse",
+    "authorizeDetail": "Aucun débit à cette étape.",
+    "arrivalApproval": "Arrivée et approbation",
+    "arrivalApprovalDetail": "Le bateau atteint l’escale, puis un trésorier humain approuve.",
+    "captured": "Paiement encaissé",
+    "capturedDetail": "PayPal encaisse le paiement autorisé.",
+    "cancelled": "Escale annulée ? L’autorisation est annulée. Aucun débit.",
+    "cabin": "Les cabines sont encaissées au départ de leur étape, pas à l’arrivée.",
+    "pick": "Sélectionnez une escale sur la carte pour voir ses détails et faire une promesse."
   },
   "stopPanel": {
     "status": {

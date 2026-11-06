@@ -97,7 +97,7 @@ export default function ProjectList({
   onFlyTo,
   onAuthorized,
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [localQuery, setLocalQuery] = useState("");
   const query = searchQueryProp ?? localQuery;
   const setQuery = onSearchQueryChange ?? setLocalQuery;
@@ -116,12 +116,15 @@ export default function ProjectList({
     [projects, filtered, selectedProjectId],
   );
   const truncated = filtered.length > LIST_CAP;
+  const formatCount = (count) => new Intl.NumberFormat(i18n.language || "fr").format(count);
 
   return (
     <section className="panel" data-testid="project-list">
       <div className="escale-sheet-head">
         <h2>{t("projects.heading")}</h2>
-        <span data-testid="project-list-count">{filtered.length}</span>
+        <span className="project-list-total" data-testid="project-list-count">
+          {formatCount(projects?.features?.length || 0)}
+        </span>
       </div>
       <input
         data-testid="projects-search-input"
@@ -133,7 +136,7 @@ export default function ProjectList({
       />
       {truncated ? (
         <p className="hint" data-testid="projects-list-truncated">
-          {t("projects.truncated", { shown: LIST_CAP, total: filtered.length })}
+          {t("projects.truncated", { shown: formatCount(LIST_CAP), total: formatCount(filtered.length) })}
         </p>
       ) : null}
       {features.length === 0 ? <p className="hint">{t("projects.empty")}</p> : null}

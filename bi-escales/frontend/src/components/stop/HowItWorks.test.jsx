@@ -22,41 +22,40 @@ describe("HowItWorks", () => {
 
   it("walks through the steps in order", () => {
     expect(show().map((step) => step.querySelector("strong").textContent)).toEqual([
-      "You pledge",
-      "Held on PayPal",
-      "The boat arrives",
-      "The treasurer approves",
-      "Captured",
-      "Or released, if we don't sail",
+      "Authorise your pledge",
+      "Arrival and approval",
+      "Payment captured",
     ]);
   });
 
   it("marks each money state with its own tone", () => {
     expect(show().map((step) => step.dataset.tone ?? null)).toEqual([
-      null,
       "held",
-      "accent",
       null,
       "captured",
-      "released",
     ]);
   });
 
-  it("is about stop pledges, and keeps the cabin rule, so it stays true", () => {
+  it("explains the pledge, cancellation, and cabin rules", () => {
     show();
-    expect(screen.getByRole("heading", { name: "How a stop pledge works" })).toBeInTheDocument();
-    expect(screen.getByText("For cabins, when the leg departs.")).toBeInTheDocument();
+    expect(screen.getByText("STOP PLEDGES")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Back a stop. Pay only if we arrive." })).toBeInTheDocument();
+    expect(screen.getByText(/Your pledge is authorised now/)).toBeInTheDocument();
+    expect(screen.getByText("Cancelled stop? The authorisation is voided. No charge.")).toBeInTheDocument();
+    expect(screen.getByText("Cabins are captured when their leg departs, not on arrival.")).toBeInTheDocument();
   });
 
   it("still tells the visitor what to do", () => {
     show();
-    expect(screen.getByText("Pick a stop on the map for the sheet and the PayPal button.")).toBeInTheDocument();
+    expect(screen.getByText("Select a stop on the map to see its details and make a pledge.")).toBeInTheDocument();
+    expect(screen.getByTestId("how-it-works").querySelector("svg")).toBeInTheDocument();
   });
 
   it("shows in French", async () => {
     await i18n.changeLanguage("fr");
     show();
-    expect(screen.getByText("Retenu sur PayPal")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Soutenez une escale. Vous ne payez que si nous arrivons." })).toBeInTheDocument();
+    expect(screen.getByText("Autorisation de votre promesse")).toBeInTheDocument();
   });
 
   it("keeps FR and EN in step, with no dates", () => {

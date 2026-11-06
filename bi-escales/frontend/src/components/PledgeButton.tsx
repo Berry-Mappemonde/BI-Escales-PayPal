@@ -73,7 +73,8 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   const sdkIntent = isProjectPledge ? "capture" : "authorize";
   const modeMatchesValues =
     pledgeMode?.milestoneId === values.milestone_id && pledgeMode.kind === values.kind;
-  const shouldRenderSmartButtons = modeMatchesValues && pledgeMode.paymentMode === "AUTHORIZE";
+  const shouldRenderSmartButtons =
+    isProjectPledge || (modeMatchesValues && pledgeMode.paymentMode === "AUTHORIZE");
   const buttonsHost = useRef<HTMLDivElement | null>(null);
   const valuesRef = useRef(values);
   valuesRef.current = values;
@@ -134,6 +135,11 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   useEffect(() => {
     let cancelled = false;
     setPledgeMode(null);
+    if (isProjectPledge) {
+      return () => {
+        cancelled = true;
+      };
+    }
     void fetchPledgeMode(values.milestone_id, values.kind)
       .then(({ payment_mode }) => {
         if (!cancelled) {
@@ -150,7 +156,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     return () => {
       cancelled = true;
     };
-  }, [values.milestone_id, values.kind]);
+  }, [isProjectPledge, values.milestone_id, values.kind]);
 
   useEffect(() => {
     if (!created?.approve_link || !vault) return;

@@ -94,6 +94,27 @@ describe("PledgeButton with a broken PayPal SDK (stopover crash regression)", ()
     expect(fetchPledgeMode).toHaveBeenCalledWith(values.milestone_id, values.kind);
   });
 
+  it("renders project Smart Buttons without fetching payment mode", async () => {
+    const renderButtons = vi.fn(async () => undefined);
+    const createButtons = vi.fn(() => ({ render: renderButtons }));
+    vi.mocked(loadPayPalSdk).mockResolvedValue({ Buttons: createButtons } as never);
+    render(
+      <I18nextProvider i18n={i18n}>
+        <PledgeButton values={{ ...values, kind: "project_pledge" }} />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(renderButtons).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: i18n.t("pledge.create") })).toBeNull(),
+    );
+    expect(fetchPledgeMode).not.toHaveBeenCalled();
+    expect(loadPayPalSdk).toHaveBeenCalledWith("sandbox-client-id", "en", "capture", true);
+    expect(createButtons.mock.calls[0][0]).toMatchObject({
+      style: { layout: "vertical", label: "donate" },
+    });
+  });
+
   it("keeps the redirect fallback and skips Smart Buttons for VAULT mode", async () => {
     const renderButtons = vi.fn(async () => undefined);
     vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "VAULT" });

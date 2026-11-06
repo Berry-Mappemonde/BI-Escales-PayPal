@@ -144,7 +144,10 @@ export const EscaleSheet = memo(function EscaleSheet({
     <div data-testid="escale-sheet" className="escale-sheet">
       <div className="escale-sheet-head">
         <div>
-          <div className="escale-kicker">{t("sheet.title")}</div>
+          <div className="escale-kicker stop-identity">
+            {stop.flags?.map((src) => <img key={src} src={src} alt="" />)}
+            {t("sheet.title")}
+          </div>
           <div className="stop-title">
             <h2>{stop.name}</h2>
             {status ? <StopStatusChip status={status} /> : null}
@@ -157,7 +160,7 @@ export const EscaleSheet = memo(function EscaleSheet({
         ) : null}
       </div>
       {arrivalLabel || departureLabel || moneyParts.length ? (
-        <div className="stop-section">
+        <div className="stop-section stop-summary">
           {arrivalLabel || departureLabel ? (
             <dl className="stop-rows">
               {arrivalLabel ? (
@@ -197,42 +200,54 @@ export const EscaleSheet = memo(function EscaleSheet({
                 ))}
               </select>
             </label>
-            {perUnit ? <label>
-              {t("pledge.quantity")}
-              <input type="number" min={1} max={1000} step={1} data-testid="pledge-quantity"
-                value={quantity} onChange={(event) => setQuantity(Math.max(1, Math.min(1000, Math.trunc(Number(event.target.value) || 1))))} />
-            </label> : null}
-            <label>
-              {t("pledge.amount")}
-              <input
-                data-testid="pledge-amount"
-                value={orderAmount}
-                readOnly={readOnlyAmount}
-                onChange={(event) => {
-                  if (!readOnlyAmount) pledge.onAmount(event.target.value);
-                }}
-              />
-            </label>
+            <div className="pledge-calculation">
+              {perUnit ? <label>
+                {t("pledge.quantity")}
+                <input type="number" min={1} max={1000} step={1} data-testid="pledge-quantity"
+                  value={quantity} onChange={(event) => setQuantity(Math.max(1, Math.min(1000, Math.trunc(Number(event.target.value) || 1))))} />
+              </label> : null}
+              <label>
+                {t("pledge.amount")}
+                <input
+                  data-testid="pledge-amount"
+                  value={orderAmount}
+                  readOnly={readOnlyAmount}
+                  onChange={(event) => {
+                    if (!readOnlyAmount) pledge.onAmount(event.target.value);
+                  }}
+                />
+              </label>
+            </div>
             <label>
               {t("pledge.contributor")}
               <input value={pledge.contributor} onChange={(event) => pledge.onContributor(event.target.value)} />
             </label>
-            <PledgeButton
-              values={{
-                amount_eur: orderAmount,
-                quantity: perUnit ? quantity : undefined,
-                description: pledgeDescription,
-                milestone_id: pledgeMilestoneId,
-                contributor: pledge.contributor.trim() || undefined,
-                kind: pledge.kind,
-                target_id: pledge.kind === "cabin_leg" ? pledgeMilestoneId : pledge.milestoneId,
-              }}
-              onAuthorized={onAuthorized}
-            />
+            <div className="stop-checkout">
+              <h4>{t("stopPanel.checkout")}</h4>
+              <PledgeButton
+                values={{
+                  amount_eur: orderAmount,
+                  quantity: perUnit ? quantity : undefined,
+                  description: pledgeDescription,
+                  milestone_id: pledgeMilestoneId,
+                  contributor: pledge.contributor.trim() || undefined,
+                  kind: pledge.kind,
+                  target_id: pledge.kind === "cabin_leg" ? pledgeMilestoneId : pledge.milestoneId,
+                }}
+                onAuthorized={onAuthorized}
+              />
+            </div>
           </div>
-          <p className="stop-note" data-testid="stop-money-rule">
-            {pledge.kind === "common_fund" ? t("stopPanel.ruleCommonFund") : t("stopPanel.rule")}
-          </p>
+          <h4 className="money-heading">{t("stopPanel.moneyHeading")}</h4>
+          {pledge.kind === "common_fund" ? (
+            <p className="stop-note" data-testid="stop-money-rule">{t("stopPanel.ruleCommonFund")}</p>
+          ) : (
+            <ol className="money-steps" data-testid="stop-money-rule">
+              <li>{t("stopPanel.ruleHeld")} </li>
+              <li>{t(pledge.kind === "cabin_leg" ? "stopPanel.ruleCabin" : "stopPanel.ruleCaptured")} </li>
+              <li>{t("stopPanel.ruleReleased")}</li>
+            </ol>
+          )}
         </section>
       ) : null}
       {pledge && cancelled ? (

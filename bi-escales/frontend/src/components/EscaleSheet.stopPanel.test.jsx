@@ -279,7 +279,7 @@ describe("stop panel", () => {
       expect(block.getByTestId("pledge-amount")).toBeInTheDocument();
       expect(block.getByTestId("pledge-values")).toBeInTheDocument();
       expect(block.getByTestId("stop-money-rule").textContent).toBe(
-        "Held by PayPal, not charged. Captured on arrival (on departure for cabins), only after a person approves. Released if we don't sail.",
+        "Held by PayPal, not charged. The treasurer can approve capture once the boat arrives at this stop. Released if we don't sail.",
       );
     });
 

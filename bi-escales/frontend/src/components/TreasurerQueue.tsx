@@ -193,10 +193,12 @@ export function TreasurerQueue({
 
   return (
     <section className="panel treasurer-queue">
-      <h2>{t("treasurer.heading")}</h2>
-      <button type="button" onClick={onRefresh} disabled={loading}>
-        {t("treasurer.refresh")}
-      </button>
+      <header className="queue-heading">
+        <h2>{t("treasurer.heading")}</h2>
+        <button type="button" onClick={onRefresh} disabled={loading}>
+          {t("treasurer.refresh")}
+        </button>
+      </header>
       {error ? <p className="notice error">{t("treasurer.loadError")}: {error}</p> : null}
       {actionError ? <p className="notice error">{actionError}</p> : null}
       {reviewRateLimit ? (
@@ -242,27 +244,21 @@ export function TreasurerQueue({
         <table className="fallback-table">
           <thead>
             <tr>
-              <th>{t("treasurer.status")}</th>
-              <th>{t("treasurer.captureId")}</th>
-              <th>{t("treasurer.amount")}</th>
-              <th>{t("treasurer.description")}</th>
-              <th>{t("treasurer.milestone")}</th>
-              <th>{t("treasurer.actions")}</th>
+              <th scope="col">{t("treasurer.description")}</th>
+              <th scope="col">{t("treasurer.amount")}</th>
             </tr>
           </thead>
           <tbody>
             {queue.map((p) => (
               <tr key={p.id} data-testid={`queue-row-${p.id}`}>
                 <td>
+                  <strong>{p.description}</strong>
+                  <small>{p.milestone_id}</small>
+                  <small data-testid={`capture-id-${p.id}`} aria-label={t("treasurer.captureId")}>{p.capture_id || "—"}</small>
+                </td>
+                <td className="actions queue-value">
+                  <strong>{p.amount_eur} {p.currency}</strong>
                   <PledgeStatusChip status={p.status} />
-                </td>
-                <td data-testid={`capture-id-${p.id}`}>{p.capture_id || "—"}</td>
-                <td>
-                  {p.amount_eur} {p.currency}
-                </td>
-                <td>{p.description}</td>
-                <td>{p.milestone_id}</td>
-                <td className="actions">
                   {isQueuedPledge(p.status) && reviews[p.milestone_id]?.proposal === "capture" ? (
                     <button
                       type="button"

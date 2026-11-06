@@ -108,6 +108,9 @@ export function CaptainReviewCard({
   const report = review?.report || review?.justification;
   const advisory = review?.llm_proposal?.reason;
 
+  const captureRule = t("captainCard.rule");
+  const showCaptureRule = holds.length > 0 && !report?.includes(captureRule) && !advisory?.includes(captureRule);
+
   // Failed voids stay in the queue, so the live holds are always what a retry would release.
   const showChoice = !phase || phase === "cancelled" || (phase === "done" && holds.length > 0);
   const counting = phase === "counting";
@@ -286,7 +289,7 @@ export function CaptainReviewCard({
           </div>
         ) : null}
 
-        {holds.length ? <p className="captain-meta">{t("captainCard.rule")}</p> : null}
+        {showCaptureRule ? <p className="captain-meta">{captureRule}</p> : null}
       </section>
 
       {review ? (

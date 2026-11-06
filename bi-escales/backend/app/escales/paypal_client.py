@@ -6,15 +6,20 @@ Authorize then capture: https://developer.paypal.com/docs/checkout/standard/cust
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
+import random
+import threading
 import time
 import uuid
+from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import httpx
 
 from .config import EscalesConfig, order_cancel_url, order_return_url
 from .paypal_idempotency import paypal_request_id
+from .paypal_limits import PayPalCallBudget
 
 SOFT_DESCRIPTOR = "BERRYMAPPEMONDE"
 VAULT_BRAND_NAME = "Berry-Mappemonde"
@@ -31,6 +36,17 @@ def paypal_checkout_locale(app_lang: Optional[str] = None) -> str:
     return DEFAULT_PAYPAL_LOCALE
 
 log = logging.getLogger("escales.paypal")
+
+
+@dataclass
+class _CachedToken:
+    token: Optional[str] = field(default=None, repr=False)
+    valid_until: float = 0.0
+    lock: Any = field(default_factory=threading.Lock, repr=False)
+
+
+_TOKEN_CACHE: dict[tuple, _CachedToken] = {}
+_TOKEN_CACHE_LOCK = threading.Lock()
 
 
 def _paypal_api_error_fields(body: Any) -> Optional[dict[str, Any]]:
@@ -197,8 +213,12 @@ class PayPalClient:
     def __init__(self, cfg: EscalesConfig, transport: Optional[httpx.BaseTransport] = None):
         self.cfg = cfg
         self._http = httpx.Client(base_url=cfg.base_url, transport=transport, timeout=30)
-        self._token: Optional[str] = None
-        self._token_exp = 0.0
+        # A supplied test/custom transport has its own cache namespace. Production
+        # clients share the default namespace across incoming API requests.
+        key = (cfg.base_url, cfg.client_id, hashlib.sha256(cfg.client_secret.encode()).digest(), transport)
+        with _TOKEN_CACHE_LOCK:
+            self._cached_token = _TOKEN_CACHE.setdefault(key, _CachedToken())
+        self.captain_budget: Optional[PayPalCallBudget] = None
         self.mock_response: Optional[str] = None
 
     def _experience_context(
@@ -254,19 +274,54 @@ class PayPalClient:
         return unit
 
     def _access_token(self) -> str:
-        if self._token and time.time() < self._token_exp - 60:
-            return self._token
-        response = self._http.post(
-            "/v1/oauth2/token",
-            data={"grant_type": "client_credentials"},
-            auth=(self.cfg.client_id, self.cfg.client_secret),
-        )
-        if response.status_code != 200:
-            raise PayPalError(response.status_code, response.text)
-        payload = response.json()
-        self._token = payload["access_token"]
-        self._token_exp = time.time() + int(payload.get("expires_in", 300))
-        return self._token
+        cached = self._cached_token
+        with cached.lock:
+            if cached.token and time.monotonic() < cached.valid_until:
+                return cached.token
+            response = self._request_with_retry(
+                "POST", "/v1/oauth2/token",
+                data={"grant_type": "client_credentials"},
+                auth=(self.cfg.client_id, self.cfg.client_secret),
+            )
+            if response.status_code != 200:
+                raise PayPalError(response.status_code, response.text)
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise PayPalError(502, "Invalid PayPal OAuth token response") from exc
+            if not isinstance(payload, dict):
+                raise PayPalError(502, "Invalid PayPal OAuth token response")
+            token = payload.get("access_token")
+            try:
+                lifetime = float(payload.get("expires_in", 300))
+            except (TypeError, ValueError):
+                lifetime = 0
+            if not isinstance(token, str) or not token or not 0 < lifetime < float("inf"):
+                raise PayPalError(502, "Invalid PayPal OAuth token response")
+            cached.token = token
+            cached.valid_until = time.monotonic() + lifetime - min(60, lifetime * 0.1)
+            return token
+
+    def _request_with_retry(self, method: str, path: str, *, retry: bool = True, **kwargs: Any) -> httpx.Response:
+        """Retry throttling/transient failures; retain the original request id/body."""
+        attempts = 3 if retry else 1
+        for attempt in range(attempts):
+            if self.captain_budget is not None:
+                self.captain_budget.consume()
+            response = self._http.request(method, path, **kwargs)
+            transient = response.status_code == 429 or 500 <= response.status_code <= 599
+            if not transient or attempt == attempts - 1:
+                return response
+            try:
+                retry_after = max(0.0, float(response.headers.get("Retry-After", "0")))
+            except ValueError:
+                retry_after = 0.0
+            # Do not retry earlier than PayPal permits or block a request for minutes.
+            if retry_after > 10.0:
+                return response
+            pause = min(10.0, max(0.25 * (2 ** attempt), retry_after))
+            time.sleep(pause + random.uniform(0, 0.25))
+        raise AssertionError("unreachable")
 
     def _req(
         self,
@@ -289,9 +344,19 @@ class PayPalClient:
         if self.mock_response:
             headers["PayPal-Mock-Response"] = self.mock_response
         if content is None:
-            response = self._http.request(method, path, json=json, headers=headers)
+            response = self._request_with_retry(
+                method, path, json=json, headers=headers,
+                retry=method in {"GET", "HEAD", "OPTIONS", "DELETE"} or "PayPal-Request-Id" in headers,
+            )
         else:
-            response = self._http.request(method, path, content=content, headers=headers)
+            response = self._request_with_retry(
+                method, path, content=content, headers=headers,
+                retry=method in {"GET", "HEAD", "OPTIONS", "DELETE"} or "PayPal-Request-Id" in headers,
+            )
+        if response.status_code == 401:
+            with self._cached_token.lock:
+                if headers["Authorization"] == f"Bearer {self._cached_token.token}":
+                    self._cached_token.token = None
         if response.status_code >= 400:
             raise PayPalError(response.status_code, response.text)
         return response.json() if response.content else {}

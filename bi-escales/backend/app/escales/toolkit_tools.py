@@ -6,6 +6,8 @@ import json
 from typing import Any, Callable, Optional
 
 from .config import toolkit_enabled
+from .paypal_client import PayPalClient
+from .paypal_limits import PayPalCallBudget, PayPalCallLimitExceeded
 
 ALLOWED_TOOLS = (
     "orders.get",
@@ -94,6 +96,10 @@ class ReadOnlyTools:
     """Read-only PayPal lookups. Never capture, void, or refund."""
 
     def __init__(self, client: Any) -> None:
+        self._budget = PayPalCallBudget()
+        self._http_metered = isinstance(client, PayPalClient)
+        if self._http_metered:
+            client.captain_budget = self._budget
         orders_get: Callable[[str], dict] = client.get_order
         authorizations_get: Callable[[str], dict] = client.get_authorization
         self.uses_toolkit = False
@@ -125,6 +131,10 @@ class ReadOnlyTools:
         call = self._calls.get(tool)
         if call is None:
             raise ToolNotAllowed(tool)
+        if self._budget.remaining <= 0:
+            raise PayPalCallLimitExceeded("PayPal read limit reached for this turn (3 calls)")
+        if not self._http_metered:
+            self._budget.consume()
         result = call(resource_id)
         self.call_log.append({"tool": tool, "resource_id": resource_id})
         return result

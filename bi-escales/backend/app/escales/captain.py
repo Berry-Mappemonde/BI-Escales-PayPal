@@ -30,6 +30,7 @@ from .milestones import (
 )
 from .pledges import PLEDGE_KINDS, get_ledger, now_iso, pledges_for_milestone
 from .toolkit_tools import ReadOnlyTools
+from .paypal_limits import PayPalCallLimitExceeded
 from .captain_agentic import agentic_reply, agentic_suggested_pledge, parse_agentic_proposal
 
 log = logging.getLogger("escales.captain")
@@ -2951,6 +2952,12 @@ def _paypal_readonly_reply(message: str, lang: str, reader: ReadOnlyTools) -> Op
                 lines.append(
                     "Commandes PayPal (lecture seule) : une commande se consulte par identifiant via orders.get."
                 )
+    except PayPalCallLimitExceeded:
+        lines.append(
+            "PayPal read limit reached for this turn. The summary may be partial."
+            if lang == "en" else "Limite de lectures PayPal atteinte pour ce tour. Le résumé peut être partiel."
+        )
+        return "\n".join(lines)
     except Exception:
         log.exception("PayPal read-only lookup failed")
         if lines:

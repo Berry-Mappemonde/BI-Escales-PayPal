@@ -9,6 +9,7 @@ vi.mock("../api/escales", () => ({
   captainChat: vi.fn(),
   createPledge: vi.fn(),
   authorizePledge: vi.fn(),
+  fetchPledgeMode: vi.fn().mockResolvedValue({ payment_mode: "AUTHORIZE" }),
   fetchFeatures: vi.fn().mockResolvedValue({ vault: true }),
 }));
 

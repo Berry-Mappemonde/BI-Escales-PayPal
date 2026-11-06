@@ -10,6 +10,7 @@ vi.mock("../api/escales", () => ({
   createPledge: vi.fn(),
   registerVault: vi.fn(),
   authorizePledge: vi.fn(),
+  fetchPledgeMode: vi.fn().mockResolvedValue({ payment_mode: "AUTHORIZE" }),
   fetchFeatures: vi.fn().mockResolvedValue({ card_fields: false }),
   isVaultPledge: () => false,
 }));

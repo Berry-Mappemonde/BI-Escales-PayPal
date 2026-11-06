@@ -19,8 +19,8 @@ describe("EscalesPanel cart", () => {
   });
 
   it.each([
-    ["fr", "20 milles près de Mayotte", "Demander une formulation"],
-    ["en", "Sponsor 20 miles near Mayotte", "Ask for wording"],
+    ["fr", "20 milles près de Mayotte", "Demander au capitaine"],
+    ["en", "Sponsor 20 miles near Mayotte", "Ask the Captain"],
   ])("starts empty with a localized placeholder in %s and refuses blank submissions", async (lang, placeholder, action) => {
     await i18n.changeLanguage(lang);
     render(
@@ -81,7 +81,7 @@ describe("EscalesPanel cart", () => {
       </I18nextProvider>,
     );
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "20 milles près de Mayotte" } });
-    fireEvent.click(screen.getByRole("button", { name: "Demander une formulation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Demander au capitaine" }));
     expect(captainChat).toHaveBeenCalledWith("20 milles près de Mayotte", "fr", undefined);
     const line = await screen.findByTestId("cart-line");
     expect(line).toHaveTextContent("20 milles parrainés — 20.00 EUR");
@@ -107,7 +107,7 @@ describe("EscalesPanel cart", () => {
       </I18nextProvider>,
     );
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "20 milles près de Mayotte" } });
-    fireEvent.click(screen.getByRole("button", { name: "Demander une formulation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Demander au capitaine" }));
     const line = await screen.findByTestId("captain-paypal-tools");
     expect(line).toHaveTextContent("transactions.search");
     expect(line).toHaveTextContent("paypal-agent-toolkit");
@@ -123,7 +123,7 @@ describe("EscalesPanel cart", () => {
       </I18nextProvider>,
     );
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "20 milles près de Mayotte" } });
-    fireEvent.click(screen.getByRole("button", { name: "Demander une formulation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Demander au capitaine" }));
     expect(await screen.findByText(/Trop de requêtes vers le capitaine/)).toBeInTheDocument();
   });
 });

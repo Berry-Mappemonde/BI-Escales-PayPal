@@ -201,6 +201,12 @@ describe("Captain review card", () => {
       expect(screen.getByTestId(`captain-override-${STOP}`)).not.toBeDisabled();
     });
 
+    it("shows the rule once when the report already explains capture", async () => {
+      vi.mocked(captainReview).mockResolvedValue({ ...review, report: `Arrival verified. ${en.captainCard.rule}` });
+      await openCard();
+      expect(card().getAllByText(en.captainCard.rule, { exact: false })).toHaveLength(1);
+    });
+
     it("states the capture rule in the agreed words, in both languages", async () => {
       await openCard();
       expect(card().getByText("Captured on arrival (on departure for cabins), only after a person approves.")).toBeInTheDocument();

@@ -244,7 +244,7 @@ export const EscaleSheet = memo(function EscaleSheet({
           ) : (
             <ol className="money-steps" data-testid="stop-money-rule">
               <li>{t("stopPanel.ruleHeld")} </li>
-              <li>{t("stopPanel.ruleCaptured")} </li>
+              <li>{t(pledge.kind === "cabin_leg" ? "stopPanel.ruleCabin" : "stopPanel.ruleCaptured")} </li>
               <li>{t("stopPanel.ruleReleased")}</li>
             </ol>
           )}

@@ -744,15 +744,17 @@ export default function App() {
         </div>
         <p className="ng-clock-line voyage-clock" data-testid="voyage-clock">
           {countdownHours !== null ? (
-            <span>
+            <span className="voyage-clock-countdown">
               {t("clock.waiting", {
                 days: Math.floor(countdownHours / 24),
                 hours: countdownHours % 24,
               })}
             </span>
           ) : null}
-          <span>{formatCivilDate(sample?.iso, lang)}</span>
-          <span>{t("clock.sailed", { nm: sailedNm })} · {t("clock.simulated")}</span>
+          <span className="voyage-clock-date">{formatCivilDate(sample?.iso, lang)}</span>
+          <span className="voyage-clock-distance">
+            {t("clock.sailed", { nm: sailedNm })} · {t("clock.simulated")}
+          </span>
         </p>
         {!prod ? (
           <label className="dev-t0">
@@ -766,11 +768,16 @@ export default function App() {
           </label>
         ) : null}
         <section className="crew-supporter-public" data-testid="crew-supporter-public">
-          <CrewSubscribeButton adminKey={adminKey.trim() || undefined} />
-          <small className="crew-sandbox-note">{t("pledge.crewSubscribeSandbox")}</small>
+          <div className="crew-supporter-heading">
+            <h2>{t("pledge.crewSubscribeHint")}</h2>
+            <small className="crew-sandbox-note">{t("pledge.crewSubscribeSandbox")}</small>
+          </div>
+          <div className="crew-paypal-frame">
+            <CrewSubscribeButton adminKey={adminKey.trim() || undefined} />
+          </div>
         </section>
         {publicCommonFund ? (
-          <p className="hint" data-testid="public-common-fund">
+          <p className="hint public-common-fund" data-testid="public-common-fund">
             {t("fund.publicCommon", {
               balance: Number.isFinite(Number(publicCommonFund.balance_eur))
                 ? new Intl.NumberFormat(lang, {

@@ -94,8 +94,8 @@ describe("Captain review card", () => {
       expect(card().getAllByRole("button", { name: "Source 2: pending_authorizations" })).toHaveLength(2);
       expect(card().getByRole("button", { name: "Source 3: authorizations.get" })).toBeInTheDocument();
       expect(card().getByRole("button", { name: "Source 4: orders.get" })).toBeInTheDocument();
-      expect(card().getByText("7AG23904")).toBeInTheDocument();
-      expect(card().getByText("ORDER-1")).toBeInTheDocument();
+      expect(within(screen.getByTestId(`captain-card-${STOP}`).querySelector(".captain-sources") as HTMLElement).getByText("7AG23904")).toBeInTheDocument();
+      expect(within(screen.getByTestId(`captain-card-${STOP}`).querySelector(".captain-sources") as HTMLElement).getByText("ORDER-1")).toBeInTheDocument();
     });
 
     it("says PayPal was read, never what it answered", async () => {
@@ -108,7 +108,8 @@ describe("Captain review card", () => {
       await openCard();
       const cite = await card().findByRole("button", { name: "Source 3: authorizations.get" });
       fireEvent.click(cite);
-      const row = card().getByText("authorizations.get").closest("li");
+      const sources = within(screen.getByTestId(`captain-card-${STOP}`).querySelector(".captain-sources") as HTMLElement);
+      const row = sources.getByText("authorizations.get").closest("li");
       expect(row).toHaveFocus();
       expect(row).toHaveAttribute("data-active");
     });
@@ -141,8 +142,8 @@ describe("Captain review card", () => {
       render(<Queue initial={[hold("p-1", "20.00"), { ...hold("p-2", "5.00"), milestone_id: "dep-other" }]} />);
       const first = await screen.findByTestId(`captain-card-${STOP}`);
       const second = await screen.findByTestId("captain-card-dep-other");
-      await within(first).findByText(`ORDER-${STOP}`);
-      await within(second).findByText("ORDER-dep-other");
+      await within(first).findAllByText(`ORDER-${STOP}`);
+      await within(second).findAllByText("ORDER-dep-other");
       expect(within(first).queryByText("ORDER-dep-other")).toBeNull();
     });
   });
@@ -150,7 +151,7 @@ describe("Captain review card", () => {
   describe("who answered", () => {
     it("names the model and provider under the card", async () => {
       await openCard();
-      expect(screen.getByTestId(`captain-answered-${STOP}`)).toHaveTextContent("Answered by Nemotron · NVIDIA NIM");
+      expect(screen.getByTestId(`captain-answered-${STOP}`)).toHaveTextContent("Answered by private/nvidia/nemotron-3.5-super-120b-a12b");
     });
 
     it("says so when the rules answered", async () => {

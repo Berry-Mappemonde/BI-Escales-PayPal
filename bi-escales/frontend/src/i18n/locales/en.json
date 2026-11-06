@@ -212,6 +212,15 @@
     "logbookEmpty": "No entries yet.",
     "portInfo": "Marinas and port info"
   },
+  "captainTrace": {
+    "answeredBy": "Answered by {{model}}",
+    "latency": "Latency: {{time}}",
+    "readOnly": "Read-only",
+    "noTools": "No PayPal tools called",
+    "unavailable": "Unavailable",
+    "failed": "Failed",
+    "debugId": "PayPal debug_id"
+  },
   "captainCard": {
     "heading": "Captain review",
     "reviewing": "The Captain is reviewing…",

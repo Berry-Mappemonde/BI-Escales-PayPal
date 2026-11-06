@@ -187,8 +187,9 @@
     "crewSubscribeCancelled": "Crew supporter subscription cancelled. Nothing was charged."
   },
   "howItWorks": {
+    "credit": "Sandbox payments by PayPal · AI by NVIDIA Nemotron",
     "eyebrow": "STOP PLEDGES",
-    "heading": "Back a stop. Pay only if we arrive.",
+    "heading": "Back a stop.\nPay only if we arrive.",
     "intro": "Choose a stop on the voyage map. Your pledge is authorised now, but only captured after arrival and treasurer approval.",
     "authorize": "Authorise your pledge",
     "authorizeDetail": "No charge at this stage.",

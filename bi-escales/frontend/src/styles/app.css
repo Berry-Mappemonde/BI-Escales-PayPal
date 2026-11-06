@@ -94,6 +94,9 @@ h3 {
   margin-top: 0;
 }
 
+.ng-shell :is(h1, h2, h3, h4, h5, h6) { text-wrap: balance; }
+.ng-shell p { text-wrap: pretty; }
+
 label {
   display: flex;
   flex-direction: column;
@@ -270,17 +273,6 @@ button:disabled {
   background: var(--panel);
   padding: 0.75rem;
   border-radius: var(--radius-panel);
-}
-
-.tab-bar {
-  display: flex;
-  gap: 0.5rem;
-  margin: 0.5rem 0 1rem;
-}
-
-.tab-bar button.active {
-  background: var(--accent);
-  color: var(--accent-fg);
 }
 
 .voyage-map {

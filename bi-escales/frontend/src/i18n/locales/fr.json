@@ -187,8 +187,9 @@
     "crewSubscribeCancelled": "Abonnement Équipage annulé. Aucun prélèvement."
   },
   "howItWorks": {
+    "credit": "Paiements en mode test par PayPal · IA par NVIDIA Nemotron",
     "eyebrow": "PROMESSES D’ESCALE",
-    "heading": "Soutenez une escale. Vous ne payez que si nous arrivons.",
+    "heading": "Soutenez une escale.\nVous ne payez que si nous arrivons.",
     "intro": "Choisissez une escale sur la carte du voyage. Votre promesse est autorisée maintenant, mais encaissée seulement après l’arrivée et l’approbation du trésorier.",
     "authorize": "Autorisation de votre promesse",
     "authorizeDetail": "Aucun débit à cette étape.",

@@ -736,7 +736,7 @@ export default function App() {
             </div>
           </div>
         </div>
-        <div className="ng-tab-bar tab-bar" role="tablist">
+        <div className="ng-tab-bar" role="tablist">
           <button type="button" role="tab" aria-selected={tab === "voyage"} className={tab === "voyage" ? "active" : ""} onClick={() => setTab("voyage")}>
             {t("tabs.voyage")}
           </button>
@@ -880,7 +880,7 @@ export default function App() {
       <aside
         ref={toolsPanelRef}
         tabIndex={-1}
-        className={`ng-tools-panel panel${toolsOpen ? "" : " ng-collapsed"}`}
+        className={`ng-tools-panel${toolsOpen ? "" : " ng-collapsed"}`}
         data-testid="ng-tools-panel"
         aria-hidden={!toolsOpen}
       >

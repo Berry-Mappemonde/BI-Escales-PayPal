@@ -36,6 +36,7 @@
   --tools-width: 360px;
   --tracking-label: 0.07em;
   --duration-shimmer: 1.4s;
+  --shadow-marker: 0 1px 3px color-mix(in srgb, var(--color-map-fallback) 45%, transparent);
 
   /* Spacing, on a 4px base */
   --space-1: 4px;
@@ -56,7 +57,7 @@
   --radius-tray: 12px;
 
   /* Motion */
-  --duration-fast: 100ms;
+  --duration-fast: 120ms;
   --duration-base: 150ms;
   --duration-slow: 220ms;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);

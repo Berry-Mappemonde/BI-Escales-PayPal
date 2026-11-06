@@ -34,6 +34,7 @@ export function HowItWorks() {
         </svg>
         <span>{t("howItWorks.pick")}</span>
       </p>
+      <footer className="how-it-works-credit">{t("howItWorks.credit")}</footer>
     </section>
   );
 }

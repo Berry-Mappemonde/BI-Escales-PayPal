@@ -15,6 +15,9 @@ body.ng-naviguide-shell {
 }
 
 .ng-shell {
+  --map-control-size: var(--space-8);
+  /* Leave room for both top corners when the sidebar is open on a phone. */
+  --map-sidebar-width: min(var(--sidebar-width), calc(100vw - 2 * var(--map-control-size) - 3 * var(--space-2)));
   position: relative;
   width: 100vw;
   height: 100vh;
@@ -42,7 +45,7 @@ body.ng-naviguide-shell {
   left: 0;
   bottom: 0;
   z-index: 30;
-  width: min(var(--sidebar-width), 92vw);
+  width: var(--map-sidebar-width);
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -95,37 +98,53 @@ body.ng-naviguide-shell {
   pointer-events: none;
 }
 
-.ng-sidebar-toggle,
-.ng-tools-toggle {
+.ng-map-layer .leaflet-top.leaflet-left .leaflet-control-zoom {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0 var(--space-2);
+  border: 0;
+  box-shadow: none;
+}
+
+.ng-map-layer .leaflet-control-zoom.leaflet-bar a,
+.ng-map-layer > :is(.ng-sidebar-toggle, .ng-tools-toggle) {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: var(--map-control-size);
+  height: var(--map-control-size);
+  padding: 0;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-raised);
+  color: var(--color-fg);
+  line-height: 1;
+}
+
+.ng-map-layer .leaflet-control-zoom a.leaflet-disabled {
+  color: var(--color-fg-3);
+}
+
+.ng-map-layer .leaflet-control-zoom a:not(.leaflet-disabled):hover,
+.ng-map-layer > :is(.ng-sidebar-toggle, .ng-tools-toggle):hover {
+  background: var(--color-selected);
+}
+
+.ng-map-layer > :is(.ng-sidebar-toggle, .ng-tools-toggle) {
   position: absolute;
-  top: 1rem;
-  z-index: 40;
-  background: var(--shell-control-bg);
-  border: 1px solid var(--shell-control-border);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 0.35rem 0.6rem;
+  z-index: 1000;
+  margin: 0;
   cursor: pointer;
-  min-width: 2.25rem;
-  min-height: 2.25rem;
 }
 
-.ng-sidebar-toggle--left {
-  left: 1rem;
-  transition: left 200ms ease;
+.ng-map-layer .ng-sidebar-toggle--left {
+  left: var(--space-2);
+  top: calc(2 * var(--space-2) + 2 * var(--map-control-size) + var(--space-1));
 }
 
-.ng-sidebar-toggle--left.is-open {
-  left: calc(min(var(--sidebar-width), 92vw) + 0.5rem);
-}
-
-.ng-tools-toggle--right {
-  right: 1rem;
-  transition: right 200ms ease;
-}
-
-.ng-tools-toggle--right.is-open {
-  right: calc(min(var(--tools-width), 94vw) + 0.5rem);
+.ng-map-layer .ng-tools-toggle--right {
+  top: var(--space-2);
+  right: var(--space-2);
 }
 
 .ng-tools-panel {
@@ -258,18 +277,7 @@ body.ng-naviguide-shell {
     transform: translateX(-100%);
   }
 
-  /* The left arrow stays on the sidebar's outer edge, never over its content. */
-  .ng-sidebar-toggle--left.is-open {
-    left: calc(min(var(--sidebar-width), 92vw) + 0.5rem);
-    top: 1rem;
-    bottom: auto;
-  }
 
-  .ng-tools-toggle--right.is-open {
-    right: 1rem;
-    top: auto;
-    bottom: calc(45vh + 0.5rem);
-  }
 }
 
 .treasurer-panel {
@@ -668,10 +676,10 @@ body.ng-naviguide-shell {
 }
 
 @media (pointer: coarse) {
+  .ng-shell { --map-control-size: calc(var(--space-10) + var(--space-1)); }
+
   .ng-sidebar .project-row > button:not(:first-child),
-  .ng-sidebar .project-row > a,
-  .ng-sidebar-toggle,
-  .ng-tools-toggle {
+  .ng-sidebar .project-row > a {
     min-height: 44px;
   }
 
@@ -691,22 +699,6 @@ body.ng-naviguide-shell {
   .ng-sidebar:not(.ng-collapsed) ~ .ng-tools-panel {
     left: min(var(--sidebar-width), 92vw);
     width: auto;
-  }
-}
-
-/*
- * On a phone the sidebar fills the screen, so no map is left beside it. The
- * arrow moves into the sidebar's top-right corner and the title row keeps that
- * corner free. The tools arrow rides on the sheet's top edge, clear of its title.
- */
-@media (max-width: 420px) {
-  .ng-sidebar-toggle--left.is-open {
-    left: calc(min(var(--sidebar-width), 92vw) - 2.75rem);
-    top: 0.75rem;
-  }
-
-  .ng-sidebar .ng-shell-header {
-    padding-inline-end: 3rem;
   }
 }
 
@@ -864,16 +856,9 @@ body.ng-naviguide-shell {
   margin-top: 0;
 }
 
-@media (max-width: 420px) {
-  .ng-sidebar > .rail-masthead {
-    padding-inline-end: calc(var(--space-5) + var(--space-8));
-  }
-}
-
+.ng-shell:has(> .ng-sidebar:not(.ng-collapsed)) > .ng-map-layer { left: var(--map-sidebar-width); }
 @media (min-width: 901px) {
-  .ng-shell:has(> .ng-sidebar:not(.ng-collapsed)) > .ng-map-layer { left: var(--sidebar-width); }
   .ng-shell:has(> .ng-tools-panel:not(.ng-collapsed)) > .ng-map-layer { right: var(--tools-width); }
-  .ng-shell > :is(.ng-sidebar-toggle, .ng-tools-toggle) { top: 50%; }
 }
 .rail-masthead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-3); }
 .rail-masthead .ng-shell-header { gap: var(--space-2); padding: 0; }
@@ -930,10 +915,23 @@ body.ng-naviguide-shell {
   .ng-shell :is(.rail-loading, .crew-subscribe > .status) { animation: none; }
 }
 
-.ng-sidebar > .demo-treasurer-entry {
-  align-self: flex-end;
+.treasurer-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.ng-sidebar .treasurer-panel-heading h2 { margin: 0; min-width: 0; }
+.treasurer-panel-heading .treasurer-panel-toggle {
+  padding-inline: 0;
+  background: transparent;
+  border-color: transparent;
+  font: inherit;
+}
+.treasurer-panel-heading .demo-treasurer-entry {
   width: auto;
-  margin: var(--space-6) var(--space-5) var(--space-3);
+  margin: 0;
+  font-size: var(--text-meta);
   padding: var(--space-1) var(--space-3);
   background: var(--color-raised);
   color: var(--color-fg);

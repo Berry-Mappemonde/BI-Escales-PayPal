@@ -649,31 +649,31 @@ export default function App() {
             if (props?.id) setSelectedProjectId(props.id);
           }}
         />
+        <button
+          type="button"
+          className={`ng-sidebar-toggle ng-sidebar-toggle--left${sidebarOpen ? " is-open" : ""}`}
+          data-testid="ng-sidebar-toggle"
+          aria-expanded={sidebarOpen}
+          aria-label={sidebarOpen ? t("app.sidebarCollapse") : t("app.sidebarExpand")}
+          onClick={() => setSidebarOpen((open) => !open)}
+        >
+          {sidebarOpen ? "◀" : "▶"}
+        </button>
+
+        <button
+          type="button"
+          className={`ng-tools-toggle ng-tools-toggle--right${toolsOpen ? " is-open" : ""}`}
+          data-testid="ng-tools-toggle"
+          aria-expanded={toolsOpen}
+          aria-label={toolsOpen ? t("app.toolsCollapse") : t("app.toolsExpand")}
+          onClick={() => setToolsOpen((open) => !open)}
+        >
+          {toolsOpen ? "▶" : "⚙"}
+        </button>
       </div>
 
       <ToastContainer items={toastItems} onDismiss={dismissToast} />
 
-      <button
-        type="button"
-        className={`ng-sidebar-toggle ng-sidebar-toggle--left${sidebarOpen ? " is-open" : ""}`}
-        data-testid="ng-sidebar-toggle"
-        aria-expanded={sidebarOpen}
-        aria-label={sidebarOpen ? t("app.sidebarCollapse") : t("app.sidebarExpand")}
-        onClick={() => setSidebarOpen((open) => !open)}
-      >
-        {sidebarOpen ? "◀" : "▶"}
-      </button>
-
-      <button
-        type="button"
-        className={`ng-tools-toggle ng-tools-toggle--right${toolsOpen ? " is-open" : ""}`}
-        data-testid="ng-tools-toggle"
-        aria-expanded={toolsOpen}
-        aria-label={toolsOpen ? t("app.toolsCollapse") : t("app.toolsExpand")}
-        onClick={() => setToolsOpen((open) => !open)}
-      >
-        {toolsOpen ? "▶" : "⚙"}
-      </button>
 
       <aside
         className={`ng-sidebar panel${sidebarOpen ? "" : " ng-collapsed"}`}
@@ -830,16 +830,6 @@ export default function App() {
             </ul>
           </div>
         )}
-        {demoTreasurerAvailable ? (
-          <button
-            type="button"
-            className="demo-treasurer-entry"
-            data-testid="demo-treasurer-button"
-            onClick={() => startDemoTreasurer()}
-          >
-            {t("treasurer.demoButton")}
-          </button>
-        ) : null}
         <TreasurerPanel
           open={treasurerOpen}
           onOpenChange={onTreasurerOpenChange}
@@ -873,7 +863,18 @@ export default function App() {
             event.preventDefault();
             void onSpend();
           }}
-        />
+        >
+          {demoTreasurerAvailable ? (
+            <button
+              type="button"
+              className="secondary demo-treasurer-entry"
+              data-testid="demo-treasurer-button"
+              onClick={() => startDemoTreasurer()}
+            >
+              {t("treasurer.demoButton")}
+            </button>
+          ) : null}
+        </TreasurerPanel>
       </aside>
 
       <aside

@@ -1,4 +1,4 @@
-import { FormEvent } from "react";
+import { FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { FundView, PublicPledge } from "../api/types";
 import { MaskedSecretInput } from "./MaskedSecretInput";
@@ -67,6 +67,7 @@ export interface TreasurerPanelProps {
   fund: FundView | null;
   onSpendSubmit: (event: FormEvent) => void;
   demoMode?: boolean;
+  children?: ReactNode;
 }
 
 export function TreasurerPanel({
@@ -99,21 +100,27 @@ export function TreasurerPanel({
   fund,
   onSpendSubmit,
   demoMode = false,
+  children,
 }: TreasurerPanelProps) {
   const { t } = useTranslation();
 
   return (
     <section className="treasurer-panel panel" data-testid="treasurer-panel">
-      <button
-        type="button"
-        className="treasurer-panel-toggle"
-        data-testid="treasurer-panel-toggle"
-        aria-expanded={open}
-        aria-controls="treasurer-panel-body"
-        onClick={() => onOpenChange(!open)}
-      >
-        {t("treasurer.panelTitle")}
-      </button>
+      <header className="treasurer-panel-heading">
+        <h2>
+          <button
+            type="button"
+            className="treasurer-panel-toggle"
+            data-testid="treasurer-panel-toggle"
+            aria-expanded={open}
+            aria-controls="treasurer-panel-body"
+            onClick={() => onOpenChange(!open)}
+          >
+            {t("treasurer.panelTitle")}
+          </button>
+        </h2>
+        {children}
+      </header>
       {open ? (
         <div className="treasurer-panel-body" id="treasurer-panel-body" data-testid="treasurer-panel-body">
           {demoMode ? (

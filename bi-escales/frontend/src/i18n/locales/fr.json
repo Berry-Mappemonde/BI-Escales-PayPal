@@ -224,6 +224,8 @@
     "portInfo": "Marinas et infos du port"
   },
   "captainTrace": {
+    "fixedRule": "Règle fixe du code (voulu)",
+    "client": "Client PayPal : {{client}}",
     "answeredBy": "Réponse de {{model}}",
     "latency": "Latence : {{time}}",
     "readOnly": "Lecture seule",

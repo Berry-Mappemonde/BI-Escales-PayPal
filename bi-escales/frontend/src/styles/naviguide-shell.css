@@ -269,10 +269,11 @@ body.ng-naviguide-shell {
     transform: translateX(-100%);
   }
 
+  /* The left arrow stays on the sidebar's outer edge, never over its content. */
   .ng-sidebar-toggle--left.is-open {
-    left: 1rem;
-    top: auto;
-    bottom: calc(45vh + 0.5rem);
+    left: calc(min(340px, 92vw) + 0.5rem);
+    top: 1rem;
+    bottom: auto;
   }
 
   .ng-tools-toggle--right.is-open {
@@ -632,9 +633,21 @@ body.ng-naviguide-shell {
     left: min(340px, 92vw);
     width: auto;
   }
+}
 
+/*
+ * On a phone the sidebar fills the screen, so no map is left beside it. The
+ * arrow moves into the sidebar's top-right corner and the title row keeps that
+ * corner free. The tools arrow rides on the sheet's top edge, clear of its title.
+ */
+@media (max-width: 420px) {
   .ng-sidebar-toggle--left.is-open {
-    left: calc(340px + var(--space-2));
+    left: calc(min(340px, 92vw) - 2.75rem);
+    top: 0.75rem;
+  }
+
+  .ng-sidebar .ng-shell-header {
+    padding-inline-end: 3rem;
   }
 }
 

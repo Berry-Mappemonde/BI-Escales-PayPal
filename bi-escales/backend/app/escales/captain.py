@@ -305,20 +305,6 @@ def _capture_rule_core_in(text: str, lang: str) -> bool:
     return core.casefold() in (text or "").casefold()
 
 
-def _drop_duplicate_capture_rule_sentences(prose: str, lang: str) -> str:
-    """Drop an extra LLM sentence that repeats the public capture rule core."""
-    core = CAPTURE_RULES_EN if lang == "en" else CAPTURE_RULES_FR
-    snippet = core[:48].strip()
-    if not snippet or snippet.casefold() not in (prose or "").casefold():
-        return prose or ""
-    pattern = re.compile(
-        rf"[^.!?]*{re.escape(snippet)}[^.!?]*[.!?]",
-        re.IGNORECASE,
-    )
-    cleaned = pattern.sub("", prose or "", count=1)
-    return re.sub(r"\s{2,}", " ", cleaned).strip()
-
-
 def _strip_wrong_common_fund_claim(text: str, suggested: Optional[dict], lang: str) -> str:
     """Drop a fonds commun / common fund sentence on a stopover pledge."""
     if not suggested:
@@ -1553,6 +1539,9 @@ def _compose_chat_reply(
     if kind not in {"common_fund", "project_pledge"}:
         prose = _drop_sentences(prose, _OFF_TOPIC_FUND_PROSE)
     prose = _drop_sentences(prose, _FUND_LABEL_FILLER)
+    prose = _drop_sentences(prose, _KNOWLEDGE_FILLER)
+    # The code appends the public rule once. A model restatement is dropped.
+    prose = _drop_sentences(prose, _CAPTURE_RULE_SENTENCE)
     prose = _trim_cutoff(_normalize_dots(prose))
     if lang == "fr":
         prose = _standardise_french(_french_labels(prose))
@@ -1570,9 +1559,7 @@ def _compose_chat_reply(
             required.append(dates)
     rules = _public_rule(lang)
     combined = f"{prose} {' '.join(required)}"
-    if _capture_rule_core_in(combined, lang):
-        prose = _drop_duplicate_capture_rule_sentences(prose, lang)
-    else:
+    if not _capture_rule_core_in(combined, lang):
         required.append(rules)
     joined = " ".join(required)
     if lang == "en" and not re.search(r"\bintent\s+authorize\b", f"{prose} {joined}", re.I):
@@ -2800,6 +2787,17 @@ _OFF_TOPIC_FUND_PROSE = re.compile(
     r"|project fund financing",
     re.IGNORECASE,
 )
+_KNOWLEDGE_FILLER = re.compile(
+    r"\bI (?:do not|don't) know (?:any )?(?:other|more|further|additional)\b"
+    r"|\bje ne sais (?:pas|rien) (?:d[’']autre|de plus|autre)",
+    re.IGNORECASE,
+)
+_CAPTURE_RULE_SENTENCE = re.compile(
+    r"\b(?:captured|voided)\b.{0,80}\b(?:arrival|departure|cancel)"
+    r"|\b(?:capturées?|annulées?)\b.{0,80}\b(?:arriv|départ|annul)"
+    r"|\bStop-level pledges\b|\bpromesses au niveau de l[’']escale\b",
+    re.IGNORECASE | re.DOTALL,
+)
 _FUND_LABEL_FILLER = re.compile(
     r"\bthe fund label is the fund at\b"
     r"|\bthe fund is not specified\b",
@@ -3002,6 +3000,7 @@ async def _chat(
         return {
             "reply": _fit_words("", [reply, _signature(lang)]),
             "suggested_pledge": None, "cart": None, "model_source": _rules_source(),
+            "rule_by_design": True,
         }
     if treasurer and reader is not None:
         agentic = parse_agentic_proposal(text, lang)
@@ -3046,6 +3045,7 @@ async def _chat(
             "cart": None,
             "model_source": _rules_source(),
             "fund": None,
+            "rule_by_design": True,
         }
     if _is_fund_question(text):
         reply, source, fund = await _answer_fund(text, lang, treasurer=treasurer)
@@ -3070,6 +3070,7 @@ async def _chat(
                 "cart": None,
                 "model_source": _rules_source(),
                 "fund": None,
+                "rule_by_design": True,
             }
         reply = _compose_chat_reply("", suggested, lang, treasurer=False, ask_escale=False)
         return {
@@ -3088,6 +3089,7 @@ async def _chat(
         mid = str(suggested.get("milestone_id") or "").strip()
         target = str(suggested.get("target_id") or "").strip()
         allowed["fund_label"] = _fund_place_label(mid or target, lang)
+    by_design = suggested is None
     if suggested is None:
         # Do not send this question to a model: the horizon rule stays in code.
         raw, source = "", _rules_source()
@@ -3115,13 +3117,16 @@ async def _chat(
     reply = _compose_chat_reply(
         raw or "", suggested, lang, treasurer=treasurer, ask_escale=ask_escale,
     )
-    return {
+    result = {
         "reply": reply,
         "suggested_pledge": suggested,
         "cart": cart,
         "model_source": source,
         "model_label": model_display_label(source),
     }
+    if by_design:
+        result["rule_by_design"] = True
+    return result
 
 
 async def chat(

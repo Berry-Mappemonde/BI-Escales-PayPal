@@ -11,6 +11,7 @@
     "sidebarCollapse": "Collapse sidebar",
     "sidebarExpand": "Expand sidebar",
     "dismissNotice": "Dismiss",
+    "dismissNoticeAria": "Dismiss",
     "toolsCollapse": "Hide tools",
     "toolsExpand": "Show settings"
   },

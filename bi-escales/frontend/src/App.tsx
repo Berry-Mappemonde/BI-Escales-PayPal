@@ -13,6 +13,8 @@ import { TreasurerPanel } from "./components/TreasurerPanel";
 import { CrewSubscribeButton } from "./components/CrewSubscribeButton";
 import { HowItWorks } from "./components/stop/HowItWorks.jsx";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
+import { ToastContainer } from "./components/Toast";
+import type { ToastItem } from "./components/Toast";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { useTheme } from "./hooks/useTheme";
 import { setLanguage } from "./i18n";
@@ -572,62 +574,53 @@ export default function App() {
     setFlyTo({ lat, lon, ts: Date.now() });
   };
 
-  const dismissNotices = () => {
-    setPaypalNote(null);
-    setCrewSubscribeNote(null);
-  };
+  const dismissToast = useCallback((id: string) => {
+    if (id.startsWith("paypal-")) setPaypalNote(null);
+    if (id.startsWith("crew-")) setCrewSubscribeNote(null);
+    if (id.startsWith("health-")) setHealthOk(null);
+  }, []);
 
-  const paypalNotices = (
-    <>
-      {(paypalNote || crewSubscribeNote) ? (
-        <button type="button" className="notice-dismiss" data-testid="dismiss-notices" onClick={dismissNotices}>
-          {t("app.dismissNotice")}
-        </button>
-      ) : null}
-      {healthOk === false ? <p className="notice error">{t("app.healthFail")}</p> : null}
-      {crewSubscribeNote === "verifying" ? (
-        <p className="status" data-testid="crew-subscribe-return-notice">
-          {t("pledge.crewSubscribeVerifying")}
-        </p>
-      ) : null}
-      {crewSubscribeNote === "confirmed" ? (
-        <p className="status" data-testid="crew-subscribe-return-notice">
-          {t("pledge.crewSubscribeConfirmed")}
-        </p>
-      ) : null}
-      {crewSubscribeNote === "pending" ? (
-        <p className="notice warn" data-testid="crew-subscribe-return-notice">
-          {t("pledge.crewSubscribePending")}
-        </p>
-      ) : null}
-      {crewSubscribeNote === "cancelled" ? (
-        <p className="notice warn" data-testid="crew-subscribe-cancel-notice">
-          {t("pledge.crewSubscribeCancelled")}
-        </p>
-      ) : null}
-      {paypalNote === "cancel" ? <p className="notice warn">{t("pledge.cancelled")}</p> : null}
-      {paypalNote === "vaultCancel" ? <p className="notice warn">{t("pledge.vaultCancelled")}</p> : null}
-      {paypalNote === "vaultRetry" ? <p className="notice warn">{t("pledge.vaultRetry")}</p> : null}
-      {paypalNote === "authorizing" ? <p className="status">{t("pledge.authorizing")}</p> : null}
-      {paypalNote === "vaulting" ? <p className="status">{t("pledge.vaulting")}</p> : null}
-      {paypalNote === "authorized" ? <p className="status">{t("pledge.authorized")}</p> : null}
-      {paypalNote === "vaulted" ? <p className="status">{t("pledge.vaultSaved")}</p> : null}
-      {paypalNote === "vaultSaved" ? <p className="status">{t("pledge.vaultSaved")}</p> : null}
-      {paypalNote === "vaultFailed" ? <p className="notice error">{t("pledge.vaultFailed")}</p> : null}
-      {paypalNote &&
-      paypalNote !== "cancel" &&
-      paypalNote !== "vaultCancel" &&
-      paypalNote !== "vaultRetry" &&
-      paypalNote !== "authorizing" &&
-      paypalNote !== "vaulting" &&
-      paypalNote !== "authorized" &&
-      paypalNote !== "vaulted" &&
-      paypalNote !== "vaultSaved" &&
-      paypalNote !== "vaultFailed" ? (
-        <p className="notice error">{paypalNote}</p>
-      ) : null}
-    </>
-  );
+  const toastItems = useMemo(() => {
+    const items: ToastItem[] = [];
+    const push = (variant: ToastItem["variant"], title: string, opts?: { testId?: string; detail?: string; idPrefix?: string; key?: string }) => {
+      const prefix = opts?.idPrefix ?? "paypal";
+      items.push({
+        id: `${prefix}-${opts?.key ?? variant}-${title}`,
+        variant,
+        title,
+        detail: opts?.detail,
+        testId: opts?.testId,
+      });
+    };
+
+    // Newest on top: user transaction feedback above system health
+    if (paypalNote === "cancel") push("warn", t("pledge.cancelled"), { key: "cancel" });
+    else if (paypalNote === "vaultCancel") push("warn", t("pledge.vaultCancelled"), { key: "vaultCancel" });
+    else if (paypalNote === "vaultRetry") push("warn", t("pledge.vaultRetry"), { key: "vaultRetry" });
+    else if (paypalNote === "authorizing") push("info", t("pledge.authorizing"), { key: "authorizing" });
+    else if (paypalNote === "vaulting") push("info", t("pledge.vaulting"), { key: "vaulting" });
+    else if (paypalNote === "authorized") push("held", t("pledge.authorized"), { key: "authorized" });
+    else if (paypalNote === "vaulted") push("success", t("pledge.vaultSaved"), { key: "vaulted" });
+    else if (paypalNote === "vaultSaved") push("success", t("pledge.vaultSaved"), { key: "vaultSaved" });
+    else if (paypalNote === "vaultFailed") push("error", t("pledge.vaultFailed"), { key: "vaultFailed" });
+    else if (paypalNote) push("error", paypalNote, { key: "custom" });
+
+    if (crewSubscribeNote === "verifying") {
+      push("info", t("pledge.crewSubscribeVerifying"), { testId: "crew-subscribe-return-notice", idPrefix: "crew", key: "verifying" });
+    } else if (crewSubscribeNote === "confirmed") {
+      push("success", t("pledge.crewSubscribeConfirmed"), { testId: "crew-subscribe-return-notice", idPrefix: "crew", key: "confirmed" });
+    } else if (crewSubscribeNote === "pending") {
+      push("warn", t("pledge.crewSubscribePending"), { testId: "crew-subscribe-return-notice", idPrefix: "crew", key: "pending" });
+    } else if (crewSubscribeNote === "cancelled") {
+      push("warn", t("pledge.crewSubscribeCancelled"), { testId: "crew-subscribe-cancel-notice", idPrefix: "crew", key: "cancelled" });
+    }
+
+    if (healthOk === false) {
+      push("error", t("app.healthFail"), { idPrefix: "health", key: "fail" });
+    }
+
+    return items;
+  }, [healthOk, crewSubscribeNote, paypalNote, t]);
 
   return (
     <div className="ng-shell" data-testid="ng-shell">
@@ -653,7 +646,7 @@ export default function App() {
         />
       </div>
 
-      <div className="ng-notices">{paypalNotices}</div>
+      <ToastContainer items={toastItems} onDismiss={dismissToast} />
 
       <button
         type="button"

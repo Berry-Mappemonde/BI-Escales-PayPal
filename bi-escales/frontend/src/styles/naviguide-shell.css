@@ -241,20 +241,7 @@ body.ng-naviguide-shell {
   font-variant-numeric: tabular-nums;
 }
 
-.ng-notices {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  top: 0.5rem;
-  z-index: 40;
-  max-width: min(520px, 92vw);
-  pointer-events: none;
-}
-
-.ng-notices .notice,
-.ng-notices .status {
-  pointer-events: auto;
-}
+/* .ng-notices replaced by .toast-container in toast.css */
 
 .ng-treasurer-panel {
   position: relative;

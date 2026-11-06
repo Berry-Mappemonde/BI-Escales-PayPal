@@ -11,6 +11,7 @@
     "sidebarCollapse": "Replier le panneau latéral",
     "sidebarExpand": "Déplier le panneau latéral",
     "dismissNotice": "Fermer",
+    "dismissNoticeAria": "Fermer",
     "toolsCollapse": "Masquer les outils",
     "toolsExpand": "Afficher les réglages"
   },

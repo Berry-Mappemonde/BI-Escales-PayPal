@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { authorizePledge, createPledge, fetchFeatures, registerVault, isVaultPledge } from "../api/escales";
+import {
+  authorizePledge,
+  createPledge,
+  fetchFeatures,
+  fetchPledgeMode,
+  registerVault,
+  isVaultPledge,
+} from "../api/escales";
 import { PayPalCardFieldsBlock } from "./PayPalCardFieldsBlock";
 import type { PublicPledge } from "../api/types";
 import {
@@ -49,6 +56,12 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   const [busy, setBusy] = useState(false);
   const [paypal, setPaypal] = useState<PayPalNamespace | null>(null);
   const sdkReady = paypal !== null;
+  const [smartButtonsReady, setSmartButtonsReady] = useState(false);
+  const [pledgeMode, setPledgeMode] = useState<{
+    milestoneId: string;
+    kind: string | undefined;
+    paymentMode: "AUTHORIZE" | "VAULT";
+  } | null>(null);
   const [cardFieldsEnabled, setCardFieldsEnabled] = useState(false);
   const [walletPayEnabled, setWalletPayEnabled] = useState(false);
   // Load the SDK once the feature flags are known, so a wallet_pay flip does not load a second SDK.
@@ -58,6 +71,10 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   const vault = created ? isVaultPledge(created) : false;
   const isProjectPledge = (values.kind || "") === "project_pledge";
   const sdkIntent = isProjectPledge ? "capture" : "authorize";
+  const modeMatchesValues =
+    pledgeMode?.milestoneId === values.milestone_id && pledgeMode.kind === values.kind;
+  const shouldRenderSmartButtons =
+    isProjectPledge || (modeMatchesValues && pledgeMode.paymentMode === "AUTHORIZE");
   const buttonsHost = useRef<HTMLDivElement | null>(null);
   const valuesRef = useRef(values);
   valuesRef.current = values;
@@ -114,6 +131,32 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     setBusy(false);
     activePledgeIdRef.current = null;
   }, [values.amount_eur, values.kind, values.milestone_id, values.description, values.target_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPledgeMode(null);
+    if (isProjectPledge) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    void fetchPledgeMode(values.milestone_id, values.kind)
+      .then(({ payment_mode }) => {
+        if (!cancelled) {
+          setPledgeMode({
+            milestoneId: values.milestone_id,
+            kind: values.kind,
+            paymentMode: payment_mode,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPledgeMode(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isProjectPledge, values.milestone_id, values.kind]);
 
   useEffect(() => {
     if (!created?.approve_link || !vault) return;
@@ -181,9 +224,11 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
 
   /** In-page Smart Buttons (PayPal wallet, Pay Later, card): no approve_link redirect. */
   useEffect(() => {
+    setSmartButtonsReady(false);
     const host = buttonsHost.current;
-    if (!paypal || !host || disabled) return;
+    if (!host) return;
     host.innerHTML = "";
+    if (!paypal || !shouldRenderSmartButtons || disabled) return;
     let pledgeId: string | null = null;
     let closed = false;
     let buttons: PayPalSdkButtonInstance | null = null;
@@ -238,13 +283,16 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     ).then((result) => {
       buttons = result.instance;
       if (closed) safePayPalClose(buttons);
-      else if (result.ok) host.dataset.smartButtons = "1";
+      else if (result.ok) {
+        host.dataset.smartButtons = "1";
+        setSmartButtonsReady(true);
+      }
     });
     return () => {
       closed = true;
       safePayPalClose(buttons);
     };
-  }, [paypal, disabled, isProjectPledge, appLang, t, onAuthorized]);
+  }, [paypal, shouldRenderSmartButtons, disabled, isProjectPledge, appLang, t, onAuthorized]);
 
   const confirmVault = async () => {
     if (!created || !vault) return;
@@ -287,9 +335,11 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     <div className="pledge-button" data-testid="paypal-buttons" data-kind={values.kind || ""}>
       <p className="hint">{isProjectPledge ? t("pledge.intentProject") : t("pledge.intent")}</p>
       <p className="hint">{t("pledge.venmoNote")}</p>
-      <button type="button" onClick={() => void createOrder()} disabled={disabled || busy}>
-        {t("pledge.create")}
-      </button>
+      {!smartButtonsReady ? (
+        <button type="button" onClick={() => void createOrder()} disabled={disabled || busy}>
+          {t("pledge.create")}
+        </button>
+      ) : null}
       {created?.approve_link && !vault ? (
         <a href={created.approve_link} rel="noreferrer" data-testid="paypal-approve-link">
           {t("pledge.approve")}

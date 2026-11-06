@@ -2,7 +2,7 @@ import { fireEvent, render, screen, act } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../i18n";
-import { createPledge } from "../api/escales";
+import { createPledge, fetchPledgeMode } from "../api/escales";
 import { emitPledgeReturn } from "../paypal/pledgeReturnEvents";
 import { PledgeButton } from "./PledgeButton";
 
@@ -10,6 +10,7 @@ vi.mock("../api/escales", () => ({
   createPledge: vi.fn(),
   registerVault: vi.fn(),
   authorizePledge: vi.fn(),
+  fetchPledgeMode: vi.fn().mockResolvedValue({ payment_mode: "AUTHORIZE" }),
   fetchFeatures: vi.fn().mockResolvedValue({ card_fields: false }),
   isVaultPledge: (pledge: { payment_mode?: string; intent?: string }) =>
     pledge.payment_mode === "VAULT" || pledge.intent === "VAULT",
@@ -26,6 +27,7 @@ const values = {
 describe("PledgeButton", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "AUTHORIZE" });
     await i18n.changeLanguage("fr");
   });
 
@@ -61,6 +63,7 @@ describe("PledgeButton", () => {
   it("affiche le bouton d’enregistrement Vault", async () => {
     const assign = vi.fn();
     Object.defineProperty(window, "location", { value: { assign }, writable: true });
+    vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "VAULT" });
 
     vi.mocked(createPledge).mockResolvedValue({
       id: "vault-1",

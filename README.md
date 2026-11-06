@@ -6,7 +6,7 @@ A supporter's PayPal pledge is **authorized** (Orders v2 `intent=AUTHORIZE`), an
 
 For milestone pledges, approval records the verdict, its proposal time, and the approval time on the simulated voyage clock. Only the latest approved **capture** review permits capture, and both times must be at or after the stop's arrival (the leg's departure for cabins). Approving **wait** never permits capture. Settlement returns `await_review_approval` and direct capture returns HTTP 409 until a qualifying review is approved. Legacy approval records are retained and require a fresh review and approval.
 
-- `bi-escales/` — FastAPI backend: pledges (authorize / capture / void), milestones and evidence, AI Captain, audit journal. Partner integrations (e.g. PayPal Agent Toolkit) are optional modules behind environment flags, off by default.
+- `bi-escales/` — FastAPI backend (`bi-escales/backend`) and Vite/React frontend (`bi-escales/frontend`): pledges (authorize / capture / void), milestones and evidence, AI Captain, audit journal. Partner integrations (e.g. PayPal Agent Toolkit) are optional modules behind environment flags, off by default.
 - `naviguide-escales/` — NAVIGUIDE voyage simulator (snapshot, no history).
 
 Status: in development. PayPal **sandbox only**; no real money moves. Planned departure: 12 Nov 2026.
@@ -86,14 +86,53 @@ This is **separate** from the in-app Captain integration: `ESCALES_TOOLKIT_ENABL
 
 `ESCALES_RATE_LIMIT_ENABLED=true` forces both on even in development. `ESCALES_RATE_LIMIT_ENABLED=false` forces both off even in production. Counts stay in memory for the life of the process.
 
-## Quick start (backend)
+## Quick start
+
+Get from a fresh clone to a running local demo in under 10 minutes.
+
+### 1. Backend
+
+Requires Python 3.12 (see `.python-version`):
+
 ```bash
 cd bi-escales/backend
-python -m venv .venv && . .venv/bin/activate
+python3.12 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 python -m pytest tests -q
 ```
-Copy `.env.example` to `.env` and fill in sandbox values locally; never commit it.
+
+Copy the example environment file and configure local in-memory demo settings:
+
+```bash
+cp ../.env.example .env
+```
+
+In `.env`, set:
+- `ESCALES_ENABLED=1`
+- `ESCALES_STORE=memory`
+- `PAYPAL_CLIENT_ID=sandbox_placeholder`
+- `PAYPAL_CLIENT_SECRET=sandbox_placeholder`
+- `ESCALES_ADMIN_KEY=dev-secret`
+
+Start the backend API server on port 8000:
+
+```bash
+python -m uvicorn app.main:app --reload --port 8000 --env-file .env
+```
+
+Verify backend health at `http://127.0.0.1:8000/api/health`.
+
+### 2. Frontend
+
+In a separate terminal:
+
+```bash
+cd bi-escales/frontend
+npm ci
+VITE_API_PROXY_TARGET=http://127.0.0.1:8000 npm run dev
+```
+
+Open `http://localhost:5173` in your browser.
 
 ## License
 Dual-licensed under MIT (`LICENSE-MIT`) or Apache-2.0 (`LICENSE-APACHE`), at your option.

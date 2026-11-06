@@ -32,6 +32,11 @@
   --text-display: 22px;
   --text-display--line-height: 28px;
 
+  --sidebar-width: 312px;
+  --tools-width: 360px;
+  --tracking-label: 0.07em;
+  --duration-shimmer: 1.4s;
+
   /* Spacing, on a 4px base */
   --space-1: 4px;
   --space-2: 8px;

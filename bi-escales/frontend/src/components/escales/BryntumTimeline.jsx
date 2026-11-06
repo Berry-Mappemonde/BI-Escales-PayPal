@@ -55,7 +55,7 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
 
   if (failed || !events.length) return fallback;
   if (!Scheduler) {
-    return <p className="escales-scheduler-loading" data-testid="bryntum-loading">{t("scheduler.loading", "…")}</p>;
+    return <p className="escales-scheduler-loading rail-loading" role="status" data-testid="bryntum-loading">{t("scheduler.loading", "…")}</p>;
   }
   return <div className="escales-scheduler-bryntum" data-testid="escales-scheduler-bryntum" ref={containerRef} />;
 }

@@ -134,10 +134,6 @@ export const EscaleSheet = memo(function EscaleSheet({
     ? stopStatus({ now: context.now, arrivalIso, startIso, cancelled })
     : null;
   const { heldEur, capturedEur } = fundTotals(context.fund);
-  const moneyParts = [
-    heldEur ? t("stopPanel.held", { amount: formatEurAmount(heldEur, lang) }) : "",
-    capturedEur ? t("stopPanel.captured", { amount: formatEurAmount(capturedEur, lang) }) : "",
-  ].filter(Boolean);
   const logLines = logbookUpTo(logbookEntries, context.now).map((entry) => logbookLine(entry, lang));
 
   return (
@@ -159,7 +155,7 @@ export const EscaleSheet = memo(function EscaleSheet({
           </button>
         ) : null}
       </div>
-      {arrivalLabel || departureLabel || moneyParts.length ? (
+      {arrivalLabel || departureLabel || heldEur || capturedEur ? (
         <div className="stop-section stop-summary">
           {arrivalLabel || departureLabel ? (
             <dl className="stop-rows">
@@ -177,9 +173,11 @@ export const EscaleSheet = memo(function EscaleSheet({
               ) : null}
             </dl>
           ) : null}
-          {moneyParts.length ? (
+          {heldEur || capturedEur ? (
             <p className="stop-money" data-testid="stop-money">
-              {moneyParts.join(" · ")}
+              {heldEur ? <span className="stop-held">{t("stopPanel.held", { amount: formatEurAmount(heldEur, lang) })}</span> : null}
+              {heldEur && capturedEur ? " · " : null}
+              {capturedEur ? t("stopPanel.captured", { amount: formatEurAmount(capturedEur, lang) }) : null}
             </p>
           ) : null}
         </div>
@@ -276,7 +274,7 @@ export const EscaleSheet = memo(function EscaleSheet({
           </div>
         </details>
       ) : null}
-      {loading ? <p className="hint">{t("sheet.loading")}</p> : null}
+      {loading ? <p className="rail-loading" role="status">{t("sheet.loading")}</p> : null}
       {error ? <p className="notice error">{error}</p> : null}
       {!loading && fiche ? (
         <details className="stop-more" data-testid="stop-port-info">

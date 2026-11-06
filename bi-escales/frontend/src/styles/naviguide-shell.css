@@ -42,7 +42,7 @@ body.ng-naviguide-shell {
   left: 0;
   bottom: 0;
   z-index: 30;
-  width: min(340px, 92vw);
+  width: min(var(--sidebar-width), 92vw);
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -63,11 +63,6 @@ body.ng-naviguide-shell {
     color-mix(in srgb, var(--color-shell) 96%, transparent),
     color-mix(in srgb, var(--color-shell) 88%, transparent)
   );
-  --shell-tools-gradient: linear-gradient(
-    270deg,
-    color-mix(in srgb, var(--color-shell) 96%, transparent),
-    color-mix(in srgb, var(--color-shell) 88%, transparent)
-  );
   --shell-border: var(--color-line);
   --shell-control-bg: color-mix(in srgb, var(--color-panel) 90%, transparent);
   --shell-control-border: var(--color-line-strong);
@@ -82,11 +77,6 @@ body.ng-naviguide-shell {
   --shell-bg: var(--color-canvas);
   --shell-sidebar-gradient: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--color-canvas) 98%, transparent),
-    color-mix(in srgb, var(--color-panel) 95%, transparent)
-  );
-  --shell-tools-gradient: linear-gradient(
-    270deg,
     color-mix(in srgb, var(--color-canvas) 98%, transparent),
     color-mix(in srgb, var(--color-panel) 95%, transparent)
   );
@@ -126,7 +116,7 @@ body.ng-naviguide-shell {
 }
 
 .ng-sidebar-toggle--left.is-open {
-  left: calc(min(340px, 92vw) + 0.5rem);
+  left: calc(min(var(--sidebar-width), 92vw) + 0.5rem);
 }
 
 .ng-tools-toggle--right {
@@ -135,7 +125,7 @@ body.ng-naviguide-shell {
 }
 
 .ng-tools-toggle--right.is-open {
-  right: calc(min(420px, 94vw) + 0.5rem);
+  right: calc(min(var(--tools-width), 94vw) + 0.5rem);
 }
 
 .ng-tools-panel {
@@ -144,12 +134,10 @@ body.ng-naviguide-shell {
   right: 0;
   bottom: 0;
   z-index: 25;
-  width: min(420px, 94vw);
+  width: min(var(--tools-width), 94vw);
   padding: var(--space-3);
   box-sizing: border-box;
-  background: var(--shell-tools-gradient);
-  /* Keep the translucent gradient over a solid panel, not over the map. */
-  background-color: var(--color-shell);
+  background: var(--color-panel);
   border-left: 1px solid var(--shell-border);
   overflow: auto;
   transition: transform 200ms ease;
@@ -272,7 +260,7 @@ body.ng-naviguide-shell {
 
   /* The left arrow stays on the sidebar's outer edge, never over its content. */
   .ng-sidebar-toggle--left.is-open {
-    left: calc(min(340px, 92vw) + 0.5rem);
+    left: calc(min(var(--sidebar-width), 92vw) + 0.5rem);
     top: 1rem;
     bottom: auto;
   }
@@ -701,7 +689,7 @@ body.ng-naviguide-shell {
  */
 @media (min-width: 768px) and (max-width: 900px) {
   .ng-sidebar:not(.ng-collapsed) ~ .ng-tools-panel {
-    left: min(340px, 92vw);
+    left: min(var(--sidebar-width), 92vw);
     width: auto;
   }
 }
@@ -713,7 +701,7 @@ body.ng-naviguide-shell {
  */
 @media (max-width: 420px) {
   .ng-sidebar-toggle--left.is-open {
-    left: calc(min(340px, 92vw) - 2.75rem);
+    left: calc(min(var(--sidebar-width), 92vw) - 2.75rem);
     top: 0.75rem;
   }
 
@@ -802,9 +790,9 @@ body.ng-naviguide-shell {
 .ng-sidebar > [data-testid="public-common-fund"],
 .ng-sidebar > .captain-chat,
 .ng-sidebar > [data-testid="project-list"] {
-  margin-top: var(--space-6);
+  margin-top: var(--space-3);
   border-top: 1px solid var(--color-line);
-  padding-top: 0;
+  padding-top: var(--space-3);
 }
 
 .ng-sidebar > .crew-supporter-public {
@@ -812,9 +800,7 @@ body.ng-naviguide-shell {
 }
 
 .crew-supporter-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  display: grid;
   gap: var(--space-1);
   margin-bottom: var(--space-3);
 }
@@ -830,7 +816,7 @@ body.ng-naviguide-shell {
 }
 
 .crew-supporter-heading .crew-sandbox-note {
-  flex: none;
+  white-space: nowrap;
   color: var(--color-fg-3);
   font-size: var(--text-meta);
   line-height: var(--text-meta--line-height);
@@ -879,7 +865,77 @@ body.ng-naviguide-shell {
 }
 
 @media (max-width: 420px) {
-  .ng-sidebar > .ng-shell-header {
+  .ng-sidebar > .rail-masthead {
     padding-inline-end: calc(var(--space-5) + var(--space-8));
   }
+}
+
+@media (min-width: 901px) {
+  .ng-shell:has(> .ng-sidebar:not(.ng-collapsed)) > .ng-map-layer { left: var(--sidebar-width); }
+  .ng-shell:has(> .ng-tools-panel:not(.ng-collapsed)) > .ng-map-layer { right: var(--tools-width); }
+  .ng-shell > :is(.ng-sidebar-toggle, .ng-tools-toggle) { top: 50%; }
+}
+.rail-masthead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-3); }
+.rail-masthead .ng-shell-header { gap: var(--space-2); padding: 0; }
+.rail-masthead .ng-shell-header h1 { display: grid; gap: 0; }
+.rail-masthead .ng-controls { gap: var(--space-1); }
+.rail-masthead .voyage-emblem { width: var(--space-6); height: var(--space-6); }
+.rail-title, .captain-prompts li { display: flex; align-items: center; gap: var(--space-2); }
+.rail-title svg, .captain-prompts svg { flex: none; color: var(--color-fg-2); }
+.ng-sidebar > .crew-supporter-public { padding-bottom: 0; }
+.crew-paypal-frame { display: flow-root; }
+.crew-paypal-frame .crew-subscribe > :last-child { margin-bottom: 0; }
+.ng-sidebar > .public-common-fund { margin-bottom: 0; }
+.ng-sidebar .project-summary { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; list-style: none; }
+.project-summary::-webkit-details-marker { display: none; }
+.ng-sidebar .project-summary h2 { margin: 0; }
+.project-summary > span { color: var(--color-fg-2); font-variant-numeric: tabular-nums; }
+.project-summary svg { margin-left: auto; flex: none; transition: transform var(--duration-base) var(--ease-out); }
+.project-disclosure[open] > summary svg { transform: rotate(180deg); }
+.project-disclosure[open] > summary { margin-bottom: var(--space-3); }
+.ng-sidebar .project-disclosure > input { width: 100%; }
+.treasurer-panel .treasurer-panel-body > .stack-form > button[type="submit"],
+.treasurer-panel .treasurer-panel-body > button { align-self: end; justify-self: end; }
+.captain-decision .captain-actions { justify-content: flex-end; }
+.treasurer-queue .queue-value { font-variant-numeric: tabular-nums; }
+.treasurer-queue .queue-value > .pledge-chip { display: inline-flex; }
+
+.ng-shell :is(button, summary, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+@media (hover: hover) {
+  .project-summary:hover, .project-row:is(:hover, :focus-within), .treasurer-queue tbody tr:is(:hover, :focus-within),
+  .captain-prompts li:hover { background: var(--color-raised); }
+  .ng-shell :is(.ng-controls, .ng-tab-bar, .captain-actions, .queue-heading) button:not(:disabled):hover {
+    box-shadow: inset 0 0 0 1px var(--color-line-strong);
+  }
+}
+
+/* Keep the translated loading message available to assistive technology. */
+.ng-shell .rail-loading,
+.crew-subscribe > [data-testid="crew-subscribe-loading"],
+.crew-subscribe:not(:has([data-testid="crew-subscribe-host"])) > .status {
+  color: transparent;
+  overflow: hidden;
+  height: var(--space-6);
+  background:
+    linear-gradient(100deg, transparent 25%, var(--color-raised), transparent 75%) 0 0 / 40% 100% no-repeat,
+    linear-gradient(var(--color-selected), var(--color-selected)) left top / 78% var(--space-2) no-repeat,
+    linear-gradient(var(--color-selected), var(--color-selected)) left bottom / 52% var(--space-2) no-repeat;
+  animation: rail-shimmer var(--duration-shimmer) ease-in-out infinite;
+}
+@keyframes rail-shimmer { to { background-position: 160% 0, left top, left bottom; } }
+@media (prefers-reduced-motion: reduce) {
+  .ng-shell :is(.rail-loading, .crew-subscribe > .status) { animation: none; }
+}
+
+.ng-sidebar > .demo-treasurer-entry {
+  align-self: flex-end;
+  width: auto;
+  margin: var(--space-6) var(--space-5) var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-raised);
+  color: var(--color-fg);
+  border: 1px solid var(--color-line-strong);
 }

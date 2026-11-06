@@ -124,7 +124,7 @@ export function CaptainReviewCard({
 
       {review === undefined ? (
         <section className="captain-section">
-          <p className="captain-meta" role="status">
+          <p className="captain-meta rail-loading" role="status">
             {t("captainCard.reviewing")}
           </p>
         </section>

@@ -51,7 +51,10 @@ export function EscalesPanel({
 
   return (
     <section className="panel captain-chat" data-milestone={milestoneId}>
-      <h2>{t("escales.captainChat")}</h2>
+      <h2 className="rail-title">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 3h12v8H7l-4 3v-3H2z" stroke="currentColor" strokeLinejoin="round" /></svg>
+        {t("escales.captainChat")}
+      </h2>
       {error ? <p className="notice error">{error}</p> : null}
       {chatResult ? (
         <div className="chat-result">
@@ -111,8 +114,8 @@ export function EscalesPanel({
       {busy ? <p className="captain-thinking" role="status">{t("escales.working")}</p> : null}
       {!chatResult && !busy ? (
         <ul className="captain-prompts" aria-label={t("escales.exampleQuestions")}>
-          <li>{t("escales.whenCharged")}</li>
-          <li>{t("escales.cancelledStop")}</li>
+          <li><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2a6 6 0 1 0 0 12 6 6 0 1 0 0-12Zm0 3v3l2 1" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" /></svg>{t("escales.whenCharged")}</li>
+          <li><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13 7a5 5 0 1 1-5-4H4m0 0 2-2M4 3l2 2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" /></svg>{t("escales.cancelledStop")}</li>
         </ul>
       ) : null}
       <form className="stack-form" onSubmit={onChat}>

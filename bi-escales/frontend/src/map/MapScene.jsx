@@ -159,7 +159,7 @@ export function MapScene({
     (stops || []).forEach((stop) => {
       const srcs = stop.flags || [];
       const html = srcs.length
-        ? `<div class="flag-stack">${srcs.map((src) => `<img src="${src}" alt="" style="height:22px;width:auto;display:block" />`).join("")}</div>`
+        ? `<div class="flag-stack">${srcs.map((src) => `<img src="${src}" alt="" style="height:22px;width:auto;display:block;box-sizing:border-box;border:1px solid var(--color-line);border-radius:var(--radius-chip);box-shadow:var(--shadow-marker)" />`).join("")}</div>`
         : drawingPinHtml(0);
       const icon = L.divIcon({
         className: "flag-divicon",
@@ -210,12 +210,12 @@ export function MapScene({
       const groupName = feature.properties?.category_group;
       const color = FALLBACK_COLORS[groupName] || FALLBACK_COLORS.Other;
       const marker = L.circleMarker([lat, lon], {
-        radius: 3,
+        radius: 2,
         color,
         weight: 1,
-        opacity: 0.5,
+        opacity: 0.32,
         fillColor: color,
-        fillOpacity: 0.4,
+        fillOpacity: 0.24,
         pane: "overlayPane",
       }).addTo(group);
       if (feature.properties?.title) marker.bindTooltip(feature.properties.title, { direction: "top" });

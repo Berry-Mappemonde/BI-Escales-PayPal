@@ -279,9 +279,22 @@
 
 /* The right panel before a stop is picked. */
 .how-it-works {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  box-sizing: border-box;
   padding: var(--space-6);
   border: 0;
   background: none;
+}
+
+.how-it-works-credit {
+  margin-top: auto;
+  padding-top: var(--space-6);
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  text-wrap: pretty;
 }
 
 .how-it-works-eyebrow {
@@ -293,6 +306,7 @@
 }
 
 .how-it-works h2 {
+  white-space: pre-line;
   margin: 0 0 var(--space-3);
   color: var(--color-fg);
   font-size: var(--text-display);

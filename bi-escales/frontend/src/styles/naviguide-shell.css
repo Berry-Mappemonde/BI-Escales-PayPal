@@ -69,7 +69,6 @@ body.ng-naviguide-shell {
   --shell-border: var(--color-line);
   --shell-control-bg: color-mix(in srgb, var(--color-panel) 90%, transparent);
   --shell-control-border: var(--color-line-strong);
-  --shell-tab-bg: color-mix(in srgb, var(--color-raised) 85%, transparent);
   --shell-tab-text: var(--color-fg-2);
   --shell-tab-active-bg: color-mix(in srgb, var(--color-accent) 35%, transparent);
   --shell-tab-active-text: var(--color-fg);
@@ -86,7 +85,6 @@ body.ng-naviguide-shell {
   --shell-border: var(--color-line);
   --shell-control-bg: color-mix(in srgb, var(--color-raised) 95%, transparent);
   --shell-control-border: var(--color-line-strong);
-  --shell-tab-bg: color-mix(in srgb, var(--color-raised) 95%, transparent);
   --shell-tab-text: var(--color-fg-2);
   --shell-tab-active-bg: color-mix(in srgb, var(--color-accent) 12%, transparent);
   --shell-tab-active-text: var(--color-fg);
@@ -157,7 +155,7 @@ body.ng-naviguide-shell {
   padding: var(--space-3);
   box-sizing: border-box;
   background: var(--color-panel);
-  border-left: 1px solid var(--shell-border);
+  border-left: 1px solid var(--color-line);
   overflow: auto;
   transition: transform 200ms ease;
 }
@@ -214,7 +212,7 @@ body.ng-naviguide-shell {
 
 .ng-tab-bar {
   display: flex;
-  gap: var(--space-2);
+  border-bottom: 1px solid var(--color-line);
   flex-wrap: wrap;
   margin: 0;
 }
@@ -225,20 +223,19 @@ body.ng-naviguide-shell {
   min-height: 36px;
   margin: 0;
   padding: 0 var(--space-2);
-  border-radius: var(--radius-control);
-  border: 1px solid var(--shell-control-border);
-  background: var(--shell-tab-bg);
-  color: var(--shell-tab-text);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--color-fg-2);
   font-size: var(--text-ui);
   line-height: var(--text-ui--line-height);
   cursor: pointer;
 }
 
-.ng-tab-bar button.active,
 .ng-tab-bar button[aria-selected="true"] {
-  border-color: var(--shell-border);
-  background: var(--shell-tab-active-bg);
-  color: var(--shell-tab-active-text);
+  border-bottom-color: var(--color-fg-3);
+  color: var(--color-fg);
 }
 
 .ng-clock-line {
@@ -280,11 +277,6 @@ body.ng-naviguide-shell {
 
 }
 
-.treasurer-panel {
-  margin-top: 0;
-  border-top: 1px solid var(--shell-border);
-}
-
 .treasurer-panel-toggle {
   width: 100%;
   text-align: left;
@@ -313,6 +305,15 @@ body.ng-naviguide-shell {
   padding: var(--space-3);
   background: var(--shell-control-bg);
   box-sizing: border-box;
+}
+
+.ng-sidebar > .treasurer-panel {
+  padding: var(--space-3) var(--space-5) 0;
+  margin-top: var(--space-3);
+  border: 0;
+  border-top: 1px solid var(--color-line);
+  border-radius: 0;
+  background: none;
 }
 
 .ng-tools-panel .panel + .panel {
@@ -708,9 +709,6 @@ body.ng-naviguide-shell {
 .voyage-emblem { box-sizing: content-box; padding: var(--space-1); background: var(--color-fg); color: var(--color-canvas); border-radius: var(--radius-panel); }
 .ng-shell-header h1 { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); margin: 0; }
 .ng-shell-header h1 small { font: 500 var(--text-meta)/var(--text-meta--line-height) var(--font-sans); color: var(--color-fg-2); }
-.ng-shell .ng-tab-bar { gap: 0; border-bottom: 1px solid var(--color-line); }
-.ng-shell .ng-tab-bar button { min-height: 36px; border: 0; border-radius: 0; background: transparent; color: var(--color-fg-2); }
-.ng-shell .ng-tab-bar button[aria-selected="true"] { box-shadow: inset 0 -2px var(--color-line-strong); color: var(--color-fg); }
 .ng-shell .ng-clock-line {
   display: flex;
   flex-direction: column;
@@ -885,6 +883,19 @@ body.ng-naviguide-shell {
 .treasurer-queue .queue-value { font-variant-numeric: tabular-nums; }
 .treasurer-queue .queue-value > .pledge-chip { display: inline-flex; }
 
+.ng-shell :is(button, [role="tab"], summary, .pledge-chip, .captain-prompts li, .project-row, .treasurer-queue tbody tr, .leaflet-control-zoom a) {
+  transition-property: background-color, color, border-color, box-shadow, outline-color;
+  transition-duration: var(--duration-base);
+  transition-timing-function: var(--ease-out);
+}
+
+.ng-shell :is(.ng-sidebar, .ng-tools-panel) button:disabled {
+  opacity: 1;
+  color: var(--color-fg-3);
+  background: var(--color-raised);
+  border-color: var(--color-line);
+}
+
 .ng-shell :is(button, summary, a, input, select, textarea):focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
@@ -892,7 +903,8 @@ body.ng-naviguide-shell {
 @media (hover: hover) {
   .project-summary:hover, .project-row:is(:hover, :focus-within), .treasurer-queue tbody tr:is(:hover, :focus-within),
   .captain-prompts li:hover { background: var(--color-raised); }
-  .ng-shell :is(.ng-controls, .ng-tab-bar, .captain-actions, .queue-heading) button:not(:disabled):hover {
+  .ng-tab-bar button:hover { color: var(--color-fg); }
+  .ng-shell :is(.ng-controls, .captain-actions, .queue-heading) button:not(:disabled):hover {
     box-shadow: inset 0 0 0 1px var(--color-line-strong);
   }
 }
@@ -912,7 +924,12 @@ body.ng-naviguide-shell {
 }
 @keyframes rail-shimmer { to { background-position: 160% 0, left top, left bottom; } }
 @media (prefers-reduced-motion: reduce) {
-  .ng-shell :is(.rail-loading, .crew-subscribe > .status) { animation: none; }
+  .ng-shell *,
+  .ng-shell *::before,
+  .ng-shell *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 .treasurer-panel-heading {
@@ -923,9 +940,9 @@ body.ng-naviguide-shell {
 }
 .ng-sidebar .treasurer-panel-heading h2 { margin: 0; min-width: 0; }
 .treasurer-panel-heading .treasurer-panel-toggle {
-  padding-inline: 0;
+  padding: 0;
   background: transparent;
-  border-color: transparent;
+  border: 0;
   font: inherit;
 }
 .treasurer-panel-heading .demo-treasurer-entry {

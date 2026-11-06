@@ -122,7 +122,8 @@ describe("naviguide-shell.css", () => {
       return [...body.matchAll(/(--shell-[\w-]+):/g)].map((match) => match[1]);
     };
     const darkNames = names(':root[data-theme="dark"] {');
-    expect(darkNames).toHaveLength(11);
+    const usedNames = [...new Set([...shellCss.matchAll(/var\((--shell-[\w-]+)/g)].map((match) => match[1]))];
+    expect([...darkNames].sort()).toEqual(usedNames.sort());
     expect(names(':root[data-theme="light"] {')).toEqual(darkNames);
   });
 });

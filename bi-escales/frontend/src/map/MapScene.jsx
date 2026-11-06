@@ -119,7 +119,11 @@ export function MapScene({
         /* map already removed */
       }
     });
+    // Changing a desktop rail resizes the map without a window resize event.
+    const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => map.invalidateSize(false));
+    resize?.observe(containerRef.current);
     return () => {
+      resize?.disconnect();
       layersRef.current?.clear();
       map.remove();
       mapRef.current = null;

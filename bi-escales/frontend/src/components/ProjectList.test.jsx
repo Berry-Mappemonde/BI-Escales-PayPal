@@ -63,7 +63,10 @@ describe("ProjectList", () => {
         />
       </I18nextProvider>,
     );
-    expect(screen.getByRole("heading", { name: "Explore projects" })).toBeInTheDocument();
+    const disclosure = screen.getByTestId("project-list");
+    expect(disclosure).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByRole("heading", { name: "Explore projects" }).closest("summary"));
+    expect(disclosure).toHaveAttribute("open");
     expect(screen.getByTestId("project-list-count")).toHaveTextContent("4,469");
     expect(screen.getByTestId("projects-search-input")).toHaveAttribute("placeholder", "Search projects…");
     expect(screen.getByTestId("projects-list-truncated")).toHaveTextContent("Showing 100 of 4,469 projects");
@@ -94,6 +97,7 @@ describe("ProjectList", () => {
         <Harness />
       </I18nextProvider>,
     );
+    fireEvent.click(screen.getByTestId("project-list").querySelector("summary"));
     fireEvent.click(screen.getByTestId("project-pledge-open-proj-1"));
     const btn = await screen.findByTestId("project-pledge-button");
     expect(btn).toHaveAttribute("data-kind", "project_pledge");
@@ -162,6 +166,7 @@ describe("ProjectList", () => {
       </I18nextProvider>,
     );
     fireEvent.change(screen.getByTestId("projects-search-input"), { target: { value: "ZZZNOmatch" } });
+    expect(screen.getByTestId("project-list")).toHaveAttribute("open");
     expect(screen.getByTestId("project-row-map-pick")).toBeInTheDocument();
     expect(screen.getByTestId("project-pledge")).toHaveAttribute("data-project-id", "map-pick");
     expect(screen.queryByTestId("project-row-visible")).toBeNull();

@@ -679,59 +679,61 @@ export default function App() {
         className={`ng-sidebar panel${sidebarOpen ? "" : " ng-collapsed"}`}
         data-testid="ng-sidebar"
       >
-        <div className="ng-shell-header">
-          <svg className="voyage-emblem" width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-            <path d="M16 3v19H5L16 3Z" fill="currentColor" />
-            <path d="m19 8 8 14h-8V8Z" fill="currentColor" opacity=".6" />
-            <path d="M4 25h24l-5 4H9l-5-4Z" fill="currentColor" />
-          </svg>
-          <h1 aria-label={t("app.title")}>BI Escales <small>Pay Only If We Sail</small></h1>
-        </div>
-        <div className="ng-controls">
-          <div className="lang-switch" role="group" aria-label={t("app.language")}>
-            <button
-              type="button"
-              className={i18n.language === "fr" ? "active" : ""}
-              aria-label={t("app.langFr")}
-              aria-pressed={i18n.language === "fr"}
-              onClick={() => setLanguage("fr")}
-            >
-              FR
-            </button>
-            <button
-              type="button"
-              className={i18n.language === "en" ? "active" : ""}
-              aria-label={t("app.langEn")}
-              aria-pressed={i18n.language === "en"}
-              onClick={() => setLanguage("en")}
-            >
-              EN
-            </button>
+        <div className="rail-masthead">
+          <div className="ng-shell-header">
+            <svg className="voyage-emblem" width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+              <path d="M16 3v19H5L16 3Z" fill="currentColor" />
+              <path d="m19 8 8 14h-8V8Z" fill="currentColor" opacity=".6" />
+              <path d="M4 25h24l-5 4H9l-5-4Z" fill="currentColor" />
+            </svg>
+            <h1 aria-label={t("app.title")}>BI Escales <small>Pay Only If We Sail</small></h1>
           </div>
-          <div className="theme-switch" data-testid="theme-switch">
-            <button
-              type="button"
-              data-testid="theme-toggle"
-              aria-label={theme === "light" ? t("app.themeDark") : t("app.themeLight")}
-              aria-pressed={theme === "light"}
-              onClick={() => toggleTheme()}
-            >
-              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                {theme === "light" ? (
-                  <path
-                    d="M20.2 15.1A8.4 8.4 0 0 1 8.9 3.8 8.5 8.5 0 1 0 20.2 15.1Z"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinejoin="round"
-                  />
-                ) : (
-                  <>
-                    <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.7" />
-                    <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                  </>
-                )}
-              </svg>
-            </button>
+          <div className="ng-controls">
+            <div className="lang-switch" role="group" aria-label={t("app.language")}>
+              <button
+                type="button"
+                className={i18n.language === "fr" ? "active" : ""}
+                aria-label={t("app.langFr")}
+                aria-pressed={i18n.language === "fr"}
+                onClick={() => setLanguage("fr")}
+              >
+                FR
+              </button>
+              <button
+                type="button"
+                className={i18n.language === "en" ? "active" : ""}
+                aria-label={t("app.langEn")}
+                aria-pressed={i18n.language === "en"}
+                onClick={() => setLanguage("en")}
+              >
+                EN
+              </button>
+            </div>
+            <div className="theme-switch" data-testid="theme-switch">
+              <button
+                type="button"
+                data-testid="theme-toggle"
+                aria-label={theme === "light" ? t("app.themeDark") : t("app.themeLight")}
+                aria-pressed={theme === "light"}
+                onClick={() => toggleTheme()}
+              >
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  {theme === "light" ? (
+                    <path
+                      d="M20.2 15.1A8.4 8.4 0 0 1 8.9 3.8 8.5 8.5 0 1 0 20.2 15.1Z"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinejoin="round"
+                    />
+                  ) : (
+                    <>
+                      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.7" />
+                      <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                    </>
+                  )}
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
         <div className="ng-tab-bar tab-bar" role="tablist">
@@ -767,6 +769,15 @@ export default function App() {
             />
           </label>
         ) : null}
+        {tab === "voyage" ? (
+          <EscalesPanel
+            milestoneId={milestoneId}
+            adminKey={adminKey.trim() || undefined}
+            onMilestoneId={setMilestoneId}
+            onSuggested={onSuggested}
+            onAuthorized={onAuthorized}
+          />
+        ) : null}
         <section className="crew-supporter-public" data-testid="crew-supporter-public">
           <div className="crew-supporter-heading">
             <h2>{t("pledge.crewSubscribeHint")}</h2>
@@ -790,13 +801,6 @@ export default function App() {
         ) : null}
         {tab === "voyage" ? (
           <>
-            <EscalesPanel
-              milestoneId={milestoneId}
-              adminKey={adminKey.trim() || undefined}
-              onMilestoneId={setMilestoneId}
-              onSuggested={onSuggested}
-              onAuthorized={onAuthorized}
-            />
             <ProjectList
               projects={projects}
               selectedProjectId={selectedProjectId}

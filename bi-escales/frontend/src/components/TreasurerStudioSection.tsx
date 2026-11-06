@@ -57,7 +57,7 @@ export function TreasurerStudioSection({ pledges }: { pledges: PublicPledge[] })
       </button>
       {open ? (
         <StudioErrorBoundary fallback={<p className="notice error">{t("studio.loadError")}</p>}>
-          <Suspense fallback={<p className="hint">{t("studio.loading")}</p>}>
+          <Suspense fallback={<p className="rail-loading" role="status">{t("studio.loading")}</p>}>
             <TreasurerStudio key={i18n.language} pledges={pledges} onClose={close} />
           </Suspense>
         </StudioErrorBoundary>

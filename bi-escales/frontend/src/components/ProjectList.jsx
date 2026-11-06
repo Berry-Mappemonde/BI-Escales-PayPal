@@ -3,7 +3,7 @@
  * Blue-Intelligence frontend/src/components/ProjectList.js
  * (filtre via filterProjectFeatures.js ; promesse Escales).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchPublicProjectFund } from "../api/escales";
 import { filterProjectFeatures } from "../projects/filterProjectFeatures.js";
@@ -115,17 +115,24 @@ export default function ProjectList({
     () => visibleProjectFeatures(projects?.features || [], filtered, selectedProjectId, LIST_CAP),
     [projects, filtered, selectedProjectId],
   );
+  const disclosure = useRef(null);
+  useEffect(() => {
+    if (selectedProjectId && disclosure.current) disclosure.current.open = true;
+  }, [selectedProjectId]);
+
   const truncated = filtered.length > LIST_CAP;
   const formatCount = (count) => new Intl.NumberFormat(i18n.language || "fr").format(count);
 
   return (
-    <section className="panel" data-testid="project-list">
-      <div className="escale-sheet-head">
+    <details ref={disclosure} className="panel project-disclosure" data-testid="project-list">
+      <summary className="project-summary">
         <h2>{t("projects.heading")}</h2>
+        <span aria-hidden="true">·</span>
         <span className="project-list-total" data-testid="project-list-count">
           {formatCount(projects?.features?.length || 0)}
         </span>
-      </div>
+        <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true"><path d="m5 6 3 3 3-3" stroke="currentColor" strokeWidth="1.5" /></svg>
+      </summary>
       <input
         data-testid="projects-search-input"
         type="text"
@@ -180,7 +187,7 @@ export default function ProjectList({
           );
         })}
       </div>
-    </section>
+    </details>
   );
 }
 

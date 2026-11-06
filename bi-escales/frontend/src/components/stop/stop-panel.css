@@ -442,3 +442,25 @@
   border-radius: var(--radius-panel);
 }
 .stop-checkout h4 { margin: 0 0 var(--space-2); font-size: var(--text-title); }
+
+.escale-sheet .stop-next-title, .escale-sheet .stop-checkout h4 {
+  margin: 0 0 var(--space-3);
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.escale-sheet .pledge-form label > :is(select, input) {
+  box-sizing: border-box;
+  min-height: var(--space-10);
+  padding-inline: var(--space-2);
+}
+.stop-held {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-chip);
+  background: color-mix(in srgb, var(--color-status-held) 14%, transparent);
+  color: color-mix(in srgb, var(--color-status-held) 55%, var(--color-fg));
+  font-size: var(--text-meta);
+}

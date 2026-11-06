@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { captainChat, createPayPalInvoice } from "../api/escales";
 import { isCaptainRateLimitMessage } from "../api/captainRateLimit";
 import type { CaptainChatResponse, PublicPledge } from "../api/types";
+import { CaptainToolTrace } from "./captain/CaptainToolTrace";
 import { PledgeButton } from "./PledgeButton";
 
 export interface EscalesPanelProps {
@@ -66,11 +67,7 @@ export function EscalesPanel({
         <div className="chat-result">
           <h3>{t("escales.chatReply")}</h3>
           <p>{chatResult.reply}</p>
-          {chatResult.model_label ? (
-            <p className="hint" data-testid="captain-model-label">
-              {chatResult.model_label}
-            </p>
-          ) : null}
+          <CaptainToolTrace trace={chatResult} modelTestId="captain-model-label" />
           {chatResult.agentic_action?.kind === "create_invoice" && adminKey?.trim() ? (
             <div data-testid="captain-agentic-invoice">
               <p className="hint">{chatResult.agentic_action.toolkit_note}</p>
@@ -100,18 +97,6 @@ export function EscalesPanel({
               {agenticNote ? <p className="status">{agenticNote}</p> : null}
             </div>
           ) : null}
-          {(() => {
-            const payload = chatResult.paypal_tools;
-            if (!payload || Array.isArray(payload)) return null;
-            const called = payload.called;
-            if (!called?.length) return null;
-            const client = payload.client || "direct";
-            return (
-              <p className="hint" data-testid="captain-paypal-tools">
-                {t("escales.paypalToolLine", { tools: called.join(", "), client })}
-              </p>
-            );
-          })()}
           {chatResult.cart?.lines?.length ? (
             <div data-testid="captain-cart">
               <h3>{t("escales.cartHeading")}</h3>

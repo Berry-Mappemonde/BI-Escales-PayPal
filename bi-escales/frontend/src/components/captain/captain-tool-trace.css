@@ -1,0 +1,24 @@
+.captain-tool-trace {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-line);
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  overflow-wrap: anywhere;
+}
+
+.captain-tool-trace p {
+  margin: var(--space-1) 0;
+}
+
+.captain-tool-trace ul {
+  margin: var(--space-1) 0;
+  padding-left: var(--space-4);
+}
+
+.captain-tool-badge {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  color: var(--color-fg-2);
+}

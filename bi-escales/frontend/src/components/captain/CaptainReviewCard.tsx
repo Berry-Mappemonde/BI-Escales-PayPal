@@ -3,11 +3,11 @@ import { useTranslation } from "react-i18next";
 import type { CaptainProposal, PublicPledge } from "../../api/types";
 import {
   buildEvidence,
-  describeModelSource,
   sumEur,
   type CaptainClaim,
   type CaptainSource,
 } from "./captainEvidence";
+import { CaptainToolTrace } from "./CaptainToolTrace";
 import { PledgeStatusChip } from "./PledgeStatusChip";
 import { useFocusFirstButton } from "./useFocusFirstButton";
 import { UNDO_WINDOW_SECONDS, type HoldRelease } from "./useHoldRelease";
@@ -68,7 +68,6 @@ export function CaptainReviewCard({
   const phase = release?.phase;
   const decisionRef = useFocusFirstButton<HTMLElement>(`${phase}:${confirming}:${approved}`);
   const { claims, sources } = buildEvidence(review ?? null, arrivalIso);
-  const answeredBy = describeModelSource(review?.model_source);
 
   const total = format.money(sumEur(holds.map((pledge) => pledge.amount_eur)));
 
@@ -108,21 +107,6 @@ export function CaptainReviewCard({
   // report is justification without its closing "Decision: …" line, which the heading already gives.
   const report = review?.report || review?.justification;
   const advisory = review?.llm_proposal?.reason;
-
-  const answeredLine = (() => {
-    switch (answeredBy?.kind) {
-      case "model":
-        return t("captainCard.answeredBy", { model: answeredBy.model, provider: answeredBy.provider });
-      case "provider":
-        return t("captainCard.answeredByProvider", { provider: answeredBy.provider });
-      case "model_unnamed":
-        return t("captainCard.answeredByUnnamed");
-      case "rules":
-        return t("captainCard.answeredByRules");
-      default:
-        return null;
-    }
-  })();
 
   // Failed voids stay in the queue, so the live holds are always what a retry would release.
   const showChoice = !phase || phase === "cancelled" || (phase === "done" && holds.length > 0);
@@ -254,18 +238,24 @@ export function CaptainReviewCard({
         ) : null}
 
         {showChoice && confirming ? (
-          <div className="captain-actions">
-            <button
-              type="button"
-              className="secondary"
-              data-testid={`captain-release-${milestoneId}`}
-              onClick={() => onRelease(holds)}
-            >
-              {t("captainCard.releaseHolds", { count: holds.length, total })}
-            </button>
-            <button type="button" className="captain-ghost" onClick={() => setConfirming(false)}>
-              {t("captainCard.cancel")}
-            </button>
+          <div role="group" aria-labelledby={`void-question-${milestoneId}`}>
+            <p className="captain-ui" id={`void-question-${milestoneId}`}>
+              {t("captainCard.voidConfirmation", { count: holds.length, total })}
+            </p>
+            <div className="captain-actions">
+              <button
+                type="button"
+                className="secondary"
+                data-testid={`captain-release-${milestoneId}`}
+                disabled={!canMoveMoney || !holds.length}
+                onClick={() => onRelease(holds)}
+              >
+                {t("treasurer.confirm")}
+              </button>
+              <button type="button" className="captain-ghost" onClick={() => setConfirming(false)}>
+                {t("captainCard.cancel")}
+              </button>
+            </div>
           </div>
         ) : null}
 
@@ -299,9 +289,9 @@ export function CaptainReviewCard({
         {holds.length ? <p className="captain-meta">{t("captainCard.rule")}</p> : null}
       </section>
 
-      {answeredLine ? (
+      {review ? (
         <footer className="captain-answered" data-testid={`captain-answered-${milestoneId}`}>
-          {answeredLine}
+          <CaptainToolTrace trace={review} />
         </footer>
       ) : null}
     </article>

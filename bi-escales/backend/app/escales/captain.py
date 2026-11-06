@@ -11,6 +11,7 @@ import json
 import logging
 import re
 import time
+from contextlib import nullcontext
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
@@ -3117,10 +3118,11 @@ async def chat(
     accept_language: str = "", reader: Optional[ReadOnlyTools] = None,
 ) -> dict:
     started = time.perf_counter()
-    result = await _chat(
-        message, treasurer=treasurer, lang=lang,
-        accept_language=accept_language, reader=reader,
-    )
+    with reader.chat_turn() if reader is not None else nullcontext():
+        result = await _chat(
+            message, treasurer=treasurer, lang=lang,
+            accept_language=accept_language, reader=reader,
+        )
     return _with_trace(result, reader, started)
 
 

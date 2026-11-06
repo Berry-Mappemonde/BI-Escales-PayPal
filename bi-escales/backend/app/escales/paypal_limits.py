@@ -1,4 +1,4 @@
-"""A Captain turn has at most three outbound PayPal HTTP attempts, including OAuth."""
+"""A Captain chat turn has at most three PayPal resource attempts, excluding OAuth."""
 from dataclasses import dataclass, field
 import threading
 from typing import Any

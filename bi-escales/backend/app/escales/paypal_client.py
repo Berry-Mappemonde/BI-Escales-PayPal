@@ -279,7 +279,7 @@ class PayPalClient:
             if cached.token and time.monotonic() < cached.valid_until:
                 return cached.token
             response = self._request_with_retry(
-                "POST", "/v1/oauth2/token",
+                "POST", "/v1/oauth2/token", budgeted=False,
                 data={"grant_type": "client_credentials"},
                 auth=(self.cfg.client_id, self.cfg.client_secret),
             )
@@ -302,11 +302,13 @@ class PayPalClient:
             cached.valid_until = time.monotonic() + lifetime - min(60, lifetime * 0.1)
             return token
 
-    def _request_with_retry(self, method: str, path: str, *, retry: bool = True, **kwargs: Any) -> httpx.Response:
+    def _request_with_retry(
+        self, method: str, path: str, *, retry: bool = True, budgeted: bool = True, **kwargs: Any,
+    ) -> httpx.Response:
         """Retry throttling/transient failures; retain the original request id/body."""
         attempts = 3 if retry else 1
         for attempt in range(attempts):
-            if self.captain_budget is not None:
+            if budgeted and self.captain_budget is not None:
                 self.captain_budget.consume()
             response = self._http.request(method, path, **kwargs)
             transient = response.status_code == 429 or 500 <= response.status_code <= 599

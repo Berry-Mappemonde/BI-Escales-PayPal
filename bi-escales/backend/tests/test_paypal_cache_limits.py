@@ -1,12 +1,13 @@
 """HTTP policies tested exclusively with mocked sandbox responses."""
 from concurrent.futures import ThreadPoolExecutor
+import asyncio
 from unittest.mock import Mock
 
 import httpx
 import pytest
 
 from app.escales.config import EscalesConfig
-from app.escales import paypal_client, toolkit_tools
+from app.escales import captain, ledger, paypal_client, toolkit_tools
 from app.escales.paypal_client import PayPalClient, PayPalError
 from app.escales.paypal_limits import PayPalCallLimitExceeded
 from app.escales.toolkit_tools import ReadOnlyTools
@@ -108,7 +109,7 @@ def test_unkeyed_write_is_never_replayed():
     assert len(seen) == 1
 
 
-def test_captain_budget_counts_oauth_and_retry_attempts():
+def test_chat_budget_excludes_oauth_and_counts_resource_retry_attempts():
     seen = []
     def handle(request):
         seen.append(request)
@@ -117,26 +118,96 @@ def test_captain_budget_counts_oauth_and_retry_attempts():
         return httpx.Response(429, json={'debug_id': 'LIMIT'})
     client = PayPalClient(EscalesConfig('budget', 'secret'), httpx.MockTransport(handle))
     reader = ReadOnlyTools(client)
-    with pytest.raises(PayPalCallLimitExceeded):
-        reader.get('orders.get', 'O')
-    with pytest.raises(PayPalCallLimitExceeded):
-        reader.get('orders.get', 'O')
-    assert len(seen) == 3
+    with reader.chat_turn():
+        with pytest.raises(PayPalError) as error:
+            reader.get('orders.get', 'O')
+        assert error.value.status == 429
+        with pytest.raises(PayPalCallLimitExceeded):
+            reader.get('orders.get', 'O')
+    assert sum(r.url.path == '/v1/oauth2/token' for r in seen) == 1
+    assert sum(r.url.path.endswith('/O') for r in seen) == 3
+    assert len(seen) == 4
+    assert reader.call_log[0]['debug_id'] == 'LIMIT'
+    assert reader.call_log[1]['status'] == 'error'
+    assert client.captain_budget is None
 
 
-def test_failed_reads_use_budget_and_new_turn_has_fresh_budget():
+def test_cold_token_leaves_all_three_chat_resource_calls_available():
+    seen = []
+    def handle(request):
+        seen.append(request)
+        if request.url.path == '/v1/oauth2/token':
+            return httpx.Response(200, json={'access_token': 'T', 'expires_in': 300})
+        return httpx.Response(200, json={'id': request.url.path.rsplit('/', 1)[-1]})
+    client = PayPalClient(EscalesConfig('cold-budget', 'secret'), httpx.MockTransport(handle))
+    reader = ReadOnlyTools(client)
+    with reader.chat_turn():
+        for id in ['one', 'two', 'three']:
+            assert reader.get('orders.get', id)['id'] == id
+        with pytest.raises(PayPalCallLimitExceeded):
+            reader.get('orders.get', 'four')
+    assert len(seen) == 4
+    # Ending chat restores unbudgeted reads, including on a reused client.
+    assert reader.get('orders.get', 'review')['id'] == 'review'
+    assert len(seen) == 5
+
+
+def test_failed_reads_use_chat_budget_and_each_new_turn_has_fresh_budget():
     client = Mock()
     client.get_order.side_effect = PayPalError(503, {})
     reader = ReadOnlyTools(client)
-    for _ in range(3):
-        with pytest.raises(PayPalError):
-            reader.get('orders.get', 'O')
-    with pytest.raises(PayPalCallLimitExceeded):
-        reader.get('orders.get', 'O')
-    assert client.get_order.call_count == 3
-    with pytest.raises(PayPalError):
-        ReadOnlyTools(client).get('orders.get', 'O')
-    assert client.get_order.call_count == 4
+    for _ in range(2):
+        with reader.chat_turn():
+            for _ in range(3):
+                with pytest.raises(PayPalError):
+                    reader.get('orders.get', 'O')
+            with pytest.raises(PayPalCallLimitExceeded):
+                reader.get('orders.get', 'O')
+    assert client.get_order.call_count == 6
+
+
+@pytest.mark.parametrize('use_toolkit', [False, True])
+def test_review_reads_all_six_resources_for_three_pledges(monkeypatch, use_toolkit):
+    from app.core import llm
+    monkeypatch.setattr(llm, 'has_llm', lambda *a, **kw: False)
+    monkeypatch.setattr(ledger, '_ledger', ledger.MemoryLedger())
+    monkeypatch.setenv('ESCALES_CLOCK_NOW', '2026-11-12T12:00:00Z')
+    toolkit_reads = []
+    if use_toolkit:
+        def execute(adapter, params):
+            toolkit_reads.append(params['order_id'])
+            return adapter.get('/v2/checkout/orders/' + params['order_id'])
+        monkeypatch.setattr(toolkit_tools, '_toolkit_tools', lambda: [{
+            'actions': toolkit_tools.TOOLKIT_ORDER_ACTIONS, 'method': 'get_order_details', 'execute': execute,
+        }])
+    seen = []
+    def handle(request):
+        seen.append(request)
+        if request.url.path == '/v1/oauth2/token':
+            return httpx.Response(200, json={'access_token': 'T', 'expires_in': 300})
+        assert request.method == 'GET'
+        return httpx.Response(200, json={'id': request.url.path.rsplit('/', 1)[-1], 'status': 'CREATED'})
+    client = PayPalClient(EscalesConfig('three-pledges', 'secret'), httpx.MockTransport(handle))
+    reader = ReadOnlyTools(client)
+    async def run():
+        for n in range(3):
+            await ledger.get_ledger().insert_pledge_once({
+                '_id': f'pledge-{n}', 'milestone_id': 'dep-la-rochelle', 'status': 'authorized',
+                'amount_eur': '5.00', 'order_id': f'ORDER-{n}', 'authorization_id': f'AUTH-{n}',
+            })
+        return await captain.review('dep-la-rochelle', reader=reader, lang='en')
+    result = asyncio.run(run())
+    expected = {f'/v2/checkout/orders/ORDER-{n}' for n in range(3)} | {
+        f'/v2/payments/authorizations/AUTH-{n}' for n in range(3)
+    }
+    resource_paths = [r.url.path for r in seen if r.url.path != '/v1/oauth2/token']
+    assert len(resource_paths) == 6
+    assert set(resource_paths) == expected
+    assert len(seen) == 7  # One OAuth fetch, then all six resource reads.
+    assert len(result['paypal_tools']['calls']) == 6
+    assert all(call['status'] == 'ok' and call['read_only'] and call['latency_ms'] >= 0
+               for call in result['paypal_tools']['calls'])
+    assert toolkit_reads == ([f'ORDER-{n}' for n in range(3)] if use_toolkit else [])
 
 
 def test_toolkit_adapter_reuses_the_same_oauth_cache(monkeypatch):
@@ -201,17 +272,35 @@ def test_invalid_oauth_response_is_not_cached(payload):
     assert client._cached_token.token is None
 
 
-def test_captain_explains_a_summary_cut_short_by_the_call_cap():
-    import asyncio
-    from app.escales.captain import chat
+def test_chat_scopes_its_budget_and_explains_a_summary_cut_short_by_the_cap(monkeypatch):
     client = Mock()
     client.list_disputes.return_value = {'items': []}
     reader = ReadOnlyTools(client)
-    for _ in range(3):
-        reader.get('disputes.list')
-    result = asyncio.run(chat('List PayPal disputes', treasurer=True, lang='en', reader=reader))
-    assert 'summary may be partial' in result['reply']
-    assert client.list_disputes.call_count == 3
+    original = captain._paypal_readonly_reply
+    def read_more(message, lang, reader):
+        for _ in range(3):
+            reader.get('disputes.list')
+        return original(message, lang, reader)  # A fourth attempt must stop before HTTP.
+    monkeypatch.setattr(captain, '_paypal_readonly_reply', read_more)
+    for _ in range(2):
+        result = asyncio.run(captain.chat('List PayPal disputes', treasurer=True, lang='en', reader=reader))
+        assert 'summary may be partial' in result['reply']
+    assert client.list_disputes.call_count == 6
+    # A later review/read with the same reader is not limited by the previous chat.
+    reader.get('disputes.list')
+    assert client.list_disputes.call_count == 7
+
+
+def test_chat_restores_the_client_budget_after_an_exception(monkeypatch):
+    client = PayPalClient(EscalesConfig('exception', 'secret'), httpx.MockTransport(lambda _: httpx.Response(200)))
+    reader = ReadOnlyTools(client)
+    async def fail(*args, **kwargs):
+        assert client.captain_budget is not None
+        raise ValueError('chat failed')
+    monkeypatch.setattr(captain, '_chat', fail)
+    with pytest.raises(ValueError, match='chat failed'):
+        asyncio.run(captain.chat('hello', reader=reader))
+    assert client.captain_budget is None
 
 
 def test_numeric_retry_after_is_respected():

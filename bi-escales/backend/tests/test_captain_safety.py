@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from app.escales.captain import chat
+from app.escales.departure_clock import CAPTURE_RULES_EN, CAPTURE_RULES_FR
 from app.escales.captain_agentic import agentic_reply, agentic_suggested_pledge, parse_agentic_proposal
 from app.escales.config import EscalesConfig, load_config
 from app.escales.paypal_client import PayPalClient
@@ -27,24 +28,38 @@ def client(monkeypatch):
     ('send_invoice', 'Send invoice INV-1'),
     ('cancel_invoice', 'Cancel invoice INV-1'),
 ])
-def test_captain_refuses_each_paypal_write(client, action, message, monkeypatch):
-    from app.escales import captain
-    model = Mock(side_effect=AssertionError('writes must not reach a model'))
-    monkeypatch.setattr(captain, '_llm_text', model)
-    result = asyncio.run(chat(message, treasurer=True, lang='en', reader=ReadOnlyTools(client)))
-    assert 'cannot execute PayPal write actions' in result['reply']
-    assert result['suggested_pledge'] is None
-    assert 'agentic_action' not in result
+def test_captain_never_executes_paypal_writes(client, action, message):
+    reader = ReadOnlyTools(client)
+    result = asyncio.run(chat(message, treasurer=True, lang='en', reader=reader))
+    assert result['reply']
     getattr(client, action).assert_not_called()
+    # Regardless of reply wording or a UI proposal, only these read methods may run.
+    read_methods = {'get_order', 'get_authorization', 'list_disputes', 'search_transactions', 'list_invoices'}
+    assert all(call[0] in read_methods for call in client.mock_calls)
+    assert all(call['tool'] in reader.allowed() for call in reader.call_log)
+
+
+@pytest.mark.parametrize('lang,message,rule', [
+    ('en', "If you don't sail, do I get a refund?", CAPTURE_RULES_EN),
+    ('fr', "Est-ce que je suis remboursé si vous ne partez pas ?", CAPTURE_RULES_FR),
+])
+@pytest.mark.parametrize('treasurer', [False, True])
+def test_donor_refund_question_gets_capture_void_rule(client, lang, message, rule, treasurer):
+    result = asyncio.run(chat(message, treasurer=treasurer, lang=lang, reader=ReadOnlyTools(client)))
+    assert rule in result['reply']
+    assert 'cannot execute' not in result['reply']
+    assert 'écriture PayPal' not in result['reply']
+    assert result['suggested_pledge'] is None
     assert client.mock_calls == []
-    model.assert_not_called()
 
 
 @pytest.mark.parametrize('tool', ['orders.capture', 'authorizations.void', 'captures.refund',
                                   'disputes.accept', 'invoices.create', 'invoices.send', 'invoices.cancel'])
 def test_write_tools_are_not_exposed_even_if_requested_directly(client, tool):
+    reader = ReadOnlyTools(client)
+    assert tool not in reader.allowed()
     with pytest.raises(ToolNotAllowed):
-        ReadOnlyTools(client).get(tool, 'resource-1')
+        reader.get(tool, 'resource-1')
     assert client.mock_calls == []
 
 

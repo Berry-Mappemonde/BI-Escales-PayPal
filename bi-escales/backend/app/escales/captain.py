@@ -2984,6 +2984,17 @@ async def _chat(
     if not text:
         raise ValueError("message is required")
     lang = resolve_chat_lang(text, lang, accept_language)
+    # Reject sensitive input before any model or PayPal tool sees the message.
+    card_like = re.search(r"(?<![\w])(?:\d[ -]?){12,18}\d(?![\w])", text)
+    if card_like:
+        reply = (
+            "Do not share card numbers here. Use PayPal's secure card fields instead."
+            if lang == "en" else "Ne partagez pas de numéro de carte ici. Utilisez les champs sécurisés de PayPal."
+        )
+        return {
+            "reply": _fit_words("", [reply, _signature(lang)]),
+            "suggested_pledge": None, "cart": None, "model_source": _rules_source(),
+        }
     if treasurer and reader is not None:
         agentic = parse_agentic_proposal(text, lang)
         if agentic:

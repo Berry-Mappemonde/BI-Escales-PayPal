@@ -2788,3 +2788,46 @@ def test_review_keeps_only_schedule_facts(monkeypatch):
         assert result["model_source"]["provider"] == "rules"
 
     asyncio.run(body())
+
+
+@pytest.mark.parametrize("lang,message,model_text,rule_start,filler", [
+    (
+        "en",
+        "I want to sponsor 20 miles near Mayotte",
+        "Stop-level pledges are captured on the boat's arrival at the stop and voided "
+        "if the stop is cancelled. I do not know any other facts.",
+        "Stop-level pledges (miles",
+        "do not know any other",
+    ),
+    (
+        "fr",
+        "Je veux parrainer 20 milles près de Mayotte",
+        "Les promesses d'escale sont capturées à l'arrivée du bateau à l'escale et "
+        "annulées si l'escale est annulée. Je ne sais rien d'autre.",
+        "Les promesses au niveau de l'escale",
+        "ne sais rien d'autre",
+    ),
+])
+def test_chat_states_the_capture_rule_once_without_template_filler(
+    monkeypatch, lang, message, model_text, rule_start, filler,
+):
+    import app.core.llm as llm
+
+    async def fake_ask_text(*_args, **_kwargs):
+        return model_text
+
+    monkeypatch.setattr(llm, "has_llm", lambda settings=None: True)
+    monkeypatch.setattr(llm, "ask_text", fake_ask_text)
+
+    result = asyncio.run(chat(message, lang=lang))
+    reply = result["reply"]
+    assert reply.count(rule_start) == 1
+    assert reply.casefold().count("voided if the stop" if lang == "en" else "annulées si l'escale") == 1
+    assert filler not in reply.casefold()
+    assert "rule_by_design" not in result
+
+
+def test_capture_rule_question_is_marked_as_a_fixed_rule_by_design():
+    result = asyncio.run(chat("When is my money captured?", lang="en"))
+    assert result["rule_by_design"] is True
+    assert result["model_source"]["provider"] == "rules"

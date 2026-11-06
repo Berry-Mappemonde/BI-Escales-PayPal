@@ -223,6 +223,8 @@
     "portInfo": "Marinas and port info"
   },
   "captainTrace": {
+    "fixedRule": "Fixed rule from code (by design)",
+    "client": "PayPal client: {{client}}",
     "answeredBy": "Answered by {{model}}",
     "latency": "Latency: {{time}}",
     "readOnly": "Read-only",

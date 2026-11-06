@@ -31,4 +31,13 @@ describe("Captain tool trace", () => {
     expect(screen.getByText('No PayPal tools called')).toBeInTheDocument();
     expect(screen.getByText(/Latency: Unavailable/)).toBeInTheDocument();
   });
+
+  it.each([['en', /Fixed rule from code \(by design\)/], ['fr', /Règle fixe du code \(voulu\)/]])(
+    'labels a by-design rule answer in %s, not as a model failure', async (lang, label) => {
+      await show(lang, { model_label: 'rules', rule_by_design: true, paypal_tools: { client: 'direct', calls: [] } });
+      expect(screen.getByText(label)).toBeInTheDocument();
+      expect(screen.queryByText(/no model|sans modèle/)).toBeNull();
+      expect(screen.queryByText('direct')).toBeNull();
+      expect(screen.getByText(/direct/)).toBeInTheDocument();
+    });
 });

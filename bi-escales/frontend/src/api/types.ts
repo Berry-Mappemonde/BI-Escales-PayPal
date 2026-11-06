@@ -207,6 +207,8 @@ export interface CaptainTrace {
   latency_ms?: number;
   paypal_tools?: { tools?: string[]; called?: string[]; client?: string; calls?: CaptainToolCall[] } | string[];
   paypal_tool_calls?: CaptainToolCall[];
+  /** True when the answer comes from a fixed rule in code on purpose (not a model failure). */
+  rule_by_design?: boolean;
 }
 
 export interface CaptainProposal extends CaptainTrace {

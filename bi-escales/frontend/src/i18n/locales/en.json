@@ -4,6 +4,7 @@
     "tagline": "Stop pledges capture on boat arrival; cabins on leg departure; common fund at once.",
     "langFr": "Français",
     "langEn": "English",
+    "language": "Language",
     "themeLight": "Light",
     "themeDark": "Dark",
     "healthFail": "Backend unreachable",
@@ -24,10 +25,10 @@
     "marinas": "Marinas"
   },
   "clock": {
-    "waiting": "departure in {{hours}} h",
+    "waiting": "Departure in {{days}}d {{hours}}h",
     "devT0": "Development departure (ISO)",
     "sailed": "{{nm}} nm sailed",
-    "simulated": "(simulated clock)"
+    "simulated": "Demo clock"
   },
   "sheet": {
     "title": "Port of call sheet",
@@ -60,12 +61,12 @@
     }
   },
   "projects": {
-    "heading": "Blue Intelligence projects",
+    "heading": "Explore projects",
     "empty": "No project in the snapshot.",
     "open": "Page",
     "pledge": "Pledge",
-    "search": "Search a project",
-    "truncated": "{{shown}} of {{total}} projects (use search to narrow)",
+    "search": "Search projects…",
+    "truncated": "Showing {{shown}} of {{total}} projects",
     "minAmount": "Minimum 1.00 EUR.",
     "invalidAmount": "Invalid amount (use at most 2 decimal places).",
     "pledgeDescription": "Project pledge — {{title}}",
@@ -103,7 +104,7 @@
     "openHeading": "Totals with no stopover",
     "projectTotals": "Project pledges",
     "boatTotals": "Common fund",
-    "publicCommon": "Common fund balance: {{balance}} {{currency}} (public)"
+    "publicCommon": "Community fund · {{balance}}"
   },
   "scheduler": {
     "heading": "Stopover calendar",
@@ -115,12 +116,12 @@
   },
   "escales": {
     "heading": "Stops & AI Captain",
-    "captainChat": "Message to AI Captain",
+    "captainChat": "Ask the AI Captain",
     "working": "Captain is working…",
     "exampleQuestions": "Example questions",
     "whenCharged": "When am I charged?",
-    "cancelledStop": "If a stop is cancelled?",
-    "yourMessage": "Your message",
+    "cancelledStop": "What happens if a stop is cancelled?",
+    "yourMessage": "Your question",
     "chatPlaceholder": "Sponsor 20 miles near Mayotte",
     "sendChat": "Ask the Captain",
     "agenticConfirmInvoice": "Confirm — create PayPal invoice (sandbox)",
@@ -174,7 +175,8 @@
     "cardPay": "Pay with card",
     "walletPayHint": "Google Pay (Chrome) or Apple Pay (Safari), TEST sandbox EUR.",
     "error": "Pledge error",
-    "crewSubscribeHint": "Monthly Crew supporter subscription (EUR, sandbox).",
+    "crewSubscribeHint": "Support the crew monthly",
+    "crewSubscribeSandbox": "PayPal sandbox",
     "crewSubscribeSaved": "Crew supporter subscription recorded. Thank you.",
     "crewSubscribeLoading": "Loading Crew supporter plan…",
     "crewSubscribePlanTimeout": "Could not load the Crew supporter plan. Try again in a moment.",
@@ -185,19 +187,18 @@
     "crewSubscribeCancelled": "Crew supporter subscription cancelled. Nothing was charged."
   },
   "howItWorks": {
-    "heading": "How a stop pledge works",
-    "pledge": "You pledge",
-    "pledgeDetail": "Pick a stop and an amount.",
-    "held": "Held on PayPal",
-    "heldDetail": "Nothing is charged yet.",
-    "arrives": "The boat arrives",
-    "arrivesDetail": "For cabins, when the leg departs.",
-    "approves": "The treasurer approves",
-    "approvesDetail": "A person decides, never the Captain alone.",
-    "captured": "Captured",
-    "capturedDetail": "Your pledge is charged.",
-    "released": "Or released, if we don't sail",
-    "releasedDetail": "Nothing is charged."
+    "eyebrow": "STOP PLEDGES",
+    "heading": "Back a stop. Pay only if we arrive.",
+    "intro": "Choose a stop on the voyage map. Your pledge is authorised now, but only captured after arrival and treasurer approval.",
+    "authorize": "Authorise your pledge",
+    "authorizeDetail": "No charge at this stage.",
+    "arrivalApproval": "Arrival and approval",
+    "arrivalApprovalDetail": "The boat reaches the stop, then a human treasurer approves.",
+    "captured": "Payment captured",
+    "capturedDetail": "PayPal captures the authorised payment.",
+    "cancelled": "Cancelled stop? The authorisation is voided. No charge.",
+    "cabin": "Cabins are captured when their leg departs, not on arrival.",
+    "pick": "Select a stop on the map to see its details and make a pledge."
   },
   "stopPanel": {
     "status": {

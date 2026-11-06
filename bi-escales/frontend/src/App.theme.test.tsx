@@ -102,7 +102,7 @@ describe("theme toggle", () => {
     );
 
     expect(document.documentElement.dataset.theme).toBe("dark");
-    expect(screen.getByTestId("theme-toggle")).toHaveTextContent("Light");
+    expect(screen.getByTestId("theme-toggle")).toHaveAccessibleName("Light");
 
     await user.click(screen.getByTestId("theme-toggle"));
 
@@ -111,6 +111,6 @@ describe("theme toggle", () => {
     });
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
     expect(screen.getByTestId("voyage-map")).toHaveAttribute("data-map-theme", "light");
-    expect(screen.getByTestId("theme-toggle")).toHaveTextContent("Dark");
+    expect(screen.getByTestId("theme-toggle")).toHaveAccessibleName("Dark");
   });
 });

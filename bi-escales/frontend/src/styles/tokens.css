@@ -17,12 +17,20 @@
   --text-meta--line-height: 16px;
   --text-ui: 13px;
   --text-ui--line-height: 18px;
+  --text-support: 13px;
+  --text-support--line-height: 19px;
   --text-read: 14px;
   --text-read--line-height: 22px;
+  --text-body: 15px;
+  --text-body--line-height: 22px;
   --text-title: 15px;
   --text-title--line-height: 20px;
+  --text-panel-heading: 16px;
+  --text-panel-heading--line-height: 22px;
   --text-heading: 19px;
   --text-heading--line-height: 26px;
+  --text-display: 22px;
+  --text-display--line-height: 28px;
 
   /* Spacing, on a 4px base */
   --space-1: 4px;

@@ -122,7 +122,7 @@ export function EscalesPanel({
             value={chatMessage}
             onChange={(event) => setChatMessage(event.target.value)}
             placeholder={t("escales.chatPlaceholder")}
-            aria-label={t("escales.captainChat")}
+            aria-label={t("escales.yourMessage")}
             rows={2}
           />
         </label>

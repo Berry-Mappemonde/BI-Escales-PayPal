@@ -51,6 +51,42 @@ function Harness() {
 }
 
 describe("ProjectList", () => {
+  it("shows a clear project heading and localized total metadata", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProjectList
+          projects={{ features: Array.from({ length: 4469 }, (_, index) => ({
+            ...projects.features[0],
+            properties: { ...projects.features[0].properties, id: `project-${index}` },
+          })) }}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole("heading", { name: "Explore projects" })).toBeInTheDocument();
+    expect(screen.getByTestId("project-list-count")).toHaveTextContent("4,469");
+    expect(screen.getByTestId("projects-search-input")).toHaveAttribute("placeholder", "Search projects…");
+    expect(screen.getByTestId("projects-list-truncated")).toHaveTextContent("Showing 100 of 4,469 projects");
+  });
+
+  it("localizes project copy and metadata in French", async () => {
+    await i18n.changeLanguage("fr");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProjectList
+          projects={{ features: Array.from({ length: 4469 }, (_, index) => ({
+            ...projects.features[0],
+            properties: { ...projects.features[0].properties, id: `project-${index}` },
+          })) }}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole("heading", { name: "Explorer les projets" })).toBeInTheDocument();
+    expect(screen.getByTestId("project-list-count").textContent).toMatch(/4[\s\u00a0\u202f]469/);
+    expect(screen.getByTestId("projects-search-input")).toHaveAttribute("placeholder", "Rechercher des projets…");
+    expect(screen.getByTestId("projects-list-truncated").textContent).toMatch(/Affichage de 100 projets sur 4[\s\u00a0\u202f]469/);
+  });
+
   it("ouvre une promesse project_pledge", async () => {
     await i18n.changeLanguage("fr");
     render(

@@ -116,6 +116,11 @@ export default function App() {
     [voyage, now],
   );
   const cumNm = Number(sample?.sailNm ?? sample?.cumNm ?? 0);
+  const countdownHours =
+    sample?.status === "waiting" && sample.countdownHours != null
+      ? Math.max(0, Math.round(Number(sample.countdownHours)))
+      : null;
+  const sailedNm = Number.isFinite(cumNm) ? cumNm.toFixed(1).replace(/\.0$/, "") : "—";
   const sheetArrivalIso = useMemo(
     () => (stop?.milestoneId && schedule ? escaleArrivalIso(schedule, stop.milestoneId) : ""),
     [stop?.milestoneId, schedule],
@@ -683,22 +688,49 @@ export default function App() {
           <h1 aria-label={t("app.title")}>BI Escales <small>Pay Only If We Sail</small></h1>
         </div>
         <div className="ng-controls">
-          <div className="lang-switch">
-            <button type="button" className={i18n.language === "fr" ? "active" : ""} onClick={() => setLanguage("fr")}>
-              {t("app.langFr")}
+          <div className="lang-switch" role="group" aria-label={t("app.language")}>
+            <button
+              type="button"
+              className={i18n.language === "fr" ? "active" : ""}
+              aria-label={t("app.langFr")}
+              aria-pressed={i18n.language === "fr"}
+              onClick={() => setLanguage("fr")}
+            >
+              FR
             </button>
-            <button type="button" className={i18n.language === "en" ? "active" : ""} onClick={() => setLanguage("en")}>
-              {t("app.langEn")}
+            <button
+              type="button"
+              className={i18n.language === "en" ? "active" : ""}
+              aria-label={t("app.langEn")}
+              aria-pressed={i18n.language === "en"}
+              onClick={() => setLanguage("en")}
+            >
+              EN
             </button>
           </div>
           <div className="theme-switch" data-testid="theme-switch">
             <button
               type="button"
               data-testid="theme-toggle"
+              aria-label={theme === "light" ? t("app.themeDark") : t("app.themeLight")}
               aria-pressed={theme === "light"}
               onClick={() => toggleTheme()}
             >
-              {theme === "light" ? t("app.themeDark") : t("app.themeLight")}
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                {theme === "light" ? (
+                  <path
+                    d="M20.2 15.1A8.4 8.4 0 0 1 8.9 3.8 8.5 8.5 0 1 0 20.2 15.1Z"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinejoin="round"
+                  />
+                ) : (
+                  <>
+                    <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.7" />
+                    <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                  </>
+                )}
+              </svg>
             </button>
           </div>
         </div>
@@ -711,14 +743,16 @@ export default function App() {
           </button>
         </div>
         <p className="ng-clock-line voyage-clock" data-testid="voyage-clock">
-          {formatCivilDate(sample?.iso, lang)}
-          {" · "}
-          {t("clock.sailed", { nm: Number.isFinite(cumNm) ? cumNm.toFixed(1) : "—" })}
-          {" "}
-          {t("clock.simulated")}
-          {sample?.status === "waiting" && sample.countdownHours != null
-            ? ` · ${t("clock.waiting", { hours: Math.round(Number(sample.countdownHours)) })}`
-            : ""}
+          {countdownHours !== null ? (
+            <span>
+              {t("clock.waiting", {
+                days: Math.floor(countdownHours / 24),
+                hours: countdownHours % 24,
+              })}
+            </span>
+          ) : null}
+          <span>{formatCivilDate(sample?.iso, lang)}</span>
+          <span>{t("clock.sailed", { nm: sailedNm })} · {t("clock.simulated")}</span>
         </p>
         {!prod ? (
           <label className="dev-t0">
@@ -733,12 +767,17 @@ export default function App() {
         ) : null}
         <section className="crew-supporter-public" data-testid="crew-supporter-public">
           <CrewSubscribeButton adminKey={adminKey.trim() || undefined} />
+          <small className="crew-sandbox-note">{t("pledge.crewSubscribeSandbox")}</small>
         </section>
         {publicCommonFund ? (
           <p className="hint" data-testid="public-common-fund">
             {t("fund.publicCommon", {
-              balance: publicCommonFund.balance_eur,
-              currency: publicCommonFund.currency,
+              balance: Number.isFinite(Number(publicCommonFund.balance_eur))
+                ? new Intl.NumberFormat(lang, {
+                    style: "currency",
+                    currency: publicCommonFund.currency,
+                  }).format(Number(publicCommonFund.balance_eur))
+                : `${publicCommonFund.balance_eur} ${publicCommonFund.currency}`,
             })}
           </p>
         ) : null}

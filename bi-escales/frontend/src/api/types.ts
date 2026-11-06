@@ -36,6 +36,8 @@ export interface PublicPledge {
   vault_id?: string | null;
   paypal_status?: string | null;
   capture_id?: string | null;
+  refunded_amount_eur?: string;
+  pending_refund?: { key: string; amount: string } | null;
   created_at?: string;
   history?: string[];
 }

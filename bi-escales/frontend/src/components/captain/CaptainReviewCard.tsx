@@ -238,18 +238,24 @@ export function CaptainReviewCard({
         ) : null}
 
         {showChoice && confirming ? (
-          <div className="captain-actions">
-            <button
-              type="button"
-              className="secondary"
-              data-testid={`captain-release-${milestoneId}`}
-              onClick={() => onRelease(holds)}
-            >
-              {t("captainCard.releaseHolds", { count: holds.length, total })}
-            </button>
-            <button type="button" className="captain-ghost" onClick={() => setConfirming(false)}>
-              {t("captainCard.cancel")}
-            </button>
+          <div role="group" aria-labelledby={`void-question-${milestoneId}`}>
+            <p className="captain-ui" id={`void-question-${milestoneId}`}>
+              {t("captainCard.voidConfirmation", { count: holds.length, total })}
+            </p>
+            <div className="captain-actions">
+              <button
+                type="button"
+                className="secondary"
+                data-testid={`captain-release-${milestoneId}`}
+                disabled={!canMoveMoney || !holds.length}
+                onClick={() => onRelease(holds)}
+              >
+                {t("treasurer.confirm")}
+              </button>
+              <button type="button" className="captain-ghost" onClick={() => setConfirming(false)}>
+                {t("captainCard.cancel")}
+              </button>
+            </div>
           </div>
         ) : null}
 

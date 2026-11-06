@@ -166,9 +166,9 @@ describe("Captain review card", () => {
       await openCard();
       fireEvent.click(screen.getByTestId(`captain-override-${STOP}`));
       const release = screen.getByTestId(`captain-release-${STOP}`);
-      expect(release).toHaveTextContent("Release 2 holds · €32.50 total");
+      expect(release.closest("[role=group]")).toHaveTextContent("Void 2 holds totalling €32.50? Once sent, this can't be undone.");
       const buttons = within(release.parentElement as HTMLElement).getAllByRole("button");
-      expect(buttons.map((button) => button.textContent)).toEqual(["Release 2 holds · €32.50 total", "Cancel"]);
+      expect(buttons.map((button) => button.textContent)).toEqual(["Confirm", "Cancel"]);
       expect(card().queryByRole("button", { name: /capture/i })).toBeNull();
       expect(voidPledge).not.toHaveBeenCalled();
     });
@@ -190,7 +190,7 @@ describe("Captain review card", () => {
     it("counts held and saved pledges, and skips a pending one", async () => {
       await openCard([hold("p-1", "20.00"), hold("p-v", "10.00", "vaulted"), hold("p-p", "5.00", "pending")]);
       fireEvent.click(screen.getByTestId(`captain-override-${STOP}`));
-      expect(screen.getByTestId(`captain-release-${STOP}`)).toHaveTextContent("Release 2 holds · €30 total");
+      expect(screen.getByTestId(`captain-release-${STOP}`).closest("[role=group]")).toHaveTextContent("Void 2 holds totalling €30?");
     });
 
     it("stays available when the review failed, so holds can always be released", async () => {
@@ -317,7 +317,7 @@ describe("Captain review card", () => {
       vi.mocked(voidPledge).mockClear();
       vi.mocked(voidPledge).mockImplementation(async (id) => ({ ...hold(id, "12.50"), status: "voided" }));
       fireEvent.click(card().getByRole("button", { name: "Retry" }));
-      expect(screen.getByTestId(`captain-release-${STOP}`)).toHaveTextContent("Release 1 hold · €12.50 total");
+      expect(screen.getByTestId(`captain-release-${STOP}`).closest("[role=group]")).toHaveTextContent("Void 1 hold of €12.50?");
       fireEvent.click(screen.getByTestId(`captain-release-${STOP}`));
       expect(screen.getByTestId(`captain-countdown-${STOP}`)).toBeInTheDocument();
       await wait(5000);

@@ -202,6 +202,7 @@ export interface CaptainToolCall {
 }
 
 export interface CaptainTrace {
+  rule_mode?: "fixed" | "fallback";
   model_label?: string;
   model_source?: { provider?: string; model?: string; reason?: string };
   latency_ms?: number;

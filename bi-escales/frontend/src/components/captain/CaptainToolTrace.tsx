@@ -13,11 +13,11 @@ export function CaptainToolTrace({ trace, modelTestId }: { trace: CaptainTrace; 
   return (
     <div className="captain-tool-trace">
       <p data-testid={modelTestId}>
-        {label === "rules" ? t("captainCard.answeredByRules") : t("captainTrace.answeredBy", { model: label })}
+        {label === "rules" ? t(trace.rule_mode === "fixed" ? "captainTrace.fixedRule" : "captainCard.answeredByRules") : t("captainTrace.answeredBy", { model: label })}
         {" · "}{t("captainTrace.latency", { time: latency(trace.latency_ms) })}
       </p>
       <div data-testid="captain-paypal-tools">
-        {payload?.client ? <span>{payload.client}</span> : null}
+        {calls.length > 0 && payload?.client ? <span>{t("captainTrace.client", { client: payload.client })}</span> : null}
         {calls.length ? (
           <ul>
             {calls.map((call, index) => (

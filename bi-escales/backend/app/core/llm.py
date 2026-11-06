@@ -89,6 +89,7 @@ _NIM_REJECTED_IDS = {
     "nvidia/nemotron-3.5-super-120b-a12b": "returns HTTP 404 at NVIDIA without the private/ prefix",
     "nvidia/nemotron-3.5-lightning-30b-a3b": "is the lightning fallback, not the Super model",
 }
+ADVISORY_MAX_TOKENS = 1024
 NIM_MAX_TOKENS_DEFAULT = 400
 NIM_TOP_P_DEFAULT = 0.95
 NIM_REASONING_DEFAULT = "none"
@@ -1171,7 +1172,7 @@ async def ask_json(
     )
     data = parse_json_object(result.text)
     if not advisory_matches_schema(data):
-        raise RuntimeError("advisory schema")
+        raise RuntimeError("Advisory schema mismatch: expected a supported proposal and a nonempty reason")
     parsed = LlmJson(data, result.provider, result.model, result.text)
     parsed.fallback_reason = result.fallback_reason
     return parsed
@@ -1215,7 +1216,7 @@ def _probe_error_metadata(exc: BaseException) -> dict[str, Any]:
     return {
         "provider": "none",
         "model": "",
-        "error": type(exc).__name__,
+        "error": safe_error_message(exc),
     }
 
 
@@ -1258,9 +1259,10 @@ async def probe_cascade(client: Optional[httpx.AsyncClient] = None) -> dict[str,
 
     try:
         advisory = await ask_json(
-            '{"decision":"wait","language":"en"}',
+            'The milestone has no arrival evidence. Return an advisory object with '
+            '"proposal": "wait" and a short "reason" explaining the missing evidence.',
             system=default_json_system("en"),
-            max_tokens=180,
+            max_tokens=ADVISORY_MAX_TOKENS,
             client=client,
             temperature=0,
             lang="en",

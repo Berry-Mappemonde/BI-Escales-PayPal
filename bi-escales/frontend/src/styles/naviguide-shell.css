@@ -122,7 +122,6 @@ body.ng-naviguide-shell {
 
 .ng-sidebar-toggle--left {
   left: 1rem;
-  transition: left 200ms ease;
 }
 
 .ng-sidebar-toggle--left.is-open {
@@ -131,7 +130,6 @@ body.ng-naviguide-shell {
 
 .ng-tools-toggle--right {
   right: 1rem;
-  transition: right 200ms ease;
 }
 
 .ng-tools-toggle--right.is-open {
@@ -282,17 +280,16 @@ body.ng-naviguide-shell {
     transform: translateX(-100%);
   }
 
-  .ng-sidebar-toggle--left.is-open {
-    left: 1rem;
-    top: auto;
-    bottom: calc(45vh + 0.5rem);
+  /* A dedicated control row stays clear of both scrolling panel headings. */
+  .ng-shell { --toggle-row: var(--space-12); }
+  .ng-shell .ng-sidebar, .ng-map-layer { top: var(--toggle-row); }
+  .ng-shell .ng-sidebar-toggle--left,
+  .ng-shell .ng-tools-toggle--right {
+    top: var(--space-1);
+    bottom: auto;
   }
-
-  .ng-tools-toggle--right.is-open {
-    right: 1rem;
-    top: auto;
-    bottom: calc(45vh + 0.5rem);
-  }
+  .ng-shell .ng-sidebar-toggle--left { left: var(--space-2); }
+  .ng-shell .ng-tools-toggle--right { right: var(--space-2); }
 }
 
 .treasurer-panel {
@@ -644,10 +641,6 @@ body.ng-naviguide-shell {
   .ng-sidebar:not(.ng-collapsed) ~ .ng-tools-panel {
     left: min(340px, 92vw);
     width: auto;
-  }
-
-  .ng-sidebar-toggle--left.is-open {
-    left: calc(340px + var(--space-2));
   }
 }
 

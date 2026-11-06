@@ -1005,3 +1005,68 @@ def test_nim_timeout_names_the_fallback_and_the_sent_id(caplog):
         assert llm.NIM_MODEL_DEFAULT in caplog.text
 
     asyncio.run(body())
+
+
+@pytest.mark.parametrize("lang,message,echo,leak,rule", [
+    ("en", "I want to sponsor 20 miles near Mayotte",
+     "Stop-level pledges are captured on the boat's arrival at the stop and voided if the stop is cancelled.",
+     "I do not know any other facts.", captain.CAPTURE_RULES_EN),
+    ("fr", "Je veux parrainer 20 milles près de Mayotte",
+     "Les promesses sont capturées à l'arrivée du bateau et annulées si l'escale est annulée.",
+     "Je ne connais pas d'autres faits.", captain.CAPTURE_RULES_FR),
+])
+def test_chat_emits_one_canonical_rule(monkeypatch, lang, message, echo, leak, rule):
+    async def narrative(*args, **kwargs):
+        return f"{echo} {leak}", {"provider": "nim", "model": "test-model"}
+
+    monkeypatch.setattr(captain, "_llm_text", narrative)
+    result = asyncio.run(chat(message, lang=lang))
+    assert result["suggested_pledge"]["amount_eur"] == "20.00"
+    assert result["reply"].count(rule.split(". ", 1)[0]) == 1
+    assert echo not in result["reply"]
+    assert leak not in result["reply"]
+
+
+def test_review_returns_validated_model_advisory_via_json_cascade(monkeypatch):
+    _enable("nim")
+    seen = []
+    def client():
+        def handle(request):
+            body = json.loads(request.content)
+            seen.append(body)
+            content = "Awaiting arrival evidence."
+            if "guided_json" in body:
+                content = '{"proposal":"wait","reason":"The authorization awaits arrival evidence."}'
+            return _openai(content, body["model"])
+        return httpx.AsyncClient(transport=httpx.MockTransport(handle))
+
+    monkeypatch.setattr(llm, "_client", client)
+    result = asyncio.run(review("dep-la-rochelle", reader=None, lang="en"))
+    advisory = result["llm_proposal"]
+    assert advisory["provider"] == "nim_fallback" and advisory["model"] == llm.nim_fallback_model()
+    assert advisory["proposal"] == result["proposal"] == "wait"
+    assert advisory["reason"] and not advisory["dropped"]
+    assert seen[-1]["max_tokens"] == llm.ADVISORY_MAX_TOKENS
+
+
+@pytest.mark.parametrize("answer,error", [
+    ('{"proposal":"wait","reason":"Awaiting arrival evidence."}', None),
+    ('{"decision":"wait","language":"en"}', "schema mismatch"),
+    ("Missing object", "JSON parse failed"),
+])
+def test_json_probe_requires_advisory_and_explains_invalid_responses(answer, error):
+    _enable("nim")
+    seen, client = _transport({"integrate.api.nvidia.com": [
+        _openai(text, llm.nim_model()) for text in ["ok", "ok", answer]
+    ]})
+    async def run():
+        async with client:
+            return (await llm.probe_cascade(client=client))["ask_json"]
+    result = asyncio.run(run())
+    prompt = seen[-1]["body"]["messages"][-1]["content"]
+    assert "proposal" in prompt and "reason" in prompt
+    assert seen[-1]["body"]["max_tokens"] >= 1024
+    if error:
+        assert error in result["error"] and result["provider"] == "none"
+    else:
+        assert result["provider"] == "nim_fallback"

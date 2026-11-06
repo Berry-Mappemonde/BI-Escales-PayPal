@@ -47,6 +47,7 @@ def test_captain_never_executes_paypal_writes(client, action, message):
 def test_donor_refund_question_gets_capture_void_rule(client, lang, message, rule, treasurer):
     result = asyncio.run(chat(message, treasurer=treasurer, lang=lang, reader=ReadOnlyTools(client)))
     assert rule in result['reply']
+    assert result['rule_mode'] == 'fixed'
     assert 'cannot execute' not in result['reply']
     assert 'écriture PayPal' not in result['reply']
     assert result['suggested_pledge'] is None

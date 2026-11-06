@@ -282,6 +282,10 @@ def _is_capture_rule_question(message: str) -> bool:
     text = message or ""
     if re.search(r"\bvoid\b|\bannuler\b|ou l['’]annul", text, re.IGNORECASE):
         return False
+    if re.search(r"\brefund\w*|\brembours\w*", text, re.I) and re.search(
+        r"\b(?:do not|don['’]t) sail\b|\bne (?:partez|partons) pas\b", text, re.I,
+    ):
+        return True
     return bool(_CAPTURE_RULE_Q.search(text))
 
 
@@ -300,23 +304,15 @@ def _public_rule(lang: str) -> str:
     )
 
 
-def _capture_rule_core_in(text: str, lang: str) -> bool:
-    core = CAPTURE_RULES_EN if lang == "en" else CAPTURE_RULES_FR
-    return core.casefold() in (text or "").casefold()
-
-
-def _drop_duplicate_capture_rule_sentences(prose: str, lang: str) -> str:
-    """Drop an extra LLM sentence that repeats the public capture rule core."""
-    core = CAPTURE_RULES_EN if lang == "en" else CAPTURE_RULES_FR
-    snippet = core[:48].strip()
-    if not snippet or snippet.casefold() not in (prose or "").casefold():
-        return prose or ""
-    pattern = re.compile(
-        rf"[^.!?]*{re.escape(snippet)}[^.!?]*[.!?]",
-        re.IGNORECASE,
-    )
-    cleaned = pattern.sub("", prose or "", count=1)
-    return re.sub(r"\s{2,}", " ", cleaned).strip()
+# The code supplies the complete policy after the computed pledge. A model may
+# paraphrase it or leave out the catalogue in parentheses.
+_CHAT_POLICY_ECHO = re.compile(
+    r"\b(?:captured|charged|voided)\b.*\b(?:arrival|departure|cancelled|canceled|immediately|at once)\b"
+    r"|\b(?:capturées?|encaissées?|débitées?|annulées?)\b.*\b(?:arrivée|départ|annulée?|immédiatement)\b"
+    r"|\bi (?:do not|don['’]t) know (?:any )?other facts\b"
+    r"|\bje ne (?:connais|sais) (?:pas d['’]autres faits|(?:aucun|nul) autre fait|rien d['’]autre)\b",
+    re.IGNORECASE,
+)
 
 
 def _strip_wrong_common_fund_claim(text: str, suggested: Optional[dict], lang: str) -> str:
@@ -545,8 +541,7 @@ def _chat_system_en() -> str:
         "State only facts present in the JSON: the stopover, fund_label, and the computed pledge. "
         "Name the fund exactly as given in the JSON (field fund_label); never call a stopover pledge the common fund. "
         "Do not invent a date. Do not write a date. The code appends the schedule dates. "
-        "If a fact is absent, say you do not know. Do not describe the place. "
-        f"{CAPTURE_RULES_EN} "
+        "Omit missing facts. The app adds the payment rules. Do not repeat them or describe the place. "
         "A pledge is authorized as close to departure as possible. "
         "Do not send the reader to the treasurer for that rule. "
         "Do not mention association membership and do not write any URL. "
@@ -563,8 +558,7 @@ def _chat_system_fr() -> str:
         "Énonce seulement les faits présents dans le JSON : l'escale, fund_label, la caisse et la promesse calculée. "
         "Nomme la caisse exactement comme dans le JSON (champ fund_label) ; n'appelle jamais une promesse d'escale le fonds commun. "
         "N'invente pas de date. N'écris aucune date. Le code ajoute les dates de l'escale. "
-        "Si un fait manque, dis que tu ne sais pas. Ne décris pas le lieu. "
-        f"{CAPTURE_RULES_FR} "
+        "Omets les faits absents. L’application ajoute les règles de paiement. Ne les répète pas et ne décris pas le lieu. "
         "Une promesse est autorisée au plus près du départ. "
         "N'envoie pas le lecteur vers le trésorier pour cette règle. "
         "Ne parle pas d'adhésion à l'association et n'écris aucune URL. "
@@ -1568,12 +1562,8 @@ def _compose_chat_reply(
         prose = _drop_date_sentences(prose)
         if dates.casefold() not in (prose or "").casefold():
             required.append(dates)
-    rules = _public_rule(lang)
-    combined = f"{prose} {' '.join(required)}"
-    if _capture_rule_core_in(combined, lang):
-        prose = _drop_duplicate_capture_rule_sentences(prose, lang)
-    else:
-        required.append(rules)
+    prose = _drop_sentences(prose, _CHAT_POLICY_ECHO)
+    required.append(_public_rule(lang))
     joined = " ".join(required)
     if lang == "en" and not re.search(r"\bintent\s+authorize\b", f"{prose} {joined}", re.I):
         required.append("intent AUTHORIZE.")
@@ -1697,6 +1687,8 @@ def _with_trace(result: dict, reader: Optional[ReadOnlyTools], started: float) -
     # Legacy string sources describe deterministic paths, not the configured model.
     source = result.get("model_source")
     result["model_label"] = model_display_label(source) or "rules"
+    if result["model_label"] == "rules":
+        result.setdefault("rule_mode", "fallback")
     result["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
     result["paypal_tools"] = _paypal_tools_payload(reader) if reader is not None else {
         "tools": [], "called": [], "calls": [], "client": "direct",
@@ -2411,7 +2403,7 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
         parsed = await llm.ask_json(
             prompt,
             system=_verdict_system(verdict_lang),
-            max_tokens=180,
+            max_tokens=llm.ADVISORY_MAX_TOKENS,
             temperature=0,
             schema=schema,
             lang=verdict_lang,
@@ -3001,7 +2993,7 @@ async def _chat(
         )
         return {
             "reply": _fit_words("", [reply, _signature(lang)]),
-            "suggested_pledge": None, "cart": None, "model_source": _rules_source(),
+            "suggested_pledge": None, "cart": None, "model_source": _rules_source(), "rule_mode": "fixed",
         }
     if treasurer and reader is not None:
         agentic = parse_agentic_proposal(text, lang)
@@ -3012,7 +3004,7 @@ async def _chat(
                 "suggested_pledge": suggested,
                 "cart": None,
                 "model_source": "paypal_agentic_proposal",
-                "model_label": "rules",
+                "model_label": "rules", "rule_mode": "fixed",
                 "fund": None,
                 "paypal_tools": _paypal_tools_payload(reader),
                 "agentic_action": agentic,
@@ -3024,7 +3016,7 @@ async def _chat(
                 "suggested_pledge": None,
                 "cart": None,
                 "model_source": "paypal_readonly_tools",
-                "model_label": "rules",
+                "model_label": "rules", "rule_mode": "fixed",
                 "fund": None,
                 "paypal_tools": _paypal_tools_payload(reader),
             }
@@ -3035,7 +3027,7 @@ async def _chat(
                 "suggested_pledge": None,
                 "cart": None,
                 "model_source": "paypal_readonly_tools",
-                "model_label": "rules",
+                "model_label": "rules", "rule_mode": "fixed",
                 "fund": None,
                 "paypal_tools": _paypal_tools_payload(reader),
             }
@@ -3044,7 +3036,7 @@ async def _chat(
             "reply": _capture_rule_reply(lang),
             "suggested_pledge": None,
             "cart": None,
-            "model_source": _rules_source(),
+            "model_source": _rules_source(), "rule_mode": "fixed",
             "fund": None,
         }
     if _is_fund_question(text):
@@ -3055,6 +3047,7 @@ async def _chat(
             "cart": None,
             "model_source": source,
             "fund": fund,
+            **({"rule_mode": "fixed"} if fund is None else {}),
         }
     if _is_cabin_price_question(text):
         suggested = suggest_pledge(text, lang)
@@ -3068,7 +3061,7 @@ async def _chat(
                 "reply": _fit_words("", [prose, _signature(lang)]),
                 "suggested_pledge": None,
                 "cart": None,
-                "model_source": _rules_source(),
+                "model_source": _rules_source(), "rule_mode": "fixed",
                 "fund": None,
             }
         reply = _compose_chat_reply("", suggested, lang, treasurer=False, ask_escale=False)
@@ -3076,7 +3069,7 @@ async def _chat(
             "reply": reply,
             "suggested_pledge": suggested,
             "cart": pledge_cart(text, lang, suggested),
-            "model_source": _rules_source(),
+            "model_source": _rules_source(), "rule_mode": "fixed",
             "fund": None,
         }
     treasurer = _is_treasurer_question(text)
@@ -3119,6 +3112,7 @@ async def _chat(
         "reply": reply,
         "suggested_pledge": suggested,
         "cart": cart,
+        **({"rule_mode": "fixed"} if suggested is None else {}),
         "model_source": source,
         "model_label": model_display_label(source),
     }

@@ -25,6 +25,14 @@ describe("Captain tool trace", () => {
     expect(screen.getByText(/23 ms/)).toBeInTheDocument();
   });
 
+  it.each([["en", "Fixed rule from code (by design)"], ["fr", "Règle fixe du code (voulu)"]])(
+    "labels an intentional rule in %s", async (lang, label) => {
+      await show(lang, { model_label: "rules", rule_mode: "fixed", paypal_tools: { calls: [], client: "direct" } });
+      expect(screen.getByText(label, { exact: false })).toBeInTheDocument();
+      expect(screen.queryByText("direct")).toBeNull();
+    },
+  );
+
   it('identifies rules and an empty tool trace without inventing latency', async () => {
     await show('en', { model_label: 'rules', paypal_tools: { calls: [] } });
     expect(screen.getByText(/Answered by the rules, no model/)).toBeInTheDocument();

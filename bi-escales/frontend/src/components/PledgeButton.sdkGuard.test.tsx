@@ -55,6 +55,7 @@ describe("PledgeButton with a broken PayPal SDK (stopover crash regression)", ()
     await waitFor(() => expect(ns.Buttons).toHaveBeenCalled());
     await waitFor(() => expect(ns.Googlepay).toHaveBeenCalled());
     expect(screen.getByTestId("paypal-buttons")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: i18n.t("pledge.create") })).toBeInTheDocument();
     expect(screen.queryByTestId("paypal-buttons-error")).toBeNull();
   });
 
@@ -69,5 +70,23 @@ describe("PledgeButton with a broken PayPal SDK (stopover crash regression)", ()
     await waitFor(() => expect(render1).toHaveBeenCalled());
     expect(loadPayPalSdk).toHaveBeenCalledTimes(1);
     expect(vi.mocked(loadPayPalSdk).mock.calls[0]).toEqual(["sandbox-client-id", "en", "authorize", true]);
+  });
+
+  it("hides the redirect fallback after Smart Buttons render successfully", async () => {
+    const renderButtons = vi.fn(async () => undefined);
+    vi.mocked(loadPayPalSdk).mockResolvedValue({
+      Buttons: vi.fn(() => ({ render: renderButtons })),
+    } as never);
+    render(
+      <I18nextProvider i18n={i18n}>
+        <PledgeButton values={values} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole("button", { name: i18n.t("pledge.create") })).toBeInTheDocument();
+    await waitFor(() => expect(renderButtons).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: i18n.t("pledge.create") })).toBeNull(),
+    );
+    expect(screen.getByTestId("paypal-smart-buttons")).toHaveAttribute("data-smart-buttons", "1");
   });
 });

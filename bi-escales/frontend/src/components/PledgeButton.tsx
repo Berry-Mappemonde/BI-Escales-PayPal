@@ -49,6 +49,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   const [busy, setBusy] = useState(false);
   const [paypal, setPaypal] = useState<PayPalNamespace | null>(null);
   const sdkReady = paypal !== null;
+  const [smartButtonsReady, setSmartButtonsReady] = useState(false);
   const [cardFieldsEnabled, setCardFieldsEnabled] = useState(false);
   const [walletPayEnabled, setWalletPayEnabled] = useState(false);
   // Load the SDK once the feature flags are known, so a wallet_pay flip does not load a second SDK.
@@ -181,6 +182,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
 
   /** In-page Smart Buttons (PayPal wallet, Pay Later, card): no approve_link redirect. */
   useEffect(() => {
+    setSmartButtonsReady(false);
     const host = buttonsHost.current;
     if (!paypal || !host || disabled) return;
     host.innerHTML = "";
@@ -238,7 +240,10 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     ).then((result) => {
       buttons = result.instance;
       if (closed) safePayPalClose(buttons);
-      else if (result.ok) host.dataset.smartButtons = "1";
+      else if (result.ok) {
+        host.dataset.smartButtons = "1";
+        setSmartButtonsReady(true);
+      }
     });
     return () => {
       closed = true;
@@ -287,9 +292,11 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     <div className="pledge-button" data-testid="paypal-buttons" data-kind={values.kind || ""}>
       <p className="hint">{isProjectPledge ? t("pledge.intentProject") : t("pledge.intent")}</p>
       <p className="hint">{t("pledge.venmoNote")}</p>
-      <button type="button" onClick={() => void createOrder()} disabled={disabled || busy}>
-        {t("pledge.create")}
-      </button>
+      {!smartButtonsReady ? (
+        <button type="button" onClick={() => void createOrder()} disabled={disabled || busy}>
+          {t("pledge.create")}
+        </button>
+      ) : null}
       {created?.approve_link && !vault ? (
         <a href={created.approve_link} rel="noreferrer" data-testid="paypal-approve-link">
           {t("pledge.approve")}

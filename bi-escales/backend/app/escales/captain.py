@@ -11,6 +11,7 @@ import json
 import logging
 import re
 import time
+from contextlib import nullcontext
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
@@ -30,6 +31,7 @@ from .milestones import (
 )
 from .pledges import PLEDGE_KINDS, get_ledger, now_iso, pledges_for_milestone
 from .toolkit_tools import ReadOnlyTools
+from .paypal_limits import PayPalCallLimitExceeded
 from .captain_agentic import agentic_reply, agentic_suggested_pledge, parse_agentic_proposal
 
 log = logging.getLogger("escales.captain")
@@ -2955,6 +2957,12 @@ def _paypal_readonly_reply(message: str, lang: str, reader: ReadOnlyTools) -> Op
                 lines.append(
                     "Commandes PayPal (lecture seule) : une commande se consulte par identifiant via orders.get."
                 )
+    except PayPalCallLimitExceeded:
+        lines.append(
+            "PayPal read limit reached for this turn. The summary may be partial."
+            if lang == "en" else "Limite de lectures PayPal atteinte pour ce tour. Le résumé peut être partiel."
+        )
+        return "\n".join(lines)
     except Exception:
         log.exception("PayPal read-only lookup failed")
         if lines:
@@ -3121,10 +3129,11 @@ async def chat(
     accept_language: str = "", reader: Optional[ReadOnlyTools] = None,
 ) -> dict:
     started = time.perf_counter()
-    result = await _chat(
-        message, treasurer=treasurer, lang=lang,
-        accept_language=accept_language, reader=reader,
-    )
+    with reader.chat_turn() if reader is not None else nullcontext():
+        result = await _chat(
+            message, treasurer=treasurer, lang=lang,
+            accept_language=accept_language, reader=reader,
+        )
     return _with_trace(result, reader, started)
 
 

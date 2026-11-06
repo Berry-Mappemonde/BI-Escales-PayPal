@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 import time
 from typing import Any, Callable, Optional
 
 from .config import toolkit_enabled
-from .paypal_client import PayPalError
+from .paypal_client import PayPalClient, PayPalError
+from .paypal_limits import PayPalCallBudget, PayPalCallLimitExceeded
 
 ALLOWED_TOOLS = (
     "orders.get",
@@ -96,6 +98,9 @@ class ReadOnlyTools:
     """Read-only PayPal lookups. Never capture, void, or refund."""
 
     def __init__(self, client: Any) -> None:
+        self._client = client
+        self._budget: Optional[PayPalCallBudget] = None
+        self._http_metered = isinstance(client, PayPalClient)
         orders_get: Callable[[str], dict] = client.get_order
         authorizations_get: Callable[[str], dict] = client.get_authorization
         self.uses_toolkit = False
@@ -120,6 +125,21 @@ class ReadOnlyTools:
             "invoices.list": lambda resource_id="1": client.list_invoices(page=int(resource_id or "1")),
         }
 
+    @contextmanager
+    def chat_turn(self):
+        """Limit chat resource reads only; reviews use the unbudgeted default."""
+        previous = self._budget
+        self._budget = PayPalCallBudget()
+        if self._http_metered:
+            previous_client_budget = self._client.captain_budget
+            self._client.captain_budget = self._budget
+        try:
+            yield
+        finally:
+            self._budget = previous
+            if self._http_metered:
+                self._client.captain_budget = previous_client_budget
+
     def allowed(self) -> tuple[str, ...]:
         return ALLOWED_TOOLS
 
@@ -130,6 +150,11 @@ class ReadOnlyTools:
         entry = {"tool": tool, "resource_id": resource_id, "read_only": True}
         started = time.perf_counter()
         try:
+            if self._budget is not None:
+                if self._budget.remaining <= 0:
+                    raise PayPalCallLimitExceeded("PayPal read limit reached for this turn (3 calls)")
+                if not self._http_metered:
+                    self._budget.consume()
             result = call(resource_id)
             entry["status"] = "ok"
             return result

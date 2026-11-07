@@ -127,6 +127,48 @@ describe("Captain review card", () => {
       expect(card().getByText(/The authorization is still valid\./)).toHaveTextContent("Model's note (advisory):");
     });
 
+    it.each([
+      ["en", "Authorised today · arrival 29 Nov 2026 · departure 2 Dec 2026"],
+      ["fr", "Autorisé aujourd’hui · arrivée le 29 nov. 2026 · départ le 2 déc. 2026"],
+    ])("formats raw advisory fields in %s", async (lang, expected) => {
+      await i18n.changeLanguage(lang);
+      vi.mocked(captainReview).mockResolvedValue({
+        ...review,
+        llm_proposal: {
+          proposal: "wait",
+          reason: "authorization_age_days is 0, schedule arrival is 2026-11-29T02:02:52+00:00, schedule departure is 2026-12-02T02:02:52+00:00.",
+        },
+      });
+      await openCard();
+      expect(screen.getByTestId(`captain-card-${STOP}`).querySelector(".captain-advisory")).toHaveTextContent(expected);
+    });
+
+    it.each([
+      ["en", 1, "Authorised 1 day ago"],
+      ["en", 3, "Authorised 3 days ago"],
+      ["fr", 1, "Autorisé il y a 1 jour"],
+      ["fr", 3, "Autorisé il y a 3 jours"],
+    ])("formats authorization age in %s for %i days", async (lang, count, expected) => {
+      await i18n.changeLanguage(String(lang));
+      vi.mocked(captainReview).mockResolvedValue({
+        ...review,
+        llm_proposal: { reason: `authorization_age_days: ${count}` },
+      });
+      await openCard();
+      expect(screen.getByTestId(`captain-card-${STOP}`).querySelector(".captain-advisory")).toHaveTextContent(String(expected));
+    });
+
+    it.each([
+      "authorization_age_days is 0, evidence_flag is pending",
+      "authorization_age_days is 0, next check is 2026-11-29T02:02:52+00:00",
+      "schedule arrival is 2026-99-29T02:02:52+00:00",
+      "authorization_age_days is unknown",
+    ])("hides an advisory with unformatted data: %s", async (reason) => {
+      vi.mocked(captainReview).mockResolvedValue({ ...review, llm_proposal: { reason } });
+      await openCard();
+      expect(screen.getByTestId(`captain-card-${STOP}`).querySelector(".captain-advisory")).toBeNull();
+    });
+
     it("hides an advisory the backend dropped", async () => {
       vi.mocked(captainReview).mockResolvedValue({ ...review, llm_proposal: { proposal: null, reason: null } });
       await openCard();

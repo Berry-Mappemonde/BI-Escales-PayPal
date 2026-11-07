@@ -31,6 +31,51 @@ describe("PledgeButton", () => {
     await i18n.changeLanguage("fr");
   });
 
+  it.each([
+    ["en", "VAULT", "Saved with PayPal · charged only if we sail"],
+    ["fr", "VAULT", "Enregistré auprès de PayPal · débité uniquement si nous partons"],
+    ["en", "AUTHORIZE", "AUTHORIZE intent — PayPal sandbox"],
+    ["fr", "AUTHORIZE", "Intent AUTHORIZE — sandbox PayPal"],
+  ] as const)("shows %s %s checkout copy from the fetched mode", async (lang, payment_mode, expected) => {
+    await i18n.changeLanguage(lang);
+    vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode });
+    render(<PledgeButton values={values} />);
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+    expect(fetchPledgeMode).toHaveBeenCalledTimes(1);
+    expect(fetchPledgeMode).toHaveBeenCalledWith(values.milestone_id, values.kind);
+    expect(createPledge).not.toHaveBeenCalled();
+    if (payment_mode === "VAULT") {
+      expect(screen.queryByText(/AUTHORIZE/)).toBeNull();
+    }
+  });
+
+  it("hides an unresolved mode and ignores a response for the previous stop", async () => {
+    await i18n.changeLanguage("en");
+    let finishOld: (mode: { payment_mode: "AUTHORIZE" }) => void = () => {};
+    vi.mocked(fetchPledgeMode)
+      .mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }))
+      .mockResolvedValueOnce({ payment_mode: "VAULT" });
+    const { rerender } = render(<PledgeButton values={{ ...values, milestone_id: "dep-ajaccio-corse" }} />);
+    expect(screen.queryByText(/AUTHORIZE|Saved with PayPal/)).toBeNull();
+    rerender(<PledgeButton values={values} />);
+    expect(await screen.findByText("Saved with PayPal · charged only if we sail")).toBeInTheDocument();
+    await act(async () => { finishOld({ payment_mode: "AUTHORIZE" }); });
+    expect(screen.queryByText(/AUTHORIZE/)).toBeNull();
+    expect(screen.getByText("Saved with PayPal · charged only if we sail")).toBeInTheDocument();
+  });
+
+  it("clears the mode label when the kind changes and the lookup fails", async () => {
+    await i18n.changeLanguage("en");
+    vi.mocked(fetchPledgeMode)
+      .mockResolvedValueOnce({ payment_mode: "VAULT" })
+      .mockRejectedValueOnce(new Error("offline"));
+    const { rerender } = render(<PledgeButton values={values} />);
+    await screen.findByText("Saved with PayPal · charged only if we sail");
+    await act(async () => { rerender(<PledgeButton values={{ ...values, kind: "cabin" }} />); });
+    expect(screen.queryByText(/AUTHORIZE|Saved with PayPal/)).toBeNull();
+    expect(createPledge).not.toHaveBeenCalled();
+  });
+
   it("ouvre approve_link sans autoriser au clic", async () => {
     vi.mocked(createPledge).mockResolvedValue({
       id: "pledge-1",

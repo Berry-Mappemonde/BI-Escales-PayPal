@@ -13,6 +13,6 @@ export function filterProjectFeatures(
   return (features || []).filter(
     (f) => (funderFilter === "All" || (f.properties?.funder || "").includes(funderFilter))
       && (categoryFilter === "All" || f.properties?.category_group === categoryFilter)
-      && (!q || `${f.properties?.title || ""} ${f.properties?.description || ""} ${f.properties?.funder || ""} ${f.properties?.location || ""}`.toLowerCase().includes(q)),
+      && (!q || `${f.properties?.title || ""} ${f.properties?.description || ""} ${f.properties?.funder || ""} ${f.properties?.location || ""} ${f.properties?.channel3_product_name || ""} ${f.properties?.project_kind || ""}`.toLowerCase().includes(q)),
   );
 }

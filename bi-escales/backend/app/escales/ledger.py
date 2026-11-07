@@ -70,6 +70,54 @@ def _mongo_wanted() -> bool:
     return bool((os.environ.get("MONGO_URL") or "").strip())
 
 
+def merge_concurrent_pledge(stored: Optional[dict], incoming: dict) -> dict:
+    """Merge a pledge write with the stored copy so a concurrent write is not lost.
+
+    Two handlers can read the same pledge, change it, and save it back, e.g. the
+    authorize call and the ``CHECKOUT.ORDER.APPROVED`` webhook. A whole-document
+    replace then lets the later write undo the earlier one (seen on test2: PayPal
+    held the authorization, the ledger said ``created``). This keeps both:
+
+    - ``history``: entries the stored copy has beyond the shared prefix are kept,
+      then the incoming ones.
+    - ``webhook_events``: union by ``transmission_id``, stored order first.
+    - status: a write that would move a pledge back to ``created`` keeps the stored
+      status and the stored values of fields the incoming copy lacks.
+
+    A normal sequential save (incoming history extends the stored one) is unchanged
+    apart from these unions. Nothing is ever removed.
+    """
+    if not stored:
+        return incoming
+    merged = copy.deepcopy(incoming)
+
+    old_hist = list(stored.get("history") or [])
+    new_hist = list(incoming.get("history") or [])
+    if new_hist[: len(old_hist)] != old_hist:
+        common = 0
+        for a, b in zip(old_hist, new_hist):
+            if a != b:
+                break
+            common += 1
+        merged["history"] = old_hist + new_hist[common:]
+
+    old_events = list(stored.get("webhook_events") or [])
+    new_events = list(incoming.get("webhook_events") or [])
+    if old_events:
+        seen = {e.get("transmission_id") for e in old_events if isinstance(e, dict)}
+        merged["webhook_events"] = old_events + [
+            e for e in new_events
+            if not (isinstance(e, dict) and e.get("transmission_id") in seen)
+        ]
+
+    if incoming.get("status") == "created" and stored.get("status") not in (None, "", "created"):
+        merged["status"] = stored["status"]
+        for key, value in stored.items():
+            if merged.get(key) in (None, "") and value not in (None, ""):
+                merged[key] = copy.deepcopy(value)
+    return merged
+
+
 class MemoryLedger:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -94,7 +142,8 @@ class MemoryLedger:
 
     async def save_pledge(self, doc: dict) -> dict:
         with self._lock:
-            stored = pledge_defaults(doc)
+            incoming = pledge_defaults(doc)
+            stored = merge_concurrent_pledge(self._pledges.get(incoming["_id"]), incoming)
             self._pledges[stored["_id"]] = stored
             key = stored.get("client_key")
             if key:
@@ -281,9 +330,10 @@ class MongoLedger:
         await self._pledges.create_index("order_id", name="escales_pledges_order_id")
         await self._audit.create_index("at", name="escales_audit_at")
         await self._finance.create_index("at", name="escales_finance_at")
-        await self._webhooks.create_index(
-            "_id", unique=True, name="escales_webhooks_id",
-        )
+        # No index on ``_id`` for webhooks: MongoDB already keeps ``_id`` unique, and a
+        # ``unique`` option on the ``_id`` index is rejected by the server ("The field
+        # 'unique' is not valid for an _id index specification"), which left the
+        # ledger uninitialised and every route returning 500. mongomock accepted it.
         self._ready = True
 
     async def insert_pledge_once(self, doc: dict) -> dict:
@@ -306,9 +356,25 @@ class MongoLedger:
 
     async def save_pledge(self, doc: dict) -> dict:
         await self._ensure()
-        stored = pledge_defaults(doc)
-        await self._pledges.replace_one({"_id": stored["_id"]}, copy.deepcopy(stored), upsert=True)
-        return stored
+        incoming = pledge_defaults(doc)
+        pledge_id = incoming["_id"]
+        # Compare-and-set on ``rev``: if another worker saved between our read and
+        # our write, the filter misses, so re-read and merge again. Without this,
+        # two workers could both read ``created`` and the later one revert the other.
+        for _attempt in range(8):
+            current = await self._pledges.find_one({"_id": pledge_id})
+            stored = merge_concurrent_pledge(pledge_defaults(current), incoming)
+            if current is None:
+                stored["rev"] = 1
+                await self._pledges.replace_one({"_id": pledge_id}, copy.deepcopy(stored), upsert=True)
+                return stored
+            rev = current.get("rev")
+            stored["rev"] = (rev or 0) + 1
+            match = {"_id": pledge_id, "rev": rev} if rev is not None else {"_id": pledge_id, "rev": {"$exists": False}}
+            result = await self._pledges.replace_one(match, copy.deepcopy(stored))
+            if result.matched_count:
+                return stored
+        raise RuntimeError(f"pledge {pledge_id}: concurrent writes kept conflicting")
 
     async def get_pledge(self, pledge_id: str) -> Optional[dict]:
         await self._ensure()
@@ -603,7 +669,7 @@ def to_public_fund(fund: dict) -> dict:
     }
 
 
-def to_public_project_donation_total(fund: dict) -> dict:
+def to_public_project_donation_total(fund: dict, *, goal_eur: Optional[str] = None, funded_pct: Optional[int] = None) -> dict:
     """Public BI project crowdfunding totals only (pattern: ``to_public_fund`` stopover aggregates).
 
     Donor-facing read: captured amount, donation count, refunds. No journal lines or ids.
@@ -611,13 +677,18 @@ def to_public_project_donation_total(fund: dict) -> dict:
     income = fund.get("income")
     donation_count = len(income) if isinstance(income, list) else 0
     captured = str(fund.get("captured_eur") or fund.get("income_eur") or "0.00")
-    return {
+    out = {
         "project_id": fund.get("milestone_id"),
         "currency": fund.get("currency") or "EUR",
         "amount_eur": captured,
         "donation_count": donation_count,
         "refunded_eur": str(fund.get("refunded_eur") or "0.00"),
     }
+    if goal_eur:
+        out["goal_eur"] = goal_eur
+    if funded_pct is not None:
+        out["funded_pct"] = funded_pct
+    return out
 
 
 def _public_finance(entry: dict) -> dict:
@@ -735,6 +806,10 @@ async def _project_fund_target(milestone_id: str) -> Optional[str]:
         if str(row.get("milestone_id") or "").strip() and str(row.get("milestone_id") or "").strip().casefold() not in _PROJECT_ALIASES:
             continue
         return slug
+    from app.gear_projects_catalog import lookup_project_fund_meta
+
+    if lookup_project_fund_meta(slug):
+        return slug
     return None
 
 
@@ -755,25 +830,39 @@ def fund_milestone_for_pledge(pledge: dict) -> str:
     return target
 
 
+# Marina payout batches that never left the account do not reduce a fund.
+_PAYOUT_NOT_PAID = {"denied", "failed", "canceled", "cancelled", "returned", "blocked", "reversed"}
+
+
 async def _assemble_fund(milestone_id: str, entries: list[dict]) -> dict:
     """Same totals the stopover fund route already returns."""
     income = [entry for entry in entries if entry.get("kind") == "pledge_captured"]
     spending = [entry for entry in entries if entry.get("kind") == "spending"]
     refunds = [entry for entry in entries if entry.get("kind") == "pledge_refunded"]
+    payouts = [
+        entry
+        for entry in entries
+        if entry.get("kind") == "marina_payout_sent"
+        and str(entry.get("status") or "").strip().lower() not in _PAYOUT_NOT_PAID
+    ]
     income_total = sum((_euros(entry.get("amount_eur")) for entry in income), Decimal("0.00"))
     spending_total = sum((_euros(entry.get("amount_eur")) for entry in spending), Decimal("0.00"))
     refund_total = sum((_euros(entry.get("amount_eur")) for entry in refunds), Decimal("0.00"))
-    balance = income_total - spending_total - refund_total
+    payout_total = sum((_euros(entry.get("amount_eur")) for entry in payouts), Decimal("0.00"))
+    outflow = spending_total + refund_total + payout_total
+    balance = income_total - outflow
     return {
         "milestone_id": milestone_id,
         "currency": "EUR",
         "income_eur": _euros_text(income_total),
         "spending_eur": _euros_text(spending_total),
         "refunded_eur": _euros_text(refund_total),
+        "payouts_eur": _euros_text(payout_total),
         "balance_eur": _euros_text(balance),
-        "overdrawn": spending_total + refund_total > income_total,
+        "overdrawn": outflow > income_total,
         "income": [await _income_line(entry) for entry in income],
         "spending": [_public_finance(entry) for entry in spending],
+        "payouts": [_public_finance(entry) for entry in payouts],
         "captured_eur": _euros_text(income_total),
         "authorized_eur": "0.00",
     }

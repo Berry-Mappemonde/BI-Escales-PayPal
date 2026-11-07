@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import asyncio
 import sys
 from pathlib import Path
 
@@ -15,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.escales.captain import pledge_cart, suggest_pledge
 from app.escales.paypal_client import PayPalError
 from app.escales.pledges import reset_ledger
+from tests.review_helpers import approve_capture_review
 from app.routers.escales import router, set_paypal_client_factory, webhooks_router
 from tests.test_escales_router import ADMIN, FakePayPal, MAYOTTE_PLEDGE, NEAR_MAYOTTE_CLOCK, PLEDGE, _authorize, _create, _ready, _ready_mayotte
 
@@ -147,6 +149,7 @@ def test_n21_capture_before_cabin_leg_departure_is_refused(api, monkeypatch):
 def test_n22_stop_fund_balance_subtracts_refunds(api, monkeypatch):
     client, _fake = api
     _created, authorized = _ready_mayotte(client, "fund-refund", monkeypatch)
+    asyncio.run(approve_capture_review(authorized["milestone_id"]))
     assert client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN).status_code == 200
     before = client.get("/api/escales/milestones/dep-mayotte/fund").json()
     assert before["balance_eur"] == "20.00"

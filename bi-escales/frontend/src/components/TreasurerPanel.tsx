@@ -1,8 +1,13 @@
-import { FormEvent } from "react";
+import { FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { FundView, PublicPledge } from "../api/types";
+import { MaskedSecretInput } from "./MaskedSecretInput";
 import { TreasurerPayPalPanel } from "./TreasurerPayPalPanel";
+import { TreasurerWebhookPanel } from "./TreasurerWebhookPanel";
 import { TreasurerQueue } from "./TreasurerQueue";
+import { TreasurerGrid } from "./TreasurerGrid";
+import { TreasurerStudioSection } from "./TreasurerStudioSection";
+import "./treasurer-panel.css";
 
 function OpenFundTotals({
   title,
@@ -61,6 +66,8 @@ export interface TreasurerPanelProps {
   spendError: string | null;
   fund: FundView | null;
   onSpendSubmit: (event: FormEvent) => void;
+  demoMode?: boolean;
+  children?: ReactNode;
 }
 
 export function TreasurerPanel({
@@ -92,34 +99,45 @@ export function TreasurerPanel({
   spendError,
   fund,
   onSpendSubmit,
+  demoMode = false,
+  children,
 }: TreasurerPanelProps) {
   const { t } = useTranslation();
 
   return (
     <section className="treasurer-panel panel" data-testid="treasurer-panel">
-      <button
-        type="button"
-        className="treasurer-panel-toggle"
-        data-testid="treasurer-panel-toggle"
-        aria-expanded={open}
-        aria-controls="treasurer-panel-body"
-        onClick={() => onOpenChange(!open)}
-      >
-        {t("treasurer.panelTitle")}
-      </button>
+      <header className="treasurer-panel-heading">
+        <h2>
+          <button
+            type="button"
+            className="treasurer-panel-toggle"
+            data-testid="treasurer-panel-toggle"
+            aria-expanded={open}
+            aria-controls="treasurer-panel-body"
+            onClick={() => onOpenChange(!open)}
+          >
+            {t("treasurer.panelTitle")}
+          </button>
+        </h2>
+        {children}
+      </header>
       {open ? (
         <div className="treasurer-panel-body" id="treasurer-panel-body" data-testid="treasurer-panel-body">
+          {demoMode ? (
+            <p className="notice demo-treasurer-banner" data-testid="demo-treasurer-banner">
+              {t("treasurer.demoBanner")}
+            </p>
+          ) : (
+            <>
           <p className="hint">{t("treasurer.adminKeyHint")}</p>
-          <label className="admin-key shared-admin">
-            {t("treasurer.adminKey")}
-            <input
-              type="password"
-              autoComplete="off"
-              value={adminKey}
-              onChange={(event) => onAdminKeyChange(event.target.value)}
-              data-testid="admin-key-input"
-            />
-          </label>
+          <MaskedSecretInput
+            className="admin-key shared-admin"
+            label={t("treasurer.adminKey")}
+            value={adminKey}
+            onChange={onAdminKeyChange}
+            testId="admin-key-input"
+            autoComplete="off"
+          />
           <p className="hint" data-testid="treasurer-milestone-hint">
             {t("treasurer.milestoneFromStop", { id: milestoneId.trim() || "—" })}
           </p>
@@ -132,8 +150,13 @@ export function TreasurerPanel({
             {t("treasurer.settle")}
           </button>
           {settleNote ? (
-            <p className="notice" data-testid="settle-note">
-              {settleNote}
+            <p className="notice treasurer-settle-note" data-testid="settle-note">
+              {settleNote.split("\n").map((line, index) => (
+                <span key={`${index}-${line}`} className="settle-note-line">
+                  {line}
+                  {index < settleNote.split("\n").length - 1 ? <br /> : null}
+                </span>
+              ))}
             </p>
           ) : null}
           {clockPinned ? (
@@ -162,16 +185,32 @@ export function TreasurerPanel({
             <OpenFundTotals title={t("fund.projectTotals")} fund={projectFund} testId="project-fund-totals" />
             <OpenFundTotals title={t("fund.boatTotals")} fund={boatFund} testId="common-fund-totals" />
           </section>
+            </>
+          )}
           <TreasurerQueue
             pledges={pledges}
             loading={loading}
             error={error}
             needsKey={needsKey}
             adminKey={adminKey}
+            demoTreasurer={demoMode}
             onRefresh={onRefreshQueue}
             onUpdated={onPledgeUpdated}
           />
+          {!demoMode ? (
+            <>
           <TreasurerPayPalPanel adminKey={adminKey} />
+          <TreasurerWebhookPanel adminKey={adminKey} />
+          <TreasurerGrid
+            pledges={pledges}
+            milestones={[]}
+            adminKey={adminKey}
+            selectedMilestoneId={milestoneId}
+            onSelectMilestone={_onMilestoneIdChange}
+            onMilestonesChange={() => {}}
+            onPledgeUpdated={onPledgeUpdated}
+          />
+          <TreasurerStudioSection pledges={pledges} />
           <form className="stack-form" onSubmit={onSpendSubmit}>
             <h2>{t("fund.heading")}</h2>
             <label>
@@ -197,6 +236,8 @@ export function TreasurerPanel({
               </p>
             ) : null}
           </form>
+            </>
+          ) : null}
         </div>
       ) : null}
     </section>

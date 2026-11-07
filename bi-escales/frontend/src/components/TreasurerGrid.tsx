@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import type { Milestone, PublicPledge } from "../api/types";
 import { featureAgGridEnabled } from "../config/features";
-import { buildGaugeRows, gaugePercent } from "../utils/gauges";
+import { buildGaugeRows, buildMarinaDashboardRows, gaugePercent } from "../utils/gauges";
 
 type AgTableProps = { rows: ReturnType<typeof buildGaugeRows> };
 
@@ -12,10 +12,12 @@ function OptionalAgGrid({ rows }: AgTableProps) {
 
   useEffect(() => {
     let cancelled = false;
-    // Variable specifier so the core Vite/tsc build does not import ag-grid.
-    // ag-grid-community is not AG Studio and is not a prize claim.
-    const specifier = "./TreasurerGridAg.tsx";
-    import(/* @vite-ignore */ specifier)
+    // Build-time checks let Vite omit this optional chunk when disabled.
+    if (!(import.meta.env.VITE_ENABLE_AG_GRID === "1"
+      || import.meta.env.VITE_ENABLE_AG_GRID === "true"
+      || import.meta.env.VITE_ENABLE_AG_GRID === "yes"
+      || import.meta.env.VITE_ENABLE_AG_GRID === "on")) return;
+    import("./TreasurerGridAg")
       .then((mod: { default?: ComponentType<AgTableProps> }) => {
         if (!cancelled && mod.default) setTable(() => mod.default as ComponentType<AgTableProps>);
         else if (!cancelled) setFailed(true);
@@ -102,12 +104,69 @@ function FallbackTreasurerTable({ rows }: { rows: ReturnType<typeof buildGaugeRo
 export function TreasurerGrid(props: TreasurerGridProps) {
   const { t } = useTranslation();
   const rows = useMemo(() => buildGaugeRows(props.pledges), [props.pledges]);
+  const marinaRows = useMemo(() => buildMarinaDashboardRows(props.pledges), [props.pledges]);
   const agGrid = featureAgGridEnabled();
 
   return (
+    <>
     <section className="panel treasurer-grid">
       <h2>{t("grid.heading")}</h2>
       {agGrid ? <OptionalAgGrid rows={rows} /> : <FallbackTreasurerTable rows={rows} />}
     </section>
+    <section className="panel treasurer-marina-grid" data-testid="treasurer-marina-dashboard">
+      <h2>{t("grid.marinaHeading")}</h2>
+      {marinaRows.some((row) => row.marina_payout_status !== "—") ? (
+        <p className="hint" data-testid="marina-payout-banner">
+          {t("grid.marinaPayoutBanner")}
+        </p>
+      ) : null}
+      {marinaRows.length === 0 ? (
+        <p className="hint">{t("grid.marinaEmpty")}</p>
+      ) : (
+        <table className="fallback-table grid-table" data-testid="marina-dashboard-table">
+          <thead>
+            <tr>
+              <th>{t("grid.marinaStop")}</th>
+              <th>{t("grid.marinaBookings")}</th>
+              <th>{t("grid.marinaGross")}</th>
+              <th>
+                {marinaRows.some((row) => row.fees_simulated)
+                  ? t("grid.marinaFeesSimulated")
+                  : t("grid.marinaFees")}
+              </th>
+              <th>
+                {marinaRows.some((row) => row.fees_simulated)
+                  ? t("grid.marinaNetSimulated")
+                  : t("grid.marinaNet")}
+              </th>
+              <th>{t("grid.marinaPayoutStatus")}</th>
+              <th>{t("grid.marinaRefunds")}</th>
+              <th>{t("grid.marinaDisputes")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {marinaRows.map((row) => (
+              <tr key={row.marina_key}>
+                <td>{row.marina_key}</td>
+                <td>{row.berth_bookings}</td>
+                <td>{row.gross_eur.toFixed(2)} €</td>
+                <td>{row.platform_fees_eur.toFixed(2)} €</td>
+                <td>{row.marina_net_eur.toFixed(2)} €</td>
+                <td data-testid={`marina-payout-status-${row.marina_key}`}>
+                  {row.marina_payout_status === "—"
+                    ? "—"
+                    : t(`grid.marinaPayoutStatus.${row.marina_payout_status}`, {
+                        defaultValue: row.marina_payout_status,
+                      })}
+                </td>
+                <td>{row.refunds_eur.toFixed(2)} €</td>
+                <td>{row.disputes_open}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+    </>
   );
 }

@@ -9,7 +9,7 @@ describe("settleClock", () => {
   it("posts /clock/settle with the treasurer key and refuses an empty key", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ settled: [] }),
+      json: async () => ({ settled: { actions: [] } }),
     });
     vi.stubGlobal("fetch", fetchMock);
 

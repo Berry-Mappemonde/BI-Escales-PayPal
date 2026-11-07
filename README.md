@@ -4,10 +4,12 @@ PayPal AI Hackathon 2026 project by Association Berry-Mappemonde.
 
 A supporter's PayPal pledge is **authorized** (Orders v2 `intent=AUTHORIZE`), and **captured** only once the AI Captain has reviewed the evidence for a voyage stop and a human treasurer has approved it; otherwise it is **voided**. The AI Captain proposes, it never executes.
 
-- `bi-escales/` — FastAPI backend: pledges (authorize / capture / void), milestones and evidence, AI Captain, audit journal. Partner integrations (e.g. PayPal Agent Toolkit) are optional modules behind environment flags, off by default.
+For milestone pledges, approval records the verdict, its proposal time, and the approval time on the simulated voyage clock. Only the latest approved **capture** review permits capture, and both times must be at or after the stop's arrival (the leg's departure for cabins). Approving **wait** never permits capture. Settlement returns `await_review_approval` and direct capture returns HTTP 409 until a qualifying review is approved. Legacy approval records are retained and require a fresh review and approval.
+
+- `bi-escales/` — FastAPI backend (`bi-escales/backend`) and Vite/React frontend (`bi-escales/frontend`): pledges (authorize / capture / void), milestones and evidence, AI Captain, audit journal. Partner integrations (e.g. PayPal Agent Toolkit) are optional modules behind environment flags, off by default.
 - `naviguide-escales/` — NAVIGUIDE voyage simulator (snapshot, no history).
 
-Status: in development. PayPal **sandbox only**; no real money moves. Planned departure: 15 May 2027.
+Status: in development. PayPal **sandbox only**; no real money moves. Planned departure: 12 Nov 2026.
 
 ## Void id
 
@@ -21,7 +23,7 @@ PayPal's void of an authorization usually returns no id (HTTP 204). `void_id` is
 
 A Super call waits 20 s (`ESCALES_LLM_TIMEOUT_NIM_S`). Lightning waits 10 s (`ESCALES_LLM_TIMEOUT_NIM_FALLBACK_S`). After HTTP 429 the same NIM model is tried once. The pause follows `Retry-After`, capped at 3 s, and is at least the gap between NIM calls. HTTP 404 or 403 logs `model unavailable for this key` and skips that hop for 10 minutes.
 
-Chat and the milestone report ask Super first. The JSON advisory asks Lightning first, then Super. The payload has no `reasoning_effort` and no `nvext`. `top_p` is sent only when the temperature is above 0. `guided_json` stays at the root of the NIM request. OpenRouter receives `response_format` with the same JSON schema.
+Chat and the milestone report ask Super first. The JSON advisory uses `JSON_HTTP_CASCADE` with Lightning (`nim_fallback`) before Super on purpose, to save credits. The payload has no `reasoning_effort` and no `nvext`. `top_p` is sent only when the temperature is above 0. `guided_json` stays at the root of the NIM request. OpenRouter receives `response_format` with the same JSON schema.
 
 ## Provider limits
 
@@ -38,8 +40,21 @@ The API runs fully on local pytest and manual treasurer routes without any of th
 | PayPal webhooks | `ESCALES_WEBHOOKS_ENABLED` + `PAYPAL_WEBHOOK_ID` | Inbound `POST /api/escales/webhooks/paypal` with PayPal `verify-webhook-signature` and transmission idempotence |
 | PayPal Agent Toolkit | `ESCALES_TOOLKIT_ENABLED` | Read-only order lookups for the Captain |
 | Render deploy | `bi-escales/render.yaml` | Optional blueprint; set env vars in the Render dashboard (names only in the file) |
-| Postman | `bi-escales/postman/escales.postman_collection.json` | Sandbox walkthrough (create → authorize → capture / void); not loaded by the app |
+| AG Grid Community | `VITE_ENABLE_AG_GRID` (frontend build) | Optional AG Grid view of the treasurer milestone table, shipped as a lazy chunk when the flag is on; absent from the build when off (default), which keeps the HTML table |
+| Postman | `bi-escales/postman/escales.postman_collection.json` + `escales.sandbox.postman_environment.json` | Sandbox walkthrough (create → authorize → capture / void) against test2; admin key left empty; not loaded by the app |
+| Bryntum | `bi-escales/frontend/src/components/escales/BryntumTimeline.jsx` | Read-only stopover timeline (public npm trial `@bryntum/scheduler-trial`), only when `ESCALES_BRYNTUM_ENABLED=true`; falls back to the local list |
 | Zapier | `ESCALES_ZAPIER_ENABLED` | Optional automation layer (see below) |
+
+### Render (documentation)
+
+The blueprint in `bi-escales/render.yaml` describes one free web service (`bi-escales-api`): `npm ci && npm run build` for the Vite shell, then `uvicorn` on `$PORT`. `autoDeployTrigger: off` — pushes do not deploy; Clément triggers deploys manually.
+
+Partner toggles on Render (names only, no values in git):
+
+- **Build** — `VITE_ENABLE_AG_GRID=1` ships AG Grid as a lazy chunk (`TreasurerGridAg`), loaded when the treasurer table opens. Leave it unset or `0` and the chunk is absent from the build; the page keeps the HTML table.
+- **Runtime** — `ESCALES_BRYNTUM_ENABLED=1` exposes Bryntum on `/api/escales/features` and the voyage tab loads the read-only timeline; default off keeps the local schedule list.
+
+See `bi-escales/docs/deploiement-render.md` for return URLs and same-origin setup, and `bi-escales/scripts/smoke_same_origin.py` for the smoke script. Removing partner env vars or the Postman folder does not change core pledge behaviour.
 
 ### Optional Zapier Zap
 
@@ -50,6 +65,14 @@ When `ESCALES_ZAPIER_ENABLED=1`, webhook responses may include a hint that you c
 3. **Action — Webhooks POST** to your BI Escales treasurer tools (still behind `x-admin-key`) or to Slack/email for human approval.
 
 Zapier never replaces the treasurer: capture and void remain explicit `POST` calls with `ESCALES_ADMIN_KEY`. With the flag off, no Zapier-specific behaviour runs.
+
+## PayPal MCP server
+
+PayPal hosts a **remote Model Context Protocol (MCP) server** so a treasurer (or developer) can connect an AI assistant such as **Claude Desktop** or **Cursor** to PayPal **sandbox** data with natural language— for example to inspect checkout orders, payment authorizations, disputes, or transaction search results—without pasting secrets into chat.
+
+Official setup (endpoints, OAuth with dashboard **client ID / secret**, SSE vs streamable HTTP, and local vs remote server) is documented in PayPal’s **[MCP server quickstart guide](https://developer.paypal.com/ai-tools/mcp-server)**. For sandbox, use the remote endpoint `https://mcp.sandbox.paypal.com` (production uses `https://mcp.paypal.com`). Configure the MCP client JSON as PayPal describes; store access tokens and credentials in environment variables or the client’s secret store, not in the repository.
+
+This is **separate** from the in-app Captain integration: `ESCALES_TOOLKIT_ENABLED` turns on read-only PayPal lookups inside BI Escales (see table above). The remote MCP server is optional tooling for humans exploring the same sandbox account from Claude or Cursor.
 
 ## Captain limits (production only)
 
@@ -63,14 +86,53 @@ Zapier never replaces the treasurer: capture and void remain explicit `POST` cal
 
 `ESCALES_RATE_LIMIT_ENABLED=true` forces both on even in development. `ESCALES_RATE_LIMIT_ENABLED=false` forces both off even in production. Counts stay in memory for the life of the process.
 
-## Quick start (backend)
+## Quick start
+
+Get from a fresh clone to a running local demo in under 10 minutes.
+
+### 1. Backend
+
+Requires Python 3.12 (see `.python-version`):
+
 ```bash
 cd bi-escales/backend
-python -m venv .venv && . .venv/bin/activate
+python3.12 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 python -m pytest tests -q
 ```
-Copy `.env.example` to `.env` and fill in sandbox values locally; never commit it.
+
+Copy the example environment file and configure local in-memory demo settings:
+
+```bash
+cp ../.env.example .env
+```
+
+In `.env`, set:
+- `ESCALES_ENABLED=1`
+- `ESCALES_STORE=memory`
+- `PAYPAL_CLIENT_ID=sandbox_placeholder`
+- `PAYPAL_CLIENT_SECRET=sandbox_placeholder`
+- `ESCALES_ADMIN_KEY=dev-secret`
+
+Start the backend API server on port 8000:
+
+```bash
+python -m uvicorn app.main:app --reload --port 8000 --env-file .env
+```
+
+Verify backend health at `http://127.0.0.1:8000/api/health`.
+
+### 2. Frontend
+
+In a separate terminal:
+
+```bash
+cd bi-escales/frontend
+npm ci
+VITE_API_PROXY_TARGET=http://127.0.0.1:8000 npm run dev
+```
+
+Open `http://localhost:5173` in your browser.
 
 ## License
 Dual-licensed under MIT (`LICENSE-MIT`) or Apache-2.0 (`LICENSE-APACHE`), at your option.

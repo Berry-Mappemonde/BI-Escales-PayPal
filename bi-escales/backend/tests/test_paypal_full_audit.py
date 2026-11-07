@@ -25,6 +25,7 @@ from app.escales.pledges import (
     reset_ledger,
 )
 from app.escales.project_payouts import approve_project_payout, propose_project_payout
+from tests.review_helpers import approve_capture_review
 from app.routers.escales import router, set_paypal_client_factory
 
 
@@ -230,7 +231,8 @@ def test_treasurer_chat_exposes_readonly_paypal_tools():
     )
     body = ok.json()
     assert body["model_source"] == "paypal_readonly_tools"
-    assert "transactions.search" in body.get("paypal_tools", [])
+    assert "transactions.search" in (body.get("paypal_tools") or {}).get("tools", [])
+    assert body["paypal_tools"]["client"] in {"direct", "paypal-agent-toolkit"}
     assert "read-only" in body["reply"].lower()
     assert any(call[0] == "search" for call in spy.calls)
 
@@ -245,6 +247,7 @@ def test_admin_refund_route(api, monkeypatch):
     ).json()
     api.post(f"/api/escales/pledges/{created['id']}/authorize")
     monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    asyncio.run(approve_capture_review(created["milestone_id"]))
     api.post(
         f"/api/escales/pledges/{created['id']}/capture",
         headers={"x-admin-key": "audit-admin"},

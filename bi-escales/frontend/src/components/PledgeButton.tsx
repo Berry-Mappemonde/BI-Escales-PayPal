@@ -1,11 +1,29 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { createPledge, registerVault, isVaultPledge } from "../api/escales";
+import {
+  authorizePledge,
+  createPledge,
+  fetchFeatures,
+  fetchPledgeMode,
+  registerVault,
+  isVaultPledge,
+} from "../api/escales";
+import { PayPalCardFieldsBlock } from "./PayPalCardFieldsBlock";
 import type { PublicPledge } from "../api/types";
-import { loadPayPalSdk, payLaterEligible } from "../paypal/paypalSdk";
+import {
+  loadPayPalSdk,
+  payLaterEligible,
+  safePayPalClose,
+  safePayPalRender,
+  type PayPalNamespace,
+  type PayPalSdkButtonInstance,
+} from "../paypal/paypalSdk";
+import { PayPalErrorBoundary } from "./PayPalErrorBoundary";
+import { PayPalWalletPayBlock } from "./PayPalWalletPayBlock";
 import { subscribePledgeReturn } from "../paypal/pledgeReturnEvents";
 
 export interface PledgeFormValues {
+  quantity?: number;
   amount_eur: string;
   description: string;
   milestone_id: string;
@@ -21,39 +39,129 @@ export interface PledgeButtonProps {
   onAuthorized?: (pledge: PublicPledge) => void;
 }
 
-export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonProps) {
+export function PledgeButton(props: PledgeButtonProps) {
+  return (
+    <PayPalErrorBoundary testId="paypal-buttons-error">
+      <PledgeButtonInner {...props} />
+    </PayPalErrorBoundary>
+  );
+}
+
+function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps) {
   const { t, i18n } = useTranslation();
   const appLang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const [created, setCreated] = useState<PublicPledge | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [sdkReady, setSdkReady] = useState(false);
+  const [paypal, setPaypal] = useState<PayPalNamespace | null>(null);
+  const sdkReady = paypal !== null;
+  const [smartButtonsReady, setSmartButtonsReady] = useState(false);
+  const [pledgeMode, setPledgeMode] = useState<{
+    milestoneId: string;
+    kind: string | undefined;
+    paymentMode: "AUTHORIZE" | "VAULT";
+  } | null>(null);
+  const [cardFieldsEnabled, setCardFieldsEnabled] = useState(false);
+  const [walletPayEnabled, setWalletPayEnabled] = useState(false);
+  // Load the SDK once the feature flags are known, so a wallet_pay flip does not load a second SDK.
+  const [featuresKnown, setFeaturesKnown] = useState(false);
   const sdkHost = useRef<HTMLDivElement | null>(null);
   const activePledgeIdRef = useRef<string | null>(null);
   const vault = created ? isVaultPledge(created) : false;
   const isProjectPledge = (values.kind || "") === "project_pledge";
+  const sdkIntent = isProjectPledge ? "capture" : "authorize";
+  const modeMatchesValues =
+    pledgeMode?.milestoneId === values.milestone_id && pledgeMode.kind === values.kind;
+  const shouldRenderSmartButtons =
+    isProjectPledge || (modeMatchesValues && pledgeMode.paymentMode === "AUTHORIZE");
+  const intentLabel = isProjectPledge
+    ? t("pledge.intentProject")
+    : modeMatchesValues
+      ? t(pledgeMode.paymentMode === "VAULT" ? "pledge.intentVault" : "pledge.intent")
+      : null;
+  const buttonsHost = useRef<HTMLDivElement | null>(null);
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+  // Bumped on every amount/target change; an order answered for an older revision is dropped.
+  const formRevisionRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
-    const clientId = String(import.meta.env.VITE_PAYPAL_CLIENT_ID ?? "").trim();
-    if (!clientId) {
-      setSdkReady(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-    void loadPayPalSdk(clientId, appLang)
-      .then(() => {
-        if (!cancelled) setSdkReady(true);
+    void fetchFeatures()
+      .then((flags) => {
+        if (!cancelled) {
+          setCardFieldsEnabled(Boolean(flags.card_fields));
+          setWalletPayEnabled(Boolean(flags.wallet_pay));
+          setFeaturesKnown(true);
+        }
       })
       .catch(() => {
-        if (!cancelled) setSdkReady(false);
+        if (!cancelled) {
+          setCardFieldsEnabled(false);
+          setFeaturesKnown(true);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [appLang]);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const clientId = String(import.meta.env.VITE_PAYPAL_CLIENT_ID ?? "").trim();
+    setPaypal(null);
+    if (!clientId || !featuresKnown) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    void loadPayPalSdk(clientId, appLang, sdkIntent, walletPayEnabled)
+      .then((ns) => {
+        if (!cancelled) setPaypal(ns);
+      })
+      .catch(() => {
+        if (!cancelled) setPaypal(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [appLang, sdkIntent, walletPayEnabled, featuresKnown]);
+
+  useEffect(() => {
+    formRevisionRef.current += 1;
+    setCreated(null);
+    setStatus(null);
+    setError(null);
+    setBusy(false);
+    activePledgeIdRef.current = null;
+  }, [values.amount_eur, values.kind, values.milestone_id, values.description, values.target_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPledgeMode(null);
+    if (isProjectPledge) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    void fetchPledgeMode(values.milestone_id, values.kind)
+      .then(({ payment_mode }) => {
+        if (!cancelled) {
+          setPledgeMode({
+            milestoneId: values.milestone_id,
+            kind: values.kind,
+            paymentMode: payment_mode,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPledgeMode(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isProjectPledge, values.milestone_id, values.kind]);
 
   useEffect(() => {
     if (!created?.approve_link || !vault) return;
@@ -77,22 +185,28 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
   }, [created?.id, t]);
 
   const createOrder = async () => {
+    const revision = formRevisionRef.current;
+    const isStale = () => revision !== formRevisionRef.current;
     setBusy(true);
     setError(null);
     setStatus(t("pledge.creating"));
     try {
+      const v = valuesRef.current;
       const pledge = await createPledge(
         {
-          amount_eur: values.amount_eur,
-          description: values.description,
-          milestone_id: values.milestone_id,
-          contributor: values.contributor?.trim() || undefined,
-          kind: values.kind,
-          target_id: values.target_id,
-          lang: values.lang || appLang,
+          amount_eur: v.amount_eur,
+            quantity: v.quantity,
+          description: v.description,
+          milestone_id: v.milestone_id,
+          contributor: v.contributor?.trim() || undefined,
+          kind: v.kind,
+          target_id: v.target_id,
+          lang: v.lang || appLang,
         },
         crypto.randomUUID(),
       );
+      // The form changed while this order was being created: never show its old approve link.
+      if (isStale()) return;
       if (!pledge.approve_link) throw new Error("approve_link missing");
       activePledgeIdRef.current = pledge.id;
       setCreated(pledge);
@@ -104,13 +218,86 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
         setStatus(t("pledge.returnPending"));
       }
     } catch (e) {
+      if (isStale()) return;
       activePledgeIdRef.current = null;
       setCreated(null);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      if (!isStale()) setBusy(false);
     }
   };
+
+  /** In-page Smart Buttons (PayPal wallet, Pay Later, card): no approve_link redirect. */
+  useEffect(() => {
+    setSmartButtonsReady(false);
+    const host = buttonsHost.current;
+    if (!host) return;
+    host.innerHTML = "";
+    if (!paypal || !shouldRenderSmartButtons || disabled) return;
+    let pledgeId: string | null = null;
+    let closed = false;
+    let buttons: PayPalSdkButtonInstance | null = null;
+    void safePayPalRender(
+      paypal.Buttons,
+      {
+        style: { layout: "vertical", label: isProjectPledge ? "donate" : "pay" },
+        createOrder: async () => {
+          const revision = formRevisionRef.current;
+          setError(null);
+          setStatus(t("pledge.creating"));
+          const v = valuesRef.current;
+          const pledge = await createPledge(
+            {
+              amount_eur: v.amount_eur,
+            quantity: v.quantity,
+              description: v.description,
+              milestone_id: v.milestone_id,
+              contributor: v.contributor?.trim() || undefined,
+              kind: v.kind,
+              target_id: v.target_id,
+              lang: v.lang || appLang,
+            },
+            crypto.randomUUID(),
+          );
+          if (revision !== formRevisionRef.current) {
+            // Amount changed mid-request: refuse the old order so PayPal never approves it.
+            throw new Error("pledge form changed, order discarded");
+          }
+          if (!pledge.order_id) throw new Error("order_id missing");
+          pledgeId = pledge.id;
+          activePledgeIdRef.current = pledge.id;
+          return pledge.order_id;
+        },
+        onApprove: async () => {
+          if (!pledgeId) return;
+          setBusy(true);
+          try {
+            const done = await authorizePledge(pledgeId);
+            setStatus(isProjectPledge ? t("pledge.returnPendingProject") : t("pledge.returnPending"));
+            onAuthorized?.(done);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          } finally {
+            setBusy(false);
+          }
+        },
+        onCancel: () => setStatus(null),
+        onError: (err: unknown) => setError(err instanceof Error ? err.message : String(err)),
+      },
+      host,
+    ).then((result) => {
+      buttons = result.instance;
+      if (closed) safePayPalClose(buttons);
+      else if (result.ok) {
+        host.dataset.smartButtons = "1";
+        setSmartButtonsReady(true);
+      }
+    });
+    return () => {
+      closed = true;
+      safePayPalClose(buttons);
+    };
+  }, [paypal, shouldRenderSmartButtons, disabled, isProjectPledge, appLang, t, onAuthorized]);
 
   const confirmVault = async () => {
     if (!created || !vault) return;
@@ -134,24 +321,30 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
     sdkHost.current.dataset.paypalSdkReady = "1";
     const host = sdkHost.current;
     host.innerHTML = "";
-    if (payLaterEligible(values.amount_eur, values.kind) && window.paypal?.Messages) {
-      const messages = window.paypal.Messages({
-        amount: values.amount_eur.replace(",", "."),
-        placement: "product",
-        style: { layout: "text" },
+    if (paypal && payLaterEligible(values.amount_eur, values.kind)) {
+      void safePayPalRender(
+        paypal.Messages,
+        {
+          amount: values.amount_eur.replace(",", "."),
+          placement: "product",
+          style: { layout: "text" },
+        },
+        host,
+      ).then((result) => {
+        if (result.ok) host.dataset.payLaterMessages = "1";
       });
-      void messages.render(host);
-      host.dataset.payLaterMessages = "1";
     }
-  }, [sdkReady, values.amount_eur, values.kind]);
+  }, [paypal, sdkReady, values.amount_eur, values.kind]);
 
   return (
     <div className="pledge-button" data-testid="paypal-buttons" data-kind={values.kind || ""}>
-      <p className="hint">{isProjectPledge ? t("pledge.intentProject") : t("pledge.intent")}</p>
+      {intentLabel ? <p className="hint">{intentLabel}</p> : null}
       <p className="hint">{t("pledge.venmoNote")}</p>
-      <button type="button" onClick={() => void createOrder()} disabled={disabled || busy}>
-        {t("pledge.create")}
-      </button>
+      {!smartButtonsReady ? (
+        <button type="button" onClick={() => void createOrder()} disabled={disabled || busy}>
+          {t("pledge.create")}
+        </button>
+      ) : null}
       {created?.approve_link && !vault ? (
         <a href={created.approve_link} rel="noreferrer" data-testid="paypal-approve-link">
           {t("pledge.approve")}
@@ -166,6 +359,27 @@ export function PledgeButton({ values, disabled, onAuthorized }: PledgeButtonPro
         <button type="button" data-testid="pledge-authorize" onClick={() => void confirmVault()} disabled={busy}>
           {t("pledge.vaultConfirm")}
         </button>
+      ) : null}
+      <div ref={buttonsHost} data-testid="paypal-smart-buttons" />
+      {walletPayEnabled && !isProjectPledge ? (
+        <PayPalWalletPayBlock
+          values={values}
+          appLang={appLang}
+          sdkIntent={sdkIntent}
+          sdkReady={sdkReady}
+          paypal={paypal}
+          disabled={disabled || busy}
+          onAuthorized={onAuthorized}
+        />
+      ) : null}
+      {cardFieldsEnabled && !isProjectPledge ? (
+        <PayPalCardFieldsBlock
+          values={values}
+          appLang={appLang}
+          paypal={paypal}
+          disabled={disabled || busy}
+          onAuthorized={onAuthorized}
+        />
       ) : null}
       <div ref={sdkHost} data-testid="paypal-sdk-host" />
       {status ? <p className="status">{status}</p> : null}

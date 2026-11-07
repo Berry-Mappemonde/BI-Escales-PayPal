@@ -5,6 +5,7 @@ import datetime as dt
 import logging
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 SANDBOX_BASE = "https://api-m.sandbox.paypal.com"
@@ -154,6 +155,15 @@ def channel3_enabled() -> bool:
     return os.environ.get("ESCALES_CHANNEL3_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def channel3_api_key() -> str:
+    return (os.environ.get("CHANNEL3_API_KEY") or os.environ.get("ESCALES_CHANNEL3_API_KEY") or "").strip()
+
+
+def channel3_mcp_url() -> str:
+    raw = (os.environ.get("CHANNEL3_MCP_URL") or "https://ucp.trychannel3.com/mcp").strip()
+    return raw or "https://ucp.trychannel3.com/mcp"
+
+
 def bryntum_scheduler_enabled() -> bool:
     return os.environ.get("ESCALES_BRYNTUM_ENABLED", "").strip().lower() in _TRUTHY
 
@@ -171,6 +181,30 @@ def vault_enabled() -> bool:
     return os.environ.get("ESCALES_VAULT_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def demo_treasurer_enabled() -> bool:
+    """Sandbox-only, read-only treasurer view without x-admin-key.
+
+    Requires ``ESCALES_DEMO_TREASURER``, ``PAYPAL_ENV=sandbox`` and ``ESCALES_ENV`` other
+    than ``production``. It only unlocks a redacted ``GET /pledges`` (no contributor names);
+    capture, void and captain-review approval always need the treasurer key.
+    """
+    if os.environ.get("ESCALES_DEMO_TREASURER", "").strip().lower() not in _TRUTHY:
+        return False
+    if escales_env() == "production":
+        return False
+    env = (os.environ.get("PAYPAL_ENV") or "sandbox").strip().lower()
+    return env == "sandbox"
+
+
+def demo_treasurer_flag_set() -> bool:
+    return os.environ.get("ESCALES_DEMO_TREASURER", "").strip().lower() in _TRUTHY
+
+
+def demo_treasurer_env_forbidden() -> bool:
+    """Demo flag is on but PAYPAL_ENV is not sandbox or ESCALES_ENV is production."""
+    return demo_treasurer_flag_set() and not demo_treasurer_enabled()
+
+
 def card_fields_enabled() -> bool:
     """JS SDK Card Fields and card payment_source on orders/setup tokens. Off by default."""
     return os.environ.get("ESCALES_CARD_FIELDS_ENABLED", "").strip().lower() in _TRUTHY
@@ -184,6 +218,63 @@ def vault_on_purchase_enabled() -> bool:
 def wallet_pay_enabled() -> bool:
     """Apple Pay and Google Pay SDK components. Off by default; needs sandbox domain registration."""
     return os.environ.get("ESCALES_WALLET_PAY_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def platform_fees_enabled() -> bool:
+    """Multiparty marina platform fees (berth only). Off until Platform partner-referrals ACTIVE."""
+    return os.environ.get("ESCALES_PLATFORM_FEES_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def platform_fee_eur() -> str:
+    raw = (os.environ.get("ESCALES_PLATFORM_FEE_EUR") or "3.00").strip().replace(",", ".")
+    return raw or "3.00"
+
+
+def platform_payee_merchant_id() -> str:
+    """PayPal merchant id receiving the platform fee (marina multiparty)."""
+    return (os.environ.get("ESCALES_PLATFORM_PAYEE_MERCHANT_ID") or "").strip()
+
+
+def marina_seller_merchant_id(_target_id: str = "") -> str:
+    """Marina seller merchant id (from partner-referrals onboarding)."""
+    return (os.environ.get("ESCALES_MARINA_SELLER_MERCHANT_ID") or "").strip()
+
+
+def marina_payout_email_default() -> str:
+    return (os.environ.get("ESCALES_MARINA_PAYOUT_EMAIL") or "").strip()
+
+
+def marina_payouts_enabled() -> bool:
+    """Pay marina net via Payouts API on berth capture when multiparty fees are off.
+
+    Off by default like every other ESCALES_*_ENABLED flag; test2 sets it to 1 explicitly.
+    """
+    return os.environ.get("ESCALES_MARINA_PAYOUTS_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def paypal_berth_platform_fees_on_order(target_id: str = "") -> bool:
+    """True when PayPal Orders v2 will carry multiparty platform_fees for this berth."""
+    if not platform_fees_enabled():
+        return False
+    return bool(marina_seller_merchant_id(target_id)) and bool(platform_payee_merchant_id())
+
+
+def apple_pay_domain_association_file() -> str:
+    """Optional override path to the Apple Pay domain association file."""
+    return (os.environ.get("ESCALES_APPLE_PAY_DOMAIN_ASSOCIATION_FILE") or "").strip()
+
+
+def bundled_apple_pay_domain_association_path() -> Path:
+    """PayPal sandbox association file shipped under backend/static/.well-known/."""
+    backend_root = Path(__file__).resolve().parents[2]
+    return backend_root / "static" / ".well-known" / "apple-developer-merchantid-domain-association"
+
+
+def resolve_apple_pay_domain_association_path() -> Path:
+    override = apple_pay_domain_association_file()
+    if override:
+        return Path(override).expanduser().resolve()
+    return bundled_apple_pay_domain_association_path()
 
 
 def vault_return_url() -> str:
@@ -282,7 +373,3 @@ def load_config() -> EscalesConfig:
         client_secret=os.environ.get("PAYPAL_CLIENT_SECRET", ""),
         env=env,
     )
-
-
-def membership_url() -> str:
-    return (os.environ.get("HELLOASSO_MEMBERSHIP_URL") or "").strip()

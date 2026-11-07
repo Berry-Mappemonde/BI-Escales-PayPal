@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app.core import llm
 from app.escales.config import limits_enabled
 from app.escales.pledges import reset_ledger
-from app.escales.rate_limit import RateLimited, hit, per_day, per_minute, reset
+from app.escales.rate_limit import RateLimited, captain_rate_key, hit, per_day, per_minute, reset
 from app.escales.captain import chat
 from app.routers.escales import router, set_paypal_client_factory
 from test_llm_cascade import _openai, _transport
@@ -33,7 +33,6 @@ def api(monkeypatch):
     monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
     monkeypatch.delenv("ESCALES_ENV", raising=False)
     monkeypatch.delenv("ESCALES_RATE_LIMIT_ENABLED", raising=False)
-    monkeypatch.delenv("HELLOASSO_MEMBERSHIP_URL", raising=False)
     monkeypatch.delenv("ESCALES_LLM_ENABLED", raising=False)
     reset()
     reset_ledger()
@@ -48,14 +47,14 @@ def api(monkeypatch):
     llm.reset_llm_budget()
 
 
-def _chat(client, message, ip="203.0.113.10", accept_language="", lang=None):
-    headers = {"x-forwarded-for": ip}
+def _chat(client, message, ip="203.0.113.10", accept_language="", lang=None, headers=None):
+    req_headers = {"x-forwarded-for": ip, **(headers or {})}
     if accept_language:
-        headers["accept-language"] = accept_language
+        req_headers["accept-language"] = accept_language
     payload = {"message": message}
     if lang:
         payload["lang"] = lang
-    return client.post("/api/escales/captain/chat", json=payload, headers=headers)
+    return client.post("/api/escales/captain/chat", json=payload, headers=req_headers)
 
 
 def _review(client, ip="203.0.113.10", accept_language="", lang=None):
@@ -198,6 +197,45 @@ def test_pledges_stay_open_when_the_captain_is_limited(api, monkeypatch):
         headers={"x-forwarded-for": "203.0.113.50", "PayPal-Request-Id": "rate-pledge"},
     )
     assert created.status_code == 200, created.text
+
+
+def test_rotating_session_header_cannot_escape_ip_bucket(api, monkeypatch):
+    monkeypatch.setenv("ESCALES_RATE_LIMIT_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "1")
+    base = {"x-forwarded-for": "203.0.113.60"}
+    first = _chat(api, FR, headers={**base, "x-escales-session": "tab-a"})
+    assert first.status_code == 200, first.text
+    blocked = _chat(api, FR, headers={**base, "x-escales-session": "tab-a"})
+    assert blocked.status_code == 429
+    rotated = _chat(api, FR, headers={**base, "x-escales-session": "tab-b"})
+    assert rotated.status_code == 429
+    no_session = _chat(api, FR, headers=base)
+    assert no_session.status_code == 429
+    other_ip = _chat(api, FR, headers={"x-forwarded-for": "203.0.113.61", "x-escales-session": "tab-a"})
+    assert other_ip.status_code == 200, other_ip.text
+
+
+def test_rotating_sessions_share_the_daily_ip_cap(monkeypatch):
+    import datetime as dt
+
+    monkeypatch.setenv("ESCALES_RATE_LIMIT_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY", "3")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "100")
+    reset()
+    start = dt.datetime(2027, 6, 12, 8, 0, tzinfo=dt.timezone.utc)
+    for n in range(3):
+        hit(captain_rate_key("198.51.100.7", f"rot-{n}"), now=start + dt.timedelta(minutes=n))
+    with pytest.raises(RateLimited) as caught:
+        hit(captain_rate_key("198.51.100.7", "rot-99"), now=start + dt.timedelta(minutes=5))
+    assert caught.value.kind == "day"
+    hit(captain_rate_key("198.51.100.8", "rot-99"), now=start + dt.timedelta(minutes=5))
+    reset()
+
+
+def test_captain_rate_key_composes_ip_and_session():
+    assert captain_rate_key("1.2.3.4", "") == "1.2.3.4"
+    assert captain_rate_key("1.2.3.4", "uuid") == "1.2.3.4|uuid"
 
 
 def test_render_and_readme_document_the_production_gate():

@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.escales.departure_clock import run_departure_clock
+from tests.review_helpers import approve_capture_review
 from app.escales.paypal_reconcile import reconcile_paypal_ledger
 from app.escales.pledges import (
     authorize_pledge,
@@ -62,6 +63,9 @@ class MoneySpy:
 
     def capture_authorization(self, auth_id, **kwargs):
         return {"id": "CAP-1", "status": "COMPLETED"}
+
+    def reauthorize(self, auth_id, **kwargs):
+        return {"id": auth_id, "expiration_time": "2099-01-01T00:00:00Z"}
 
     def refund_capture(self, capture_id, **kwargs):
         return {"id": "RF-1", "status": "COMPLETED"}
@@ -165,6 +169,8 @@ def test_n9_settle_and_payment_mode_resolve_stops_without_milestone_sync(monkeyp
         assert before["actions"][0]["action"] == "wait"
         arrival_raw = str(doc["meta"]["arrival_iso"])
         arrival_day = datetime.fromisoformat(arrival_raw.replace("Z", "+00:00"))
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", arrival_day.isoformat())
+        await approve_capture_review("dep-dzaoudzi-mayotte")
         done = await run_departure_clock(spy, now=arrival_day)
         assert done["actions"][0]["action"] == "capture"
 

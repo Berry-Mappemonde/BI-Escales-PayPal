@@ -14,6 +14,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import i18n from "../i18n";
 import { ProjectMapPopup } from "../components/ProjectMapPopup.jsx";
+import { MarinaMapPopup } from "../components/MarinaMapPopup.jsx";
 import { SceneLayerRegistry } from "../../../../naviguide-escales/src/map/SceneLayerRegistry.js";
 import { createPanes } from "../../../../naviguide-escales/src/layers/layerOrder.js";
 import {
@@ -73,6 +74,7 @@ export function MapScene({
   onFlyTo,
   contributor = "",
   onPledgeAuthorized,
+  marinaMilestoneId = "",
   theme = "dark",
 }) {
   const { i18n: i18nInstance } = useTranslation();
@@ -109,7 +111,19 @@ export function MapScene({
     createPanes(map);
     mapRef.current = map;
     layersRef.current = new SceneLayerRegistry();
+    // Hard reload can mount before layout; force Leaflet to measure the pane.
+    requestAnimationFrame(() => {
+      try {
+        map.invalidateSize(false);
+      } catch {
+        /* map already removed */
+      }
+    });
+    // Changing a desktop rail resizes the map without a window resize event.
+    const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => map.invalidateSize(false));
+    resize?.observe(containerRef.current);
     return () => {
+      resize?.disconnect();
       layersRef.current?.clear();
       map.remove();
       mapRef.current = null;
@@ -145,7 +159,7 @@ export function MapScene({
     (stops || []).forEach((stop) => {
       const srcs = stop.flags || [];
       const html = srcs.length
-        ? `<div class="flag-stack">${srcs.map((src) => `<img src="${src}" alt="" style="height:22px;width:auto;display:block" />`).join("")}</div>`
+        ? `<div class="flag-stack">${srcs.map((src) => `<img src="${src}" alt="" style="height:22px;width:auto;display:block;box-sizing:border-box;border:1px solid var(--color-line);border-radius:var(--radius-chip);box-shadow:var(--shadow-marker)" />`).join("")}</div>`
         : drawingPinHtml(0);
       const icon = L.divIcon({
         className: "flag-divicon",
@@ -196,11 +210,12 @@ export function MapScene({
       const groupName = feature.properties?.category_group;
       const color = FALLBACK_COLORS[groupName] || FALLBACK_COLORS.Other;
       const marker = L.circleMarker([lat, lon], {
-        radius: 4,
+        radius: 2,
         color,
         weight: 1,
+        opacity: 0.32,
         fillColor: color,
-        fillOpacity: 0.85,
+        fillOpacity: 0.24,
         pane: "overlayPane",
       }).addTo(group);
       if (feature.properties?.title) marker.bindTooltip(feature.properties.title, { direction: "top" });
@@ -256,19 +271,56 @@ export function MapScene({
     if (!map || !layers) return;
     const group = layers.update("marinas", () => L.layerGroup().addTo(map), (layer) => layer.clearLayers());
     if (!showMarinas) return;
+    const roots = new Map();
     (marinas?.features || []).forEach((feature) => {
       const [lon, lat] = feature.geometry?.coordinates || [];
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      const props = feature.properties || {};
+      const verified = Boolean(props.safe_google_place);
+      const rejected = Boolean(props.maps_place_rejected);
+      const markerColor = verified ? "#00c8ff" : "#ff4a4a";
       const marker = L.circleMarker([lat, lon], {
         radius: 5,
-        color: "#ff4a4a",
-        weight: 1,
-        fillColor: "#ff4a4a",
-        fillOpacity: 0.8,
+        color: markerColor,
+        weight: rejected && !verified ? 2 : 1,
+        fillColor: markerColor,
+        fillOpacity: 0.85,
       }).addTo(group);
-      if (feature.properties?.name) marker.bindTooltip(feature.properties.name, { direction: "top" });
+      if (props.name) marker.bindTooltip(props.name, { direction: "top" });
+      const container = document.createElement("div");
+      let popupRoot = null;
+      const mountPopup = () => {
+        popupRoot?.unmount();
+        popupRoot = createRoot(container);
+        popupRoot.render(
+          <I18nextProvider i18n={i18n}>
+            <MarinaMapPopup
+              properties={props}
+              milestoneId={marinaMilestoneId}
+              contributorDefault={contributor}
+              onAuthorized={onPledgeAuthorized}
+            />
+          </I18nextProvider>,
+        );
+      };
+      marker.bindPopup(container, { maxWidth: 320, autoPan: true, keepInView: true });
+      marker.on("popupopen", mountPopup);
+      marker.on("popupclose", () => {
+        popupRoot?.unmount();
+        popupRoot = null;
+      });
+      marker.on("click", (event) => {
+        L.DomEvent.stopPropagation(event);
+        onFlyToRef.current?.(props.id, lat, lon);
+        marker.openPopup();
+      });
+      roots.set(marker, popupRoot);
     });
-  }, [marinas, showMarinas]);
+    return () => {
+      roots.forEach((root) => root?.unmount());
+      roots.clear();
+    };
+  }, [marinas, showMarinas, contributor, onPledgeAuthorized, marinaMilestoneId, i18nInstance.language]);
 
   useEffect(() => {
     const map = mapRef.current;

@@ -1,0 +1,202 @@
+/*
+ * What sits inside the Treasurer panel. The panel and its toggle belong to the
+ * shell. These selectors carry three classes on purpose: the shell's
+ * `.ng-sidebar .panel` loads later, so two would lose to it.
+ */
+.treasurer-panel .treasurer-panel-body {
+  color: var(--color-fg);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+}
+
+.treasurer-panel .treasurer-panel-body .panel {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+}
+
+.treasurer-panel .treasurer-panel-body h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-title);
+  line-height: var(--text-title--line-height);
+  font-weight: 500;
+}
+
+.treasurer-panel .treasurer-panel-body p:not(.captain-card p) {
+  margin: var(--space-2) 0;
+}
+
+.treasurer-panel .treasurer-panel-body .hint {
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.treasurer-panel .treasurer-panel-body label {
+  gap: var(--space-1);
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.treasurer-panel .treasurer-panel-body input {
+  min-height: 32px;
+  padding: var(--space-1) 10px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  transition: border-color var(--duration-fast) ease-out;
+}
+
+.treasurer-panel .treasurer-panel-body input:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 22%, transparent);
+}
+
+.treasurer-panel .treasurer-panel-body .admin-key.shared-admin {
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+}
+
+/* Buttons. The Captain card keeps its own. */
+.treasurer-panel .treasurer-panel-body button:not(.captain-card button) {
+  min-height: 32px;
+  margin-top: var(--space-1);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-raised);
+  color: var(--color-fg);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 500;
+  transition:
+    background-color var(--duration-fast) ease-out,
+    transform var(--duration-fast) var(--ease-out);
+}
+
+/* The two that act on the whole voyage or the fund. */
+.treasurer-panel .treasurer-panel-body > button:not(.captain-card button),
+.treasurer-panel .treasurer-panel-body .stack-form > button[type="submit"]:not(.captain-card button) {
+  border-color: var(--color-fg);
+  background: var(--color-fg);
+  color: var(--color-canvas);
+}
+
+.treasurer-panel .treasurer-panel-body button:not(.captain-card button):active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.treasurer-panel .treasurer-panel-body button:not(.captain-card button):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.treasurer-panel .treasurer-panel-body .masked-secret-toggle {
+  margin-top: 0;
+  font-size: var(--text-meta);
+}
+
+/* Tables */
+.treasurer-panel .treasurer-panel-body .fallback-table {
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-variant-numeric: tabular-nums;
+}
+
+.treasurer-panel .treasurer-panel-body .fallback-table th {
+  color: var(--color-fg-3);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.treasurer-panel .treasurer-panel-body .fallback-table th,
+.treasurer-panel .treasurer-panel-body .fallback-table td {
+  padding: var(--space-2) var(--space-2) var(--space-2) 0;
+  border-bottom: 1px solid var(--color-line);
+}
+
+/* The column is narrow, so wide tables scroll inside their own section. */
+.treasurer-panel .treasurer-panel-body .treasurer-grid,
+.treasurer-panel .treasurer-panel-body .treasurer-marina-grid,
+.treasurer-panel .treasurer-panel-body .treasurer-webhooks {
+  overflow-x: auto;
+}
+
+/* Gauges */
+.treasurer-panel .treasurer-panel-body .gauge {
+  margin-top: var(--space-1);
+}
+
+.treasurer-panel .treasurer-panel-body .gauge-label {
+  gap: var(--space-2);
+  color: var(--color-fg-3);
+  font-size: var(--text-micro);
+  line-height: var(--text-micro--line-height);
+}
+
+.treasurer-panel .treasurer-panel-body .gauge-track {
+  height: 6px;
+  background: var(--color-selected);
+}
+
+/* Lists and forms */
+.treasurer-panel .treasurer-panel-body .treasurer-paypal-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.treasurer-panel .treasurer-panel-body .stack-form {
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+}
+
+/* The spending form has no .panel of its own, so it gets the same frame. */
+.treasurer-panel .treasurer-panel-body > form.stack-form {
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .treasurer-panel .treasurer-panel-body button:not(.captain-card button):hover:not(:disabled) {
+    background: var(--color-selected);
+  }
+
+  .treasurer-panel .treasurer-panel-body > button:not(.captain-card button):hover:not(:disabled),
+  .treasurer-panel .treasurer-panel-body .stack-form > button[type="submit"]:not(.captain-card button):hover:not(:disabled) {
+    border-color: var(--color-fg-2);
+    background: var(--color-fg-2);
+  }
+}
+
+@media (pointer: coarse) {
+  .treasurer-panel .treasurer-panel-body button:not(.captain-card button) {
+    min-height: 44px;
+  }
+
+  /* Below 16px, iOS zooms the page on focus. */
+  .treasurer-panel .treasurer-panel-body input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .treasurer-panel .treasurer-panel-body button:not(.captain-card button):active:not(:disabled) {
+    transform: none;
+  }
+}

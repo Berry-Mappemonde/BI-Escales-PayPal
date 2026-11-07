@@ -11,12 +11,13 @@ import json
 import logging
 import re
 import time
+from contextlib import nullcontext
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
-from .config import AUTH_MAX_DAYS, membership_url, simulated_now
-from .app_i18n import default_app_language, normalize_app_lang, resolve_app_language
+from .config import AUTH_MAX_DAYS, simulated_now
+from .app_i18n import default_app_language, forced_app_lang, normalize_app_lang, resolve_app_language
 from .departure_clock import CAPTURE_RULES_EN, CAPTURE_RULES_FR
 from .paypal_txn_search import default_transaction_search_window
 from .milestones import (
@@ -30,6 +31,8 @@ from .milestones import (
 )
 from .pledges import PLEDGE_KINDS, get_ledger, now_iso, pledges_for_milestone
 from .toolkit_tools import ReadOnlyTools
+from .paypal_limits import PayPalCallLimitExceeded
+from .captain_agentic import agentic_reply, agentic_suggested_pledge, parse_agentic_proposal
 
 log = logging.getLogger("escales.captain")
 
@@ -76,13 +79,14 @@ _CHAT_MAX_TOKENS = 400
 _EN_HINT = re.compile(
     r"\b(?:i|i'd|i’m|i'm|would|like|sponsor|please|the|near|miles?|nautical|dinner|and"
     r"|my|you|your|will|is|are|was|old|days?|authorization|it|this"
-    r"|how|much|price|cost|costs|cabin|show|me|what|we|have|our|paypal|transactions?"
-    r"|disputes?|invoices?|treasurer|should|void|cancel)\b",
+    r"|how|much|price|cost|costs|cabin|show|me|what|we|have|our"
+    r"|disputes?|invoices?|treasurer|should|void|cancel|list)\b",
     re.IGNORECASE,
 )
 _FR_HINT = re.compile(
     r"\b(?:je|j'|voudrais|parrain\w*|milles?|près|pres|pour|dîner|diner|une|des|autorisation|est-ce"
-    r"|combien|co[uû]te|prix|cabine)\b",
+    r"|combien|co[uû]te|prix|cabine|liste|mes|mon|nos|les|du|de|la|au|aux|sandbox|factures?"
+    r"|litiges?|commandes?|promesses?|tr[ée]sorier|affiche|montre|consulte|transactions?)\b",
     re.IGNORECASE,
 )
 _TREASURER_Q = re.compile(
@@ -104,9 +108,11 @@ _CAPTURE_RULE_Q = re.compile(
 )
 _STATUS_Q = re.compile(
     r"\b(?:statuts?|status|états?|etats?)\b"
+    r"|statut de ma promesse|status of my pledge|my pledge status"
     r"|où en est|ou en est|où en sommes|ou en sommes",
     re.IGNORECASE,
 )
+_PLEDGE_ID_IN_TEXT = re.compile(r"\b([0-9a-f]{32})\b", re.IGNORECASE)
 # A stated authorization age, not an unrelated count in the same sentence.
 _AUTH_AGE = re.compile(
     r"(\d+)\s*[- ]?\s*(?:day|days|jour|jours)[- ]?\s*(?:old\s+)?"
@@ -138,7 +144,7 @@ _URL_RE = re.compile(
     re.IGNORECASE,
 )
 _MEMBERSHIP_WORD = re.compile(
-    r"helloasso|adh[ée]sions?|membership|adhesion-\[",
+    r"adh[ée]sions?|membership|adhesion-\[",
     re.IGNORECASE,
 )
 _AWAY_CLAIM = re.compile(
@@ -289,7 +295,7 @@ def _public_rule(lang: str) -> str:
         )
     return (
         f"{CAPTURE_RULES_FR} "
-        "La promesse est autorisée au plus près du départ que possible. "
+        "La promesse est autorisée au plus près du départ. "
         "Au-delà de 29 jours avant le départ, la promesse passe par PayPal Vault."
     )
 
@@ -297,6 +303,29 @@ def _public_rule(lang: str) -> str:
 def _capture_rule_core_in(text: str, lang: str) -> bool:
     core = CAPTURE_RULES_EN if lang == "en" else CAPTURE_RULES_FR
     return core.casefold() in (text or "").casefold()
+
+
+def _strip_wrong_common_fund_claim(text: str, suggested: Optional[dict], lang: str) -> str:
+    """Drop a fonds commun / common fund sentence on a stopover pledge."""
+    if not suggested:
+        return text or ""
+    kind = str(suggested.get("kind") or "")
+    milestone_id = str(suggested.get("milestone_id") or "").strip()
+    if kind == "common_fund" or not milestone_id:
+        return text or ""
+    if _unplaced_bucket(milestone_id):
+        return text or ""
+    pattern = re.compile(
+        r"[^.!?]*(?:fonds commun|common fund)[^.!?]*[.!?]\s*",
+        re.IGNORECASE,
+    )
+    return pattern.sub("", text or "").strip()
+
+
+def _unplaced_bucket(milestone_id: str) -> Optional[str]:
+    from .ledger import _unplaced_bucket as ledger_unplaced
+
+    return ledger_unplaced(milestone_id)
 
 
 def _capture_rule_reply(lang: str) -> str:
@@ -499,14 +528,14 @@ def _chat_system_en() -> str:
         "You are the Blue Intelligence Escales captain. Reply in English only. "
         "Repeat the computed pledge exactly: amount, currency, description, stopover and intent. "
         "Do not propose to take or release money. Do not create an order. Do not invent a price. "
-        "State only facts present in the JSON: the stopover, the fund, and the computed pledge. "
+        "State only facts present in the JSON: the stopover, fund_label, and the computed pledge. "
+        "Name the fund exactly as given in the JSON (field fund_label); never call a stopover pledge the common fund. "
         "Do not invent a date. Do not write a date. The code appends the schedule dates. "
         "If a fact is absent, say you do not know. Do not describe the place. "
         f"{CAPTURE_RULES_EN} "
         "A pledge is authorized as close to departure as possible. "
         "Do not send the reader to the treasurer for that rule. "
-        "Mention membership only by repeating the HelloAsso URL you were given. "
-        "If no URL was given, do not mention membership and do not write any URL. "
+        "Do not mention association membership and do not write any URL. "
         "Write complete sentences and never stop mid-sentence. "
         "Sign once, and do not repeat your name. At most 120 words."
     )
@@ -517,14 +546,14 @@ def _chat_system_fr() -> str:
         "Tu es le capitaine de Blue Intelligence Escales. Réponds uniquement en français. "
         "Répète la promesse calculée telle quelle : montant, devise, description et escale. "
         "Ne propose pas de prendre ou de libérer l'argent. Ne crée pas d'ordre. N'invente pas de prix. "
-        "Énonce seulement les faits présents dans le JSON : l'escale, la caisse et la promesse calculée. "
+        "Énonce seulement les faits présents dans le JSON : l'escale, fund_label, la caisse et la promesse calculée. "
+        "Nomme la caisse exactement comme dans le JSON (champ fund_label) ; n'appelle jamais une promesse d'escale le fonds commun. "
         "N'invente pas de date. N'écris aucune date. Le code ajoute les dates de l'escale. "
         "Si un fait manque, dis que tu ne sais pas. Ne décris pas le lieu. "
         f"{CAPTURE_RULES_FR} "
         "Une promesse est autorisée au plus près du départ. "
         "N'envoie pas le lecteur vers le trésorier pour cette règle. "
-        "Mentionne l'adhésion seulement en répétant l'URL HelloAsso qu'on t'a donnée. "
-        "Sans URL, ne parle pas d'adhésion et n'écris aucune URL. "
+        "Ne parle pas d'adhésion à l'association et n'écris aucune URL. "
         "Écris des phrases complètes et ne t'arrête jamais au milieu d'une phrase. "
         "Signe une seule fois, sans répéter ton nom. Au plus 120 mots."
     )
@@ -541,9 +570,14 @@ def resolve_chat_lang(
     requested: Optional[str] = None,
     accept_language: str = "",
 ) -> str:
-    """App language from the client overrides message text and Accept-Language."""
-    del message, accept_language  # kept for API compatibility
-    return resolve_app_language(requested)
+    """Explicit app ``lang`` wins; else infer from message text (``message_lang``)."""
+    if (requested or "").strip():
+        return resolve_app_language(requested)
+    text = message or ""
+    if text.strip():
+        return message_lang(text)
+    header = (accept_language or "").split(",")[0].split(";")[0].strip()
+    return forced_app_lang(header) or default_app_language()
 
 
 # A distorted spelling maps onto a slug from the display table.
@@ -885,7 +919,7 @@ def _report_language(text: str, requested: Optional[str] = None) -> str:
 def _normalize_dots(text: str) -> str:
     """One period, then a space when the next sentence is glued on.
 
-    ``250 nm.The boat`` becomes two sentences. ``www.helloasso.com`` stays,
+    ``250 nm.The boat`` becomes two sentences. ``www.example.com`` stays,
     because the letter after that dot is lowercase.
     """
     cleaned = re.sub(r"\.{2,}", ".", text or "")
@@ -954,7 +988,7 @@ def _fix_sentence_starts(text: str) -> str:
     """Capitalize after a sentence stop. Dots inside a URL stay as they are.
 
     ``tracée.en route`` is split because the word before the stop carries an
-    accent. ``www.helloasso.com`` does not.
+    accent. ``www.example.com`` does not.
     """
     cleaned = re.sub(
         r"([A-Za-zÀ-ÿ]*[À-ÿ][.!?…])(?=[A-Za-zÀ-ÿ])",
@@ -1211,7 +1245,17 @@ def _standardise_french(text: str) -> str:
     cleaned = re.sub(r"\b(?:le\s+)+trésorier\b", "le trésorier", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bde\s+le\s+trésorier\b", "du trésorier", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\b(du|au|ce|un|son|mon)\s+le\s+trésorier\b", r"\1 trésorier", cleaned, flags=re.IGNORECASE)
+    cleaned = _french_de_elision(cleaned)
     return _fix_french_vocabulary(cleaned)
+
+
+def _french_de_elision(text: str) -> str:
+    """``de Ajaccio`` -> ``d'Ajaccio`` before a vowel or mute h."""
+    return re.sub(
+        r"\bde ([AEIOUYHÀÂÉÈÊËÎÏÔÙÛÜaeiouyh])",
+        lambda match: f"d'{match.group(1)}",
+        text or "",
+    )
 
 
 def _fix_french_vocabulary(text: str) -> str:
@@ -1274,12 +1318,6 @@ def _period_after_link(text: str, url: str) -> str:
         text,
     )
 
-
-def _membership_line(url: str, lang: str) -> str:
-    """The only membership sentence. It exists only when code has a URL."""
-    if lang == "en":
-        return f"For membership, the HelloAsso link is {url}."
-    return f"Pour l'adhésion, le lien HelloAsso est {url}."
 
 
 def _clean_model_urls(text: str, url: str) -> str:
@@ -1450,13 +1488,14 @@ def _fit_words(prose: str, required: list[str], limit: int = _CHAT_WORD_LIMIT) -
     prose = _trim_cutoff(prose)
     parts = [prose] if prose else []
     parts.extend(tail)
-    return _finish_text(" ".join(parts))
+    joined = " ".join(parts)
+    joined = _GLUE_AFTER_STOP.sub(r"\1 \2", joined)
+    return _finish_text(joined)
 
 
 def _compose_chat_reply(
     model_text: str,
     suggested: Optional[dict],
-    url: str,
     lang: str,
     *,
     treasurer: bool,
@@ -1492,14 +1531,17 @@ def _compose_chat_reply(
         prose = _prepare_model_narrative(model_text, lang)
     port_id = str(suggested.get("milestone_id") or "")
     prose = _fix_port_typos(prose, port_id)
-    prose = _clean_model_urls(prose, url)
-    prose = _period_after_link(prose, url)
+    prose = _clean_model_urls(prose, "")
     prose = _drop_sentences(prose, _CHAT_DECIDE_RE)
     prose = _drop_sentences(prose, _REFUSAL_RE)
     prose = _drop_sentences(prose, _TREASURER_ONLY)
     kind = str((suggested or {}).get("kind") or "")
     if kind not in {"common_fund", "project_pledge"}:
         prose = _drop_sentences(prose, _OFF_TOPIC_FUND_PROSE)
+    prose = _drop_sentences(prose, _FUND_LABEL_FILLER)
+    prose = _drop_sentences(prose, _KNOWLEDGE_FILLER)
+    # The code appends the public rule once. A model restatement is dropped.
+    prose = _drop_sentences(prose, _CAPTURE_RULE_SENTENCE)
     prose = _trim_cutoff(_normalize_dots(prose))
     if lang == "fr":
         prose = _standardise_french(_french_labels(prose))
@@ -1522,18 +1564,16 @@ def _compose_chat_reply(
     joined = " ".join(required)
     if lang == "en" and not re.search(r"\bintent\s+authorize\b", f"{prose} {joined}", re.I):
         required.append("intent AUTHORIZE.")
-    if url and url not in prose and url not in " ".join(required):
-        required.append(_membership_line(url, lang))
     required.append(_signature(lang))
     reply = _fit_words(prose, required)
     port = str(suggested.get("milestone_id") or "") if suggested else ""
     reply = _fix_port_typos(_capitalize_ports(reply, port), port)
-    reply = _period_after_link(reply, url)
     if lang == "fr":
         reply = _standardise_french(reply)
     elif lang == "en":
         reply = _english_labels(reply)
-    return _fix_sentence_starts(reply)
+    reply = _strip_wrong_common_fund_claim(reply, suggested, lang)
+    return _finish_text(reply)
 
 
 def _without_unknown_marks(text: str) -> str:
@@ -1607,6 +1647,48 @@ def _shape_report(
 
 def _rules_source() -> dict[str, str]:
     return {"provider": "rules", "model": ""}
+
+
+def model_display_label(source: Any) -> str:
+    """One consistent label for UI (N6/N7), aligned with ``llm_proposal`` NIM usage."""
+    if not isinstance(source, dict):
+        return ""
+    provider = str(source.get("provider") or "").strip().lower()
+    model = str(source.get("model") or "").strip()
+    if provider == "nim":
+        return f"NVIDIA NIM — {model}" if model else "NVIDIA NIM"
+    if model:
+        return model
+    if provider == "rules":
+        return ""
+    return provider
+
+
+def _paypal_tools_payload(reader: ReadOnlyTools) -> dict[str, Any]:
+    called: list[str] = []
+    seen: set[str] = set()
+    for entry in reader.call_log:
+        tool = str(entry.get("tool") or "").strip()
+        if tool and tool not in seen:
+            seen.add(tool)
+            called.append(tool)
+    return {
+        "tools": list(reader.allowed()),
+        "called": called,
+        "client": "paypal-agent-toolkit" if reader.uses_toolkit else "direct",
+        "calls": list(reader.call_log),
+    }
+
+
+def _with_trace(result: dict, reader: Optional[ReadOnlyTools], started: float) -> dict:
+    # Legacy string sources describe deterministic paths, not the configured model.
+    source = result.get("model_source")
+    result["model_label"] = model_display_label(source) or "rules"
+    result["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
+    result["paypal_tools"] = _paypal_tools_payload(reader) if reader is not None else {
+        "tools": [], "called": [], "calls": [], "client": "direct",
+    }
+    return result
 
 
 def _text_of(raw: Any) -> str:
@@ -2250,12 +2332,16 @@ def _verdict_system(lang: str) -> str:
             "Réponds par un seul objet JSON. Pas de balise markdown et pas de commentaire. "
             "Écris reason en français. proposal vaut capture, void, wait ou reauthorize. "
             "N'invente aucun chiffre ni aucun fait. reason n'utilise que le JSON. "
+            "Donne une raison qui n'utilise que les champs du JSON (dates, âge de l'autorisation). "
+            "N'ajoute pas de règles générales. "
             "N'écris pas [?] ni une unité comme nm sans son nombre."
         )
     return (
         "Reply with one JSON object only. No markdown fence and no commentary. "
         "Write reason in English. proposal is capture, void, wait or reauthorize. "
         "Do not invent a figure or a fact. reason may only use the JSON. "
+        "Give a reason that uses only fields in the JSON (dates, authorization age). "
+        "Do not add general claims. "
         "Do not write [?] or a unit such as nm without its number."
     )
 
@@ -2281,6 +2367,15 @@ def advisory_proposal_schema(lang: str) -> dict:
         schema["properties"]["proposal"]["description"] = "One of capture, void, wait, or reauthorize."
         schema["properties"]["reason"]["description"] = "Reason in English; do not invent figures."
     return schema
+
+
+def _advisory_reason_grounded(reason: str) -> bool:
+    text = (reason or "").strip()
+    if not text:
+        return False
+    if re.search(r"\d", text):
+        return True
+    return bool(re.search(r"\b(?:20\d{2}|authorization|autorisation|days?|jours?)\b", text, re.I))
 
 
 async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict]:
@@ -2312,6 +2407,8 @@ async def _advisory_proposal(allowed: dict, age: Optional[int]) -> Optional[dict
         return None
     data = parsed.data if isinstance(getattr(parsed, "data", None), dict) else {}
     reason = _without_gaps(str(data.get("reason") or ""), prompt)
+    if reason and not _advisory_reason_grounded(reason):
+        reason = ""
     data = {**data, "reason": reason}
     evidence = allowed.get("evidence") if isinstance(allowed, dict) else None
     met = evidence.get("met") if isinstance(evidence, dict) else None
@@ -2360,6 +2457,7 @@ async def review(
     lang: Optional[str] = None,
 ) -> dict:
     """Propose capture or void from evidence. Does not execute either."""
+    started = time.perf_counter()
     from .naviguide_bridge import resolve_milestone
 
     report_lang = resolve_app_language(lang)
@@ -2439,8 +2537,15 @@ async def review(
         if factual and factual not in narrative:
             narrative = _finish_text(f"{narrative} {factual}")
     narrative = _capitalize_ports(_finish_text(narrative), milestone_id)
+    decision_fr = {
+        "wait": "attendre",
+        "capture": "capturer",
+        "void": "annuler",
+        "reauthorize": "réautoriser",
+    }
+    decision_word = decision if report_lang == "en" else decision_fr.get(decision, decision)
     decision_line = (
-        f" Decision: {decision}." if report_lang == "en" else f" Décision : {decision}."
+        f" Decision: {decision}." if report_lang == "en" else f" Décision : {decision_word}."
     )
     justification = _capitalize_ports(
         _finish_text(f"{narrative}{decision_line}"),
@@ -2460,11 +2565,12 @@ async def review(
         "evidence_flag": evidence.get("flag"),
         "model_source": source,
         "llm_proposal": advisory,
-        "at": now_iso(),
+        "at": simulated_now().isoformat(),
     }
     from .provisioning_channel3 import attach_provisioning
 
     proposal = attach_provisioning(proposal, milestone_id)
+    proposal = _with_trace(proposal, reader, started)
     await get_ledger().set_proposal(milestone_id, proposal)
     from .audit import record
     await record(
@@ -2530,7 +2636,9 @@ def _fund_place_label(milestone_id: str, lang: str) -> str:
     shown = display_name(milestone_id)
     if lang == "en":
         return f"the fund at {shown}" if shown else "the fund"
-    return f"la caisse de {shown}" if shown else "la caisse"
+    if not shown:
+        return "la caisse"
+    return f"la caisse {_french_de_elision(f'de {shown}')}"
 
 
 def _fund_rules_text(fund: dict, lang: str) -> str:
@@ -2585,10 +2693,10 @@ def _compose_fund_reply(prose: str, lang: str) -> str:
 
 
 def _hidden_fund_reply(lang: str) -> str:
-    """Project and boat-fund totals stay with the treasurer."""
+    """Project fund totals stay with the treasurer."""
     if lang == "en":
-        return "Only the treasurer can see this fund's totals."
-    return "Seul le trésorier peut voir les totaux de cette caisse."
+        return "Only the treasurer can see the project fund totals."
+    return "Seul le trésorier peut voir les totaux de la caisse projet."
 
 
 async def _answer_fund(
@@ -2596,14 +2704,14 @@ async def _answer_fund(
 ) -> tuple[str, dict[str, str], Optional[dict]]:
     """NIM only when its flag is on. The rules sentence is the fallback.
 
-    A stopover fund is public. The project fund and the boat's common fund
-    are the same totals as the treasurer routes: without a valid key the
-    reply names no amount and the payload is empty.
+    A stopover fund is public. The project fund needs the treasurer key for
+    totals in chat; the boat common fund uses the public aggregate route.
     """
     from .ledger import _unplaced_bucket
 
     fund = await _fund_for_question(message)
-    if _unplaced_bucket(str(fund.get("milestone_id") or "")) and not treasurer:
+    bucket = _unplaced_bucket(str(fund.get("milestone_id") or ""))
+    if bucket == "projet" and not treasurer:
         reply = _compose_fund_reply(_hidden_fund_reply(lang), lang)
         return reply, _rules_source(), None
     public = None if fund.get("missing") else fund
@@ -2663,7 +2771,8 @@ def _cabin_price_reply(lang: str) -> str:
 
 
 _PAYPAL_READONLY = re.compile(
-    r"\b(?:list|show|search|check)\s+(?:paypal\s+)?(?:transactions?|disputes?|invoices?|subscriptions?|refunds?|payouts?)\b",
+    r"\b(?:list|show|search|check)\b.{0,60}\b(?:paypal\s+)?"
+    r"(?:transactions?|disputes?|invoices?|subscriptions?|refunds?|payouts?)\b",
     re.IGNORECASE,
 )
 _PAYPAL_READONLY_FR = re.compile(
@@ -2678,6 +2787,26 @@ _OFF_TOPIC_FUND_PROSE = re.compile(
     r"|project fund financing",
     re.IGNORECASE,
 )
+_KNOWLEDGE_FILLER = re.compile(
+    r"\bI (?:do not|don't) know (?:any )?(?:other|more|further|additional)\b"
+    r"|\bje ne sais (?:pas|rien) (?:d[’']autre|de plus|autre)",
+    re.IGNORECASE,
+)
+_CAPTURE_RULE_SENTENCE = re.compile(
+    r"\b(?:captured|voided)\b.{0,80}\b(?:arrival|departure|cancel)"
+    r"|\b(?:capturées?|annulées?)\b.{0,80}\b(?:arriv|départ|annul)"
+    r"|\bStop-level pledges\b|\bpromesses au niveau de l[’']escale\b",
+    re.IGNORECASE | re.DOTALL,
+)
+_FUND_LABEL_FILLER = re.compile(
+    r"\bthe fund label is the fund at\b"
+    r"|\bthe fund is not specified\b",
+    re.IGNORECASE,
+)
+_GLUE_AFTER_STOP = re.compile(
+    r"([.!?…])((?:La promesse|Les promesses|Promesse calculée|A pledge|Computed pledge)\b)",
+    re.IGNORECASE,
+)
 
 
 def _is_paypal_readonly_question(message: str) -> bool:
@@ -2687,13 +2816,15 @@ def _is_paypal_readonly_question(message: str) -> bool:
     if _PAYPAL_READONLY_FR.search(text):
         return True
     if re.search(
-        r"\b(?:transactions?|factures?|litiges?|abonnements?|remboursements?|versements?)\b.{0,40}\bpaypal\b",
+        r"\b(?:transactions?|opérations?|paiements?|factures?|litiges?|commandes?|"
+        r"disputes?|invoices?|orders?|abonnements?|remboursements?|versements?)\b.{0,40}\bpaypal\b",
         text,
         re.I,
     ):
         return True
     if re.search(
-        r"\bpaypal\b.{0,40}\b(?:transactions?|factures?|litiges?|abonnements?)\b",
+        r"\bpaypal\b.{0,40}\b(?:transactions?|opérations?|paiements?|factures?|litiges?|"
+        r"commandes?|disputes?|invoices?|orders?|abonnements?)\b",
         text,
         re.I,
     ):
@@ -2723,47 +2854,126 @@ def _paypal_search_window() -> tuple[str, str]:
     return default_transaction_search_window()
 
 
+def _is_pledge_status_question(message: str) -> bool:
+    return bool(
+        re.search(
+            r"statut de ma promesse|status of my pledge|my pledge status",
+            message or "",
+            re.I,
+        )
+    )
+
+
+async def _pledge_for_status_question(message: str) -> Optional[dict]:
+    from .pledges import get_ledger
+
+    match = _PLEDGE_ID_IN_TEXT.search(message or "")
+    if match:
+        row = await get_ledger().get_pledge(match.group(1))
+        if row:
+            return row
+    rows = await get_ledger().list_pledges()
+    if not rows:
+        return None
+    rows.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
+    return rows[0]
+
+
+async def _pledge_status_readonly_reply(
+    message: str,
+    lang: str,
+    reader: ReadOnlyTools,
+) -> Optional[str]:
+    if not _is_pledge_status_question(message):
+        return None
+    pledge = await _pledge_for_status_question(message)
+    if not pledge:
+        if lang == "en":
+            return "No pledge found to inspect."
+        return "Aucune promesse trouvée à consulter."
+    _read(reader, pledge)
+    status = str(pledge.get("status") or "")
+    amount = pledge.get("amount_eur")
+    order_id = pledge.get("order_id") or "—"
+    auth_id = pledge.get("authorization_id") or "—"
+    if lang == "en":
+        lines = [
+            f"Pledge {pledge.get('_id')}: status {status}, {amount} EUR.",
+            f"PayPal order {order_id}; authorization {auth_id} (read-only lookup).",
+        ]
+    else:
+        lines = [
+            f"Promesse {pledge.get('_id')} : statut {status}, {amount} EUR.",
+            f"Commande PayPal {order_id} ; autorisation {auth_id} (lecture seule).",
+        ]
+    return "\n".join(lines)
+
+
 def _paypal_readonly_reply(message: str, lang: str, reader: ReadOnlyTools) -> Optional[str]:
     if not _is_paypal_readonly_question(message):
         return None
+    text = message or ""
+    lines: list[str] = []
     try:
-        if re.search(r"\bdisputes?\b", message, re.I):
+        if re.search(r"\b(?:disputes?|litiges?)\b", text, re.I):
             payload = reader.get("disputes.list")
             items = payload.get("items") if isinstance(payload, dict) else []
             count = len(items or [])
             if lang == "en":
-                return f"PayPal disputes (read-only): {count} open item(s)."
-            return f"Litiges PayPal (lecture seule) : {count} dossier(s)."
-        if re.search(r"\btransactions?\b", message, re.I):
+                lines.append(f"PayPal disputes (read-only): {count} open item(s).")
+            else:
+                lines.append(f"Litiges PayPal (lecture seule) : {count} dossier(s).")
+        if re.search(r"\b(?:transactions?|opérations?|paiements?)\b", text, re.I):
             start, end = _paypal_search_window()
             payload = reader.get("transactions.search", f"{start}|{end}")
             details = payload.get("transaction_details") if isinstance(payload, dict) else []
             count = len(details or [])
             if lang == "en":
-                return (
+                lines.append(
                     f"PayPal transactions from {start[:10]} to {end[:10]} (read-only): "
                     f"{count} row(s)."
                 )
-            return (
-                f"Transactions PayPal du {start[:10]} au {end[:10]} (lecture seule) : "
-                f"{count} ligne(s)."
-            )
-        if re.search(r"\binvoices?\b", message, re.I):
+            else:
+                lines.append(
+                    f"Transactions PayPal du {start[:10]} au {end[:10]} (lecture seule) : "
+                    f"{count} ligne(s)."
+                )
+        if re.search(r"\b(?:invoices?|factures?)\b", text, re.I):
             payload = reader.get("invoices.list", "1")
             items = payload.get("items") if isinstance(payload, dict) else []
             count = len(items or [])
             if lang == "en":
-                return f"PayPal invoices (read-only): {count} item(s)."
-            return f"Factures PayPal (lecture seule) : {count} élément(s)."
-    except Exception as exc:
-        detail = str(exc)[:120]
+                lines.append(f"PayPal invoices (read-only): {count} item(s).")
+            else:
+                lines.append(f"Factures PayPal (lecture seule) : {count} élément(s).")
+        if re.search(r"\b(?:orders?|commandes?)\b", text, re.I):
+            if lang == "en":
+                lines.append(
+                    "PayPal orders (read-only): one order is fetched by id via orders.get."
+                )
+            else:
+                lines.append(
+                    "Commandes PayPal (lecture seule) : une commande se consulte par identifiant via orders.get."
+                )
+    except PayPalCallLimitExceeded:
+        lines.append(
+            "PayPal read limit reached for this turn. The summary may be partial."
+            if lang == "en" else "Limite de lectures PayPal atteinte pour ce tour. Le résumé peut être partiel."
+        )
+        return "\n".join(lines)
+    except Exception:
+        log.exception("PayPal read-only lookup failed")
+        if lines:
+            return "\n".join(lines)
         if lang == "en":
-            return f"PayPal read-only lookup failed: {detail}"
-        return f"Échec de la lecture PayPal (lecture seule) : {detail}"
-    return None
+            return "PayPal read-only lookup failed."
+        return "Échec de la lecture PayPal (lecture seule)."
+    if not lines:
+        return None
+    return "\n".join(lines)
 
 
-async def chat(
+async def _chat(
     message: str,
     *,
     treasurer: bool = False,
@@ -2771,7 +2981,7 @@ async def chat(
     accept_language: str = "",
     reader: Optional[ReadOnlyTools] = None,
 ) -> dict:
-    """Help a contributor phrase a pledge and offer the HelloAsso membership URL.
+    """Help a contributor phrase a pledge.
 
     ``treasurer`` is true only when the request carried a valid ``x-admin-key``.
     ``lang`` is the app language. It wins over Accept-Language and the message.
@@ -2779,34 +2989,68 @@ async def chat(
     text = (message or "").strip()
     if not text:
         raise ValueError("message is required")
-    url = membership_url()
     lang = resolve_chat_lang(text, lang, accept_language)
+    # Reject sensitive input before any model or PayPal tool sees the message.
+    card_like = re.search(r"(?<![\w])(?:\d[ -]?){12,18}\d(?![\w])", text)
+    if card_like:
+        reply = (
+            "Do not share card numbers here. Use PayPal's secure card fields instead."
+            if lang == "en" else "Ne partagez pas de numéro de carte ici. Utilisez les champs sécurisés de PayPal."
+        )
+        return {
+            "reply": _fit_words("", [reply, _signature(lang)]),
+            "suggested_pledge": None, "cart": None, "model_source": _rules_source(),
+            "rule_by_design": True,
+        }
     if treasurer and reader is not None:
+        agentic = parse_agentic_proposal(text, lang)
+        if agentic:
+            suggested = agentic_suggested_pledge(agentic, lang)
+            return {
+                "reply": _fit_words("", [agentic_reply(agentic, lang), _signature(lang)]),
+                "suggested_pledge": suggested,
+                "cart": None,
+                "model_source": "paypal_agentic_proposal",
+                "model_label": "rules",
+                "fund": None,
+                "paypal_tools": _paypal_tools_payload(reader),
+                "agentic_action": agentic,
+            }
+        pledge_reply = await _pledge_status_readonly_reply(text, lang, reader)
+        if pledge_reply:
+            return {
+                "reply": _fit_words("", [pledge_reply, _signature(lang)]),
+                "suggested_pledge": None,
+                "cart": None,
+                "model_source": "paypal_readonly_tools",
+                "model_label": "rules",
+                "fund": None,
+                "paypal_tools": _paypal_tools_payload(reader),
+            }
         tool_reply = _paypal_readonly_reply(text, lang, reader)
         if tool_reply:
             return {
                 "reply": _fit_words("", [tool_reply, _signature(lang)]),
-                "membership_url": url,
                 "suggested_pledge": None,
                 "cart": None,
                 "model_source": "paypal_readonly_tools",
+                "model_label": "rules",
                 "fund": None,
-                "paypal_tools": list(reader.allowed()),
+                "paypal_tools": _paypal_tools_payload(reader),
             }
     if _is_capture_rule_question(text):
         return {
             "reply": _capture_rule_reply(lang),
-            "membership_url": url,
             "suggested_pledge": None,
             "cart": None,
             "model_source": _rules_source(),
             "fund": None,
+            "rule_by_design": True,
         }
     if _is_fund_question(text):
         reply, source, fund = await _answer_fund(text, lang, treasurer=treasurer)
         return {
             "reply": reply,
-            "membership_url": url,
             "suggested_pledge": None,
             "cart": None,
             "model_source": source,
@@ -2822,16 +3066,15 @@ async def chat(
                 prose = "Quelle escale ? Indiquez son nom pour que je calcule la promesse."
             return {
                 "reply": _fit_words("", [prose, _signature(lang)]),
-                "membership_url": url,
                 "suggested_pledge": None,
                 "cart": None,
                 "model_source": _rules_source(),
                 "fund": None,
+                "rule_by_design": True,
             }
-        reply = _compose_chat_reply("", suggested, url, lang, treasurer=False, ask_escale=False)
+        reply = _compose_chat_reply("", suggested, lang, treasurer=False, ask_escale=False)
         return {
             "reply": reply,
-            "membership_url": url,
             "suggested_pledge": suggested,
             "cart": pledge_cart(text, lang, suggested),
             "model_source": _rules_source(),
@@ -2841,7 +3084,12 @@ async def chat(
     suggested = suggest_pledge(text, lang)
     cart = pledge_cart(text, lang, suggested)
     ask_escale = suggested is None and not treasurer and not _is_status_question(text)
-    allowed = {"message": text, "suggested": suggested, "membership_url": url}
+    allowed = {"message": text, "suggested": suggested}
+    if suggested:
+        mid = str(suggested.get("milestone_id") or "").strip()
+        target = str(suggested.get("target_id") or "").strip()
+        allowed["fund_label"] = _fund_place_label(mid or target, lang)
+    by_design = suggested is None
     if suggested is None:
         # Do not send this question to a model: the horizon rule stays in code.
         raw, source = "", _rules_source()
@@ -2867,15 +3115,31 @@ async def chat(
         else:
             raw, source = "", _rules_source()
     reply = _compose_chat_reply(
-        raw or "", suggested, url, lang, treasurer=treasurer, ask_escale=ask_escale,
+        raw or "", suggested, lang, treasurer=treasurer, ask_escale=ask_escale,
     )
-    return {
+    result = {
         "reply": reply,
-        "membership_url": url,
         "suggested_pledge": suggested,
         "cart": cart,
         "model_source": source,
+        "model_label": model_display_label(source),
     }
+    if by_design:
+        result["rule_by_design"] = True
+    return result
+
+
+async def chat(
+    message: str, *, treasurer: bool = False, lang: Optional[str] = None,
+    accept_language: str = "", reader: Optional[ReadOnlyTools] = None,
+) -> dict:
+    started = time.perf_counter()
+    with reader.chat_turn() if reader is not None else nullcontext():
+        result = await _chat(
+            message, treasurer=treasurer, lang=lang,
+            accept_language=accept_language, reader=reader,
+        )
+    return _with_trace(result, reader, started)
 
 
 # Kinds other than mile and meal. Same catalogue as ``_SIMULATED_EUR`` /

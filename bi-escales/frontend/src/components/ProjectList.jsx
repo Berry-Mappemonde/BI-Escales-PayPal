@@ -3,12 +3,14 @@
  * Blue-Intelligence frontend/src/components/ProjectList.js
  * (filtre via filterProjectFeatures.js ; promesse Escales).
  */
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { fetchPublicProjectFund } from "../api/escales";
 import { filterProjectFeatures } from "../projects/filterProjectFeatures.js";
 import { parseProjectPledgeAmount } from "../projects/projectPledgeAmount.js";
 import { visibleProjectFeatures } from "../projects/visibleProjectFeatures.js";
 import { PledgeButton } from "./PledgeButton";
+import { ProjectFundProgress } from "./ProjectFundProgress";
 
 /** Même plafond que ProjectList.js BI (slice 0, 100). */
 const LIST_CAP = 100;
@@ -19,12 +21,36 @@ function ProjectPledgeForm({ project, contributor, onAuthorized }) {
   const props = project?.properties || {};
   const [amount, setAmount] = useState(MIN_EUR);
   const [who, setWho] = useState(contributor || "");
+  const [publicTotal, setPublicTotal] = useState(null);
   const title = props.title || props.id || "";
   const description = t("projects.pledgeDescription", { title });
   const parsed = parseProjectPledgeAmount(amount);
+  const isGear = String(props.project_kind || "") === "gear_project";
+  const projectId = String(props.id || "").trim();
+
+  const loadFund = useCallback(async () => {
+    if (!isGear || !projectId) {
+      setPublicTotal(null);
+      return;
+    }
+    const data = await fetchPublicProjectFund(projectId);
+    setPublicTotal(data);
+  }, [isGear, projectId]);
+
+  useEffect(() => {
+    void loadFund();
+  }, [loadFund]);
+
+  const handleAuthorized = (pledge) => {
+    void loadFund();
+    onAuthorized?.(pledge);
+  };
 
   return (
     <div className="project-pledge" data-testid="project-pledge" data-project-id={props.id}>
+      {isGear && publicTotal ? (
+        <ProjectFundProgress properties={props} fund={publicTotal} />
+      ) : null}
       <label>
         {t("pledge.amount")}
         <input
@@ -55,7 +81,7 @@ function ProjectPledgeForm({ project, contributor, onAuthorized }) {
           target_id: props.id,
         }}
         disabled={parsed.kind !== "ok"}
-        onAuthorized={onAuthorized}
+        onAuthorized={handleAuthorized}
       />
     </div>
   );
@@ -71,7 +97,7 @@ export default function ProjectList({
   onFlyTo,
   onAuthorized,
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [localQuery, setLocalQuery] = useState("");
   const query = searchQueryProp ?? localQuery;
   const setQuery = onSearchQueryChange ?? setLocalQuery;
@@ -89,14 +115,24 @@ export default function ProjectList({
     () => visibleProjectFeatures(projects?.features || [], filtered, selectedProjectId, LIST_CAP),
     [projects, filtered, selectedProjectId],
   );
+  const disclosure = useRef(null);
+  useEffect(() => {
+    if (selectedProjectId && disclosure.current) disclosure.current.open = true;
+  }, [selectedProjectId]);
+
   const truncated = filtered.length > LIST_CAP;
+  const formatCount = (count) => new Intl.NumberFormat(i18n.language || "fr").format(count);
 
   return (
-    <section className="panel" data-testid="project-list">
-      <div className="escale-sheet-head">
+    <details ref={disclosure} className="panel project-disclosure" data-testid="project-list">
+      <summary className="project-summary">
         <h2>{t("projects.heading")}</h2>
-        <span data-testid="project-list-count">{filtered.length}</span>
-      </div>
+        <span aria-hidden="true">·</span>
+        <span className="project-list-total" data-testid="project-list-count">
+          {formatCount(projects?.features?.length || 0)}
+        </span>
+        <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true"><path d="m5 6 3 3 3-3" stroke="currentColor" strokeWidth="1.5" /></svg>
+      </summary>
       <input
         data-testid="projects-search-input"
         type="text"
@@ -107,7 +143,7 @@ export default function ProjectList({
       />
       {truncated ? (
         <p className="hint" data-testid="projects-list-truncated">
-          {t("projects.truncated", { shown: LIST_CAP, total: filtered.length })}
+          {t("projects.truncated", { shown: formatCount(LIST_CAP), total: formatCount(filtered.length) })}
         </p>
       ) : null}
       {features.length === 0 ? <p className="hint">{t("projects.empty")}</p> : null}
@@ -151,7 +187,7 @@ export default function ProjectList({
           );
         })}
       </div>
-    </section>
+    </details>
   );
 }
 

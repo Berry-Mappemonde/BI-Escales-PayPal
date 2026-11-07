@@ -251,10 +251,10 @@ def test_13_advisory_json_matches_the_schema_and_invalid_json_keeps_the_code(mon
         calls["n"] += 1
         if calls["n"] == 1:
             return llm.LlmJson(
-                {"proposal": "capture", "reason": "The evidence is met."},
+                {"proposal": "capture", "reason": "Authorization age is 0 days."},
                 "nim_fallback",
                 llm.NIM_FALLBACK_MODEL_DEFAULT,
-                '{"proposal":"capture","reason":"The evidence is met."}',
+                '{"proposal":"capture","reason":"Authorization age is 0 days."}',
             )
         raise RuntimeError("advisory schema")
 

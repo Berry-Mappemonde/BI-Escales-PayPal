@@ -19,6 +19,7 @@ from app.escales.paypal_subscriptions import list_subscriptions_local
 from app.escales.pledges import get_ledger, reset_ledger
 from app.escales.project_payouts import approve_project_payout, find_payout_proposal, propose_project_payout
 from app.escales.webhooks import verify_and_process
+from tests.review_helpers import approve_capture_review
 from app.routers.escales import router, set_paypal_client_factory
 
 
@@ -213,6 +214,7 @@ def test_p4_manual_capture_finance_at_matches_pinned_capture_timestamp(monkeypat
         return "pledge-p4"
 
     pledge_id = asyncio.run(seed())
+    asyncio.run(approve_capture_review("dep-la-rochelle"))
     captured = client.post(
         f"/api/escales/pledges/{pledge_id}/capture",
         json={"now": "2027-06-01T10:15:00+00:00"},

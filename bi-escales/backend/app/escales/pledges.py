@@ -53,6 +53,7 @@ from .paypal_client import (
     authorization_from,
     read_capture_result,
     setup_token_approve_link,
+    vault_id_from_order,
     vault_id_from_token,
     vault_source_from_token,
 )
@@ -402,16 +403,23 @@ async def ensure_finance_milestone(pledge: dict, milestone_id: str) -> None:
         await get_ledger().ensure_milestone(milestone_id, meta=leg_milestone_meta(leg))
 
 
-async def record_pledge_captured_once(pledge: dict, *, actor: str) -> bool:
-    """One ``pledge_captured`` line per pledge. A webhook and a direct capture share it."""
+async def record_pledge_captured_once(pledge: dict, *, actor: str, client: Any = None) -> dict:
+    """One ``pledge_captured`` line per pledge. Berth captures may trigger marina payout."""
     from .ledger import list_finance_entries, record_finance
+    from .marina_berth_settlement import apply_marina_berth_settlement
+
+    from .marina_berth_settlement import marina_settlement_done
 
     pledge_id = str(pledge.get("_id") or "")
     if not pledge_id:
-        return False
+        return pledge
     for entry in await list_finance_entries():
         if entry.get("kind") == "pledge_captured" and entry.get("pledge_id") == pledge_id:
-            return False
+            # Already journaled: only retry an unfinished marina payout (retry-safe).
+            if marina_settlement_done(pledge):
+                return pledge
+            settled = await apply_marina_berth_settlement(pledge, actor=actor, client=client)
+            return await get_ledger().save_pledge(settled)
     milestone_id = finance_milestone_id(pledge)
     await ensure_finance_milestone(pledge, milestone_id)
     at = str(pledge.get("captured_at") or "").strip() or now_iso()
@@ -427,7 +435,10 @@ async def record_pledge_captured_once(pledge: dict, *, actor: str) -> bool:
         capture_id=pledge.get("capture_id"),
         **_identity(pledge),
     )
-    return True
+    pledge = await apply_marina_berth_settlement(pledge, actor=actor, client=client)
+    if pledge.get("platform_fee_eur") or pledge.get("marina_payout_batch_id") or pledge.get("marina_payout_status"):
+        pledge = await get_ledger().save_pledge(pledge)
+    return pledge
 
 
 def _require_text(value: str, field: str) -> str:
@@ -505,12 +516,30 @@ def _create_authorize_order(client: Any, **kwargs: Any) -> dict:
         return client.create_authorize_order(**kwargs)
     except TypeError as exc:
         message = str(exc)
-        if not any(token in message for token in ("return_url", "cancel_url", "checkout_locale")):
+        if not any(
+            token in message
+            for token in (
+                "return_url",
+                "cancel_url",
+                "checkout_locale",
+                "payee_merchant_id",
+                "platform_fee_eur",
+                "platform_merchant_id",
+            )
+        ):
             raise
         slim = {
             key: value
             for key, value in kwargs.items()
-            if key not in {"return_url", "cancel_url", "checkout_locale"}
+            if key
+            not in {
+                "return_url",
+                "cancel_url",
+                "checkout_locale",
+                "payee_merchant_id",
+                "platform_fee_eur",
+                "platform_merchant_id",
+            }
         }
         return client.create_authorize_order(**slim)
 
@@ -633,8 +662,30 @@ async def resolve_payment_mode(milestone_id: str) -> PaymentMode:
     return "AUTHORIZE"
 
 
-async def create_pledge(
+async def create_pledge(*, quantity: Optional[int] = None, **kwargs: Any) -> dict:
+    """Validate explicit unit quantities before any PayPal side effect."""
+    kind = _kind(kwargs.get("kind"))
+    if quantity is not None:
+        if isinstance(quantity, bool) or not isinstance(quantity, int) or not 1 <= quantity <= 1000:
+            raise ValueError("quantity must be an integer between 1 and 1000")
+        unit = _UNIT_FLOOR.get(kind) if kind != "project_pledge" else None
+        if unit is None:
+            raise ValueError("quantity is only supported for per-unit pledges")
+        expected = unit * quantity
+        if Decimal(normalize_amount(kwargs["amount_eur"])) != expected:
+            raise ValueError(f"amount must match unit price × quantity ({expected:.2f} EUR)")
+        kwargs["amount_eur"] = f"{expected:.2f}"
+    saved = await _create_pledge(quantity=quantity, **kwargs)
+    if (quantity is not None and saved.get("quantity") is None
+            and saved.get("kind") == kind and Decimal(saved["amount_eur"]) == expected):
+        saved["quantity"] = quantity
+        saved = await get_ledger().save_pledge(saved)
+    return saved
+
+
+async def _create_pledge(
     *,
+    quantity: Optional[int] = None,
     amount_eur: str,
     description: str,
     milestone_id: str,
@@ -654,6 +705,8 @@ async def create_pledge(
     description = _require_text(description, "description")
     pledge_kind = _kind(kind)
     exact = _EXACT_PRICE.get(pledge_kind)
+    if exact is not None:
+        exact *= quantity or 1
     if exact is not None and Decimal(amount) != exact:
         raise ValueError(f"{pledge_kind} amount must be {exact:.2f} EUR")
     floor = _UNIT_FLOOR.get(pledge_kind)
@@ -712,7 +765,7 @@ async def create_pledge(
             checkout_method=checkout_method,
         )
     mode: PaymentMode = payment_mode or "AUTHORIZE"
-    from .departure_clock import refuse_cancelled_departure, refuse_early_authorization
+    from .departure_clock import refuse_cancelled_departure
 
     draft = {
         "milestone_id": milestone_id,
@@ -722,14 +775,8 @@ async def create_pledge(
     await refuse_cancelled_departure(draft)
     # An authorization lasts 29 days. Refuse before PayPal creates the order.
     # When Vault is on, a far departure falls back to saving the payment method.
-    if mode != "VAULT":
-        try:
-            await refuse_early_authorization(draft)
-        except ValueError as exc:
-            if vault_enabled() and "29 days" in str(exc):
-                mode = "VAULT"
-            else:
-                raise
+    from .payment_mode import resolve_pledge_mode
+    mode = await resolve_pledge_mode(draft, mode=mode)
     if mode == "VAULT":
         return await _create_vault_pledge(
             amount=amount,
@@ -904,12 +951,29 @@ async def _create_authorize_pledge(
         cancel_url=cancel,
         checkout_locale=checkout_locale,
     )
+    platform_fees_on_order = False
     if method == "card":
         order = _create_card_authorize_order(client, **order_kwargs)
     elif vault_on_purchase_enabled():
         order = _create_authorize_vault_order(client, **order_kwargs)
     else:
-        order = _create_authorize_order(client, **order_kwargs)
+        from .config import (
+            paypal_berth_platform_fees_on_order,
+            platform_fee_eur,
+            platform_payee_merchant_id,
+            marina_seller_merchant_id,
+        )
+
+        if kind == "berth" and paypal_berth_platform_fees_on_order(target_id):
+            order = client.create_authorize_order(
+                **order_kwargs,
+                payee_merchant_id=marina_seller_merchant_id(target_id),
+                platform_fee_eur=platform_fee_eur(),
+                platform_merchant_id=platform_payee_merchant_id(),
+            )
+            platform_fees_on_order = True
+        else:
+            order = _create_authorize_order(client, **order_kwargs)
     order_id = order.get("id")
     if not order_id:
         raise PayPalError(502, "order id missing")
@@ -938,6 +1002,8 @@ async def _create_authorize_pledge(
         "vault_source": None,
         "setup_token_id": None,
         "checkout_method": method,
+        # Card and vault orders never carry multiparty fees; settlement pays the marina instead.
+        "platform_fees_on_order": platform_fees_on_order,
         "vault_on_purchase": vault_on_purchase_enabled() and method != "card",
         "checkout_locale": (checkout_locale or "").strip() or None,
         "created_at": now_iso(),
@@ -1143,6 +1209,7 @@ async def _capture_order_pledge(pledge_id: str, client: Any, pledge: dict) -> di
         pledge,
         payload,
         finance={"payment_mode": "CAPTURE", "order_id": order_id},
+        client=client,
     )
 
 
@@ -1160,6 +1227,17 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     await refuse_cancelled_departure(pledge)
     order = client.authorize_order(order_id, pledge_id=pledge_id)
     auth_id, expiration = authorization_from(order)
+    if pledge.get("vault_on_purchase"):
+        vault_id = vault_id_from_order(order if isinstance(order, dict) else {})
+        if not vault_id:
+            try:
+                refreshed = client.get_order(order_id) or {}
+            except Exception:
+                refreshed = {}
+            vault_id = vault_id_from_order(refreshed)
+        if vault_id:
+            pledge["vault_id"] = vault_id
+            pledge["history"] = list(pledge.get("history") or []) + ["vault_id_saved"]
     pledge["status"] = "authorized"
     pledge["authorized_at"] = _money_event_timestamp()
     pledge["authorization_id"] = auth_id
@@ -1245,6 +1323,7 @@ async def _finish_capture(
     *,
     finance: dict,
     effective_at: Optional[dt.datetime] = None,
+    client: Any = None,
 ) -> dict:
     """Record PayPal's capture status. COMPLETED and PENDING are kept; anything else can be retried."""
     from .audit import record
@@ -1293,8 +1372,7 @@ async def _finish_capture(
         pledge["history"] = list(pledge.get("history") or []) + ["captured"]
         saved = await get_ledger().save_pledge(pledge)
         await record("capture", status="captured", **audit_fields)
-        await record_pledge_captured_once(saved, actor="treasurer")
-        return saved
+        return await record_pledge_captured_once(saved, actor="treasurer", client=client)
     if status == "PENDING":
         pledge["status"] = "pending"
         pledge["history"] = list(pledge.get("history") or []) + ["pending"]
@@ -1430,6 +1508,7 @@ async def capture_pledge(
             payload,
             finance={"vault_id": vault_id, "payment_mode": "VAULT"},
             effective_at=effective_at,
+            client=client,
         )
         if saved.get("status") == "captured":
             try:
@@ -1462,6 +1541,7 @@ async def capture_pledge(
         payload,
         finance={"authorization_id": pledge.get("authorization_id")},
         effective_at=effective_at,
+        client=client,
     )
 
 

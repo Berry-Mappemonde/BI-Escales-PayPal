@@ -7,6 +7,7 @@ the evidence nor the sum or difference of two figures that are.
 """
 from __future__ import annotations
 
+import datetime as dt
 import re
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
@@ -233,3 +234,75 @@ def latest_evidence(milestone: Optional[dict]) -> dict:
     if not evidence:
         return {}
     return evidence[-1]
+
+
+async def record_captain_review_approval(milestone_id: str) -> dict[str, Any]:
+    """Append the approved verdict and voyage-clock time; never infer it later."""
+    from .config import simulated_now
+    from .ledger import record_finance
+    from .naviguide_bridge import resolve_milestone
+
+    mid = (milestone_id or "").strip()
+    if not mid:
+        raise ValueError("milestone_id is required")
+    milestone = await get_milestone(mid)
+    mid = resolve_milestone(mid) or mid
+    if not (milestone or {}).get("proposal"):
+        milestone = await get_milestone(mid)
+    review = (milestone or {}).get("proposal") or {}
+    proposal = review.get("proposal") if isinstance(review, dict) else None
+    if not isinstance(proposal, str) or proposal not in {"capture", "void", "wait", "reauthorize"}:
+        raise ValueError("a Captain review is required before approval")
+    at = simulated_now().isoformat()
+    await record_finance(
+        "captain_review_approved", milestone_id=mid, proposal=proposal,
+        proposal_at=review.get("at"), at=at,
+        recorded_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+    )
+    return {"milestone_id": mid, "approved": True, "proposal": proposal, "at": at}
+
+
+async def captain_review_approved(
+    milestone_id: str, *, now: Optional[dt.datetime] = None,
+) -> bool:
+    """Only a capture review and approval at/after arrival (or departure) qualify.
+
+    Legacy approvals without a verdict or a valid clock time remain in the
+    journal, but cannot authorize capture. A clock rewind cannot use a future approval.
+    """
+    from .config import simulated_now
+    from .departure_clock import _parse_moment
+    from .ledger import list_finance_entries
+    from .naviguide_bridge import resolve_milestone, resolve_schedule_milestone
+
+    mid = (milestone_id or "").strip()
+    if not mid:
+        return False
+    mid = resolve_milestone(mid) or mid
+    milestone = await resolve_schedule_milestone(mid)
+    meta = (milestone or {}).get("meta") or {}
+    anchor_key = "departure_iso" if meta.get("capture_on") == "departure" else "arrival_iso"
+    anchor = _parse_moment(str(meta.get(anchor_key) or ""))
+    if anchor is None:
+        return False
+    approvals = []
+    for entry in await list_finance_entries():
+        if entry.get("kind") != "captain_review_approved":
+            continue
+        entry_mid = str(entry.get("milestone_id") or "")
+        if (resolve_milestone(entry_mid) or entry_mid) != mid:
+            continue
+        approvals.append(entry)
+    if not approvals:
+        return False
+    # Mongo lists finance by `at`, whereas memory uses insertion order. The
+    # voyage clock can be pinned or rewound; use recording time only for order.
+    entry = max(approvals, key=lambda row: str(row.get("recorded_at") or ""))
+    approved_at = _parse_moment(str(entry.get("at") or ""))
+    proposal_at = _parse_moment(str(entry.get("proposal_at") or ""))
+    return (
+        entry.get("proposal") == "capture"
+        and approved_at is not None
+        and proposal_at is not None
+        and anchor <= proposal_at <= approved_at <= (now or simulated_now())
+    )

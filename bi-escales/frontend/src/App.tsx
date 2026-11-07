@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchHealthRetrying, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { formatSettleCaptureNote } from "./api/settleCaptureNote";
+import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchGearProjects, fetchHealthRetrying, fetchPublicCommonFund, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { emitCrewSubscribeReturn } from "./paypal/crewSubscribeReturnEvents";
 import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
-import { nextStopover } from "./voyage/nextStopover.js";
 import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
 import { EscalePopup } from "./components/EscalePopup.jsx";
@@ -11,15 +11,25 @@ import MarinasPanel from "./components/MarinasPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
 import { TreasurerPanel } from "./components/TreasurerPanel";
 import { CrewSubscribeButton } from "./components/CrewSubscribeButton";
+import { HowItWorks } from "./components/stop/HowItWorks.jsx";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
+import { ToastContainer } from "./components/Toast";
+import type { ToastItem } from "./components/Toast";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { useTheme } from "./hooks/useTheme";
 import { setLanguage } from "./i18n";
 import { MapScene } from "./map/MapScene.jsx";
-import { ficheMarinas, loadEscaleFiche } from "./marinas/escaleFiche.js";
+import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
+import { isNarrowScreen } from "./utils/narrowScreen";
 import { formatCivilDate } from "./voyage/voyageClock.js";
+import { escaleArrivalIso, logbookEntriesForStop } from "./voyage/journalDisplay.js";
+import {
+  amountFromSuggestedPledge,
+  cabinLegMilestoneId,
+  defaultAmountForKind,
+} from "./pledge/stopPledgeAmount.js";
 import "./styles/app.css";
 import "./styles/naviguide-shell.css";
 
@@ -35,14 +45,6 @@ type VoyageStop = {
 
 type FlyTarget = { lat: number; lon: number; ts: number };
 
-const KIND_AMOUNT: Record<string, string | null> = {
-  mile: null,
-  night: "60.00",
-  meal: "60.00",
-  care: "40.00",
-  common_fund: null,
-};
-
 export default function App() {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
@@ -50,7 +52,17 @@ export default function App() {
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
   const [hash, setHash] = useState(() => window.location.hash);
   const [adminKey, setAdminKey] = useState("");
-  const { pledges, loading, error, needsKey, refresh, updatePledge } = usePledgeQueue(adminKey);
+  const [queueAdminKey, setQueueAdminKey] = useState("");
+  const [demoTreasurerAvailable, setDemoTreasurerAvailable] = useState(false);
+  const [demoTreasurer, setDemoTreasurer] = useState(false);
+  useEffect(() => {
+    const handle = window.setTimeout(() => setQueueAdminKey(adminKey), 350);
+    return () => window.clearTimeout(handle);
+  }, [adminKey]);
+  const { pledges, loading, error, needsKey, refresh, updatePledge } = usePledgeQueue(
+    queueAdminKey,
+    demoTreasurer,
+  );
 
   const [routeFc, setRouteFc] = useState<unknown>(null);
   const [projects, setProjects] = useState<{ features?: unknown[] }>({ features: [] });
@@ -58,13 +70,13 @@ export default function App() {
   const [now, setNow] = useState(() => new Date());
   const [stop, setStop] = useState<VoyageStop | null>(null);
   const [fiche, setFiche] = useState<unknown>(null);
+  const [marinaGeojson, setMarinaGeojson] = useState<unknown>(null);
   const [ficheLoading, setFicheLoading] = useState(false);
   const [ficheError, setFicheError] = useState<string | null>(null);
   const [flyTo, setFlyTo] = useState<FlyTarget | null>(null);
   const [amount, setAmount] = useState("1.00");
   const [contributor, setContributor] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const prevTabRef = useRef<TabId>("voyage");
   const [kind, setKind] = useState("mile");
   const [milestoneId, setMilestoneId] = useState("");
   const [fund, setFund] = useState<FundView | null>(null);
@@ -78,8 +90,16 @@ export default function App() {
   const [settleAt, setSettleAt] = useState("");
   const [projectFund, setProjectFund] = useState<FundView | null | undefined>(undefined);
   const [boatFund, setBoatFund] = useState<FundView | null | undefined>(undefined);
+  const [publicCommonFund, setPublicCommonFund] = useState<FundView | null>(null);
   const [crewSubscribeNote, setCrewSubscribeNote] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [toolsOpen, setToolsOpen] = useState(true);
+  const toolsPanelRef = useRef<HTMLElement>(null);
+  const [panelFocusRequest, setPanelFocusRequest] = useState(0);
+  const [allMarinas, setAllMarinas] = useState<{ type: string; features?: unknown[] }>({
+    type: "FeatureCollection",
+    features: [],
+  });
   const [treasurerOpen, setTreasurerOpen] = useState(false);
   const [bryntumEnabled, setBryntumEnabled] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
@@ -96,10 +116,37 @@ export default function App() {
     [voyage, now],
   );
   const cumNm = Number(sample?.sailNm ?? sample?.cumNm ?? 0);
+  const countdownHours =
+    sample?.status === "waiting" && sample.countdownHours != null
+      ? Math.max(0, Math.round(Number(sample.countdownHours)))
+      : null;
+  const sailedNm = Number.isFinite(cumNm) ? cumNm.toFixed(1).replace(/\.0$/, "") : "—";
+  const sheetArrivalIso = useMemo(
+    () => (stop?.milestoneId && schedule ? escaleArrivalIso(schedule, stop.milestoneId) : ""),
+    [stop?.milestoneId, schedule],
+  );
+  const sheetLogbook = useMemo(
+    () => (stop?.milestoneId && schedule ? logbookEntriesForStop(schedule, stop.milestoneId) : []),
+    [stop?.milestoneId, schedule],
+  );
 
   useEffect(() => {
     document.body.classList.add("ng-naviguide-shell");
     return () => document.body.classList.remove("ng-naviguide-shell");
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadAllEscalesMarinasGeojson()
+      .then((fc) => {
+        if (!cancelled) setAllMarinas(fc as { type: string; features?: unknown[] });
+      })
+      .catch(() => {
+        if (!cancelled) setAllMarinas({ type: "FeatureCollection", features: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -112,12 +159,39 @@ export default function App() {
         if (!cancelled) setHealthOk((current) => (current === true ? true : false));
       });
     void fetchJson("/route.geojson").then(setRouteFc).catch(() => setRouteFc(null));
-    void fetchJson("/bi-projects.geojson").then(setProjects).catch(() => setProjects({ features: [] }));
+    void fetchJson("/bi-projects.geojson")
+      .then((base) => {
+        if (cancelled) return;
+        void fetchGearProjects().then((gear) => {
+          if (cancelled) return;
+          const baseFeatures = Array.isArray((base as { features?: unknown[] })?.features)
+            ? (base as { features: unknown[] }).features
+            : [];
+          const gearFeatures = Array.isArray(gear?.features) ? gear.features : [];
+          const seen = new Set(
+            gearFeatures
+              .map((row) => String((row as { properties?: { id?: string } })?.properties?.id || ""))
+              .filter(Boolean),
+          );
+          const merged = [
+            ...gearFeatures,
+            ...baseFeatures.filter((row) => {
+              const id = String((row as { properties?: { id?: string } })?.properties?.id || "");
+              return !id || !seen.has(id);
+            }),
+          ];
+          setProjects({ ...(base as object), features: merged });
+        }).catch(() => {
+          if (!cancelled) setProjects(base as { features?: unknown[] });
+        });
+      })
+      .catch(() => setProjects({ features: [] }));
     void fetchFeatures()
       .then((flags) => {
         if (cancelled) return;
         setBryntumEnabled(Boolean(flags.bryntum));
         setClockPinned(Boolean(flags.clock_pinned));
+        setDemoTreasurerAvailable(Boolean(flags.demo_treasurer));
       })
       .catch(() => {
         if (!cancelled) {
@@ -131,10 +205,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!bryntumEnabled) {
-      setSchedule(null);
-      return undefined;
-    }
     let cancelled = false;
     void fetchSchedule()
       .then((row) => {
@@ -146,7 +216,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [bryntumEnabled]);
+  }, []);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 30000);
@@ -177,11 +247,32 @@ export default function App() {
   }, [stop, lang]);
 
   useEffect(() => {
+    if (!stop) {
+      setMarinaGeojson(null);
+      return undefined;
+    }
+    let cancelled = false;
+    void loadEscaleMarinasGeojson(stop)
+      .then((fc) => {
+        if (!cancelled) setMarinaGeojson(fc);
+      })
+      .catch(() => {
+        if (!cancelled) setMarinaGeojson({ type: "FeatureCollection", features: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stop]);
+
+  useEffect(() => {
     if (hash === "#tresorier") setTreasurerOpen(true);
   }, [hash]);
 
   const onTreasurerOpenChange = useCallback((open: boolean) => {
     setTreasurerOpen(open);
+    if (!open) {
+      setDemoTreasurer(false);
+    }
     if (!open && window.location.hash === "#tresorier") {
       const next = `${window.location.pathname}${window.location.search}`;
       window.history.replaceState({}, "", next);
@@ -190,7 +281,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!treasurerOpen || !milestoneId) {
+    if (!treasurerOpen || demoTreasurer || !milestoneId) {
       if (!treasurerOpen) setFund(null);
       return undefined;
     }
@@ -205,11 +296,27 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [milestoneId, pledges, treasurerOpen, adminKey]);
+  }, [milestoneId, pledges, treasurerOpen, adminKey, demoTreasurer]);
+
+  const startDemoTreasurer = useCallback(() => {
+    setAdminKey("");
+    setDemoTreasurer(true);
+    setTreasurerOpen(true);
+  }, []);
+
+  // After the render, because the panel may only just have reopened.
+  useEffect(() => {
+    if (panelFocusRequest) toolsPanelRef.current?.focus({ preventScroll: true });
+  }, [panelFocusRequest]);
 
   const chooseStop = (next: VoyageStop) => {
     setStop(next);
     setMilestoneId(next.milestoneId);
+    if (isNarrowScreen()) {
+      setSidebarOpen(false);
+      setToolsOpen(true);
+      setPanelFocusRequest((count) => count + 1);
+    }
     if (Number.isFinite(next.lat) && Number.isFinite(next.lon)) {
       setFlyTo({ lat: next.lat, lon: next.lon, ts: Date.now() });
     }
@@ -237,7 +344,20 @@ export default function App() {
   }, [refresh, updatePledge]);
 
   useEffect(() => {
-    if (!treasurerOpen) return undefined;
+    let cancelled = false;
+    void fetchPublicCommonFund().then((row) => {
+      if (!cancelled) {
+        setPublicCommonFund(row);
+        setBoatFund((prev) => (prev === undefined ? row : prev));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pledges.length]);
+
+  useEffect(() => {
+    if (!treasurerOpen || demoTreasurer) return undefined;
     let cancelled = false;
     void fetchFund("project", adminKey)
       .then((row) => {
@@ -246,7 +366,7 @@ export default function App() {
       .catch(() => {
         if (!cancelled) setProjectFund(null);
       });
-    void fetchFund("fund", adminKey)
+    void fetchPublicCommonFund()
       .then((row) => {
         if (!cancelled) setBoatFund(row);
       })
@@ -256,7 +376,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [treasurerOpen, pledges, adminKey]);
+  }, [treasurerOpen, pledges, adminKey, demoTreasurer]);
 
   useEffect(() => {
     const onHash = () => setHash(window.location.hash);
@@ -374,19 +494,27 @@ export default function App() {
 
   const onKind = (next: string) => {
     setKind(next);
-    const priced = KIND_AMOUNT[next];
+    const priced = defaultAmountForKind(next, schedule?.prices);
     if (priced) setAmount(priced);
-    else if (next === "mile") setAmount("1.00");
+    if (next === "cabin_leg" && stop?.milestoneId) {
+      const legId = cabinLegMilestoneId(schedule, stop.milestoneId, stop.name);
+      if (legId) setMilestoneId(legId);
+    } else if (stop?.milestoneId && next !== "cabin_leg") {
+      setMilestoneId(stop.milestoneId);
+    }
   };
 
-  const onSettle = async () => {
+  const runSettle = async (atIso?: string) => {
     const key = adminKey.trim();
     if (!key) return;
     setSettleBusy(true);
     setSettleNote(null);
     try {
-      await settleClock(key);
-      setSettleNote(t("treasurer.settleDone"));
+      const body = atIso?.trim()
+        ? await settleClock(key, atIso)
+        : await settleClock(key);
+      await refresh();
+      setSettleNote(formatSettleCaptureNote(t, body.settled));
     } catch (err: unknown) {
       setSettleNote(err instanceof Error ? err.message : String(err));
     } finally {
@@ -394,25 +522,20 @@ export default function App() {
     }
   };
 
+  const onSettle = async () => {
+    await runSettle();
+  };
+
   const onSettleAt = async () => {
-    const key = adminKey.trim();
     const raw = settleAt.trim();
-    if (!key || !raw) return;
-    setSettleBusy(true);
-    setSettleNote(null);
-    try {
-      const parsed = new Date(raw);
-      if (Number.isNaN(parsed.getTime())) {
-        throw new Error(t("treasurer.settleAtInvalid"));
-      }
-      const iso = parsed.toISOString().replace(/\.\d{3}Z$/, "Z");
-      await settleClock(key, iso);
-      setSettleNote(t("treasurer.settleDone"));
-    } catch (err: unknown) {
-      setSettleNote(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSettleBusy(false);
+    if (!raw) return;
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) {
+      setSettleNote(t("treasurer.settleAtInvalid"));
+      return;
     }
+    const iso = parsed.toISOString().replace(/\.\d{3}Z$/, "Z");
+    await runSettle(iso);
   };
 
   const onSpend = async () => {
@@ -433,70 +556,76 @@ export default function App() {
 
   const onSuggested = (pledge: CaptainChatResponse["suggested_pledge"]) => {
     if (!pledge) return;
-    setAmount(pledge.amount_eur);
-    setMilestoneId(pledge.milestone_id);
-    if (pledge.kind) setKind(pledge.kind);
+    const nextKind = pledge.kind || kind;
+    setKind(nextKind);
+    setAmount(amountFromSuggestedPledge(pledge, schedule?.prices));
+    if (nextKind === "cabin_leg" && stop?.milestoneId) {
+      const legId = cabinLegMilestoneId(schedule, stop.milestoneId, stop.name);
+      setMilestoneId(legId || pledge.milestone_id);
+    } else {
+      setMilestoneId(pledge.milestone_id);
+    }
   };
 
-  useEffect(() => {
-    if (tab === "marinas" && prevTabRef.current !== "marinas" && voyage?.stops?.length) {
-      const next = nextStopover(voyage.stops, cumNm);
-      if (next) chooseStop(next);
-    }
-    prevTabRef.current = tab;
-  }, [tab, voyage?.stops, cumNm]);
-
-  const marinaFeatures = ficheMarinas(fiche);
+  // Prefer the all-stops marina catalog so the zoomed-out map always shows dots.
+  // Per-stop geojson remains available for the tools panel when a stop is open.
+  const stopMarinaFeatures =
+    (marinaGeojson as { features?: unknown[] } | null) ?? ficheMarinas(fiche);
+  const marinaFeatures =
+    Array.isArray(allMarinas?.features) && allMarinas.features.length > 0
+      ? allMarinas
+      : stopMarinaFeatures;
   const onFlyTo = (_id: string, lat: number, lon: number) => {
     setFlyTo({ lat, lon, ts: Date.now() });
   };
 
-  const paypalNotices = (
-    <>
-      {healthOk === false ? <p className="notice error">{t("app.healthFail")}</p> : null}
-      {crewSubscribeNote === "verifying" ? (
-        <p className="status" data-testid="crew-subscribe-return-notice">
-          {t("pledge.crewSubscribeVerifying")}
-        </p>
-      ) : null}
-      {crewSubscribeNote === "confirmed" ? (
-        <p className="status" data-testid="crew-subscribe-return-notice">
-          {t("pledge.crewSubscribeConfirmed")}
-        </p>
-      ) : null}
-      {crewSubscribeNote === "pending" ? (
-        <p className="notice warn" data-testid="crew-subscribe-return-notice">
-          {t("pledge.crewSubscribePending")}
-        </p>
-      ) : null}
-      {crewSubscribeNote === "cancelled" ? (
-        <p className="notice warn" data-testid="crew-subscribe-cancel-notice">
-          {t("pledge.crewSubscribeCancelled")}
-        </p>
-      ) : null}
-      {paypalNote === "cancel" ? <p className="notice warn">{t("pledge.cancelled")}</p> : null}
-      {paypalNote === "vaultCancel" ? <p className="notice warn">{t("pledge.vaultCancelled")}</p> : null}
-      {paypalNote === "vaultRetry" ? <p className="notice warn">{t("pledge.vaultRetry")}</p> : null}
-      {paypalNote === "authorizing" ? <p className="status">{t("pledge.authorizing")}</p> : null}
-      {paypalNote === "vaulting" ? <p className="status">{t("pledge.vaulting")}</p> : null}
-      {paypalNote === "authorized" ? <p className="status">{t("pledge.authorized")}</p> : null}
-      {paypalNote === "vaulted" ? <p className="status">{t("pledge.vaultSaved")}</p> : null}
-      {paypalNote === "vaultSaved" ? <p className="status">{t("pledge.vaultSaved")}</p> : null}
-      {paypalNote === "vaultFailed" ? <p className="notice error">{t("pledge.vaultFailed")}</p> : null}
-      {paypalNote &&
-      paypalNote !== "cancel" &&
-      paypalNote !== "vaultCancel" &&
-      paypalNote !== "vaultRetry" &&
-      paypalNote !== "authorizing" &&
-      paypalNote !== "vaulting" &&
-      paypalNote !== "authorized" &&
-      paypalNote !== "vaulted" &&
-      paypalNote !== "vaultSaved" &&
-      paypalNote !== "vaultFailed" ? (
-        <p className="notice error">{paypalNote}</p>
-      ) : null}
-    </>
-  );
+  const dismissToast = useCallback((id: string) => {
+    if (id.startsWith("paypal-")) setPaypalNote(null);
+    if (id.startsWith("crew-")) setCrewSubscribeNote(null);
+    if (id.startsWith("health-")) setHealthOk(null);
+  }, []);
+
+  const toastItems = useMemo(() => {
+    const items: ToastItem[] = [];
+    const push = (variant: ToastItem["variant"], title: string, opts?: { testId?: string; detail?: string; idPrefix?: string; key?: string }) => {
+      const prefix = opts?.idPrefix ?? "paypal";
+      items.push({
+        id: `${prefix}-${opts?.key ?? variant}-${title}`,
+        variant,
+        title,
+        detail: opts?.detail,
+        testId: opts?.testId,
+      });
+    };
+
+    // Newest on top: user transaction feedback above system health
+    if (paypalNote === "cancel") push("warn", t("pledge.cancelled"), { key: "cancel" });
+    else if (paypalNote === "vaultCancel") push("warn", t("pledge.vaultCancelled"), { key: "vaultCancel" });
+    else if (paypalNote === "vaultRetry") push("warn", t("pledge.vaultRetry"), { key: "vaultRetry" });
+    else if (paypalNote === "authorizing") push("info", t("pledge.authorizing"), { key: "authorizing" });
+    else if (paypalNote === "vaulting") push("info", t("pledge.vaulting"), { key: "vaulting" });
+    else if (paypalNote === "authorized") push("held", t("pledge.authorized"), { key: "authorized" });
+    else if (paypalNote === "vaulted") push("success", t("pledge.vaultSaved"), { key: "vaulted" });
+    else if (paypalNote === "vaultSaved") push("success", t("pledge.vaultSaved"), { key: "vaultSaved" });
+    else if (paypalNote === "vaultFailed") push("error", t("pledge.vaultFailed"), { key: "vaultFailed" });
+    else if (paypalNote) push("error", paypalNote, { key: "custom" });
+
+    if (crewSubscribeNote === "verifying") {
+      push("info", t("pledge.crewSubscribeVerifying"), { testId: "crew-subscribe-return-notice", idPrefix: "crew", key: "verifying" });
+    } else if (crewSubscribeNote === "confirmed") {
+      push("success", t("pledge.crewSubscribeConfirmed"), { testId: "crew-subscribe-return-notice", idPrefix: "crew", key: "confirmed" });
+    } else if (crewSubscribeNote === "pending") {
+      push("warn", t("pledge.crewSubscribePending"), { testId: "crew-subscribe-return-notice", idPrefix: "crew", key: "pending" });
+    } else if (crewSubscribeNote === "cancelled") {
+      push("warn", t("pledge.crewSubscribeCancelled"), { testId: "crew-subscribe-cancel-notice", idPrefix: "crew", key: "cancelled" });
+    }
+
+    if (healthOk === false) {
+      push("error", t("app.healthFail"), { idPrefix: "health", key: "fail" });
+    }
+
+    return items;
+  }, [healthOk, crewSubscribeNote, paypalNote, t]);
 
   return (
     <div className="ng-shell" data-testid="ng-shell">
@@ -508,28 +637,21 @@ export default function App() {
           projects={projects}
           marinas={marinaFeatures}
           showProjects={tab === "voyage"}
-          showMarinas={tab === "marinas"}
+          showMarinas
           flyTo={flyTo}
           theme={theme}
           onSelectStop={chooseStop}
           onFlyTo={onFlyTo}
           contributor={contributor}
           onPledgeAuthorized={onAuthorized}
+          marinaMilestoneId={milestoneId}
           onSelectProject={(props: { id?: string }) => {
             if (props?.id) setSelectedProjectId(props.id);
           }}
         />
-      </div>
-
-      <div className="ng-notices">{paypalNotices}</div>
-
-      <aside
-        className={`ng-sidebar panel${sidebarOpen ? "" : " ng-collapsed"}`}
-        data-testid="ng-sidebar"
-      >
         <button
           type="button"
-          className="ng-sidebar-toggle"
+          className={`ng-sidebar-toggle ng-sidebar-toggle--left${sidebarOpen ? " is-open" : ""}`}
           data-testid="ng-sidebar-toggle"
           aria-expanded={sidebarOpen}
           aria-label={sidebarOpen ? t("app.sidebarCollapse") : t("app.sidebarExpand")}
@@ -537,29 +659,84 @@ export default function App() {
         >
           {sidebarOpen ? "◀" : "▶"}
         </button>
-        <div className="ng-shell-header">
-          <h1>{t("app.title")}</h1>
-          <p>{t("app.tagline")}</p>
-          <div className="theme-switch" data-testid="theme-switch">
-            <button
-              type="button"
-              data-testid="theme-toggle"
-              aria-pressed={theme === "light"}
-              onClick={() => toggleTheme()}
-            >
-              {theme === "light" ? t("app.themeDark") : t("app.themeLight")}
-            </button>
+
+        <button
+          type="button"
+          className={`ng-tools-toggle ng-tools-toggle--right${toolsOpen ? " is-open" : ""}`}
+          data-testid="ng-tools-toggle"
+          aria-expanded={toolsOpen}
+          aria-label={toolsOpen ? t("app.toolsCollapse") : t("app.toolsExpand")}
+          onClick={() => setToolsOpen((open) => !open)}
+        >
+          {toolsOpen ? "▶" : "⚙"}
+        </button>
+      </div>
+
+      <ToastContainer items={toastItems} onDismiss={dismissToast} />
+
+
+      <aside
+        className={`ng-sidebar panel${sidebarOpen ? "" : " ng-collapsed"}`}
+        data-testid="ng-sidebar"
+      >
+        <div className="rail-masthead">
+          <div className="ng-shell-header">
+            <svg className="voyage-emblem" width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+              <path d="M16 3v19H5L16 3Z" fill="currentColor" />
+              <path d="m19 8 8 14h-8V8Z" fill="currentColor" opacity=".6" />
+              <path d="M4 25h24l-5 4H9l-5-4Z" fill="currentColor" />
+            </svg>
+            <h1 aria-label={t("app.title")}>BI Escales <small>Pay Only If We Sail</small></h1>
+          </div>
+          <div className="ng-controls">
+            <div className="lang-switch" role="group" aria-label={t("app.language")}>
+              <button
+                type="button"
+                className={i18n.language === "fr" ? "active" : ""}
+                aria-label={t("app.langFr")}
+                aria-pressed={i18n.language === "fr"}
+                onClick={() => setLanguage("fr")}
+              >
+                FR
+              </button>
+              <button
+                type="button"
+                className={i18n.language === "en" ? "active" : ""}
+                aria-label={t("app.langEn")}
+                aria-pressed={i18n.language === "en"}
+                onClick={() => setLanguage("en")}
+              >
+                EN
+              </button>
+            </div>
+            <div className="theme-switch" data-testid="theme-switch">
+              <button
+                type="button"
+                data-testid="theme-toggle"
+                aria-label={theme === "light" ? t("app.themeDark") : t("app.themeLight")}
+                aria-pressed={theme === "light"}
+                onClick={() => toggleTheme()}
+              >
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  {theme === "light" ? (
+                    <path
+                      d="M20.2 15.1A8.4 8.4 0 0 1 8.9 3.8 8.5 8.5 0 1 0 20.2 15.1Z"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinejoin="round"
+                    />
+                  ) : (
+                    <>
+                      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.7" />
+                      <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                    </>
+                  )}
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
-        <div className="lang-switch">
-          <button type="button" className={i18n.language === "fr" ? "active" : ""} onClick={() => setLanguage("fr")}>
-            {t("app.langFr")}
-          </button>
-          <button type="button" className={i18n.language === "en" ? "active" : ""} onClick={() => setLanguage("en")}>
-            {t("app.langEn")}
-          </button>
-        </div>
-        <div className="ng-tab-bar tab-bar" role="tablist">
+        <div className="ng-tab-bar" role="tablist">
           <button type="button" role="tab" aria-selected={tab === "voyage"} className={tab === "voyage" ? "active" : ""} onClick={() => setTab("voyage")}>
             {t("tabs.voyage")}
           </button>
@@ -568,14 +745,18 @@ export default function App() {
           </button>
         </div>
         <p className="ng-clock-line voyage-clock" data-testid="voyage-clock">
-          {formatCivilDate(sample?.iso, lang)}
-          {" · "}
-          {t("clock.sailed", { nm: Number.isFinite(cumNm) ? cumNm.toFixed(1) : "—" })}
-          {" "}
-          {t("clock.simulated")}
-          {sample?.status === "waiting" && sample.countdownHours != null
-            ? ` · ${t("clock.waiting", { hours: Math.round(Number(sample.countdownHours)) })}`
-            : ""}
+          {countdownHours !== null ? (
+            <span className="voyage-clock-countdown">
+              {t("clock.waiting", {
+                days: Math.floor(countdownHours / 24),
+                hours: countdownHours % 24,
+              })}
+            </span>
+          ) : null}
+          <span className="voyage-clock-date">{formatCivilDate(sample?.iso, lang)}</span>
+          <span className="voyage-clock-distance">
+            {t("clock.sailed", { nm: sailedNm })} · {t("clock.simulated")}
+          </span>
         </p>
         {!prod ? (
           <label className="dev-t0">
@@ -588,9 +769,36 @@ export default function App() {
             />
           </label>
         ) : null}
+        {tab === "voyage" ? (
+          <EscalesPanel
+            milestoneId={milestoneId}
+            adminKey={adminKey.trim() || undefined}
+            onMilestoneId={setMilestoneId}
+            onSuggested={onSuggested}
+            onAuthorized={onAuthorized}
+          />
+        ) : null}
         <section className="crew-supporter-public" data-testid="crew-supporter-public">
-          <CrewSubscribeButton adminKey={adminKey.trim() || undefined} />
+          <div className="crew-supporter-heading">
+            <h2>{t("pledge.crewSubscribeHint")}</h2>
+            <small className="crew-sandbox-note">{t("pledge.crewSubscribeSandbox")}</small>
+          </div>
+          <div className="crew-paypal-frame">
+            <CrewSubscribeButton adminKey={adminKey.trim() || undefined} />
+          </div>
         </section>
+        {publicCommonFund ? (
+          <p className="hint public-common-fund" data-testid="public-common-fund">
+            {t("fund.publicCommon", {
+              balance: Number.isFinite(Number(publicCommonFund.balance_eur))
+                ? new Intl.NumberFormat(lang, {
+                    style: "currency",
+                    currency: publicCommonFund.currency,
+                  }).format(Number(publicCommonFund.balance_eur))
+                : `${publicCommonFund.balance_eur} ${publicCommonFund.currency}`,
+            })}
+          </p>
+        ) : null}
         {tab === "voyage" ? (
           <>
             <ProjectList
@@ -599,12 +807,6 @@ export default function App() {
               onSelectProject={setSelectedProjectId}
               contributor={contributor}
               onFlyTo={onFlyTo}
-              onAuthorized={onAuthorized}
-            />
-            <EscalesPanel
-              milestoneId={milestoneId}
-              onMilestoneId={setMilestoneId}
-              onSuggested={onSuggested}
               onAuthorized={onAuthorized}
             />
             {bryntumEnabled && schedule ? (
@@ -631,6 +833,7 @@ export default function App() {
         <TreasurerPanel
           open={treasurerOpen}
           onOpenChange={onTreasurerOpenChange}
+          demoMode={demoTreasurer}
           adminKey={adminKey}
           onAdminKeyChange={setAdminKey}
           settleBusy={settleBusy}
@@ -660,10 +863,27 @@ export default function App() {
             event.preventDefault();
             void onSpend();
           }}
-        />
+        >
+          {demoTreasurerAvailable ? (
+            <button
+              type="button"
+              className="secondary demo-treasurer-entry"
+              data-testid="demo-treasurer-button"
+              onClick={() => startDemoTreasurer()}
+            >
+              {t("treasurer.demoButton")}
+            </button>
+          ) : null}
+        </TreasurerPanel>
       </aside>
 
-      <aside className="ng-tools-panel panel" data-testid="ng-tools-panel">
+      <aside
+        ref={toolsPanelRef}
+        tabIndex={-1}
+        className={`ng-tools-panel${toolsOpen ? "" : " ng-collapsed"}`}
+        data-testid="ng-tools-panel"
+        aria-hidden={!toolsOpen}
+      >
         {tab === "voyage" ? (
           stop ? (
             <EscalePopup
@@ -672,6 +892,10 @@ export default function App() {
               loading={ficheLoading}
               error={ficheError}
               onClose={() => setStop(null)}
+              arrivalIso={sheetArrivalIso}
+              logbookEntries={sheetLogbook}
+              priceCatalog={schedule?.prices}
+              schedule={schedule}
               pledge={{
                 amount,
                 milestoneId,
@@ -685,7 +909,7 @@ export default function App() {
               onPledgeAuthorized={onAuthorized}
             />
           ) : (
-            <p className="hint">{t("sheet.pick")}</p>
+            <HowItWorks />
           )
         ) : (
           <MarinasPanel

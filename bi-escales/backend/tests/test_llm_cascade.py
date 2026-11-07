@@ -29,7 +29,6 @@ LLM_ENV = (
     "ANTHROPIC_API_KEY",
     "NEBIUS_API_KEY",
     "NAVIGUIDE_TF_BASE",
-    "HELLOASSO_MEMBERSHIP_URL",
     "ESCALES_TOOLKIT_ENABLED",
     "NIM_MODEL",
     "NIM_TEMPERATURE",
@@ -312,7 +311,7 @@ def test_nim_answers_first_with_the_benchmarked_model(monkeypatch):
         assert "thinking" not in call["body"]["chat_template_kwargs"]
         assert "guided_json" not in call["body"]
         assert "nvext" not in call["body"]
-        assert call["body"]["max_tokens"] == 400
+        assert call["body"]["max_tokens"] == 500
         assert call["body"]["messages"][0] == {"role": "system", "content": "systeme"}
         await client.aclose()
 
@@ -513,10 +512,6 @@ def test_captain_strips_invented_figures_and_keeps_the_source(monkeypatch):
 
 def test_captain_chat_exposes_the_model_and_does_not_order(monkeypatch):
     _enable("openrouter")
-    monkeypatch.setenv(
-        "HELLOASSO_MEMBERSHIP_URL",
-        "https://www.helloasso.com/associations/blue-intelligence/adhesions/membre",
-    )
     monkeypatch.setattr(
         llm,
         "_client",
@@ -528,7 +523,6 @@ def test_captain_chat_exposes_the_model_and_does_not_order(monkeypatch):
     async def body():
         result = await chat("Je veux parrainer 20 milles près de Mayotte")
         assert result["model_source"] == {"provider": "openrouter", "model": "openai/gpt-4o-mini"}
-        assert result["membership_url"] in result["reply"]
         assert result["suggested_pledge"]["amount_eur"] == "20.00"
         assert result["suggested_pledge"]["intent"] == "AUTHORIZE"
         assert "order_id" not in result
@@ -1011,3 +1005,63 @@ def test_nim_timeout_names_the_fallback_and_the_sent_id(caplog):
         assert llm.NIM_MODEL_DEFAULT in caplog.text
 
     asyncio.run(body())
+
+
+def test_probe_cascade_asks_for_a_valid_advisory_and_reports_ask_json_on_nim():
+    _enable("nim")
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [
+            _openai("ok", llm.nim_model()),
+            _openai("ok", llm.nim_model()),
+            _openai('{"proposal":"wait","reason":"No arrival evidence yet."}', llm.NIM_FALLBACK_MODEL_DEFAULT),
+        ],
+    })
+
+    async def body():
+        result = await llm.probe_cascade(client=client)
+        assert result["ask_json"]["provider"] == "nim_fallback"
+        assert "error" not in result["ask_json"]
+        advisory_call = seen[2]["body"]
+        assert advisory_call["max_tokens"] >= 1000
+        prompt = advisory_call["messages"][-1]["content"]
+        assert "proposal" in prompt and "reason" in prompt
+        await client.aclose()
+
+    asyncio.run(body())
+
+
+def test_probe_cascade_reports_the_real_ask_json_error_message():
+    _enable("nim")
+    wrong_shape = '{"decision":"wait","language":"en"}'
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [
+            _openai("ok", llm.nim_model()),
+            _openai("ok", llm.nim_model()),
+            _openai(wrong_shape, llm.NIM_FALLBACK_MODEL_DEFAULT),
+        ],
+    })
+
+    async def body():
+        result = await llm.probe_cascade(client=client)
+        meta = result["ask_json"]
+        assert meta["provider"] == "none"
+        assert meta["error"] == "RuntimeError"
+        assert "advisory schema mismatch" in meta["message"]
+        await client.aclose()
+
+    asyncio.run(body())
+
+    seen, client = _transport({
+        "integrate.api.nvidia.com": [
+            _openai("ok", llm.nim_model()),
+            _openai("ok", llm.nim_model()),
+            _openai("I think we should wait.", llm.NIM_FALLBACK_MODEL_DEFAULT),
+        ],
+    })
+
+    async def parse_body():
+        result = await llm.probe_cascade(client=client)
+        assert "parse failed" in result["ask_json"]["message"]
+        await client.aclose()
+
+    asyncio.run(parse_body())

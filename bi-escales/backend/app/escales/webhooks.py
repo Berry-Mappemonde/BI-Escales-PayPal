@@ -293,6 +293,9 @@ async def _apply_event(event: dict) -> dict:
             status=resource.get("status"),
         )
     if event_type == "VAULT.PAYMENT-TOKEN.CREATED" and pledge:
+        vault_token_id = str(resource.get("id") or "").strip()
+        if vault_token_id and pledge.get("vault_on_purchase") and not pledge.get("vault_id"):
+            pledge["vault_id"] = vault_token_id
         pledge["history"] = list(pledge.get("history") or []) + ["webhook_vault_token_created"]
         pledge = await get_ledger().save_pledge(pledge)
     if event_type == "VAULT.PAYMENT-TOKEN.DELETED" and pledge:
@@ -307,6 +310,10 @@ async def _apply_event(event: dict) -> dict:
             pledge = await get_ledger().save_pledge(pledge)
     if event_type == "PAYMENT.AUTHORIZATION.VOIDED" and pledge:
         pledge["history"] = list(pledge.get("history") or []) + ["webhook_authorization_voided"]
+        if str(pledge.get("status") or "") in {"authorized", "created", "vaulted"}:
+            pledge["status"] = "voided"
+            if not str(pledge.get("voided_at") or "").strip():
+                pledge["voided_at"] = simulated_now().replace(microsecond=0).isoformat()
         pledge = await get_ledger().save_pledge(pledge)
     if event_type == "CHECKOUT.ORDER.APPROVED" and pledge:
         pledge["history"] = list(pledge.get("history") or []) + ["webhook_order_approved"]
@@ -329,8 +336,9 @@ async def _apply_event(event: dict) -> dict:
             pledge = await get_ledger().save_pledge(pledge)
             if target == "captured":
                 from .pledges import record_pledge_captured_once
+                from app.routers.escales import _paypal
 
-                await record_pledge_captured_once(pledge, actor="webhook")
+                pledge = await record_pledge_captured_once(pledge, actor="webhook", client=_paypal())
             else:
                 await record_finance(
                     "webhook_capture_denied",
@@ -413,6 +421,13 @@ async def _apply_event(event: dict) -> dict:
             event_type=event_type,
             batch_id=batch_id,
             status=resource.get("batch_status"),
+        )
+        from .marina_berth_settlement import apply_payout_batch_webhook
+
+        await apply_payout_batch_webhook(
+            batch_id=batch_id,
+            event_type=event_type,
+            batch_status=str(resource.get("batch_status") or "") or None,
         )
 
     return {

@@ -52,7 +52,12 @@ vi.mock("./components/EscalesPanel", () => ({ EscalesPanel: () => null }));
 vi.mock("./components/MarinasPanel.jsx", () => ({ default: () => null }));
 vi.mock("./components/ProjectList.jsx", () => ({ default: () => null }));
 vi.mock("./components/CrewSubscribeButton", () => ({ CrewSubscribeButton: () => null }));
-vi.mock("./marinas/escaleFiche.js", () => ({ loadEscaleFiche: vi.fn(), ficheMarinas: vi.fn(() => []) }));
+vi.mock("./marinas/escaleFiche.js", () => ({
+  loadEscaleFiche: vi.fn(),
+  loadEscaleMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),
+  loadAllEscalesMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),
+  ficheMarinas: vi.fn(() => ({ type: "FeatureCollection", features: [] })),
+}));
 
 describe("theme toggle", () => {
   beforeEach(async () => {
@@ -97,7 +102,7 @@ describe("theme toggle", () => {
     );
 
     expect(document.documentElement.dataset.theme).toBe("dark");
-    expect(screen.getByTestId("theme-toggle")).toHaveTextContent("Light");
+    expect(screen.getByTestId("theme-toggle")).toHaveAccessibleName("Light");
 
     await user.click(screen.getByTestId("theme-toggle"));
 
@@ -106,6 +111,6 @@ describe("theme toggle", () => {
     });
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
     expect(screen.getByTestId("voyage-map")).toHaveAttribute("data-map-theme", "light");
-    expect(screen.getByTestId("theme-toggle")).toHaveTextContent("Dark");
+    expect(screen.getByTestId("theme-toggle")).toHaveAccessibleName("Dark");
   });
 });

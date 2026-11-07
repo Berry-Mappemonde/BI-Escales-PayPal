@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
+import time
 from typing import Any, Callable, Optional
 
 from .config import toolkit_enabled
+from .paypal_client import PayPalClient, PayPalError
+from .paypal_limits import PayPalCallBudget, PayPalCallLimitExceeded
 
 ALLOWED_TOOLS = (
     "orders.get",
@@ -94,8 +98,12 @@ class ReadOnlyTools:
     """Read-only PayPal lookups. Never capture, void, or refund."""
 
     def __init__(self, client: Any) -> None:
+        self._client = client
+        self._budget: Optional[PayPalCallBudget] = None
+        self._http_metered = isinstance(client, PayPalClient)
         orders_get: Callable[[str], dict] = client.get_order
         authorizations_get: Callable[[str], dict] = client.get_authorization
+        self.uses_toolkit = False
         for tool in _toolkit_tools() or []:
             if not _readonly_order_tool(tool):
                 continue
@@ -103,8 +111,9 @@ class ReadOnlyTools:
             if not callable(execute):
                 continue
             orders_get = _orders_get_via_toolkit(orders_get, execute)
+            self.uses_toolkit = True
             break
-        self.call_log: list[dict[str, str]] = []
+        self.call_log: list[dict[str, Any]] = []
         self._calls: dict[str, Callable[..., dict]] = {
             "orders.get": lambda resource_id: orders_get(resource_id),
             "authorizations.get": lambda resource_id: authorizations_get(resource_id),
@@ -116,6 +125,21 @@ class ReadOnlyTools:
             "invoices.list": lambda resource_id="1": client.list_invoices(page=int(resource_id or "1")),
         }
 
+    @contextmanager
+    def chat_turn(self):
+        """Limit chat resource reads only; reviews use the unbudgeted default."""
+        previous = self._budget
+        self._budget = PayPalCallBudget()
+        if self._http_metered:
+            previous_client_budget = self._client.captain_budget
+            self._client.captain_budget = self._budget
+        try:
+            yield
+        finally:
+            self._budget = previous
+            if self._http_metered:
+                self._client.captain_budget = previous_client_budget
+
     def allowed(self) -> tuple[str, ...]:
         return ALLOWED_TOOLS
 
@@ -123,9 +147,33 @@ class ReadOnlyTools:
         call = self._calls.get(tool)
         if call is None:
             raise ToolNotAllowed(tool)
-        result = call(resource_id)
-        self.call_log.append({"tool": tool, "resource_id": resource_id})
-        return result
+        entry = {"tool": tool, "resource_id": resource_id, "read_only": True}
+        started = time.perf_counter()
+        try:
+            if self._budget is not None:
+                if self._budget.remaining <= 0:
+                    raise PayPalCallLimitExceeded("PayPal read limit reached for this turn (3 calls)")
+                if not self._http_metered:
+                    self._budget.consume()
+            result = call(resource_id)
+            entry["status"] = "ok"
+            return result
+        except Exception as exc:
+            entry["status"] = "error"
+            if isinstance(exc, PayPalError):
+                entry["http_status"] = exc.status
+                body = exc.body
+                if isinstance(body, str):
+                    try:
+                        body = json.loads(body)
+                    except ValueError:
+                        body = {}
+                if isinstance(body, dict) and isinstance(body.get("debug_id"), str):
+                    entry["debug_id"] = body["debug_id"]
+            raise
+        finally:
+            entry["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
+            self.call_log.append(entry)
 
 
 def toolkit_installed() -> bool:

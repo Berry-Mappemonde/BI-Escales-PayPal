@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "./i18n";
 import App from "./App";
 import * as escalesApi from "./api/escales";
+import * as voyageApi from "./voyage/loadVoyage.js";
 
 vi.mock("./hooks/usePledgeQueue", () => ({
   usePledgeQueue: () => ({
@@ -47,7 +48,12 @@ vi.mock("./components/EscalesPanel", () => ({ EscalesPanel: () => <div data-test
 vi.mock("./components/MarinasPanel.jsx", () => ({ default: () => <div data-testid="marinas-panel" /> }));
 vi.mock("./components/ProjectList.jsx", () => ({ default: () => null }));
 vi.mock("./components/CrewSubscribeButton", () => ({ CrewSubscribeButton: () => <span>Crew</span> }));
-vi.mock("./marinas/escaleFiche.js", () => ({ loadEscaleFiche: vi.fn(), ficheMarinas: vi.fn(() => []) }));
+vi.mock("./marinas/escaleFiche.js", () => ({
+  loadEscaleFiche: vi.fn(),
+  loadEscaleMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),
+  loadAllEscalesMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),
+  ficheMarinas: vi.fn(() => ({ type: "FeatureCollection", features: [] })),
+}));
 
 describe("NAVIGUIDE shell wiring", () => {
   beforeEach(async () => {
@@ -75,6 +81,36 @@ describe("NAVIGUIDE shell wiring", () => {
     expect(screen.getByTestId("voyage-map")).toBeInTheDocument();
     expect(screen.getByTestId("captain-panel")).toBeInTheDocument();
     expect(screen.getByTestId("crew-supporter-public")).toBeInTheDocument();
+    expect(screen.getByText("PayPal sandbox")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Language" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Français" })).toHaveTextContent("FR");
+    expect(screen.getByRole("button", { name: "English" })).toHaveTextContent("EN");
+  });
+
+  it("shows the voyage clock in three concise lines", async () => {
+    vi.mocked(voyageApi.fetchJson).mockImplementation(async (path) =>
+      path === "/route.geojson" ? {} : { type: "FeatureCollection", features: [] },
+    );
+    vi.mocked(voyageApi.voyageFromRoute).mockReturnValue({ clock: {} } as never);
+    vi.mocked(voyageApi.sampleAt).mockReturnValue({
+      status: "waiting",
+      countdownHours: 139,
+      iso: "2026-11-12T08:00:00.000Z",
+      sailNm: 0,
+    } as never);
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByText("Departure in 5d 19h")).toBeInTheDocument());
+    expect([...screen.getByTestId("voyage-clock").querySelectorAll("span")].map((line) => line.textContent)).toEqual([
+      "Departure in 5d 19h",
+      "12 Nov 2026 · 08:00 UTC",
+      "0 nm sailed · Demo clock",
+    ]);
   });
 
   it("switches marinas tab to the marinas tools panel", async () => {
@@ -88,8 +124,20 @@ describe("NAVIGUIDE shell wiring", () => {
     expect(screen.getByTestId("marinas-panel")).toBeInTheDocument();
   });
 
+  it("switches language from the compact FR/EN control", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "Français" }));
+    expect(screen.getByRole("button", { name: "Français" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "English" })).toHaveTextContent("EN");
+  });
+
   it("treasurer hash keeps settle control wired", async () => {
-    vi.mocked(escalesApi.settleClock).mockResolvedValue({ settled: [] });
+    vi.mocked(escalesApi.settleClock).mockResolvedValue({ settled: { actions: [] } });
     vi.stubGlobal("location", {
       ...window.location,
       hash: "#tresorier",
@@ -105,4 +153,30 @@ describe("NAVIGUIDE shell wiring", () => {
     });
     expect(screen.getByTestId("ng-shell")).toBeInTheDocument();
   });
+
+  it("reopens the left sidebar after collapse and closes the right tools panel", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+    const leftToggle = screen.getByTestId("ng-sidebar-toggle");
+    const toolsToggle = screen.getByTestId("ng-tools-toggle");
+    const sidebar = screen.getByTestId("ng-sidebar");
+    const tools = screen.getByTestId("ng-tools-panel");
+
+    expect(sidebar.className).not.toMatch(/ng-collapsed/);
+    await user.click(leftToggle);
+    expect(sidebar.className).toMatch(/ng-collapsed/);
+    await user.click(leftToggle);
+    expect(sidebar.className).not.toMatch(/ng-collapsed/);
+
+    expect(tools.className).not.toMatch(/ng-collapsed/);
+    await user.click(toolsToggle);
+    expect(tools.className).toMatch(/ng-collapsed/);
+    await user.click(toolsToggle);
+    expect(tools.className).not.toMatch(/ng-collapsed/);
+  });
+
 });

@@ -1,0 +1,480 @@
+/*
+ * Everything inside the stop sheet. The card around it belongs to the shell.
+ * The PayPal hosts are left alone: only the form around them is styled.
+ */
+.escale-sheet {
+  gap: 0;
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  overflow-wrap: anywhere;
+}
+
+.escale-sheet .escale-sheet-head {
+  margin-bottom: 0;
+  padding-bottom: var(--space-3);
+}
+
+.escale-sheet .escale-sheet-head button {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--color-fg-2);
+  font-size: var(--text-title);
+  transition: background-color var(--duration-fast) ease-out;
+}
+
+.escale-sheet .escale-kicker {
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.stop-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 2px 0 0;
+}
+
+.stop-title h2 {
+  margin: 0;
+  font-size: var(--text-heading);
+  line-height: var(--text-heading--line-height);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.stop-section {
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-line-strong);
+}
+
+.stop-rows {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.stop-rows > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+}
+
+.stop-rows dt {
+  color: var(--color-fg-2);
+}
+
+.stop-rows dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.stop-money {
+  margin: var(--space-2) 0 0;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.stop-next-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-title);
+  line-height: var(--text-title--line-height);
+  font-weight: 500;
+}
+
+/* The pledge form */
+.escale-sheet .stop-next .pledge-form {
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.escale-sheet .pledge-form label {
+  gap: var(--space-1);
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.escale-sheet .pledge-form input,
+.escale-sheet .pledge-form select {
+  width: 100%;
+  min-height: 32px;
+  margin-top: 0;
+  padding: var(--space-1) 10px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font: inherit;
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  transition: border-color var(--duration-fast) ease-out;
+}
+
+/* Browsers inset a select's text by a few pixels, so this lines it up with the inputs. */
+.escale-sheet .pledge-form select {
+  padding-left: 6px;
+}
+
+.escale-sheet .pledge-form input:read-only {
+  color: var(--color-fg-2);
+}
+
+.escale-sheet .pledge-form input:focus-visible,
+.escale-sheet .pledge-form select:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 22%, transparent);
+}
+
+.escale-sheet .pledge-form .hint {
+  margin: var(--space-1) 0;
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.escale-sheet .pledge-form button {
+  min-height: 32px;
+  margin-top: var(--space-1);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--color-fg);
+  color: var(--color-canvas);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 500;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.escale-sheet .pledge-form button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.escale-sheet .pledge-form a {
+  color: var(--color-accent-fg);
+}
+
+.stop-note {
+  margin: 0;
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.stop-cancelled {
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Logbook and port info */
+.stop-more {
+  border-top: 1px solid var(--color-line-strong);
+}
+
+.stop-more summary {
+  min-height: 40px;
+  padding: 10px 0;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.stop-more-body {
+  padding-bottom: var(--space-2);
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.stop-more-body .stop-note {
+  margin-bottom: var(--space-2);
+}
+
+.stop-more-body .escale-kicker {
+  margin-top: var(--space-3);
+  color: var(--color-fg);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 500;
+}
+
+.stop-more-body .hint {
+  margin-top: var(--space-1);
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+}
+
+.stop-more-body .escale-items {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 var(--space-2);
+  padding-left: var(--space-4);
+}
+
+.stop-more-body a {
+  margin-left: var(--space-1);
+  color: var(--color-accent-fg);
+  text-decoration: none;
+}
+
+.escale-sheet .escale-sheet-head button:focus-visible,
+.escale-sheet .pledge-form button:focus-visible,
+.stop-more summary:focus-visible,
+.stop-more-body a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .escale-sheet .escale-sheet-head button:hover {
+    background: var(--color-selected);
+    color: var(--color-fg);
+  }
+
+  .escale-sheet .pledge-form button:hover:not(:disabled) {
+    background: var(--color-fg-2);
+  }
+
+  .stop-more-body a:hover {
+    text-decoration: underline;
+  }
+}
+
+@media (pointer: coarse) {
+  .stop-more summary {
+    min-height: 44px;
+  }
+
+  .escale-sheet .escale-sheet-head button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .escale-sheet .pledge-form button {
+    min-height: 44px;
+  }
+
+  /* Below 16px, iOS zooms the page on focus. */
+  .escale-sheet .pledge-form input,
+  .escale-sheet .pledge-form select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .escale-sheet .pledge-form button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* The right panel before a stop is picked. */
+.how-it-works {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: var(--space-6);
+  border: 0;
+  background: none;
+}
+
+.how-it-works-credit {
+  margin-top: auto;
+  padding-top: var(--space-6);
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  text-wrap: pretty;
+}
+
+.how-it-works-eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  letter-spacing: 0.08em;
+}
+
+.how-it-works h2 {
+  white-space: pre-line;
+  margin: 0 0 var(--space-3);
+  color: var(--color-fg);
+  font-size: var(--text-display);
+  line-height: var(--text-display--line-height);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.how-it-works-intro {
+  margin: 0 0 var(--space-5);
+  color: var(--color-fg);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+}
+
+.how-steps {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.how-steps li {
+  --st: var(--color-fg-3);
+
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding-left: var(--space-5);
+}
+
+.how-steps li[data-tone="held"] {
+  --st: var(--color-status-held);
+}
+
+.how-steps li[data-tone="accent"] {
+  --st: var(--color-accent);
+}
+
+.how-steps li[data-tone="captured"] {
+  --st: var(--color-status-captured);
+}
+
+.how-steps li[data-tone="released"] {
+  --st: var(--color-status-released);
+}
+
+.how-steps li::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--st);
+}
+
+.how-steps strong {
+  color: var(--color-fg);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  font-weight: 600;
+}
+
+.how-steps span {
+  color: var(--color-fg-2);
+  font-size: var(--text-support);
+  line-height: var(--text-support--line-height);
+}
+
+.how-it-works-notes {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+.how-it-works-notes p {
+  margin: 0;
+  color: var(--color-fg-3);
+  font-size: var(--text-support);
+  line-height: var(--text-support--line-height);
+}
+
+.how-it-works-pick {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-6) 0 0;
+  color: var(--color-fg);
+  font-size: var(--text-read);
+  line-height: var(--text-read--line-height);
+}
+
+.how-it-works-pick svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: var(--color-fg-2);
+}
+
+/* Keep the voyage summary, the pledge calculation and checkout in reading order. */
+.stop-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.stop-identity img { height: var(--space-4); border-radius: var(--space-1); }
+.escale-sheet .stop-summary { background: var(--color-raised); border: 0; border-radius: var(--radius-control); padding: var(--space-3); }
+.stop-summary .stop-rows { grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: var(--space-3); }
+.stop-summary .stop-rows > div { display: grid; grid-template-columns: 1fr; gap: var(--space-1); }
+.stop-summary dt { font-size: var(--text-meta); }
+.stop-summary dd { text-align: start; font-weight: 600; }
+.escale-sheet .stop-next { padding-top: var(--space-5); border: 0; }
+.escale-sheet .pledge-calculation {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  background: var(--color-raised);
+  border-radius: var(--radius-control);
+}
+.pledge-calculation > label { flex: 1; min-width: 0; }
+.escale-sheet .pledge-calculation input:read-only {
+  padding-inline: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-fg);
+  font-size: var(--text-heading);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.money-heading { margin: var(--space-3) 0 var(--space-2); font-size: var(--text-ui); }
+.money-steps { margin: 0; padding: 0; list-style: none; }
+.money-steps li { position: relative; margin-inline-start: var(--space-1); padding: 0 0 var(--space-2) var(--space-4); font-size: var(--text-meta); color: var(--color-fg-2); }
+.money-steps li:first-child { border-inline-start: 1px solid var(--color-line-strong); }
+.money-steps li::before { content: ""; position: absolute; inset-inline-start: calc(-1 * var(--space-1)); top: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--color-status-held); }
+.money-steps li:nth-child(2)::before { background: var(--color-status-captured); }
+.money-steps li:last-child::before { background: var(--color-status-released); }
+.stop-checkout {
+  padding: var(--space-3);
+  background: var(--color-raised);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-panel);
+}
+.stop-checkout h4 { margin: 0 0 var(--space-2); font-size: var(--text-title); }
+
+.escale-sheet .stop-next-title, .escale-sheet .stop-checkout h4 {
+  margin: 0 0 var(--space-3);
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.escale-sheet .pledge-form label > :is(select, input) {
+  box-sizing: border-box;
+  min-height: var(--space-10);
+  padding-inline: var(--space-2);
+}
+.stop-held {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-chip);
+  background: color-mix(in srgb, var(--color-status-held) 14%, transparent);
+  color: color-mix(in srgb, var(--color-status-held) 55%, var(--color-fg));
+  font-size: var(--text-meta);
+}

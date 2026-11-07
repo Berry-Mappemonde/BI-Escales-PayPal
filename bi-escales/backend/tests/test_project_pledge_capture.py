@@ -11,6 +11,7 @@ from app.escales.departure_clock import run_departure_clock
 from app.escales.ledger import fund_for_milestone, list_finance_entries
 from app.escales.pledges import authorize_pledge, create_pledge, get_ledger, reset_ledger
 from app.escales.webhooks import _apply_event
+from app.routers.escales import set_paypal_client_factory
 from tests.test_escales_pledges import Spy
 
 
@@ -75,7 +76,12 @@ def test_project_pledge_webhook_capture_from_created():
         assert saved["status"] == "captured"
         assert saved.get("capture_id") == "CAP-PROJ-1"
 
-    asyncio.run(body())
+    # Mocked PayPal client: the webhook path must not need sandbox credentials.
+    set_paypal_client_factory(lambda: Spy())
+    try:
+        asyncio.run(body())
+    finally:
+        set_paypal_client_factory(None)
 
 
 def test_departure_clock_ignores_captured_project_pledge(monkeypatch):

@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from starlette.responses import Response
 
 from app.core import llm
+from app.gear_projects_catalog import funded_percent, get_gear_feature_collection, lookup_project_fund_meta
 from app.escales.captain import chat as captain_chat
 from app.escales.captain import review as captain_review
 from app.escales.captain import simulated_price_label, simulated_prices, simulated_unit
@@ -27,6 +28,8 @@ from app.escales.config import (
     clock_now_pinned,
     parse_clock_moment,
     simulated_now,
+    demo_treasurer_enabled,
+    demo_treasurer_env_forbidden,
     elastic_evidence_enabled,
     escales_enabled,
     escales_env,
@@ -54,7 +57,12 @@ from app.escales.ledger import (
     to_public_project_donation_total,
 )
 from app.escales_names import display_name as escale_display_name
-from app.escales.milestones import list_milestones, record_evidence
+from app.escales.milestones import (
+    captain_review_approved,
+    list_milestones,
+    record_captain_review_approval,
+    record_evidence,
+)
 from app.escales.naviguide_bridge import (
     clock_legs,
     escales_to_milestones,
@@ -103,6 +111,7 @@ from app.escales.app_i18n import (
 )
 from app.escales.rate_limit import (
     RateLimited,
+    captain_rate_key,
     client_ip,
     hit as hit_captain_rate,
     limit_message,
@@ -162,6 +171,7 @@ webhooks_router = APIRouter(prefix="/api/escales", route_class=_WebhooksRoute, t
 
 
 class PledgeIn(BaseModel):
+    quantity: Optional[int] = Field(None, ge=1, le=1000, strict=True)
     amount_eur: str
     description: str
     milestone_id: str = Field(
@@ -300,6 +310,70 @@ def _reader() -> Optional[ReadOnlyTools]:
     except HTTPException:
         return None
     return ReadOnlyTools(client)
+
+
+def _has_admin_key_header(request: Request) -> bool:
+    return bool(request.headers.get("x-admin-key", "").strip())
+
+
+def _demo_treasurer_session(request: Request) -> bool:
+    return demo_treasurer_enabled() and not _has_admin_key_header(request)
+
+
+def _demo_forbidden_http() -> HTTPException:
+    return HTTPException(
+        status_code=403,
+        detail="Demo treasurer requires PAYPAL_ENV=sandbox and ESCALES_ENV other than production",
+    )
+
+
+def _require_treasurer_or_demo(request: Request) -> bool:
+    """Key holder -> True. Read-only demo session (sandbox, non-production) -> False.
+
+    Only read routes may call this. Money routes (capture, void, approve) use
+    ``_require_treasurer`` so demo mode can never move funds.
+    """
+    if _has_admin_key_header(request):
+        _require_treasurer(request)
+        return True
+    if demo_treasurer_env_forbidden():
+        raise _demo_forbidden_http()
+    if _demo_treasurer_session(request):
+        return False
+    _require_treasurer(request)
+    return True
+
+
+def _treasurer_privileged(request: Request) -> bool:
+    """Full pledge detail only with a valid treasurer key; demo sessions stay redacted."""
+    if _has_admin_key_header(request):
+        _require_treasurer(request)
+        return True
+    if demo_treasurer_env_forbidden():
+        raise _demo_forbidden_http()
+    return False
+
+
+# Fields a keyless demo session may see in GET /pledges: no contributor, payer, or order ids.
+_DEMO_PLEDGE_FIELDS = (
+    "id",
+    "status",
+    "amount_eur",
+    "currency",
+    "kind",
+    "milestone_id",
+    "target_id",
+    "payment_mode",
+    "intent",
+    "simulated_price",
+    "price_label",
+    "created_at",
+    "updated_at",
+)
+
+
+def _demo_pledge_row(public: dict) -> dict:
+    return {key: public[key] for key in _DEMO_PLEDGE_FIELDS if key in public}
 
 
 def _require_treasurer(request: Request) -> None:
@@ -526,6 +600,7 @@ async def get_features():
         "pay_later_min_eur": PAY_LATER_UI_MIN_EUR,
         "p2_eligibility": p2_eligibility_report(),
         "crew_supporter_plan_id": crew_plan_id,
+        "demo_treasurer": demo_treasurer_enabled(),
         "fastlane": False,
     }
 
@@ -571,6 +646,8 @@ async def post_clock_settle(request: Request, payload: ClockSettleIn = ClockSett
 
 @router.get("/schedule")
 async def get_schedule():
+    from ..escales.navigation_logbook import navigation_logbook
+
     export = await fetch_naviguide_export()
     await sync_milestone_shells(export)
     legs = clock_legs()
@@ -581,6 +658,7 @@ async def get_schedule():
         "source": "naviguide" if naviguide_bridge_enabled() else "local",
         "clock": {"start": clock_start()},
         "prices": simulated_prices(),
+        "logbook": navigation_logbook(export),
     }
 
 
@@ -591,11 +669,42 @@ async def post_schedule_sync():
     return [_public_milestone(doc) for doc in docs]
 
 
+@router.get("/pledges/mode")
+async def get_pledge_mode(milestone_id: str, kind: str = "mile"):
+    """Read-only card checkout preview: no PayPal calls or ledger writes."""
+    from app.escales.pledges import _kind, _resolve_target
+    from app.escales.naviguide_bridge import resolve_milestone, leg_departing_from
+    from app.escales.payment_mode import resolve_pledge_mode
+    try:
+        milestone_id = milestone_id.strip()
+        pledge_kind = _kind(kind)
+        if pledge_kind == "project_pledge":
+            raise ValueError("project_pledge uses PayPal wallet checkout only")
+        canonical = (
+            "" if pledge_kind == "common_fund" and not milestone_id
+            else resolve_milestone(milestone_id)
+        )
+        if canonical is None:
+            if not await get_ledger().get_milestone(milestone_id):
+                raise ValueError("milestone_id must name a known stopover")
+            canonical = milestone_id
+        if pledge_kind == "cabin_leg" and not canonical.startswith("leg-"):
+            leg = leg_departing_from(canonical)
+            if leg:
+                canonical = str(leg["id"])
+        await _resolve_target(None, canonical, pledge_kind)
+        mode = await resolve_pledge_mode({"milestone_id": canonical, "kind": pledge_kind}, read_only=True)
+        return {"payment_mode": mode}
+    except ValueError as exc:
+        raise _as_http(exc) from exc
+
+
 @router.post("/pledges")
 async def post_pledge(body: PledgeIn, request: Request):
     client_key = request.headers.get("paypal-request-id")
     try:
         doc = await create_pledge(
+            quantity=body.quantity,
             amount_eur=body.amount_eur,
             description=body.description,
             milestone_id=body.milestone_id,
@@ -652,6 +761,22 @@ async def post_capture(pledge_id: str, request: Request, body: CaptureIn = Captu
             )
         effective_at = parse_clock_moment(str(body.now))
     try:
+        pledge = await require_pledge(pledge_id)
+        milestone_id = str(pledge.get("milestone_id") or "")
+        if milestone_id and pledge.get("status") in {
+            "authorized", "capture_failed", "vaulted", "charge_failed",
+        }:
+            from app.escales.departure_clock import refuse_early_capture
+
+            await refuse_early_capture(pledge, now=effective_at)
+            if not await captain_review_approved(milestone_id, now=effective_at):
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "capture requires an approved Captain capture review at or after "
+                        "stop arrival (leg departure for cabins)"
+                    ),
+                )
         doc = await capture_pledge(pledge_id, _paypal(), effective_at=effective_at)
     except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
         raise _money_http(exc) from exc
@@ -940,6 +1065,12 @@ async def post_subscription_approve(body: SubscriptionApproveIn):
         raise _as_http(exc) from exc
 
 
+@router.get("/gear")
+async def get_public_gear_list():
+    """Expedition Gear projects (sandbox seed + optional Channel3 search when enabled)."""
+    return await get_gear_feature_collection()
+
+
 @router.get("/projects/{project_id}/fund")
 async def get_public_project_fund(project_id: str):
     """Public crowdfunding totals for one BI project (``target_id`` slug).
@@ -953,7 +1084,28 @@ async def get_public_project_fund(project_id: str):
         fund = await fund_for_milestone(project_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Project fund not found") from exc
+    meta = lookup_project_fund_meta(project_id)
+    goal = str((meta or {}).get("goal_eur") or "").strip()
+    if goal:
+        base = to_public_project_donation_total(fund)
+        pct = funded_percent(base["amount_eur"], goal)
+        payload = to_public_project_donation_total(fund, goal_eur=goal, funded_pct=pct)
+        if meta:
+            for key in ("channel3_buy_url", "channel3_image_url", "project_kind", "channel3_product_name"):
+                if meta.get(key):
+                    payload[key] = meta[key]
+        payload["fully_funded"] = pct >= 100
+        return payload
     return to_public_project_donation_total(fund)
+
+
+@router.get("/common-fund/fund")
+async def get_public_common_fund():
+    """Public boat common-fund totals (pattern: ``GET /projects/{id}/fund`` from N33)."""
+    try:
+        return to_public_fund(await fund_for_milestone("fonds-commun"))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Common fund not found") from exc
 
 
 @router.post("/projects/{project_id}/payouts")
@@ -991,10 +1143,12 @@ async def post_payout_approve(payout_id: str, request: Request, lang: Optional[s
 
 @router.get("/pledges")
 async def get_pledges(request: Request):
-    """Every pledge on the server. The treasurer key is required."""
-    _require_treasurer(request)
+    """Every pledge on the server. The key sees everything; a sandbox demo session sees a
+    redacted list (status and amounts, never contributor names or PayPal ids)."""
+    keyed = _require_treasurer_or_demo(request)
     docs = await get_ledger().list_pledges()
-    return [_public_pledge(doc) for doc in docs]
+    rows = [_public_pledge(doc) for doc in docs]
+    return rows if keyed else [_demo_pledge_row(row) for row in rows]
 
 
 @router.get("/pledges/{pledge_id}")
@@ -1014,11 +1168,12 @@ async def get_pledge(pledge_id: str, request: Request):
 
 @router.get("/milestones/{milestone_id}/fund")
 async def get_fund(milestone_id: str, request: Request):
-    """A stopover or cabin-leg fund is public totals. Project and common fund need the key.
+    """A stopover, cabin-leg, or common fund total is public. The project fund needs the key.
 
     The body is aggregated money only: no journal lines and no pledge ids.
     """
-    if _unplaced_bucket(milestone_id) or await _project_fund_target(milestone_id):
+    bucket = _unplaced_bucket(milestone_id)
+    if bucket == "projet" or await _project_fund_target(milestone_id):
         _require_treasurer(request)
     try:
         return to_public_fund(await fund_for_milestone(milestone_id))
@@ -1066,9 +1221,10 @@ def _enforce_captain_rate(
 ) -> None:
     forwarded = request.headers.get("x-forwarded-for", "")
     host = request.client.host if request.client else ""
+    session = request.headers.get("x-escales-session", "")
     app_lang = resolve_app_language(lang)
     try:
-        hit_captain_rate(client_ip(forwarded, host))
+        hit_captain_rate(captain_rate_key(client_ip(forwarded, host), session))
     except RateLimited as exc:
         raise HTTPException(
             status_code=429,
@@ -1084,13 +1240,22 @@ async def post_review(milestone_id: str, request: Request, lang: Optional[str] =
         proposal = await captain_review(milestone_id, reader=_reader(), lang=app_lang)
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc, lang=app_lang) from exc
-    if not _valid_admin_key(request):
+    if not _treasurer_privileged(request):
         proposal = {
             key: value
             for key, value in proposal.items()
             if key not in {"pending_authorizations", "pledge_ids"}
         }
     return proposal
+
+
+@router.post("/milestones/{milestone_id}/captain-review/approve")
+async def post_captain_review_approve(milestone_id: str, request: Request):
+    _require_treasurer(request)
+    try:
+        return await record_captain_review_approval(milestone_id)
+    except ValueError as exc:
+        raise _as_http(exc) from exc
 
 
 @router.post("/captain/chat")

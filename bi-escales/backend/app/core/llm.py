@@ -345,6 +345,8 @@ def nim_max_tokens(requested: int) -> int:
             return max(1, int(raw))
         except ValueError:
             pass
+    if requested and int(requested) > 0:
+        return int(requested)
     return NIM_MAX_TOKENS_DEFAULT
 
 
@@ -1169,7 +1171,7 @@ async def ask_json(
     )
     data = parse_json_object(result.text)
     if not advisory_matches_schema(data):
-        raise RuntimeError("advisory schema")
+        raise RuntimeError("advisory schema mismatch: need proposal (capture|void|wait|reauthorize) and reason")
     parsed = LlmJson(data, result.provider, result.model, result.text)
     parsed.fallback_reason = result.fallback_reason
     return parsed
@@ -1210,11 +1212,22 @@ def llm_result_metadata(result: LlmResult) -> dict[str, Any]:
 
 
 def _probe_error_metadata(exc: BaseException) -> dict[str, Any]:
+    """Error type plus the redacted message (schema mismatch, parse failure, all hops failed)."""
     return {
         "provider": "none",
         "model": "",
         "error": type(exc).__name__,
+        "message": safe_error_message(exc),
     }
+
+
+# A valid advisory the probe asks for. Reasoning models need room to think first.
+PROBE_ADVISORY_PROMPT = (
+    'Return one JSON object with exactly two keys: "proposal", one of '
+    '"capture", "void", "wait" or "reauthorize"; and "reason", one short sentence. '
+    'Context: a stop has no arrival evidence yet. Answer with proposal "wait".'
+)
+PROBE_ADVISORY_MAX_TOKENS = 1200
 
 
 async def probe_cascade(client: Optional[httpx.AsyncClient] = None) -> dict[str, Any]:
@@ -1256,9 +1269,9 @@ async def probe_cascade(client: Optional[httpx.AsyncClient] = None) -> dict[str,
 
     try:
         advisory = await ask_json(
-            '{"decision":"wait","language":"en"}',
+            PROBE_ADVISORY_PROMPT,
             system=default_json_system("en"),
-            max_tokens=180,
+            max_tokens=PROBE_ADVISORY_MAX_TOKENS,
             client=client,
             temperature=0,
             lang="en",

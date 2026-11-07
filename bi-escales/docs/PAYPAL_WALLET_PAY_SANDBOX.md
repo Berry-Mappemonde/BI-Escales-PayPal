@@ -6,7 +6,7 @@ These buttons are gated by `ESCALES_WALLET_PAY_ENABLED=1` on the API and the mat
 
 1. Open [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/) → your sandbox REST app → **Apple Pay**.
 2. Register the **domain** where the Escales UI is served (for TEST: `bi-escales-api.onrender.com` if the app is served from there, or your local tunnel hostname if you test locally).
-3. Download/host the **domain association file** at `https://<domain>/.well-known/apple-developer-merchantid-domain-association` (PayPal shows the exact file content).
+3. The sandbox association file is served by the API at `GET /.well-known/apple-developer-merchantid-domain-association` (`text/plain`, no auth). The repo ships PayPal’s sandbox bytes under `backend/static/.well-known/` (9094 bytes). Optional override: `ESCALES_APPLE_PAY_DOMAIN_ASSOCIATION_FILE`.
 4. In sandbox, use an Apple Pay–capable Safari session with a **sandbox Apple ID** wallet; EUR merchant + FR buyer profile must stay eligible.
 5. Set `ESCALES_WALLET_PAY_ENABLED=1`, rebuild the frontend with `VITE_PAYPAL_CLIENT_ID`, redeploy TEST, and confirm `GET /api/escales/features` returns `"wallet_pay": true`.
 

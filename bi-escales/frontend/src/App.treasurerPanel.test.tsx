@@ -49,7 +49,12 @@ vi.mock("./components/EscalesPanel", () => ({ EscalesPanel: () => null }));
 vi.mock("./components/MarinasPanel.jsx", () => ({ default: () => null }));
 vi.mock("./components/ProjectList.jsx", () => ({ default: () => null }));
 vi.mock("./components/CrewSubscribeButton", () => ({ CrewSubscribeButton: () => null }));
-vi.mock("./marinas/escaleFiche.js", () => ({ loadEscaleFiche: vi.fn(), ficheMarinas: vi.fn(() => []) }));
+vi.mock("./marinas/escaleFiche.js", () => ({
+  loadEscaleFiche: vi.fn(),
+  loadEscaleMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),
+  loadAllEscalesMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),
+  ficheMarinas: vi.fn(() => ({ type: "FeatureCollection", features: [] })),
+}));
 
 describe("Crew subscription return handling", () => {
   beforeEach(async () => {
@@ -163,6 +168,7 @@ describe("Treasurer panel (mini-mix lot 1)", () => {
     expect(keyInput).toHaveAttribute("autocomplete", "off");
 
     await user.type(keyInput, "secret-admin-key");
+    expect(screen.getByTestId("admin-key-input-visibility-toggle")).toBeInTheDocument();
     const persistedAdmin = storageSpy.mock.calls.some(
       ([, value]) => typeof value === "string" && value.includes("secret-admin"),
     );

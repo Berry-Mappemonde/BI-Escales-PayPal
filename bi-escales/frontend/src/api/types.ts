@@ -6,7 +6,9 @@ export type PledgeStatus =
   | "captured"
   | "settled"
   | "failed"
-  | "voided";
+  | "voided"
+  | "partially_refunded"
+  | "refunded";
 
 export interface PublicPledge {
   id: string;
@@ -17,6 +19,14 @@ export interface PublicPledge {
   amount_eur: string;
   description: string;
   milestone_id: string;
+  kind?: string;
+  target_id?: string;
+  platform_fee_eur?: string | null;
+  marina_net_eur?: string | null;
+  platform_fee_simulated?: boolean;
+  marina_payout_batch_id?: string | null;
+  marina_payout_status?: string | null;
+  marina_payout_receiver?: string | null;
   contributor?: string | null;
   order_id?: string | null;
   approve_link?: string | null;
@@ -26,6 +36,8 @@ export interface PublicPledge {
   vault_id?: string | null;
   paypal_status?: string | null;
   capture_id?: string | null;
+  refunded_amount_eur?: string;
+  pending_refund?: { key: string; amount: string } | null;
   created_at?: string;
   history?: string[];
 }
@@ -45,6 +57,9 @@ export interface FundView {
   milestone_id: string;
   currency: string;
   income_eur: string;
+  captured_eur?: string;
+  authorized_eur?: string;
+  refunded_eur?: string;
   spending_eur: string;
   balance_eur: string;
   overdrawn?: boolean;
@@ -77,11 +92,37 @@ export interface ScheduleLeg {
   capture_on?: string;
 }
 
+export interface PriceUnit {
+  kind?: string;
+  amount_eur?: string;
+  currency?: string;
+  free_amount?: boolean;
+  label?: string;
+  simulated?: boolean;
+}
+
+export interface PriceCatalog {
+  label?: string;
+  simulated?: boolean;
+  prices?: PriceUnit[];
+}
+
 export interface ScheduleResponse {
   source?: string;
   export?: { escales?: ScheduleEscale[] };
   milestones?: ScheduleEscale[];
   legs?: ScheduleLeg[];
+  logbook?: Record<string, LogbookEntry[]>;
+  prices?: PriceCatalog;
+  clock?: { start?: string };
+}
+
+export interface LogbookEntry {
+  t: string;
+  pos?: { lat?: number; lon?: number };
+  label_fr?: string;
+  label_en?: string;
+  kind?: string;
 }
 
 export interface FeatureFlags {
@@ -92,6 +133,31 @@ export interface FeatureFlags {
   wallet_pay?: boolean;
   clock_pinned?: boolean;
   crew_supporter_plan_id?: string | null;
+  demo_treasurer?: boolean;
+}
+
+export interface TreasurerAccessOptions {
+  demoTreasurer?: boolean;
+}
+
+export interface ClockSettleAction {
+  pledge_id: string;
+  action: string;
+  status?: string;
+  capture_id?: string;
+  paypal_status?: string;
+  detail?: string;
+}
+
+export interface ClockSettleResult {
+  now?: string;
+  actions: ClockSettleAction[];
+}
+
+export interface ClockSettleResponse {
+  start?: string;
+  now?: string;
+  settled?: ClockSettleResult;
 }
 
 export interface MilestoneEvidence {
@@ -106,6 +172,7 @@ export interface MilestoneEvidence {
 export interface Milestone {
   id: string;
   evidence: MilestoneEvidence[];
+  meta?: { cancelled?: boolean } | null;
   proposal?: CaptainProposal | null;
   updated_at?: string;
 }
@@ -124,15 +191,36 @@ export interface PendingAuthorization {
   authorization_age_days?: number | null;
 }
 
-export interface CaptainProposal {
+export interface CaptainToolCall {
+  tool: string;
+  resource_id?: string;
+  read_only?: boolean;
+  latency_ms?: number;
+  status?: "ok" | "error";
+  http_status?: number;
+  debug_id?: string;
+}
+
+export interface CaptainTrace {
+  model_label?: string;
+  model_source?: { provider?: string; model?: string; reason?: string };
+  latency_ms?: number;
+  paypal_tools?: { tools?: string[]; called?: string[]; client?: string; calls?: CaptainToolCall[] } | string[];
+  paypal_tool_calls?: CaptainToolCall[];
+  /** True when the answer comes from a fixed rule in code on purpose (not a model failure). */
+  rule_by_design?: boolean;
+}
+
+export interface CaptainProposal extends CaptainTrace {
   milestone_id: string;
   proposal: "capture" | "void" | "wait" | string;
   report?: string;
   justification?: string;
   pledge_ids: string[];
   pending_authorizations?: PendingAuthorization[];
-  paypal_tool_calls?: { tool: string; resource_id?: string }[];
   evidence_flag?: string;
+  model_source?: { provider?: string; model?: string };
+  llm_proposal?: { proposal?: string | null; reason?: string | null };
   at?: string;
 }
 
@@ -146,6 +234,7 @@ export interface CartPledge {
 }
 
 export interface CartLine {
+  quantity?: string | number;
   kind?: string;
   description?: string;
   amount_eur?: string;
@@ -168,9 +257,10 @@ export interface PledgeCart {
   price_label?: string;
 }
 
-export interface CaptainChatResponse {
+export interface CaptainChatResponse extends CaptainTrace {
   reply: string;
-  membership_url?: string;
+  model_source?: { provider?: string; model?: string; reason?: string };
+  model_label?: string;
   suggested_pledge?: {
     amount_eur: string;
     currency: string;
@@ -181,6 +271,12 @@ export interface CaptainChatResponse {
     kind?: string;
   } | null;
   cart?: PledgeCart | null;
+  agentic_action?: {
+    kind: string;
+    requires_confirm?: boolean;
+    preview?: Record<string, string>;
+    toolkit_note?: string;
+  } | null;
 }
 
 export interface PledgeGaugeRow {

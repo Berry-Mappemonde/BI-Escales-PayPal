@@ -6,15 +6,20 @@ Authorize then capture: https://developer.paypal.com/docs/checkout/standard/cust
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
+import random
+import threading
 import time
 import uuid
+from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import httpx
 
-from .config import EscalesConfig, order_cancel_url, order_return_url
+from .config import SANDBOX_BASE, EscalesConfig, order_cancel_url, order_return_url
 from .paypal_idempotency import paypal_request_id
+from .paypal_limits import PayPalCallBudget
 
 SOFT_DESCRIPTOR = "BERRYMAPPEMONDE"
 VAULT_BRAND_NAME = "Berry-Mappemonde"
@@ -31,6 +36,17 @@ def paypal_checkout_locale(app_lang: Optional[str] = None) -> str:
     return DEFAULT_PAYPAL_LOCALE
 
 log = logging.getLogger("escales.paypal")
+
+
+@dataclass
+class _CachedToken:
+    token: Optional[str] = field(default=None, repr=False)
+    valid_until: float = 0.0
+    lock: Any = field(default_factory=threading.Lock, repr=False)
+
+
+_TOKEN_CACHE: dict[tuple, _CachedToken] = {}
+_TOKEN_CACHE_LOCK = threading.Lock()
 
 
 def _paypal_api_error_fields(body: Any) -> Optional[dict[str, Any]]:
@@ -159,6 +175,30 @@ def vault_id_from_token(payload: dict) -> str:
     raise PayPalError(502, "vault id missing")
 
 
+def vault_id_from_order(order: dict) -> Optional[str]:
+    """Vault payment-token id saved during an AUTHORIZE checkout (vault on purchase)."""
+    if not isinstance(order, dict):
+        return None
+
+    def walk(node: Any) -> Optional[str]:
+        if isinstance(node, dict):
+            vault_id = node.get("vault_id")
+            if isinstance(vault_id, str) and vault_id.strip():
+                return vault_id.strip()
+            for value in node.values():
+                found = walk(value)
+                if found:
+                    return found
+        elif isinstance(node, list):
+            for item in node:
+                found = walk(item)
+                if found:
+                    return found
+        return None
+
+    return walk(order)
+
+
 def setup_token_approve_link(payload: dict) -> str:
     for link in payload.get("links") or []:
         rel = (link.get("rel") or "").lower()
@@ -171,10 +211,16 @@ def setup_token_approve_link(payload: dict) -> str:
 
 class PayPalClient:
     def __init__(self, cfg: EscalesConfig, transport: Optional[httpx.BaseTransport] = None):
+        if cfg.env != "sandbox" or cfg.base_url.rstrip("/") != SANDBOX_BASE:
+            raise ValueError("PayPal sandbox only: live endpoints are not allowed")
         self.cfg = cfg
         self._http = httpx.Client(base_url=cfg.base_url, transport=transport, timeout=30)
-        self._token: Optional[str] = None
-        self._token_exp = 0.0
+        # A supplied test/custom transport has its own cache namespace. Production
+        # clients share the default namespace across incoming API requests.
+        key = (cfg.base_url, cfg.client_id, hashlib.sha256(cfg.client_secret.encode()).digest(), transport)
+        with _TOKEN_CACHE_LOCK:
+            self._cached_token = _TOKEN_CACHE.setdefault(key, _CachedToken())
+        self.captain_budget: Optional[PayPalCallBudget] = None
         self.mock_response: Optional[str] = None
 
     def _experience_context(
@@ -194,9 +240,18 @@ class PayPalClient:
             "shipping_preference": "NO_SHIPPING",
         }
 
-    def _purchase_unit(self, reference_id: str, description: str, amount_eur: str) -> dict:
+    def _purchase_unit(
+        self,
+        reference_id: str,
+        description: str,
+        amount_eur: str,
+        *,
+        payee_merchant_id: Optional[str] = None,
+        platform_fee_eur: Optional[str] = None,
+        platform_merchant_id: Optional[str] = None,
+    ) -> dict:
         ref = str(reference_id or "")[:256]
-        return {
+        unit: dict = {
             "reference_id": ref,
             "description": str(description or "")[:127],
             "custom_id": ref[:127],
@@ -204,21 +259,73 @@ class PayPalClient:
             "soft_descriptor": SOFT_DESCRIPTOR,
             "amount": {"currency_code": self.cfg.currency, "value": amount_eur},
         }
+        if payee_merchant_id:
+            unit["payee"] = {"merchant_id": payee_merchant_id}
+        fee = (platform_fee_eur or "").strip()
+        platform_id = (platform_merchant_id or "").strip()
+        if fee and platform_id:
+            unit["payment_instruction"] = {
+                "disbursement_mode": "INSTANT",
+                "platform_fees": [
+                    {
+                        "amount": {"currency_code": self.cfg.currency, "value": fee},
+                        "payee": {"merchant_id": platform_id},
+                    }
+                ],
+            }
+        return unit
 
     def _access_token(self) -> str:
-        if self._token and time.time() < self._token_exp - 60:
-            return self._token
-        response = self._http.post(
-            "/v1/oauth2/token",
-            data={"grant_type": "client_credentials"},
-            auth=(self.cfg.client_id, self.cfg.client_secret),
-        )
-        if response.status_code != 200:
-            raise PayPalError(response.status_code, response.text)
-        payload = response.json()
-        self._token = payload["access_token"]
-        self._token_exp = time.time() + int(payload.get("expires_in", 300))
-        return self._token
+        cached = self._cached_token
+        with cached.lock:
+            if cached.token and time.monotonic() < cached.valid_until:
+                return cached.token
+            response = self._request_with_retry(
+                "POST", "/v1/oauth2/token", budgeted=False,
+                data={"grant_type": "client_credentials"},
+                auth=(self.cfg.client_id, self.cfg.client_secret),
+            )
+            if response.status_code != 200:
+                raise PayPalError(response.status_code, response.text)
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise PayPalError(502, "Invalid PayPal OAuth token response") from exc
+            if not isinstance(payload, dict):
+                raise PayPalError(502, "Invalid PayPal OAuth token response")
+            token = payload.get("access_token")
+            try:
+                lifetime = float(payload.get("expires_in", 300))
+            except (TypeError, ValueError):
+                lifetime = 0
+            if not isinstance(token, str) or not token or not 0 < lifetime < float("inf"):
+                raise PayPalError(502, "Invalid PayPal OAuth token response")
+            cached.token = token
+            cached.valid_until = time.monotonic() + lifetime - min(60, lifetime * 0.1)
+            return token
+
+    def _request_with_retry(
+        self, method: str, path: str, *, retry: bool = True, budgeted: bool = True, **kwargs: Any,
+    ) -> httpx.Response:
+        """Retry throttling/transient failures; retain the original request id/body."""
+        attempts = 3 if retry else 1
+        for attempt in range(attempts):
+            if budgeted and self.captain_budget is not None:
+                self.captain_budget.consume()
+            response = self._http.request(method, path, **kwargs)
+            transient = response.status_code == 429 or 500 <= response.status_code <= 599
+            if not transient or attempt == attempts - 1:
+                return response
+            try:
+                retry_after = max(0.0, float(response.headers.get("Retry-After", "0")))
+            except ValueError:
+                retry_after = 0.0
+            # Do not retry earlier than PayPal permits or block a request for minutes.
+            if retry_after > 10.0:
+                return response
+            pause = min(10.0, max(0.25 * (2 ** attempt), retry_after))
+            time.sleep(pause + random.uniform(0, 0.25))
+        raise AssertionError("unreachable")
 
     def _req(
         self,
@@ -230,6 +337,8 @@ class PayPalClient:
         *,
         paypal_idempotent: bool = True,
     ) -> Any:
+        if not path.startswith("/") or path.startswith("//"):
+            raise ValueError("PayPal requests must use a sandbox-relative path")
         headers = {
             "Authorization": f"Bearer {self._access_token()}",
             "Content-Type": "application/json",
@@ -241,9 +350,19 @@ class PayPalClient:
         if self.mock_response:
             headers["PayPal-Mock-Response"] = self.mock_response
         if content is None:
-            response = self._http.request(method, path, json=json, headers=headers)
+            response = self._request_with_retry(
+                method, path, json=json, headers=headers,
+                retry=method in {"GET", "HEAD", "OPTIONS", "DELETE"} or "PayPal-Request-Id" in headers,
+            )
         else:
-            response = self._http.request(method, path, content=content, headers=headers)
+            response = self._request_with_retry(
+                method, path, content=content, headers=headers,
+                retry=method in {"GET", "HEAD", "OPTIONS", "DELETE"} or "PayPal-Request-Id" in headers,
+            )
+        if response.status_code == 401:
+            with self._cached_token.lock:
+                if headers["Authorization"] == f"Bearer {self._cached_token.token}":
+                    self._cached_token.token = None
         if response.status_code >= 400:
             raise PayPalError(response.status_code, response.text)
         return response.json() if response.content else {}
@@ -288,6 +407,9 @@ class PayPalClient:
         return_url: Optional[str] = None,
         cancel_url: Optional[str] = None,
         checkout_locale: Optional[str] = None,
+        payee_merchant_id: Optional[str] = None,
+        platform_fee_eur: Optional[str] = None,
+        platform_merchant_id: Optional[str] = None,
     ) -> dict:
         """Classic AUTHORIZE order. Return and cancel URLs match the vault order."""
         back = (return_url or "").strip() or order_return_url()
@@ -301,7 +423,16 @@ class PayPalClient:
                     ),
                 },
             },
-            "purchase_units": [self._purchase_unit(reference_id, description, amount_eur)],
+            "purchase_units": [
+                self._purchase_unit(
+                    reference_id,
+                    description,
+                    amount_eur,
+                    payee_merchant_id=payee_merchant_id,
+                    platform_fee_eur=platform_fee_eur,
+                    platform_merchant_id=platform_merchant_id,
+                )
+            ],
         }
         return self._req(
             "POST",

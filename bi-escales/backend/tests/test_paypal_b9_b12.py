@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.escales.config import EscalesConfig
 from app.escales.departure_clock import run_departure_clock
+from tests.review_helpers import approve_capture_review, propose_capture_review
 from app.escales.paypal_client import PayPalClient, PayPalError
 from app.escales.paypal_reconcile import reconcile_paypal_ledger
 from app.escales.pledges import (
@@ -61,6 +62,18 @@ class CaptureSpy:
 
     def get_order(self, order_id):
         return {"id": order_id, "status": self.order_status}
+
+    def get_authorization(self, authorization_id, **kwargs):
+        return {"id": authorization_id, "status": "CREATED"}
+
+    def list_disputes(self):
+        return {"items": []}
+
+    def search_transactions(self, **kwargs):
+        return {"transaction_details": []}
+
+    def list_invoices(self, **kwargs):
+        return {"items": []}
 
     def create_authorize_order(self, amount_eur, description, reference_id, **kwargs):
         return {
@@ -135,6 +148,9 @@ def test_b10_settle_override_stamps_captured_at(monkeypatch):
             client=spy,
         )
         await authorize_pledge(created["_id"], spy)
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-20T08:00:00Z")
+        await approve_capture_review("dep-la-rochelle")
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-12T08:00:00Z")
         settle_at = __import__("datetime").datetime(2026, 11, 20, 8, 0, tzinfo=__import__("datetime").timezone.utc)
         result = await run_departure_clock(spy, now=settle_at)
         assert any(row.get("action") == "capture" for row in result["actions"])
@@ -206,6 +222,8 @@ def test_b12_stop_mile_pledge_settles_on_arrival(monkeypatch):
         arrival_raw = str(doc["meta"]["arrival_iso"])
         text = arrival_raw.replace("Z", "+00:00") if arrival_raw.endswith("Z") else arrival_raw
         arrival_day = __import__("datetime").datetime.fromisoformat(text)
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", arrival_day.isoformat())
+        await approve_capture_review("dep-dzaoudzi-mayotte")
         done = await run_departure_clock(spy, now=arrival_day)
         assert done["actions"][0]["action"] == "capture"
 
@@ -265,6 +283,14 @@ def test_b10_clock_settle_api_uses_override_now(api, monkeypatch):
     assert created.status_code == 200, created.text
     auth = client.post(f"/api/escales/pledges/{created.json()['id']}/authorize")
     assert auth.status_code == 200, auth.text
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", departure)
+    asyncio.run(propose_capture_review(sailing))
+    approve = client.post(
+        "/api/escales/milestones/dep-la-rochelle/captain-review/approve",
+        headers={"x-admin-key": "test-admin-key"},
+    )
+    assert approve.status_code == 200, approve.text
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-12T08:00:00Z")
     settle = client.post(
         "/api/escales/clock/settle",
         headers={"x-admin-key": "test-admin-key"},

@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.escales.config import public_base_url, vault_cancel_url, vault_return_url
 from app.escales.departure_clock import run_departure_clock
+from tests.review_helpers import approve_capture_review
 from app.escales.ledger import get_ledger
 from app.escales.pledges import create_pledge, register_vault_pledge
 
@@ -69,8 +70,13 @@ def test_departure_clock_charges_vaulted_pledge_on_departure_day(monkeypatch):
         )
         vaulted = await register_vault_pledge(created["_id"], fake)
         assert vaulted["status"] == "vaulted"
+        await approve_capture_review("dep-test-vault")
         result = await run_departure_clock(fake)
-        assert result["actions"] == [{"pledge_id": created["_id"], "action": "capture"}]
+        row = result["actions"][0]
+        assert row["pledge_id"] == created["_id"]
+        assert row["action"] == "capture"
+        assert row["status"] == "captured"
+        assert row["capture_id"] == "CAP1"
         stored = await get_ledger().get_pledge(created["_id"])
         assert stored["status"] == "captured"
         assert stored["captured_at"] == "2026-11-20T12:00:00+00:00"

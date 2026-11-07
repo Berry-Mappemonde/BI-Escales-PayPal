@@ -22,6 +22,7 @@ from app.escales.pledges import (
     sponsor_customer_id,
     void_pledge,
 )
+from tests.review_helpers import approve_capture_review
 from app.routers.escales import router, set_paypal_client_factory
 
 ADMIN = {"x-admin-key": "vault-admin"}
@@ -282,6 +283,7 @@ def test_http_vault_requires_admin_to_capture(api):
     import os
 
     os.environ["ESCALES_CLOCK_NOW"] = "2027-05-16T08:00:00Z"
+    asyncio.run(approve_capture_review(body["milestone_id"]))
     ok = client.post(f"/api/escales/pledges/{pledge_id}/capture", headers=ADMIN)
     assert ok.status_code == 200
     assert ok.json()["status"] == "captured"

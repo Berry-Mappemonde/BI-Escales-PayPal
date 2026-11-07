@@ -11,6 +11,8 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from tests.review_helpers import approve_capture_review, propose_capture_review
+
 from app.escales.audit import AUDIT_COLLECTION, list_entries
 from app.escales.pledges import reset_ledger
 from app.escales.config import cors_origins, paypal_webhook_url
@@ -147,6 +149,10 @@ def _ready_mayotte(client, key, monkeypatch, body=None):
     return created, authorized
 
 
+def _approve_capture(milestone_id):
+    asyncio.run(approve_capture_review(milestone_id))
+
+
 def _create(client, key, body=None):
     return client.post(
         "/api/escales/pledges",
@@ -277,6 +283,7 @@ def test_cabin_leg_capture_lands_in_the_leg_fund(api):
         "milestone_id": leg,
         "kind": "cabin_leg",
     })
+    _approve_capture(authorized["milestone_id"])
     captured = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
     assert captured.status_code == 200, captured.text
 
@@ -311,6 +318,7 @@ def test_leg_spending_is_charged_to_the_cabin_fund(api):
         "milestone_id": leg,
         "kind": "cabin_leg",
     })
+    _approve_capture(authorized["milestone_id"])
     assert client.post(
         f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN
     ).status_code == 200
@@ -427,12 +435,14 @@ def test_fund_counts_captured_income_and_treasurer_spending(api, monkeypatch):
     assert held["authorized_eur"] == "20.00"
     assert "income" not in held
 
+    _approve_capture(authorized["milestone_id"])
     captured = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
     assert captured.status_code == 200
-    other = _create(client, "fund-other", {**PLEDGE, "milestone_id": "dakar", "amount_eur": "60.00"})
+    other = _create(client, "fund-other", {**PLEDGE, "milestone_id": "dep-ajaccio-corse", "amount_eur": "60.00"})
     assert other.status_code == 200
     other_id = other.json()["id"]
     assert _authorize(client, other_id).status_code == 200
+    _approve_capture(other.json()["milestone_id"])
     assert client.post(f"/api/escales/pledges/{other_id}/capture", headers=ADMIN).status_code == 200
 
     refused = client.post(
@@ -468,10 +478,10 @@ def test_fund_counts_captured_income_and_treasurer_spending(api, monkeypatch):
     same = client.get("/api/escales/milestones/mayotte/fund").json()
     assert same["income_eur"] == "20.00"
     assert same["spending_eur"] == "5.00"
-    dakar = client.get("/api/escales/milestones/dakar/fund").json()
-    assert dakar["income_eur"] == "60.00"
-    assert dakar["spending_eur"] == "0.00"
-    assert dakar["balance_eur"] == "60.00"
+    other_fund = client.get("/api/escales/milestones/dep-ajaccio-corse/fund").json()
+    assert other_fund["income_eur"] == "60.00"
+    assert other_fund["spending_eur"] == "0.00"
+    assert other_fund["balance_eur"] == "60.00"
     assert captured.json()["fund"]["milestone_id"] == "dzaoudzi-mayotte"
     assert captured.json()["fund"]["income_eur"] == "20.00"
 
@@ -495,6 +505,7 @@ def test_fund_rejects_bad_amounts_and_unknown_stopovers(api, monkeypatch):
     assert unknown.status_code == 404
 
     _created, authorized = _ready_mayotte(client, "fund-alias", monkeypatch)
+    _approve_capture(authorized["milestone_id"])
     assert client.post(
         f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN
     ).status_code == 200
@@ -534,6 +545,7 @@ def test_fund_rejects_bad_amounts_and_unknown_stopovers(api, monkeypatch):
 def test_capture_ok_with_admin_key(api):
     client, fake = api
     _created, authorized = _ready(client, "cap-ok")
+    _approve_capture(authorized["milestone_id"])
     response = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
     assert response.status_code == 200
     assert response.json()["status"] == "captured"
@@ -544,6 +556,7 @@ def test_get_pledge_returns_captured_at_with_the_capture_id(api):
     """A completed capture stores captured_at. GET returns it next to capture_id."""
     client, _fake = api
     _created, authorized = _ready(client, "cap-when")
+    _approve_capture(authorized["milestone_id"])
     captured = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
     assert captured.status_code == 200, captured.text
     body = captured.json()
@@ -643,6 +656,7 @@ def test_declined_or_expired_capture_is_a_conflict(api, monkeypatch):
         await get_ledger().save_pledge(doc)
 
     asyncio.run(expire())
+    _approve_capture(authorized["milestone_id"])
     expired = client.post(f"/api/escales/pledges/{authorized['id']}/capture", headers=ADMIN)
     assert expired.status_code == 409
     assert "expired" in expired.json()["detail"].lower()
@@ -699,6 +713,7 @@ def test_forbidden_transition_returns_409(api):
     assert authorized.status_code == 200
     again = _authorize(client, pledge_id)
     assert again.status_code == 409
+    _approve_capture(created.json()["milestone_id"])
     captured = client.post(f"/api/escales/pledges/{pledge_id}/capture", headers=ADMIN)
     assert captured.status_code == 200
     after = client.post(f"/api/escales/pledges/{pledge_id}/void", headers=ADMIN)
@@ -818,6 +833,8 @@ def test_audit_records_proposal_and_treasurer_actions(api, monkeypatch):
     _created_b, authorized_b = _ready_mayotte(client, "audit-b", monkeypatch, dinner)
     review = client.post("/api/escales/captain/review/dep-mayotte")
     assert review.status_code == 200
+    approved = client.post("/api/escales/milestones/dep-mayotte/captain-review/approve", headers=ADMIN)
+    assert approved.status_code == 200, approved.text
     captured = client.post(f"/api/escales/pledges/{authorized_a['id']}/capture", headers=ADMIN)
     voided = client.post(f"/api/escales/pledges/{authorized_b['id']}/void", headers=ADMIN)
     assert captured.status_code == 200
@@ -1056,9 +1073,20 @@ def test_departure_clock_captures_on_the_day(api, monkeypatch):
     assert status(held["id"]) == "authorized"
     locked = client.post("/api/escales/clock/settle")
     assert locked.status_code == 401
+    asyncio.run(propose_capture_review(sailing))
+    approved = client.post(
+        f"/api/escales/milestones/{sailing}/captain-review/approve",
+        headers=ADMIN,
+    )
+    assert approved.status_code == 200, approved.text
     departed = client.post("/api/escales/clock/settle", headers=ADMIN)
     assert departed.status_code == 200
-    assert departed.json()["settled"]["actions"] == [{"pledge_id": held["id"], "action": "capture"}]
+    cap_row = next(
+        row for row in departed.json()["settled"]["actions"] if row["pledge_id"] == held["id"]
+    )
+    assert cap_row["action"] == "capture"
+    assert cap_row["status"] == "captured"
+    assert cap_row["capture_id"] == "CAP"
     assert status(held["id"]) == "captured"
     assert any(call[0] == "capture" for call in fake.calls)
 
@@ -1123,6 +1151,12 @@ def test_declined_capture_does_not_stop_the_clock(api, monkeypatch):
         return {"id": "CAP-OK", "status": "COMPLETED"}
 
     fake.capture_authorization = capture_authorization
+    asyncio.run(propose_capture_review(first_body.json()["milestone_id"]))
+    approved = client.post(
+        f"/api/escales/milestones/{first_body.json()['milestone_id']}/captain-review/approve",
+        headers=ADMIN,
+    )
+    assert approved.status_code == 200, approved.text
     clock = client.post("/api/escales/clock/settle", headers=ADMIN)
     assert clock.status_code == 200, clock.text
     actions = {row["pledge_id"]: row for row in clock.json()["settled"]["actions"]}
@@ -1253,14 +1287,22 @@ def test_public_fund_and_pledge_share_the_aggregate(api, monkeypatch):
 
 
 def test_unplaced_project_and_fund_totals_are_readable(api, monkeypatch):
-    """Project and common-fund totals need the treasurer key. A stopover stays public."""
+    """Project totals need the treasurer key. Common fund and stopovers stay public."""
     client, _fake = api
     locked_project = client.get("/api/escales/milestones/project/fund")
     assert locked_project.status_code == 401
-    locked_fund = client.get("/api/escales/milestones/fund/fund")
-    assert locked_fund.status_code == 401
     assert "income_eur" not in locked_project.text
-    assert "income_eur" not in locked_fund.text
+    empty_common = client.get("/api/escales/milestones/common-fund/fund")
+    assert empty_common.status_code == 200
+    assert empty_common.json()["milestone_id"] == "fonds-commun"
+    assert empty_common.json()["income_eur"] == "0.00"
+    public_route = client.get("/api/escales/common-fund/fund")
+    assert public_route.status_code == 200
+    assert public_route.json()["milestone_id"] == "fonds-commun"
+    assert public_route.json()["balance_eur"] == "0.00"
+    alias_fund = client.get("/api/escales/milestones/fund/fund")
+    assert alias_fund.status_code == 200
+    assert alias_fund.json()["milestone_id"] == "fonds-commun"
     empty_project = client.get("/api/escales/milestones/project/fund", headers=ADMIN)
     assert empty_project.status_code == 200
     assert empty_project.json()["milestone_id"] == "projet"
@@ -1311,7 +1353,8 @@ def test_unplaced_project_and_fund_totals_are_readable(api, monkeypatch):
     assert fund["balance_eur"] == "12.00"
     assert client.get("/api/escales/milestones/common-fund/fund", headers=ADMIN).json()["income_eur"] == "12.00"
     assert client.get("/api/escales/milestones/project/fund", headers=ADMIN).json()["income_eur"] == "22.00"
-    assert client.get("/api/escales/milestones/common-fund/fund").status_code == 401
+    assert client.get("/api/escales/milestones/common-fund/fund").json()["income_eur"] == "12.00"
+    assert client.get("/api/escales/common-fund/fund").json()["income_eur"] == "12.00"
     assert client.get("/api/escales/milestones/projet/fund").status_code == 401
 
     _created_s, stop = _ready_mayotte(client, "tot-stop-fund", monkeypatch, {
@@ -1320,6 +1363,7 @@ def test_unplaced_project_and_fund_totals_are_readable(api, monkeypatch):
         "amount_eur": "9.00",
         "description": "caisse de l'escale",
     })
+    _approve_capture(stop["milestone_id"])
     assert client.post(
         f"/api/escales/pledges/{stop['id']}/capture", headers=ADMIN
     ).status_code == 200
@@ -1359,13 +1403,14 @@ def _capture_open_and_stopover(client, monkeypatch):
         "amount_eur": "9.00",
         "description": "caisse de l'escale",
     })
+    _approve_capture(stop["milestone_id"])
     assert client.post(
         f"/api/escales/pledges/{stop['id']}/capture", headers=ADMIN
     ).status_code == 200
 
 
 def test_public_chat_withholds_project_and_common_fund_totals(api, monkeypatch):
-    """The chat must not repeat the totals the fund route already locks."""
+    """The chat must not repeat project totals; the boat common fund is public."""
     client, _fake = api
     _capture_open_and_stopover(client, monkeypatch)
     project = client.post(
@@ -1374,7 +1419,7 @@ def test_public_chat_withholds_project_and_common_fund_totals(api, monkeypatch):
     )
     assert project.status_code == 200, project.text
     assert project.json()["fund"] is None
-    assert "Only the treasurer can see this fund's totals." in project.json()["reply"]
+    assert "Only the treasurer can see the project fund totals." in project.json()["reply"]
     assert "15.00" not in project.text
     assert "15,00" not in project.text
     assert "income_eur" not in project.text
@@ -1383,10 +1428,10 @@ def test_public_chat_withholds_project_and_common_fund_totals(api, monkeypatch):
         json={"message": "Quel est le solde du fonds commun ?", "lang": "fr"},
     )
     assert boat.status_code == 200, boat.text
-    assert boat.json()["fund"] is None
-    assert "Seul le trésorier peut voir les totaux de cette caisse." in boat.json()["reply"]
-    assert "12.00" not in boat.text
-    assert "12,00" not in boat.text
+    assert boat.json()["fund"]["milestone_id"] == "fonds-commun"
+    assert boat.json()["fund"]["balance_eur"] == "12.00"
+    assert "12,00" in boat.json()["reply"]
+    assert "Seul le trésorier peut voir les totaux de la caisse projet." not in boat.json()["reply"]
     wrong = client.post(
         "/api/escales/captain/chat",
         json={"message": "How much money is in the project fund?"},

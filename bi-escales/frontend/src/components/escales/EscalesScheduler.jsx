@@ -7,6 +7,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { PledgeButton } from "../PledgeButton";
+import BryntumTimeline from "./BryntumTimeline.jsx";
 
 function toDate(value) {
   if (!value) return null;
@@ -115,7 +116,11 @@ export default function EscalesScheduler({
         <h2>{t("scheduler.heading")}</h2>
       </header>
       <LegList legs={legs} amount={cabinAmount(schedule?.prices)} onAuthorized={onAuthorized} />
-      <LocalScheduleList events={events} onSelect={onSelectEscale} />
+      <BryntumTimeline
+        events={events}
+        onSelect={onSelectEscale}
+        fallback={<LocalScheduleList events={events} onSelect={onSelectEscale} />}
+      />
     </section>
   );
 }

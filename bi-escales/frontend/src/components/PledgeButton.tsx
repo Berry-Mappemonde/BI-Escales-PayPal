@@ -75,6 +75,11 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     pledgeMode?.milestoneId === values.milestone_id && pledgeMode.kind === values.kind;
   const shouldRenderSmartButtons =
     isProjectPledge || (modeMatchesValues && pledgeMode.paymentMode === "AUTHORIZE");
+  const intentLabel = isProjectPledge
+    ? t("pledge.intentProject")
+    : modeMatchesValues
+      ? t(pledgeMode.paymentMode === "VAULT" ? "pledge.intentVault" : "pledge.intent")
+      : null;
   const buttonsHost = useRef<HTMLDivElement | null>(null);
   const valuesRef = useRef(values);
   valuesRef.current = values;
@@ -333,7 +338,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
 
   return (
     <div className="pledge-button" data-testid="paypal-buttons" data-kind={values.kind || ""}>
-      <p className="hint">{isProjectPledge ? t("pledge.intentProject") : t("pledge.intent")}</p>
+      {intentLabel ? <p className="hint">{intentLabel}</p> : null}
       <p className="hint">{t("pledge.venmoNote")}</p>
       {!smartButtonsReady ? (
         <button type="button" onClick={() => void createOrder()} disabled={disabled || busy}>

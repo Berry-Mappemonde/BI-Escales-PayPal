@@ -7,6 +7,7 @@ import {
   type CaptainClaim,
   type CaptainSource,
 } from "./captainEvidence";
+import { formatAdvisoryReason } from "./formatAdvisoryReason";
 import { CaptainToolTrace } from "./CaptainToolTrace";
 import { PledgeStatusChip } from "./PledgeStatusChip";
 import { useFocusFirstButton } from "./useFocusFirstButton";
@@ -106,7 +107,7 @@ export function CaptainReviewCard({
     : proposal || t("captainCard.proposal.none");
   // report is justification without its closing "Decision: …" line, which the heading already gives.
   const report = review?.report || review?.justification;
-  const advisory = review?.llm_proposal?.reason;
+  const advisory = formatAdvisoryReason(review?.llm_proposal?.reason, i18n.language, t);
 
   const captureRule = t("captainCard.rule");
   const showCaptureRule = holds.length > 0 && !report?.includes(captureRule) && !advisory?.includes(captureRule);

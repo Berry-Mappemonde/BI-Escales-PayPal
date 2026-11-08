@@ -209,6 +209,10 @@ export interface CaptainTrace {
   paypal_tool_calls?: CaptainToolCall[];
   /** True when the answer comes from a fixed rule in code on purpose (not a model failure). */
   rule_by_design?: boolean;
+  /** Which fixed rule answered, e.g. "voyage_schedule" for boat position and ETA replies. */
+  rule_source?: string;
+  /** LangSmith run id when tracing is enabled on the server; null otherwise. */
+  trace_id?: string | null;
 }
 
 export interface CaptainProposal extends CaptainTrace {

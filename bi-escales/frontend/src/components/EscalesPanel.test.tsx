@@ -34,6 +34,9 @@ describe("EscalesPanel cart", () => {
     expect(input).toHaveAccessibleName(lang === "en" ? "Your question" : "Votre question");
     expect(screen.getByText(lang === "en" ? "When am I charged?" : "Quand suis-je débité ?")).toBeInTheDocument();
     expect(screen.getByText(lang === "en" ? "What happens if a stop is cancelled?" : "Que se passe-t-il si une escale est annulée ?")).toBeInTheDocument();
+    expect(screen.getByText(lang === "en" ? "Where is the boat?" : "Où est le bateau ?")).toBeInTheDocument();
+    const prompts = screen.getByRole("list", { name: lang === "en" ? "Example questions" : "Exemples de questions" });
+    expect(prompts.querySelectorAll("li")).toHaveLength(3);
     const button = screen.getByRole("button", { name: action });
     expect(input).toHaveValue("");
     expect(input).toHaveAttribute("placeholder", placeholder);

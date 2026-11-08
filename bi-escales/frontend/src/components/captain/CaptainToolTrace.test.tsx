@@ -40,4 +40,11 @@ describe("Captain tool trace", () => {
       expect(screen.queryByText('direct')).toBeNull();
       expect(screen.getByText(/direct/)).toBeInTheDocument();
     });
+
+  it.each([['en', /From the voyage schedule/], ['fr', /D'après le calendrier du voyage/]])(
+    'labels a voyage schedule answer in %s', async (lang, label) => {
+      await show(lang, { model_label: 'rules', rule_by_design: true, rule_source: 'voyage_schedule', paypal_tools: { calls: [] } });
+      expect(screen.getByText(label)).toBeInTheDocument();
+      expect(screen.queryByText(/Fixed rule from code|Règle fixe du code/)).toBeNull();
+    });
 });

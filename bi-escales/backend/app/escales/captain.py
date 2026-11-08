@@ -16,6 +16,8 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
+from app.core.tracing import traced
+
 from .config import AUTH_MAX_DAYS, simulated_now
 from .app_i18n import default_app_language, forced_app_lang, normalize_app_lang, resolve_app_language
 from .departure_clock import CAPTURE_RULES_EN, CAPTURE_RULES_FR
@@ -33,6 +35,9 @@ from .pledges import PLEDGE_KINDS, get_ledger, now_iso, pledges_for_milestone
 from .toolkit_tools import ReadOnlyTools
 from .paypal_limits import PayPalCallLimitExceeded
 from .captain_agentic import agentic_reply, agentic_suggested_pledge, parse_agentic_proposal
+from .voyage_answers import RULE_LABEL as VOYAGE_RULE_LABEL
+from .voyage_answers import RULE_SOURCE as VOYAGE_RULE_SOURCE
+from .voyage_answers import voyage_reply
 
 log = logging.getLogger("escales.captain")
 
@@ -2451,6 +2456,7 @@ async def _narrative_for_language(
     return usable, source, app_lang
 
 
+@traced("captain.review", "chain", attach_trace_id=True)
 async def review(
     milestone_id: str,
     reader: Optional[ReadOnlyTools] = None,
@@ -3038,6 +3044,19 @@ async def _chat(
                 "fund": None,
                 "paypal_tools": _paypal_tools_payload(reader),
             }
+    if not _message_prices_a_pledge(text):
+        voyage = voyage_reply(text, lang)
+        if voyage:
+            return {
+                "reply": _fit_words("", [voyage, _signature(lang)]),
+                "suggested_pledge": None,
+                "cart": None,
+                "model_source": _rules_source(),
+                "fund": None,
+                "rule_by_design": True,
+                "rule_source": VOYAGE_RULE_SOURCE,
+                "rule_label": VOYAGE_RULE_LABEL[lang if lang == "en" else "fr"],
+            }
     if _is_capture_rule_question(text):
         return {
             "reply": _capture_rule_reply(lang),
@@ -3129,6 +3148,7 @@ async def _chat(
     return result
 
 
+@traced("captain.chat", "chain", attach_trace_id=True)
 async def chat(
     message: str, *, treasurer: bool = False, lang: Optional[str] = None,
     accept_language: str = "", reader: Optional[ReadOnlyTools] = None,

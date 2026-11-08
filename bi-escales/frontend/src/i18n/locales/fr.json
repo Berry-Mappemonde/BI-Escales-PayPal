@@ -121,6 +121,7 @@
     "exampleQuestions": "Exemples de questions",
     "whenCharged": "Quand suis-je débité ?",
     "cancelledStop": "Que se passe-t-il si une escale est annulée ?",
+    "whereIsBoat": "Où est le bateau ?",
     "yourMessage": "Votre question",
     "chatPlaceholder": "20 milles près de Mayotte",
     "sendChat": "Demander au capitaine",
@@ -228,6 +229,7 @@
   },
   "captainTrace": {
     "fixedRule": "Règle fixe du code (voulu)",
+    "voyageSchedule": "D'après le calendrier du voyage",
     "client": "Client PayPal : {{client}}",
     "answeredBy": "Réponse de {{model}}",
     "latency": "Latence : {{time}}",

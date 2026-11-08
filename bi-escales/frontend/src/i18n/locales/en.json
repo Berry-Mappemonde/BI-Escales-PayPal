@@ -121,6 +121,7 @@
     "exampleQuestions": "Example questions",
     "whenCharged": "When am I charged?",
     "cancelledStop": "What happens if a stop is cancelled?",
+    "whereIsBoat": "Where is the boat?",
     "yourMessage": "Your question",
     "chatPlaceholder": "Sponsor 20 miles near Mayotte",
     "sendChat": "Ask the Captain",
@@ -228,6 +229,7 @@
   },
   "captainTrace": {
     "fixedRule": "Fixed rule from code (by design)",
+    "voyageSchedule": "From the voyage schedule",
     "client": "PayPal client: {{client}}",
     "answeredBy": "Answered by {{model}}",
     "latency": "Latency: {{time}}",

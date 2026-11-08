@@ -28,6 +28,7 @@ from typing import Any, Awaitable, Callable, Optional
 
 import httpx
 
+from app.core.tracing import annotate_run, traced
 from app.escales.app_i18n import normalize_app_lang
 
 log = logging.getLogger("escales.llm")
@@ -945,6 +946,21 @@ def _hop_model_for_log(name: str) -> str:
     return name
 
 
+def _annotate_hop(result: Any) -> None:
+    """Name the LangSmith run after the hop that answered. No-op when tracing is off."""
+    provider = str(getattr(result, "provider", "") or "")
+    model = str(getattr(result, "model", "") or "")
+    annotate_run(
+        name=f"{provider}/{model}" if model else provider or None,
+        metadata={
+            "ls_provider": provider,
+            "ls_model_name": model,
+            "fallback_reason": dict(getattr(result, "fallback_reason", None) or {}),
+        },
+    )
+
+
+@traced("llm.ask_text", "llm")
 async def ask_text(
     prompt: str,
     system: Optional[str] = None,
@@ -1071,6 +1087,7 @@ async def ask_text(
                         log.warning("%s", result.reason)
                     elif failures and not result.reason:
                         result.reason = "; ".join(f"{hop} {cause}" for hop, cause in failures.items())
+                    _annotate_hop(result)
                     return result
                 last = f"{name} empty"
                 failures[name] = "empty"
@@ -1147,6 +1164,7 @@ async def complete(
     )
 
 
+@traced("llm.ask_json", "llm")
 async def ask_json(
     prompt: str,
     system: Optional[str] = None,
@@ -1174,6 +1192,7 @@ async def ask_json(
         raise RuntimeError("advisory schema mismatch: need proposal (capture|void|wait|reauthorize) and reason")
     parsed = LlmJson(data, result.provider, result.model, result.text)
     parsed.fallback_reason = result.fallback_reason
+    _annotate_hop(parsed)
     return parsed
 
 

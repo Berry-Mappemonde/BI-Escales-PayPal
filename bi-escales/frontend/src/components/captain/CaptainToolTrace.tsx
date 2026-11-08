@@ -14,7 +14,9 @@ export function CaptainToolTrace({ trace, modelTestId }: { trace: CaptainTrace; 
     <div className="captain-tool-trace">
       <p data-testid={modelTestId}>
         {label === "rules"
-          ? t(trace.rule_by_design ? "captainTrace.fixedRule" : "captainCard.answeredByRules")
+          ? t(trace.rule_by_design
+            ? (trace.rule_source === "voyage_schedule" ? "captainTrace.voyageSchedule" : "captainTrace.fixedRule")
+            : "captainCard.answeredByRules")
           : t("captainTrace.answeredBy", { model: label })}
         {" · "}{t("captainTrace.latency", { time: latency(trace.latency_ms) })}
       </p>

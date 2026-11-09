@@ -3,7 +3,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { PublicPledge } from "../api/types";
 import { PayPalCardFieldsBlock } from "./PayPalCardFieldsBlock";
 import { authorizePledge, createPledge, fetchPledgeMode, registerVault } from "../api/escales";
-import "../i18n";
+import i18n from "../i18n";
 
 function stubPledge(partial: Partial<PublicPledge> & Pick<PublicPledge, "id">): PublicPledge {
   return {
@@ -18,7 +18,11 @@ function stubPledge(partial: Partial<PublicPledge> & Pick<PublicPledge, "id">): 
 }
 vi.mock("../api/escales", () => ({createPledge: vi.fn(), fetchPledgeMode: vi.fn(), authorizePledge: vi.fn(), registerVault: vi.fn(), isVaultPledge: (p: {payment_mode?: string}) => p.payment_mode === "VAULT"}));
 const values = {amount_eur: "5.00", description: "5 miles", milestone_id: "dep-mayotte", kind: "mile"};
-beforeEach(() => {vi.clearAllMocks(); vi.mocked(fetchPledgeMode).mockResolvedValue({payment_mode:"AUTHORIZE"});});
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "AUTHORIZE" });
+  void i18n.changeLanguage("en");
+});
 function sdk(pending?: Promise<void>) {
   let callbacks: Record<string, () => Promise<string>> = {};
   const fields = [0,1,2].map(() => ({render: vi.fn().mockResolvedValue(undefined), close: vi.fn()}));
@@ -164,4 +168,100 @@ it("does not report an authorization completed after checkout closes", async () 
   view.unmount();
   await act(async () => { finish(stubPledge({ id: "P", status: "authorized" })); });
   expect(done).not.toHaveBeenCalled();
+});
+
+describe("card confirm UI", () => {
+  const pledgeId = "pledge01-test-id";
+
+  async function completeCheckout(mode: "AUTHORIZE" | "VAULT", lang: "en" | "fr") {
+    await i18n.changeLanguage(lang);
+    vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: mode });
+    const pledge = stubPledge({
+      id: pledgeId,
+      payment_mode: mode,
+      order_id: "O",
+      setup_token_id: "S",
+      intent: mode === "VAULT" ? "VAULT" : "AUTHORIZE",
+    });
+    vi.mocked(createPledge).mockResolvedValue(pledge);
+    vi.mocked(authorizePledge).mockResolvedValue(pledge);
+    vi.mocked(registerVault).mockResolvedValue(pledge);
+    const s = sdk();
+    const onAuthorized = vi.fn();
+    render(<PayPalCardFieldsBlock values={values} appLang={lang} paypal={s.paypal} onAuthorized={onAuthorized} />);
+    await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("paypal-card-submit"));
+    await waitFor(() => expect(onAuthorized).toHaveBeenCalled());
+    return { onAuthorized };
+  }
+
+  it.each([
+    ["AUTHORIZE", "en", /Card payment confirmed — pledge authorized/, /Reference: pledge01/, /boat arrives at this stop/],
+    ["VAULT", "en", /Card payment confirmed — payment method saved/, /Reference: pledge01/, /when this leg departs/],
+    ["AUTHORIZE", "fr", /Paiement carte confirmé — promesse autorisée/, /Référence : pledge01/, /arrivée du bateau/],
+    ["VAULT", "fr", /Paiement carte confirmé — moyen de paiement enregistré/, /Référence : pledge01/, /départ de cette étape/],
+  ] as const)("shows %s success copy in %s", async (mode, lang, title, refLine, nextLine) => {
+    await completeCheckout(mode, lang);
+    expect(screen.getByTestId("paypal-card-confirm")).toBeInTheDocument();
+    expect(screen.getByTestId("paypal-card-confirm-ref")).toHaveTextContent(refLine);
+    expect(screen.getByTestId("paypal-card-confirm-next")).toHaveTextContent(nextLine);
+    expect(screen.getByTestId("paypal-card-confirm")).toHaveTextContent(title);
+    expect(screen.queryByTestId("paypal-card-submit")).not.toBeInTheDocument();
+  });
+
+  it("restores the pay button after a failed submit", async () => {
+    vi.mocked(createPledge).mockResolvedValue(stubPledge({ id: pledgeId, order_id: "O" }));
+    vi.mocked(authorizePledge).mockRejectedValueOnce(new Error("Authorization unavailable"));
+    const s = sdk();
+    render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} />);
+    const button = screen.getByTestId("paypal-card-submit");
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+    await screen.findByText(/Authorization unavailable/);
+    await waitFor(() => expect(button).toBeEnabled());
+    expect(button).toHaveTextContent(/Pay with card/);
+    expect(screen.getByTestId("paypal-card-fields")).toHaveTextContent(/Pledge error/);
+  });
+
+  it("ignores a second Pay click while checkout is in flight", async () => {
+    let finishCardSubmit!: () => void;
+    const cardSubmit = new Promise<void>((resolve) => {
+      finishCardSubmit = resolve;
+    });
+    const pledge = stubPledge({ id: pledgeId, order_id: "O" });
+    vi.mocked(createPledge).mockResolvedValue(pledge);
+    vi.mocked(authorizePledge).mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(pledge), 0)),
+    );
+    let callbacks: Record<string, () => Promise<string>> = {};
+    const fields = [0, 1, 2].map(() => ({ render: vi.fn().mockResolvedValue(undefined), close: vi.fn() }));
+    const CardFields = vi.fn((c) => {
+      callbacks = c;
+      return {
+        isEligible: () => true,
+        NumberField: () => fields[0],
+        ExpiryField: () => fields[1],
+        CVVField: () => fields[2],
+        submit: async () => {
+          await cardSubmit;
+          await (callbacks.createOrder || callbacks.createVaultSetupToken)?.();
+        },
+      };
+    });
+    const onAuthorized = vi.fn();
+    render(
+      <PayPalCardFieldsBlock values={values} appLang="en" paypal={{ CardFields }} onAuthorized={onAuthorized} />,
+    );
+    const button = screen.getByTestId("paypal-card-submit");
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+    await waitFor(() => expect(button).toBeDisabled());
+    fireEvent.click(button);
+    await act(async () => {
+      finishCardSubmit();
+    });
+    await waitFor(() => expect(onAuthorized).toHaveBeenCalledTimes(1));
+    expect(createPledge).toHaveBeenCalledTimes(1);
+    expect(authorizePledge).toHaveBeenCalledTimes(1);
+  });
 });

@@ -41,6 +41,7 @@ export function PayPalCardFieldsBlock({
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState<PublicPledge | null>(null);
   const activePledgeRef = useRef<PublicPledge | null>(null);
   const submitRef = useRef<(() => Promise<void>) | null>(null);
   const attemptRef = useRef<{ key: string; values: PledgeFormValues; pledge?: Promise<PublicPledge> } | null>(null);
@@ -54,6 +55,7 @@ export function PayPalCardFieldsBlock({
     setReady(false);
     setBusy(false);
     setError(null);
+    setConfirmed(null);
     submitRef.current = null;
     const CardFields = (paypal as { CardFields?: CardFieldsFactory } | null)?.CardFields;
     const numberHost = numberRef.current;
@@ -180,6 +182,7 @@ export function PayPalCardFieldsBlock({
       if (isClosed()) return;
       attemptRef.current = null;
       setReady(false);
+      setConfirmed(current);
       onAuthorized?.(current);
     } catch (e) {
       if (!isClosed()) setError(e instanceof Error ? e.message : String(e));
@@ -191,17 +194,41 @@ export function PayPalCardFieldsBlock({
     }
   };
 
+  const shortRef = confirmed ? confirmed.id.slice(0, 8) : "";
+  const vaultConfirmed = confirmed ? isVaultPledge(confirmed) : false;
+
   return (
     <div className="paypal-card-fields" data-testid="paypal-card-fields" ref={rootRef}>
-      <p className="hint">{t("pledge.cardFieldsHint")}</p>
-      <div className="card-field-row">
-        <div ref={numberRef} data-testid="paypal-card-number" />
-        <div ref={expiryRef} data-testid="paypal-card-expiry" />
-        <div ref={cvvRef} data-testid="paypal-card-cvv" />
-      </div>
-      <button type="button" data-testid="paypal-card-submit" disabled={!ready || busy || disabled} onClick={() => void onSubmit()}>
-        {t("pledge.cardPay")}
-      </button>
+      {confirmed ? (
+        <div data-testid="paypal-card-confirm">
+          <p className="status">
+            {t(vaultConfirmed ? "pledge.cardConfirmVaultTitle" : "pledge.cardConfirmAuthorizeTitle")}
+          </p>
+          <p className="hint" data-testid="paypal-card-confirm-ref">
+            {t("pledge.cardConfirmRef", { ref: shortRef })}
+          </p>
+          <p className="hint" data-testid="paypal-card-confirm-next">
+            {t(vaultConfirmed ? "pledge.cardConfirmVaultNext" : "pledge.cardConfirmAuthorizeNext")}
+          </p>
+        </div>
+      ) : (
+        <>
+          <p className="hint">{t("pledge.cardFieldsHint")}</p>
+          <div className="card-field-row">
+            <div ref={numberRef} data-testid="paypal-card-number" />
+            <div ref={expiryRef} data-testid="paypal-card-expiry" />
+            <div ref={cvvRef} data-testid="paypal-card-cvv" />
+          </div>
+          <button
+            type="button"
+            data-testid="paypal-card-submit"
+            disabled={!ready || busy || disabled}
+            onClick={() => void onSubmit()}
+          >
+            {busy ? t("pledge.authorizing") : t("pledge.cardPay")}
+          </button>
+        </>
+      )}
       {error ? (
         <p className="notice error">
           {t("pledge.error")}: {error}

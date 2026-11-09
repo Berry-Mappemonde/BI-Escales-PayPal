@@ -19,10 +19,13 @@ cancelled); cabin legs on leg departure; common fund at once (treasurer, not the
 """
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import hashlib
+import logging
 import re
 import uuid
+from contextlib import asynccontextmanager
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -49,6 +52,7 @@ from .ledger import (
 from .payment_mode import PaymentMode
 from .paypal_client import (
     PayPalError,
+    adopted_authorization_mismatch,
     approve_link,
     authorization_from,
     paypal_error_has_issue,
@@ -61,6 +65,20 @@ from .paypal_client import (
 )
 
 HONOR_DAYS = 3
+log = logging.getLogger(__name__)
+_authorize_guard = asyncio.Lock()
+_authorize_locks: dict[str, asyncio.Lock] = {}
+
+
+@asynccontextmanager
+async def _serialize_pledge_authorize(pledge_id: str):
+    async with _authorize_guard:
+        lock = _authorize_locks.get(pledge_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            _authorize_locks[pledge_id] = lock
+    async with lock:
+        yield
 
 
 def _normalize_refunds(pledge: dict) -> list[dict]:
@@ -1381,35 +1399,46 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     mode = str(pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE")
     if mode == "CAPTURE":
         return await _capture_order_pledge(pledge_id, client, pledge)
-    if str(pledge.get("status") or "") == "authorized":
-        existing = str(pledge.get("authorization_id") or "").strip()
-        if existing:
-            return pledge
-    _require_status(pledge, "created", "authorized")
-    order_id = str(pledge.get("order_id") or "")
-    if not _buyer_approved(client, order_id):
-        raise ValueError("order not approved yet")
-    from .departure_clock import refuse_cancelled_departure
+    async with _serialize_pledge_authorize(pledge_id):
+        pledge = await require_pledge(pledge_id)
+        if str(pledge.get("status") or "") == "authorized":
+            existing = str(pledge.get("authorization_id") or "").strip()
+            if existing:
+                return pledge
+        _require_status(pledge, "created", "authorized")
+        order_id = str(pledge.get("order_id") or "")
+        if not _buyer_approved(client, order_id):
+            raise ValueError("order not approved yet")
+        from .departure_clock import refuse_cancelled_departure
 
-    await refuse_cancelled_departure(pledge)
-    try:
-        order = client.authorize_order(order_id, pledge_id=pledge_id)
-    except PayPalError as exc:
-        if not paypal_error_has_issue(exc, "ORDER_ALREADY_AUTHORIZED"):
-            raise
-        refreshed = client.get_order(order_id) or {}
+        await refuse_cancelled_departure(pledge)
         try:
-            auth_id, expiration = usable_authorization_from_order(refreshed)
-        except PayPalError:
-            raise exc from None
-        return await _finish_pledge_authorization(
-            pledge,
-            refreshed,
-            client,
-            auth_id=auth_id,
-            expiration=expiration,
-        )
-    return await _finish_pledge_authorization(pledge, order, client)
+            order = client.authorize_order(order_id, pledge_id=pledge_id)
+        except PayPalError as exc:
+            if not paypal_error_has_issue(exc, "ORDER_ALREADY_AUTHORIZED"):
+                raise
+            refreshed = client.get_order(order_id) or {}
+            mismatch = adopted_authorization_mismatch(refreshed, pledge)
+            if mismatch:
+                log.warning(
+                    "ORDER_ALREADY_AUTHORIZED adoption refused pledge_id=%s order_id=%s mismatch=%s",
+                    pledge_id,
+                    order_id,
+                    mismatch,
+                )
+                raise exc from None
+            try:
+                auth_id, expiration = usable_authorization_from_order(refreshed)
+            except PayPalError:
+                raise exc from None
+            return await _finish_pledge_authorization(
+                pledge,
+                refreshed,
+                client,
+                auth_id=auth_id,
+                expiration=expiration,
+            )
+        return await _finish_pledge_authorization(pledge, order, client)
 
 
 def _money_event_timestamp(

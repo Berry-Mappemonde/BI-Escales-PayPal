@@ -127,7 +127,7 @@ describe("v6 payment session adapters", () => {
     }, host);
     expect(result.ok).toBe(true);
     host.querySelector("paypal-button")!.dispatchEvent(new MouseEvent("click"));
-    await expect(start.mock.calls[0][1]).resolves.toEqual({ setupToken: "SETUP-TOKEN" });
+    await expect(start.mock.calls[0][1]).resolves.toEqual({ vaultSetupToken: "SETUP-TOKEN" });
     safePayPalClose(result.instance);
   });
 
@@ -135,7 +135,7 @@ describe("v6 payment session adapters", () => {
     const start = vi.fn().mockResolvedValue(undefined);
     let subscriptionCallbacks: Record<string, any> = {};
     const sdk = {
-      createPayPalSubscriptionSession: vi.fn((callbacks) => {
+      createPayPalSubscriptionPaymentSession: vi.fn((callbacks) => {
         subscriptionCallbacks = callbacks;
         return { start };
       }),

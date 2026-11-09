@@ -34,7 +34,7 @@ export function TreasurerWebhookPanel({ adminKey }: TreasurerWebhookPanelProps) 
 
   return (
     <section className="panel treasurer-webhooks" data-testid="treasurer-webhook-panel">
-      <h2>{t("treasurer.webhooks.heading")}</h2>
+      <h3>{t("treasurer.webhooks.heading")}</h3>
       <button type="button" onClick={() => void refresh()}>
         {t("treasurer.refresh")}
       </button>

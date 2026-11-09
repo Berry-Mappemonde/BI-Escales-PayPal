@@ -110,11 +110,11 @@ export function TreasurerGrid(props: TreasurerGridProps) {
   return (
     <>
     <section className="panel treasurer-grid">
-      <h2>{t("grid.heading")}</h2>
+      <h3>{t("grid.heading")}</h3>
       {agGrid ? <OptionalAgGrid rows={rows} /> : <FallbackTreasurerTable rows={rows} />}
     </section>
     <section className="panel treasurer-marina-grid" data-testid="treasurer-marina-dashboard">
-      <h2>{t("grid.marinaHeading")}</h2>
+      <h3>{t("grid.marinaHeading")}</h3>
       {marinaRows.some((row) => row.marina_payout_status !== "—") ? (
         <p className="hint" data-testid="marina-payout-banner">
           {t("grid.marinaPayoutBanner")}

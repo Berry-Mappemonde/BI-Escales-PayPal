@@ -88,7 +88,9 @@ export default function MarinasPanel({ marinas, onFlyTo, milestoneId, contributo
                 }}
               >
                 <strong>{props.name || t("marinas.unnamed")}</strong>
-                <span className="hint">{props.osm_id || `${Number(lat).toFixed(3)}, ${Number(lon).toFixed(3)}`}</span>
+                <span className="hint marina-coords" data-testid="marina-coords">
+                  {`${Number(lat).toFixed(3)}, ${Number(lon).toFixed(3)}`}
+                </span>
               </button>
               {pickedId === (props.id || props.osm_id) ? (
                 <div data-testid="marina-reserve" data-kind="berth">

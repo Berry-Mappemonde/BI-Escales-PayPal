@@ -701,8 +701,18 @@ class PayPalClient:
         return result
 
     def _sdk_reads(self, method: str, *args: Any, **kwargs: Any) -> Optional[dict]:
-        """Delegate one read when the Server SDK flag is on. ``None`` keeps httpx."""
-        return self._sdk_delegate(method, *args, **kwargs)
+        """Delegate one read when the Server SDK flag is on. ``None`` keeps httpx.
+
+        The gateway charges ``captain_budget`` before the resource call, the
+        same way ``_request_with_retry`` does on the httpx path.
+        """
+        from .paypal_sdk_gateway import paypal_sdk_reads_enabled
+
+        if not paypal_sdk_reads_enabled():
+            return None
+        from . import paypal_sdk_gateway
+
+        return paypal_sdk_gateway._sdk_reads(self.captain_budget, method, *args, **kwargs)
 
     def _sdk_writes(self, method: str, *args: Any, **kwargs: Any) -> Optional[dict]:
         """Delegate one write when the Server SDK flag is on. ``None`` keeps httpx."""

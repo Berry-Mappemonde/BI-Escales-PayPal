@@ -647,3 +647,49 @@ def test_non_sandbox_env_read_imports_no_sdk() -> None:
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_sdk_read_budget_refuses_the_fourth_call_like_httpx(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.escales.paypal_limits import PayPalCallBudget, PayPalCallLimitExceeded
+
+    def drive(use_sdk: bool) -> str:
+        reset_client()
+        monkeypatch.delenv("ESCALES_PAYPAL_SDK_ENABLED", raising=False)
+        catcher: ResponseCatcher | None = None
+        if use_sdk:
+            _enable(monkeypatch)
+            catcher = _install(ORDER)
+        client = _httpx_client(ORDER)
+        client.captain_budget = PayPalCallBudget(remaining=3)
+        for _ in range(3):
+            assert client.get_order("ORDER1")["id"] == "ORDER1"
+        before = len(catcher.requests) if catcher is not None else 0
+        with pytest.raises(PayPalCallLimitExceeded) as excinfo:
+            client.get_order("ORDER1")
+        if catcher is not None:
+            assert len(catcher.requests) == before
+        assert client.captain_budget is not None
+        assert client.captain_budget.remaining == 0
+        return f"{type(excinfo.value).__name__}: {excinfo.value}"
+
+    httpx_refusal = drive(False)
+    sdk_refusal = drive(True)
+    assert sdk_refusal == httpx_refusal
+    assert sdk_refusal == "PayPalCallLimitExceeded: PayPal read limit reached for this turn (3 calls)"
+
+
+@pytest.mark.parametrize("exc_type", [ModuleNotFoundError, AttributeError, TypeError])
+def test_sdk_build_exception_falls_back_to_httpx(
+    exc_type: type[Exception],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _enable(monkeypatch)
+
+    def boom(*_args: Any, **_kwargs: Any) -> Any:
+        raise exc_type("sdk build failed")
+
+    monkeypatch.setattr("app.escales.paypal_sdk_gateway.client", boom)
+    _assert_httpx_fallback(caplog, "sdk build failed")

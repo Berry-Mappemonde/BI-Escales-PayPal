@@ -159,8 +159,9 @@ def _httpx_fallback_reason() -> str | None:
         return "PAYPAL_ENV is not sandbox"
     try:
         client()
-    except RuntimeError as exc:
-        return str(exc)
+    except (RuntimeError, ModuleNotFoundError, AttributeError, TypeError) as exc:
+        text = str(exc).strip()
+        return text or exc.__class__.__name__
     return None
 
 
@@ -243,6 +244,26 @@ def _execute(controller_name: str, operation: str, *args: Any) -> dict[str, Any]
         _reraise_transport_error(exc)
         raise
     return _body_dict(getattr(result, "body", None))
+
+
+def _sdk_reads(captain_budget: Any, method: str, *args: Any, **kwargs: Any) -> dict[str, Any]:
+    """Charge the Captain budget, then run one SDK read.
+
+    Matches ``PayPalClient._request_with_retry``: one unit per resource read.
+    ``PayPalCallLimitExceeded`` leaves PayPal uncalled. OAuth stays inside the
+    SDK client and is not charged. A missing budget stays unlimited.
+    """
+    if captain_budget is not None:
+        captain_budget.consume()
+    if method.startswith("_"):
+        _raise_paypal_error(502, "PayPal SDK response was not an object")
+    operation = globals().get(method)
+    if not callable(operation):
+        _raise_paypal_error(502, "PayPal SDK response was not an object")
+    result = operation(*args, **kwargs)
+    if not isinstance(result, dict):
+        _raise_paypal_error(502, "PayPal SDK response was not an object")
+    return {str(key): value for key, value in result.items()}
 
 
 def get_order(order_id: str) -> dict[str, Any]:

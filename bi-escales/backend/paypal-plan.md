@@ -144,9 +144,11 @@ Every call below is `HttpMethodEnum.GET` on `Server.DEFAULT`.
 
 - `ESCALES_PAYPAL_SDK_ENABLED` is off (the default).
 - `PAYPAL_ENV` is not `sandbox`.
-- `build_sandbox_client` raises `RuntimeError` (non-sandbox host, missing credentials, or another build refusal).
+- `build_sandbox_client` / `client` raises `RuntimeError`, `ModuleNotFoundError`, `AttributeError`, or `TypeError` (non-sandbox host, missing credentials, missing SDK package, or another build refusal).
 
 Each distinct reason writes one warning on logger `escales.paypal.sdk` (`PayPal SDK read gateway unavailable; using the httpx client`) and does not raise. A later read with the same reason does not log again until `reset_client`. Direct calls to `build_sandbox_client` still raise. The gateway never passes `Environment.PRODUCTION`.
+
+When the SDK read runs, `paypal_sdk_gateway._sdk_reads` calls `captain_budget.consume()` before the resource call, the same charge as `PayPalClient._request_with_retry`. OAuth is not charged. An exhausted turn raises `PayPalCallLimitExceeded` (`PayPal read limit reached for this turn (3 calls)`) and does not call PayPal. A budget of `None` stays unlimited. Writes are not charged here.
 
 Connection errors and timeouts from a read (`requests` `ConnectionError` and `Timeout`, including connect and read timeouts, plus urllib3 connection and timeout errors, including when chained as `__cause__`) become `PayPalError` with status 502. That replaces the bullet above that said those failures propagate. `ApiException` mapping is unchanged. These seven operations remain GETs. The flag default stays off.
 

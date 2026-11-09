@@ -12,7 +12,7 @@ from app.escales.demo_stop import (
     demo_reset_stop,
     demo_simulate_arrival,
 )
-from app.escales.rate_limit import RateLimited, client_ip, demo_retry_after, hit_demo
+from app.escales.rate_limit import RateLimited, client_ip, hit_demo
 from app.routers.escales import _as_http, _paypal
 
 
@@ -55,10 +55,11 @@ def _require_demo_stop(milestone_id: str) -> str:
 def _enforce_demo_rate(request: Request) -> None:
     forwarded = request.headers.get("x-forwarded-for", "")
     host = request.client.host if request.client else ""
+    ip = client_ip(forwarded, host)
     try:
-        hit_demo(client_ip(forwarded, host))
+        hit_demo(ip)
     except RateLimited as exc:
-        retry = str(demo_retry_after())
+        retry = str(exc.retry_after)
         raise HTTPException(
             status_code=429,
             detail="Too many demo requests",

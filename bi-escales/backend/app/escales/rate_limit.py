@@ -207,20 +207,21 @@ def demo_per_minute() -> int:
     return _positive("ESCALES_DEMO_RATE_PER_MINUTE", DEMO_PER_MINUTE_DEFAULT)
 
 
-def demo_retry_after(now: Optional[dt.datetime] = None) -> int:
-    """Seconds until the oldest hit in the current minute window expires."""
+def demo_retry_after(ip: str, now: Optional[dt.datetime] = None) -> int:
+    """Seconds until this client IP's oldest hit in the sliding minute expires."""
     moment = now or _now()
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=dt.timezone.utc)
-    window_start = moment - _MINUTE
-    oldest = None
-    for stamps in _demo_hits.values():
-        recent = [stamp for stamp in stamps if stamp >= window_start]
-        if recent:
-            candidate = min(recent)
-            oldest = candidate if oldest is None or candidate < oldest else oldest
-    if oldest is None:
+    else:
+        moment = moment.astimezone(dt.timezone.utc)
+    key = (ip or "").strip() or "unknown"
+    recent = [
+        stamp for stamp in _demo_hits.get(key, [])
+        if moment - stamp < _MINUTE
+    ]
+    if not recent:
         return 60
+    oldest = min(recent)
     remaining = _MINUTE - (moment - oldest)
     return max(1, int(remaining.total_seconds()) + 1)
 
@@ -372,6 +373,8 @@ def hit_demo(ip: str, now: Optional[dt.datetime] = None) -> None:
     limit = demo_per_minute()
     if len(recent) >= limit:
         _demo_hits[key] = recent
-        raise RateLimited("minute", limit)
+        oldest = min(recent)
+        pause = max(1, int((_MINUTE - (moment - oldest)).total_seconds()) + 1)
+        raise RateLimited("minute", limit, retry_after=pause)
     recent.append(moment)
     _demo_hits[key] = recent

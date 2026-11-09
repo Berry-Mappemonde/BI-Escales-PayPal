@@ -144,6 +144,10 @@ Notes for operators and maintainers (not required for judging).
 
 `ESCALES_RATE_LIMIT_ENABLED=true` forces both on even in `development`. `ESCALES_RATE_LIMIT_ENABLED=false` forces both off even in production. Counts stay in memory for the life of the process.
 
+### Security response headers
+
+The FastAPI app sets HSTS, `X-Content-Type-Options`, `Referrer-Policy`, an enforced `Content-Security-Policy` (`frame-ancestors 'none'` only), and a full `Content-Security-Policy-Report-Only` on every response. Enabled by default when `ESCALES_SECURITY_HEADERS` is unset; set `ESCALES_SECURITY_HEADERS=0` to turn off.
+
 ### Void id
 
 PayPal's void of an authorization usually returns no id (HTTP 204). `void_id` is then the authorization id, `void_id_source` is `authorization`, and `void_note` says so. A vault release with no id uses the vault id the same way. When the void body contains an `id`, that value is stored and `void_id_source` is `paypal`. `voided_at` is the voyage clock (`ESCALES_CLOCK_NOW`, or real UTC when unset).

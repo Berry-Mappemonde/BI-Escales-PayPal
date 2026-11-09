@@ -45,7 +45,17 @@ def _normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
         "caution": str(raw.get("caution") or "").strip() or None,
         "max_commission_rate": raw.get("max_commission_rate"),
         "channel3_buy_url": str(raw.get("product_url") or "").strip() or None,
+        "catalog_status": _review_status(raw) or None,
     }
+
+
+def _review_status(raw: dict[str, Any]) -> str:
+    """Seed review flag. URL-check HTTP status is not a catalogue status."""
+    return str(raw.get("catalog_status") or raw.get("review_status") or "").strip().casefold()
+
+
+def catalog_needs_confirmation(item: dict[str, Any]) -> bool:
+    return str(item.get("catalog_status") or "").strip().casefold() == "needs_confirmation"
 
 
 def load_catalog_seed() -> dict[str, Any]:
@@ -64,24 +74,38 @@ def load_catalog_seed() -> dict[str, Any]:
     }
 
 
-def list_catalog_items(*, include_optional: bool = True) -> list[dict[str, Any]]:
+def list_catalog_items(
+    *,
+    include_optional: bool = True,
+    include_needs_confirmation: bool = False,
+) -> list[dict[str, Any]]:
     rows = load_catalog_seed().get("items") or []
+    if not include_needs_confirmation:
+        rows = [row for row in rows if not catalog_needs_confirmation(row)]
     if include_optional:
         return list(rows)
     return [row for row in rows if row.get("core_catalogue")]
 
 
-def get_catalog_item(channel3_product_id: str) -> Optional[dict[str, Any]]:
+def get_catalog_item(
+    channel3_product_id: str,
+    *,
+    include_needs_confirmation: bool = False,
+) -> Optional[dict[str, Any]]:
     token = str(channel3_product_id or "").strip()
-    for row in list_catalog_items():
+    for row in list_catalog_items(include_needs_confirmation=include_needs_confirmation):
         if row["channel3_product_id"] == token:
             return dict(row)
     return None
 
 
-def lookup_catalog_by_project_id(project_id: str) -> Optional[dict[str, Any]]:
+def lookup_catalog_by_project_id(
+    project_id: str,
+    *,
+    include_needs_confirmation: bool = False,
+) -> Optional[dict[str, Any]]:
     token = str(project_id or "").strip().casefold()
-    for row in list_catalog_items():
+    for row in list_catalog_items(include_needs_confirmation=include_needs_confirmation):
         if str(row.get("project_id") or "").casefold() == token:
             return dict(row)
     return None

@@ -104,6 +104,12 @@ def test_wishlist_quantity_zero_returns_400(api):
         json={"channel3_product_id": "hwD0sF9", "quantity": 0},
     )
     assert res.status_code == 400
+    negative = api.post(
+        f"/api/escales/treasurer/wishlists/{wid}/items",
+        headers={"x-admin-key": ADMIN},
+        json={"channel3_product_id": "hwD0sF9", "quantity": -1},
+    )
+    assert negative.status_code == 400
 
 
 def test_usd_refund_uses_pledge_currency(monkeypatch):
@@ -130,6 +136,7 @@ def test_usd_refund_uses_pledge_currency(monkeypatch):
         assert spy.refund_calls[-1]["amount_eur"] == "4.00"
         snap = await fund_snapshot_for_project(pid)
         assert snap["currency"] == "USD"
+        assert snap["captured_eur"] == "5.99"
 
     asyncio.run(_run())
 
@@ -139,7 +146,7 @@ def test_jpy_refund_whole_units(monkeypatch):
     reset_ledger()
     spy = RefundTrackingSpy()
 
-    def _fake_lookup(project_id: str):
+    def _fake_lookup(project_id: str, **kwargs):
         return {
             "channel3_product_id": "jpy1",
             "project_id": project_id,
@@ -151,6 +158,7 @@ def test_jpy_refund_whole_units(monkeypatch):
         }
 
     monkeypatch.setattr("app.channel3_catalog.lookup_catalog_by_project_id", _fake_lookup)
+    monkeypatch.setattr("app.channel3_funding.lookup_catalog_by_project_id", _fake_lookup)
 
     async def _run():
         doc = await create_pledge(
@@ -168,5 +176,7 @@ def test_jpy_refund_whole_units(monkeypatch):
         await refund_pledge(captured["_id"], spy, amount_eur="300")
         assert spy.refund_calls[-1]["currency_code"] == "JPY"
         assert spy.refund_calls[-1]["amount_eur"] == "300"
+        snap = await fund_snapshot_for_project("gear-c3-jpy1")
+        assert snap["captured_eur"] == "900"
 
     asyncio.run(_run())

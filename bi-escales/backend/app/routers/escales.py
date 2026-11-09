@@ -127,6 +127,7 @@ from app.escales.rate_limit import (
 from app.escales.pledges import (
     IllegalTransition,
     PledgeNotFound,
+    RefundRequestKeyRequired,
     admin_reauthorize_pledge,
     authorize_pledge,
     capture_pledge,
@@ -230,6 +231,8 @@ class SpendingIn(BaseModel):
 class RefundIn(BaseModel):
     amount_eur: Optional[str] = None
     now: Optional[str] = None
+    request_key: Optional[str] = None
+    paypal_refund_id: Optional[str] = None
 
 
 class CaptureIn(BaseModel):
@@ -464,6 +467,8 @@ def _paypal_client_error_detail(exc: PayPalError) -> str:
 
 
 def _money_http(exc: Exception, lang: Optional[str] = None) -> HTTPException:
+    if isinstance(exc, RefundRequestKeyRequired):
+        return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, ValueError):
         if str(exc) == "order not approved yet":
             if lang is not None:
@@ -787,6 +792,23 @@ async def post_void(pledge_id: str, request: Request):
     return await _public_pledge_with_fund(doc)
 
 
+def _resolve_refund_request_key(request: Request, body: RefundIn) -> Optional[str]:
+    """Per-refund idempotency token for ``refund_pledge`` (maps to PayPal-Request-Id).
+
+    ``Idempotency-Key`` header wins when present; otherwise ``request_key`` in the JSON body.
+    If both differ, the header value is used (not rejected).
+    """
+    header = (
+        request.headers.get("Idempotency-Key")
+        or request.headers.get("idempotency-key")
+        or ""
+    ).strip()
+    if header:
+        return header
+    field = (body.request_key or "").strip()
+    return field or None
+
+
 @router.post("/pledges/{pledge_id}/refund")
 async def post_refund(pledge_id: str, body: RefundIn, request: Request):
     _require_treasurer(request)
@@ -804,8 +826,10 @@ async def post_refund(pledge_id: str, body: RefundIn, request: Request):
             _paypal(),
             amount_eur=body.amount_eur,
             effective_at=effective_at,
+            request_key=_resolve_refund_request_key(request, body),
+            paypal_refund_id=(body.paypal_refund_id or "").strip() or None,
         )
-    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError, RefundRequestKeyRequired) as exc:
         raise _money_http(exc) from exc
     return await _public_pledge_with_fund(doc)
 

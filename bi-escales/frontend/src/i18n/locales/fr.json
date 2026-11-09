@@ -124,7 +124,11 @@
     "openHeading": "Totaux hors escale",
     "projectTotals": "Promesses projet",
     "boatTotals": "Fonds commun",
-    "publicCommon": "Fonds communautaire · {{balance}}"
+    "publicCommon": "Fonds communautaire · {{balance}}",
+    "publicCommonEmpty": "Fonds communautaire · Soyez le premier à donner"
+  },
+  "display": {
+    "unknownStop": "Escale"
   },
   "cabinLegPicker": {
     "label": "Choisir une jambe de voyage",
@@ -250,7 +254,7 @@
     "scheduledDeparture": "Départ prévu",
     "held": "{{amount}} retenus pour cette escale · non débités",
     "captured": "{{amount}} encaissés",
-    "backThisLeg": "Soutenir cette étape",
+    "backThisLeg": "Soutenir une escale",
     "ruleHeld": "Retenu par PayPal, non débité.",
     "ruleCaptured": "Le trésorier peut approuver l’encaissement une fois le bateau arrivé à cette escale.",
     "ruleCabin": "Le trésorier peut approuver l’encaissement une fois le bateau parti pour cette étape.",
@@ -345,7 +349,7 @@
     "demoBanner": "Démo bac à sable — file, revue, capture et annulation seulement. Aucune clé admin sur cet appareil.",
     "demoStop": {
       "heading": "Moment juge — La Rochelle",
-      "hint": "Bac à sable uniquement, clé trésorier requise : escale {{id}}. Simuler l'arrivée capture les promesses autorisées (l'approbation ne vaut que pour cette action, rien n'est enregistré) ; annuler vide les autorisations ; réinitialiser efface l'état démo sans toucher aux captures.",
+      "hint": "Bac à sable uniquement, clé trésorier requise : {{name}}. Simuler l'arrivée capture les promesses autorisées (l'approbation ne vaut que pour cette action, rien n'est enregistré) ; annuler vide les autorisations ; réinitialiser efface l'état démo sans toucher aux captures.",
       "simulateArrival": "Simuler l'arrivée du bateau",
       "cancelStop": "Annuler l'escale",
       "resetDemo": "Réinitialiser la démo",
@@ -374,7 +378,7 @@
     "description": "Description",
     "pledgeRef": "Promesse",
     "createdAt": "Créée le",
-    "milestoneFromStop": "La caisse et les dépenses utilisent le jalon de l’escale sélectionnée : {{id}}",
+    "milestoneFromStop": "La caisse et les dépenses utilisent l’escale sélectionnée : {{name}}",
     "milestone": "Jalon",
     "actions": "Actions",
     "back": "Retour à la carte",

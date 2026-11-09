@@ -26,6 +26,7 @@ import { StopStatusChip } from "./stop/StopStatusChip.jsx";
 import { MileCertificateDownload } from "./MileCertificateDownload";
 import { useStopContext } from "./stop/useStopContext.js";
 import { evaluateGooglePlaceLink, googleMapsSearchUrl } from "../marinas/marinaPlaceLink.js";
+import { googleMapsLinkLabel } from "../utils/displayLabels";
 
 const STOP_KINDS = ["mile", "berth", "night", "meal", "care", "cabin_leg", "common_fund"];
 
@@ -228,7 +229,7 @@ export const EscaleSheet = memo(function EscaleSheet({
               {t("pledge.contributor")}
               <input value={pledge.contributor} onChange={(event) => pledge.onContributor(event.target.value)} />
             </label>
-            <div className="stop-checkout">
+            <div className="stop-checkout stop-checkout--primary">
               <h4>{t("stopPanel.checkout")}</h4>
               <PledgeButton
                 values={{
@@ -313,7 +314,7 @@ export const EscaleSheet = memo(function EscaleSheet({
                                 </a>
                               ) : null}
                               {maps ? (
-                                <a href={maps} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.maps")}>
+                                <a href={maps} target="_blank" rel="noopener noreferrer" aria-label={googleMapsLinkLabel(maps, t)}>
                                   ◎
                                 </a>
                               ) : null}

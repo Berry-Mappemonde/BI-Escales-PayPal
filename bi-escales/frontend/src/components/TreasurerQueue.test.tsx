@@ -272,12 +272,19 @@ describe("TreasurerQueue", () => {
             pledges={[older, newer]}
             adminKey=""
             demoTreasurer
+            schedule={{
+              export: {
+                escales: [{ milestone_id: "dep-la-rochelle", name: "La Rochelle", arrival_iso: "2026-11-12T08:00:00Z" }],
+              },
+            }}
             onRefresh={() => {}}
             onUpdated={() => {}}
           />
         </I18nextProvider>,
       );
       expect(screen.getByTestId("treasurer-demo-readonly")).toBeInTheDocument();
+      expect(screen.getByTestId("pledge-milestone-label-bbbb2222-newer-pledge-id")).toHaveTextContent("La Rochelle");
+      expect(screen.getByTestId("pledge-milestone-label-bbbb2222-newer-pledge-id")).not.toHaveTextContent("dep-");
       const rows = screen.getAllByTestId(/^queue-row-/);
       expect(rows).toHaveLength(2);
       expect(rows[0]).toHaveAttribute("data-testid", "queue-row-bbbb2222-newer-pledge-id");

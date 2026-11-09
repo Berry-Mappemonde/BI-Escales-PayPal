@@ -14,6 +14,7 @@ import { CaptainReviewCard } from "./captain/CaptainReviewCard";
 import { releasableHolds, stopOnSchedule } from "./captain/captainEvidence";
 import { PledgeStatusChip } from "./captain/PledgeStatusChip";
 import { useHoldRelease } from "./captain/useHoldRelease";
+import { milestoneDisplayName } from "../utils/displayLabels";
 
 export function shortPledgeId(id: string): string {
   return id.length > 8 ? id.slice(0, 8) : id;
@@ -55,6 +56,7 @@ export interface TreasurerQueueProps {
   needsKey?: boolean;
   adminKey: string;
   demoTreasurer?: boolean;
+  schedule?: ScheduleResponse | null;
   onRefresh: () => void;
   onUpdated: (pledge: PublicPledge) => void;
 }
@@ -66,6 +68,7 @@ export function TreasurerQueue({
   needsKey,
   adminKey,
   demoTreasurer = false,
+  schedule: scheduleProp = null,
   onRefresh,
   onUpdated,
 }: TreasurerQueueProps) {
@@ -91,7 +94,8 @@ export function TreasurerQueue({
   const canMoveMoney = Boolean(adminKey.trim());
   /** A missing key means the review is still loading; null means it failed. */
   const [reviews, setReviews] = useState<Record<string, CaptainProposal | null>>({});
-  const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
+  const [scheduleFetched, setScheduleFetched] = useState<ScheduleResponse | null>(null);
+  const schedule = scheduleProp ?? scheduleFetched;
   const { releases, start: startRelease, undo: undoRelease } = useHoldRelease({
     adminKey,
     missingKeyMessage: t("treasurer.moneyNeedsKey"),
@@ -148,7 +152,7 @@ export function TreasurerQueue({
     // The arrival claim is optional: without a schedule the card simply omits it.
     fetchSchedule()
       .then((row) => {
-        if (!cancel) setSchedule(row);
+        if (!cancel) setScheduleFetched(row);
       })
       .catch(() => {});
     return () => {
@@ -296,7 +300,9 @@ export function TreasurerQueue({
                 </td>
                 <td>
                   <strong>{p.description}</strong>
-                  <small>{p.milestone_id}</small>
+                  <small data-testid={`pledge-milestone-label-${p.id}`}>
+                    {milestoneDisplayName(p.milestone_id, schedule, [], t)}
+                  </small>
                   <small data-testid={`capture-id-${p.id}`} aria-label={t("treasurer.captureId")}>{p.capture_id || "—"}</small>
                 </td>
                 <td className="actions queue-value">

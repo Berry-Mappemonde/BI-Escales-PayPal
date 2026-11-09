@@ -20,6 +20,8 @@ import { useTheme } from "./hooks/useTheme";
 import { setLanguage } from "./i18n";
 import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
+import { useVoyageNow } from "./hooks/useVoyageNow";
+import { publicCommonFundMessage } from "./utils/publicCommonFund";
 import { resolveBoatStop } from "./voyage/boatStop.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
@@ -74,7 +76,8 @@ export default function App() {
   const [routeFc, setRouteFc] = useState<unknown>(null);
   const [projects, setProjects] = useState<{ features?: unknown[] }>({ features: [] });
   const [devT0, setDevT0] = useState("");
-  const [now, setNow] = useState(() => new Date());
+  const now = useVoyageNow();
+  const judgeStopPicked = useRef(false);
   const [stop, setStop] = useState<VoyageStop | null>(null);
   const [fiche, setFiche] = useState<unknown>(null);
   const [marinaGeojson, setMarinaGeojson] = useState<unknown>(null);
@@ -244,11 +247,6 @@ export default function App() {
   }, [lang]);
 
   useEffect(() => {
-    const id = window.setInterval(() => setNow(new Date()), 30000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  useEffect(() => {
     if (!stop) {
       setFiche(null);
       return undefined;
@@ -355,6 +353,14 @@ export default function App() {
       setFlyTo({ lat: next.lat, lon: next.lon, ts: Date.now() });
     }
   };
+
+  useEffect(() => {
+    if (!clockPinned || !voyage?.stops?.length || !sample || judgeStopPicked.current || stop) return;
+    const target = resolveBoatStop(voyage.stops, sample);
+    if (!target) return;
+    judgeStopPicked.current = true;
+    chooseStop(target);
+  }, [clockPinned, voyage, sample, stop]);
 
   const locateBoat = useCallback(() => {
     const target = resolveBoatStop(voyage?.stops, sample);
@@ -698,6 +704,7 @@ export default function App() {
       settleNote={settleNote}
       onSettle={() => void onSettle()}
       clockPinned={clockPinned}
+      schedule={schedule}
       settleAt={settleAt}
       onSettleAtChange={setSettleAt}
       onSettleAt={() => void onSettleAt()}
@@ -898,19 +905,13 @@ export default function App() {
               onAuthorized={onAuthorized}
               onLocateBoat={locateBoat}
             />
-            <CrewSupporterPublicSection adminKey={adminKey.trim() || undefined} />
             {publicCommonFund ? (
               <p className="hint public-common-fund" data-testid="public-common-fund">
-                {t("fund.publicCommon", {
-                  balance: Number.isFinite(Number(publicCommonFund.balance_eur))
-                    ? new Intl.NumberFormat(lang, {
-                        style: "currency",
-                        currency: publicCommonFund.currency,
-                      }).format(Number(publicCommonFund.balance_eur))
-                    : `${publicCommonFund.balance_eur} ${publicCommonFund.currency}`,
-                })}
+                {publicCommonFundMessage(publicCommonFund, lang, t)}
               </p>
             ) : null}
+            {treasurerPanel}
+            <CrewSupporterPublicSection adminKey={adminKey.trim() || undefined} />
             <ProjectList
               projects={projects}
               featureScope="projects"
@@ -930,6 +931,7 @@ export default function App() {
             ) : null}
           </>
         ) : null}
+        {tab !== "voyage" ? treasurerPanel : null}
         {tab === "marinas" ? (
           <MarinasPanel
             marinas={marinaFeatures}
@@ -950,7 +952,6 @@ export default function App() {
             onAuthorized={onAuthorized}
           />
         ) : null}
-        {treasurerPanel}
       </aside>
 
       <aside

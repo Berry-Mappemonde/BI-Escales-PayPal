@@ -455,6 +455,11 @@
   border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-panel);
 }
+
+.stop-checkout--primary {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-line-strong));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
 .stop-checkout h4 { margin: 0 0 var(--space-2); font-size: var(--text-title); }
 
 .escale-sheet .stop-next-title, .escale-sheet .stop-checkout h4 {

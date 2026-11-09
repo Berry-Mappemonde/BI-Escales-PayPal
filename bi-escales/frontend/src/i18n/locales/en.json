@@ -124,7 +124,11 @@
     "openHeading": "Totals with no stopover",
     "projectTotals": "Project pledges",
     "boatTotals": "Common fund",
-    "publicCommon": "Community fund · {{balance}}"
+    "publicCommon": "Community fund · {{balance}}",
+    "publicCommonEmpty": "Community fund · Be the first to give"
+  },
+  "display": {
+    "unknownStop": "Stop"
   },
   "cabinLegPicker": {
     "label": "Choose a voyage leg",
@@ -250,7 +254,7 @@
     "scheduledDeparture": "Scheduled departure",
     "held": "{{amount}} held for this stop · not charged",
     "captured": "{{amount}} captured",
-    "backThisLeg": "Back this leg",
+    "backThisLeg": "Back a stop",
     "ruleHeld": "Held by PayPal, not charged.",
     "ruleCaptured": "The treasurer can approve capture once the boat arrives at this stop.",
     "ruleCabin": "The treasurer can approve capture once this leg departs.",
@@ -345,7 +349,7 @@
     "demoBanner": "Sandbox demo — queue, review, capture, and void only. No admin key on this device.",
     "demoStop": {
       "heading": "Judge moment — La Rochelle",
-      "hint": "Sandbox only, treasurer key required: stop {{id}}. Simulate arrival captures authorized pledges (approval applies to this action only, nothing is stored); cancel voids authorizations; reset clears demo state without undoing captures.",
+      "hint": "Sandbox only, treasurer key required: {{name}}. Simulate arrival captures authorized pledges (approval applies to this action only, nothing is stored); cancel voids authorizations; reset clears demo state without undoing captures.",
       "simulateArrival": "Simulate boat arrival",
       "cancelStop": "Cancel stop",
       "resetDemo": "Reset demo",
@@ -374,7 +378,7 @@
     "description": "Description",
     "pledgeRef": "Pledge",
     "createdAt": "Created",
-    "milestoneFromStop": "Spending and fund use the selected stop milestone: {{id}}",
+    "milestoneFromStop": "Spending and fund use the selected stop: {{name}}",
     "milestone": "Milestone",
     "actions": "Actions",
     "back": "Back to the map",

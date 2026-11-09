@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
-import type { Milestone, PublicPledge } from "../api/types";
+import type { Milestone, PublicPledge, ScheduleResponse } from "../api/types";
+import { milestoneDisplayName } from "../utils/displayLabels";
 import { featureAgGridEnabled } from "../config/features";
 import { buildGaugeRows, buildMarinaDashboardRows, gaugePercent } from "../utils/gauges";
 
@@ -30,13 +31,14 @@ function OptionalAgGrid({ rows }: AgTableProps) {
     };
   }, []);
 
-  if (failed || !Table) return <FallbackTreasurerTable rows={rows} />;
+  if (failed || !Table) return <FallbackTreasurerTable rows={rows} schedule={null} />;
   return <Table rows={rows} />;
 }
 
 export interface TreasurerGridProps {
   pledges: PublicPledge[];
   milestones: Milestone[];
+  schedule?: ScheduleResponse | null;
   adminKey: string;
   onMilestonesChange: (milestones: Milestone[]) => void;
   onPledgeUpdated: (pledge: PublicPledge) => void;
@@ -58,7 +60,13 @@ function GaugeBar({ label, percent, tone }: { label: string; percent: number; to
   );
 }
 
-function FallbackTreasurerTable({ rows }: { rows: ReturnType<typeof buildGaugeRows> }) {
+function FallbackTreasurerTable({
+  rows,
+  schedule,
+}: {
+  rows: ReturnType<typeof buildGaugeRows>;
+  schedule: ScheduleResponse | null | undefined;
+}) {
   const { t } = useTranslation();
   return (
     <table className="fallback-table grid-table" data-testid="treasurer-fallback-table">
@@ -73,7 +81,9 @@ function FallbackTreasurerTable({ rows }: { rows: ReturnType<typeof buildGaugeRo
       <tbody>
         {rows.map((row) => (
           <tr key={row.milestone_id}>
-            <td>{row.milestone_id}</td>
+            <td data-testid={`grid-milestone-label-${row.milestone_id}`}>
+              {milestoneDisplayName(row.milestone_id, schedule, [], t)}
+            </td>
             <td>
               {row.authorized_count} ({row.authorized_total_eur.toFixed(2)} €)
               <GaugeBar
@@ -111,7 +121,11 @@ export function TreasurerGrid(props: TreasurerGridProps) {
     <>
     <section className="panel treasurer-grid">
       <h3>{t("grid.heading")}</h3>
-      {agGrid ? <OptionalAgGrid rows={rows} /> : <FallbackTreasurerTable rows={rows} />}
+      {agGrid ? (
+        <OptionalAgGrid rows={rows} />
+      ) : (
+        <FallbackTreasurerTable rows={rows} schedule={props.schedule} />
+      )}
     </section>
     <section className="panel treasurer-marina-grid" data-testid="treasurer-marina-dashboard">
       <h3>{t("grid.marinaHeading")}</h3>

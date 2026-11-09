@@ -4,6 +4,7 @@ import type {
   CaptainProposal,
   CaptainChatResponse,
   ScheduleResponse,
+  PriceCatalog,
   FeatureFlags,
   FundView,
   PublicProjectDonationTotal,
@@ -209,6 +210,17 @@ export async function registerVault(pledgeId: string, setupTokenId?: string): Pr
 
 export async function fetchSchedule(): Promise<ScheduleResponse> {
   const res = await fetch(url("/api/escales/schedule"));
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+/** Public simulated price catalogue (`GET /api/escales/prices`). Sends `lang` like other escales reads. */
+export async function fetchPrices(lang?: string): Promise<PriceCatalog> {
+  const params = new URLSearchParams();
+  const appLang = String(lang || "").trim();
+  if (appLang) params.set("lang", appLang);
+  const qs = params.toString();
+  const res = await fetch(url(`/api/escales/prices${qs ? `?${qs}` : ""}`));
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }

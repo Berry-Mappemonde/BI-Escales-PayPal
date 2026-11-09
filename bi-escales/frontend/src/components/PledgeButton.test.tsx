@@ -33,9 +33,9 @@ describe("PledgeButton", () => {
 
   it.each([
     ["en", "VAULT", "Saved with PayPal · charged only if we sail"],
-    ["fr", "VAULT", "Enregistré auprès de PayPal · débité uniquement si nous partons"],
-    ["en", "AUTHORIZE", "AUTHORIZE intent — PayPal sandbox"],
-    ["fr", "AUTHORIZE", "Intent AUTHORIZE — sandbox PayPal"],
+    ["fr", "VAULT", "Moyen de paiement enregistré auprès de PayPal · débité uniquement si nous partons"],
+    ["en", "AUTHORIZE", "PayPal authorisation hold — you are not charged until we arrive (sandbox)."],
+    ["fr", "AUTHORIZE", "Autorisation PayPal — vous n’êtes pas débité tant que nous n’arrivons pas (bac à sable)."],
   ] as const)("shows %s %s checkout copy from the fetched mode", async (lang, payment_mode, expected) => {
     await i18n.changeLanguage(lang);
     vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode });
@@ -181,8 +181,8 @@ describe("PledgeButton", () => {
       </I18nextProvider>,
     );
 
-    expect(screen.getByText(/Intent CAPTURE/)).toBeInTheDocument();
-    expect(screen.queryByText(/Intent AUTHORIZE/)).toBeNull();
+    expect(screen.getByText(/Débit immédiat/)).toBeInTheDocument();
+    expect(screen.queryByText(/Autorisation PayPal/)).toBeNull();
     expect(screen.queryByText(/arrivée/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Créer l’ordre PayPal" }));
     expect(await screen.findByText(/contribution projet est débitée au retour/)).toBeInTheDocument();

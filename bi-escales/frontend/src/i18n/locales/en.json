@@ -210,6 +210,7 @@
     "cardErrorInvalidExpiry": "Card expiry date is invalid. Check month and year.",
     "cardErrorInvalidCvv": "Security code (CVV) is invalid.",
     "cardErrorInvalidNumber": "Card number is invalid.",
+    "walletPayError": "The wallet payment was cancelled or could not complete. Please try again.",
     "walletPayHint": "Google Pay (Chrome) or Apple Pay (Safari), TEST sandbox EUR.",
     "error": "Pledge error",
     "crewSubscribeHint": "Support the crew monthly",

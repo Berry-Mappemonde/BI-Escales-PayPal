@@ -7,6 +7,6 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     globals: true,
-    exclude: ["node_modules/**", "src/components/escales/**/*.test.js"],
+    exclude: ["e2e/**","node_modules/**", "src/components/escales/**/*.test.js"],
   },
 });

@@ -1,4 +1,5 @@
-import type { CardFieldComponent, CardFieldOptions, Components, PaymentFlow } from "@paypal/paypal-js/sdk-v6";
+import { walletFactories, type WalletSdk } from "./paypalWallets";
+import type { CardFieldComponent, CardFieldOptions, Components, PaymentFlow, EligiblePaymentMethodsOutput, PayPalMessagesInstance } from "@paypal/paypal-js/sdk-v6";
 
 /**
  * PayPal Web SDK v6 sandbox adapter for BI Escales.
@@ -39,9 +40,10 @@ type V6CardSession = {
   createCardFieldsComponent: (options: CardFieldOptions) => CardFieldComponent;
   submit: (id: string) => Promise<{ state: string; data?: { message?: string } }>;
 };
-type V6Instance = {
+type V6Instance = WalletSdk & Partial<PayPalMessagesInstance> & {
   findEligibleMethods: (options: { currencyCode: string; paymentFlow?: PaymentFlow }) => Promise<{
     isEligible: (method: string) => boolean;
+    getDetails?: EligiblePaymentMethodsOutput["getDetails"];
   }>;
   createPayPalOneTimePaymentSession: (callbacks: Record<string, unknown>) => V6Session;
   createPayPalSavePaymentSession: (callbacks: Record<string, unknown>) => V6Session;
@@ -67,7 +69,7 @@ declare global {
 export interface PayPalNamespace {
   Buttons?: (config: Record<string, unknown>) => PayPalSdkButtonInstance;
   CardFields?: (config: Record<string, unknown>) => Record<string, unknown>;
-  Messages?: (config: Record<string, unknown>) => { render?: (el: HTMLElement) => Promise<void> };
+  Messages?: (config: Record<string, unknown>) => PayPalSdkButtonInstance;
   Googlepay?: (config?: Record<string, unknown>) => unknown;
   Applepay?: (config?: Record<string, unknown>) => unknown;
 }
@@ -168,9 +170,30 @@ async function createSubscriptionOnServer(): Promise<string> {
 
 export function buildV6Adapter(
   sdk: V6Instance,
-  eligible: { isEligible: (method: string) => boolean },
+  eligible: { isEligible: (method: string) => boolean } & Partial<Pick<EligiblePaymentMethodsOutput, "getDetails">>,
+  walletPay = false,
 ): PayPalNamespace {
   return {
+    ...(walletPay && eligible.getDetails ? walletFactories(sdk, eligible as EligiblePaymentMethodsOutput) : {}),
+    ...(sdk.createPayPalMessages ? { Messages: (options: Record<string, unknown>): PayPalSdkButtonInstance => {
+      const currencyCode = String(options.currencyCode || "EUR");
+      sdk.createPayPalMessages!({ currencyCode });
+      let message: HTMLElement | null = null;
+      return {
+        render: async target => {
+          const host = typeof target === "string" ? document.querySelector<HTMLElement>(target) : target;
+          if (!host) throw new Error("PayPal message host missing");
+          const element = document.createElement("paypal-message");
+          element.amount = String(options.amount || "");
+          element.currencyCode = currencyCode;
+          element.autoBootstrap = true;
+          element.setAttribute("auto-bootstrap", "");
+          message = element;
+          host.replaceChildren(element);
+        },
+        close: async () => { message?.remove(); },
+      };
+    } } : {}),
     Buttons: (opts: Record<string, unknown>): PayPalSdkButtonInstance => {
       const config = opts as ButtonCallbacks;
       let element: HTMLElement | null = null;
@@ -273,12 +296,13 @@ function loadConfigured(clientId: string, appLang: string | undefined, currency:
       components: [
         "paypal-payments",
         "paypal-subscriptions",
+        "paypal-messages",
         "card-fields",
         ...(walletPay ? ["googlepay-payments", "applepay-payments"] as const : []),
       ],
     });
     const eligible = await sdk.findEligibleMethods({ currencyCode: currency.toUpperCase(), paymentFlow });
-    return buildV6Adapter(sdk, eligible);
+    return buildV6Adapter(sdk, eligible, walletPay);
   }).catch((error: unknown) => {
     instances.delete(key);
     throw error;
@@ -293,8 +317,9 @@ export function loadPayPalSdk(
   _intent: SdkIntent = "authorize",
   walletPay = false,
   currency = "EUR",
+  paymentFlow: PaymentFlow = "ONE_TIME_PAYMENT",
 ): Promise<PayPalNamespace> {
-  return loadConfigured(clientId, appLang, currency, walletPay);
+  return loadConfigured(clientId, appLang, currency, walletPay, paymentFlow);
 }
 export function loadPayPalWalletPaySdk(
   clientId: string,

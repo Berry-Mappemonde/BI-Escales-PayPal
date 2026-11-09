@@ -233,3 +233,16 @@ describe("locale and price guards", () => {
     expect(payLaterEligible("40", "mile")).toBe(false);
   });
 });
+
+it("renders v6 Pay Later messages using the native element and currency", async () => {
+  const createPayPalMessages = vi.fn();
+  const adapter = buildV6Adapter({ createPayPalMessages } as never, { isEligible: () => true });
+  const host = document.createElement("div");
+  const message = adapter.Messages!({ amount: "50.00", currencyCode: "EUR" });
+  await message.render(host);
+  const element = host.querySelector("paypal-message")!;
+  expect(element.amount).toBe("50.00");
+  expect(element.currencyCode).toBe("EUR");
+  expect(createPayPalMessages).toHaveBeenCalledWith({ currencyCode: "EUR" });
+  await message.close!(); expect(host.children).toHaveLength(0);
+});

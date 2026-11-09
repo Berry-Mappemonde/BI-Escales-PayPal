@@ -137,7 +137,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
         cancelled = true;
       };
     }
-    void loadPayPalSdk(clientId, appLang, sdkIntent, walletPayEnabled, sdkCurrency)
+    void loadPayPalSdk(clientId, appLang, sdkIntent, walletPayEnabled, sdkCurrency, pledgeMode?.paymentMode === "VAULT" ? "VAULT_WITHOUT_PAYMENT" : "ONE_TIME_PAYMENT")
       .then((ns) => {
         if (!cancelled) setPaypal(ns);
       })
@@ -147,7 +147,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     return () => {
       cancelled = true;
     };
-  }, [appLang, sdkIntent, sdkCurrency, walletPayEnabled, featuresKnown]);
+  }, [appLang, sdkIntent, sdkCurrency, walletPayEnabled, featuresKnown, pledgeMode?.paymentMode]);
 
   useEffect(() => {
     formRevisionRef.current += 1;
@@ -435,6 +435,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
         paypal.Messages,
         {
           amount: values.amount_eur.replace(",", "."),
+          currencyCode: sdkCurrency,
           placement: "product",
           style: { layout: "text" },
         },
@@ -443,7 +444,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
         if (result.ok) host.dataset.payLaterMessages = "1";
       });
     }
-  }, [paypal, sdkReady, values.amount_eur, values.kind]);
+  }, [paypal, sdkReady, values.amount_eur, values.kind, sdkCurrency]);
 
   return (
     <div className="pledge-button" data-testid="paypal-buttons" data-kind={values.kind || ""}>
@@ -477,7 +478,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
         </button>
       ) : null}
       <div ref={buttonsHost} data-testid="paypal-smart-buttons" />
-      {walletPayEnabled && !isProjectPledge ? (
+      {walletPayEnabled && !isProjectPledge && modeMatchesValues && pledgeMode?.paymentMode !== "VAULT" ? (
         <PayPalWalletPayBlock
           values={effectiveValues}
           appLang={appLang}

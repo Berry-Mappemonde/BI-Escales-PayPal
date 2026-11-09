@@ -2105,6 +2105,27 @@ def test_miles_and_dinner_stay_one_pledge_and_list_two_cart_lines():
     assert "order_id" not in cart
 
 
+def test_prices_endpoint_catalogue_wording_fixed_vs_free_amounts():
+    fr = captain.simulated_prices("fr")
+    en = captain.simulated_prices("en")
+    by_kind_fr = {row["kind"]: row for row in fr["prices"]}
+    by_kind_en = {row["kind"]: row for row in en["prices"]}
+    for kind in ("mile", "berth", "night", "meal", "care", "cabin_leg"):
+        assert by_kind_fr[kind]["label"] == "prix fixe"
+        assert by_kind_en[kind]["label"] == "fixed price"
+        assert by_kind_fr[kind]["free_amount"] is False
+        assert by_kind_en[kind]["free_amount"] is False
+    for kind in ("project_pledge", "common_fund"):
+        assert by_kind_fr[kind]["label"] == "montant libre"
+        assert by_kind_en[kind]["label"] == "free amount"
+        assert by_kind_fr[kind]["free_amount"] is True
+        assert by_kind_en[kind]["free_amount"] is True
+    assert "1 EUR per nautical mile" in en["note"]
+    assert "free amounts" in en["note"].lower()
+    assert "1 €" in fr["note"]
+    assert "montant libre" in fr["note"].lower()
+
+
 def test_other_kinds_use_the_simulated_catalogue():
     night = captain.suggest_pledge("2 nuits près de Mayotte")
     assert night["amount_eur"] == "120.00"

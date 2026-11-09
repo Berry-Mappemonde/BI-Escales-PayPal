@@ -3,6 +3,7 @@ import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../i18n";
 import { createPledge, fetchPledgeMode, fetchSchedule, registerVault } from "../api/escales";
+import type { PublicPledge } from "../api/types";
 import { loadPayPalSdk } from "../paypal/paypalSdk";
 import { PledgeButton } from "./PledgeButton";
 
@@ -100,10 +101,10 @@ describe("PledgeButton flow C (cabin_leg VAULT)", () => {
   });
 
   it("locks create while the pledge request is in flight", async () => {
-    let resolvePledge: (value: unknown) => void = () => {};
+    let resolvePledge: (value: PublicPledge) => void = () => {};
     vi.mocked(createPledge).mockImplementation(
       () =>
-        new Promise((resolve) => {
+        new Promise<PublicPledge>((resolve) => {
           resolvePledge = resolve;
         }),
     );
@@ -121,8 +122,13 @@ describe("PledgeButton flow C (cabin_leg VAULT)", () => {
     await waitFor(() => expect(createBtn).toBeDisabled());
     resolvePledge({
       id: "v1",
+      status: "created",
       payment_mode: "VAULT",
       intent: "VAULT",
+      currency: "EUR",
+      amount_eur: "80.00",
+      description: "Cabin",
+      milestone_id: legs[0].id,
       approve_link: "https://www.sandbox.paypal.com/vault/setup",
     });
     await waitFor(() => expect(createBtn).not.toBeDisabled());

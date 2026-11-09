@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { fetchPublicProjectFund } from "../api/escales";
 import { filterProjectFeatures } from "../projects/filterProjectFeatures.js";
 import { parseProjectPledgeAmount } from "../projects/projectPledgeAmount.js";
+import { featureDisplayTitle } from "../projects/featureDisplayTitle";
 import { visibleProjectFeatures } from "../projects/visibleProjectFeatures.js";
 import { PledgeButton } from "./PledgeButton";
 import { ProjectFundProgress } from "./ProjectFundProgress";
@@ -17,12 +18,12 @@ const LIST_CAP = 100;
 const MIN_EUR = "1.00";
 
 function ProjectPledgeForm({ project, contributor, onAuthorized }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const props = project?.properties || {};
   const [amount, setAmount] = useState(MIN_EUR);
   const [who, setWho] = useState(contributor || "");
   const [publicTotal, setPublicTotal] = useState(null);
-  const title = props.title || props.id || "";
+  const title = featureDisplayTitle(props, i18n.language, t);
   const description = t("projects.pledgeDescription", { title });
   const parsed = parseProjectPledgeAmount(amount);
   const isGear = String(props.project_kind || "") === "gear_project";
@@ -163,6 +164,7 @@ export default function ProjectList({
       <div>
         {features.map((feature) => {
           const props = feature.properties || {};
+          const rowTitle = featureDisplayTitle(props, i18n.language, t);
           const open = selectedProjectId === props.id;
           return (
             <div key={props.id} className="project-row" data-testid={`project-row-${props.id}`}>
@@ -174,7 +176,7 @@ export default function ProjectList({
                   if (onFlyTo && lat != null && lon != null) onFlyTo(props.id, lat, lon);
                 }}
               >
-                <strong>{props.title}</strong>
+                <strong>{rowTitle}</strong>
                 <span className="hint">{props.funder}</span>
               </button>
               <button

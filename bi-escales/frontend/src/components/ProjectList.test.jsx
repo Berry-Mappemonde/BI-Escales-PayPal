@@ -153,6 +153,54 @@ describe("ProjectList", () => {
     expect(screen.getByText(/Invalid amount/)).toBeInTheDocument();
   });
 
+  it("shows English gear seed titles on the gear tab", async () => {
+    await i18n.changeLanguage("en");
+    const gearProjects = {
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [55.45, -20.88] },
+          properties: {
+            id: "gear-dive-computer-expedition",
+            title: "Ordinateur de plongée expedition",
+            funder: "Channel3",
+            project_kind: "gear_project",
+          },
+        },
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [57.65, -20.16] },
+          properties: {
+            id: "gear-dry-bag-expedition",
+            title: "Sacs étanches (lot expédition)",
+            funder: "Channel3",
+            project_kind: "gear_project",
+          },
+        },
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [49.29, -18.14] },
+          properties: {
+            id: "gear-marine-binoculars",
+            title: "Jumelles marines",
+            funder: "Channel3",
+            project_kind: "gear_project",
+          },
+        },
+      ],
+    };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProjectList projects={gearProjects} featureScope="gear" onFlyTo={() => {}} />
+      </I18nextProvider>,
+    );
+    fireEvent.click(screen.getByTestId("gear-list").querySelector("summary"));
+    expect(screen.getByText("Expedition dive computer")).toBeInTheDocument();
+    expect(screen.getByText("Dry bags (expedition lot)")).toBeInTheDocument();
+    expect(screen.getByText("Marine binoculars")).toBeInTheDocument();
+    expect(screen.queryByText("Ordinateur de plongée expedition")).toBeNull();
+  });
+
   it("épinglé depuis la carte : formulaire visible malgré le filtre recherche", async () => {
     await i18n.changeLanguage("fr");
     render(

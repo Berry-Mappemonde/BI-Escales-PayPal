@@ -15,7 +15,9 @@
     "dismissNotice": "Dismiss",
     "dismissNoticeAria": "Dismiss",
     "toolsCollapse": "Hide tools",
-    "toolsExpand": "Show settings"
+    "toolsExpand": "Show settings",
+    "metaDescription": "BI Escales — support the Berry-Mappemonde expedition. Stop pledges capture on boat arrival (voided if the stop is cancelled); cabins on leg departure; common fund and project gifts at once.",
+    "ogLocale": "en_US"
   },
   "common": {
     "showSecret": "Show",
@@ -32,7 +34,12 @@
     "leadPanel": "Language, theme, and sandbox operator controls."
   },
   "gear": {
-    "heading": "Expedition gear"
+    "heading": "Expedition gear",
+    "seedTitles": {
+      "gear-dive-computer-expedition": "Expedition dive computer",
+      "gear-dry-bag-expedition": "Dry bags (expedition lot)",
+      "gear-marine-binoculars": "Marine binoculars"
+    }
   },
   "clock": {
     "waiting": "Departure in {{days}}d {{hours}}h",

@@ -25,6 +25,7 @@ import { subscribePledgeReturn } from "../paypal/pledgeReturnEvents";
 export interface PledgeFormValues {
   quantity?: number;
   amount_eur: string;
+  currency?: string;
   description: string;
   milestone_id: string;
   contributor?: string;
@@ -195,7 +196,8 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
       const pledge = await createPledge(
         {
           amount_eur: v.amount_eur,
-            quantity: v.quantity,
+          quantity: v.quantity,
+          currency: v.currency,
           description: v.description,
           milestone_id: v.milestone_id,
           contributor: v.contributor?.trim() || undefined,
@@ -249,7 +251,8 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
           const pledge = await createPledge(
             {
               amount_eur: v.amount_eur,
-            quantity: v.quantity,
+              quantity: v.quantity,
+              currency: v.currency,
               description: v.description,
               milestone_id: v.milestone_id,
               contributor: v.contributor?.trim() || undefined,

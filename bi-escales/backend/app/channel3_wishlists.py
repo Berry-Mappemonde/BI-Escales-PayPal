@@ -112,17 +112,28 @@ async def _public_item_from_catalog(
     wishlist_item: Optional[dict] = None,
 ) -> dict[str, Any]:
     fund = await fund_snapshot_for_project(catalog["project_id"])
-    target_minor = None
-    target_ccy = None
+    target_minor: Optional[int] = None
+    target_ccy: Optional[str] = None
+    line_qty: Optional[int] = None
     if wishlist_item:
         target_minor = int(wishlist_item.get("target_amount_minor") or 0)
         target_ccy = wishlist_item.get("target_currency")
+        line_qty = int(wishlist_item.get("quantity") or 1)
     enriched = enrich_item_funding(
         catalog,
         fund,
         target_amount_minor=target_minor,
         target_currency=target_ccy,
     )
+    if wishlist_item:
+        enriched["quantity"] = line_qty
+        enriched["quantity_needed"] = line_qty
+        enriched["unit_price_amount_minor"] = int(
+            wishlist_item.get("unit_price_amount_minor")
+            or catalog.get("unit_price_amount_minor")
+            or catalog.get("price_amount_minor")
+            or 0
+        )
     buy_url = catalog.get("channel3_buy_url")
     public = {k: v for k, v in enriched.items() if k != "channel3_buy_url"}
     return apply_buy_link_policy(public, fully_funded=bool(enriched.get("fully_funded")), buy_url=buy_url)

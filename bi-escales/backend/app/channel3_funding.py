@@ -39,11 +39,19 @@ def enrich_item_funding(
 ) -> dict[str, Any]:
     """Attach funded_* fields; EUR pledges only count toward EUR targets."""
     out = dict(item)
-    native_ccy = str(target_currency or item.get("unit_target_currency") or item.get("price_currency") or "EUR").upper()
+    native_ccy = str(
+        target_currency
+        or item.get("target_currency")
+        or item.get("catalog_default_target_currency")
+        or item.get("price_currency")
+        or "EUR"
+    ).upper()
     target_minor = int(
         target_amount_minor
         if target_amount_minor is not None
-        else item.get("unit_target_amount_minor") or item.get("price_amount_minor") or 0
+        else item.get("catalog_default_target_amount_minor")
+        or item.get("price_amount_minor")
+        or 0
     )
     target_major = minor_to_major_str(target_minor) if target_minor > 0 else "0.00"
 

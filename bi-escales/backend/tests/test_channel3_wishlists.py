@@ -132,6 +132,67 @@ def test_eur_item_buy_link_with_disclosure_when_funded(api):
     assert body.get("channel3_buy_disclosure") == CHANNEL3_BUY_DISCLOSURE
 
 
+def test_wishlist_line_quantity_sets_default_target(api):
+    create = api.post(
+        "/api/escales/treasurer/wishlists",
+        headers=_treasurer_headers(),
+        json={"title": "Qty", "slug": "qty-test", "items": []},
+    )
+    wid = create.json()["_id"]
+    add = api.post(
+        f"/api/escales/treasurer/wishlists/{wid}/items",
+        headers=_treasurer_headers(),
+        json={"channel3_product_id": "hwD0sF9", "quantity": 2},
+    )
+    assert add.status_code == 200
+    line = add.json()["items"][0]
+    assert line["quantity"] == 2
+    assert line["unit_price_amount_minor"] == 999
+    assert line["target_amount_minor"] == 1998
+
+
+def test_wishlist_explicit_target_preserved(api):
+    create = api.post(
+        "/api/escales/treasurer/wishlists",
+        headers=_treasurer_headers(),
+        json={"title": "Target", "slug": "target-test", "items": []},
+    )
+    wid = create.json()["_id"]
+    add = api.post(
+        f"/api/escales/treasurer/wishlists/{wid}/items",
+        headers=_treasurer_headers(),
+        json={"channel3_product_id": "hwD0sF9", "quantity": 2, "target_amount_minor": 1500},
+    )
+    assert add.status_code == 200
+    line = add.json()["items"][0]
+    assert line["target_amount_minor"] == 1500
+    assert line["quantity"] == 2
+
+
+def test_public_wishlist_item_shows_line_quantity(api):
+    create = api.post(
+        "/api/escales/treasurer/wishlists",
+        headers=_treasurer_headers(),
+        json={"title": "Public qty", "slug": "public-qty", "items": []},
+    )
+    wid = create.json()["_id"]
+    api.post(
+        f"/api/escales/treasurer/wishlists/{wid}/items",
+        headers=_treasurer_headers(),
+        json={"channel3_product_id": "hwD0sF9", "quantity": 2},
+    )
+    api.post(
+        f"/api/escales/treasurer/wishlists/{wid}/publish",
+        headers=_treasurer_headers(),
+        json={"published": True},
+    )
+    body = api.get(f"/api/escales/wishlists/{wid}").json()
+    item = body["items"][0]
+    assert item["quantity"] == 2
+    assert item["quantity_needed"] == 2
+    assert item["target_amount_minor"] == 1998
+
+
 def test_flags_off_returns_404(api, monkeypatch):
     monkeypatch.setenv("ESCALES_WISHLISTS_ENABLED", "")
     res = api.get("/api/escales/channel3/catalog")

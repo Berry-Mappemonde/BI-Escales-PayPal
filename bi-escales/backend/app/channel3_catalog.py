@@ -37,11 +37,12 @@ def _normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
         "quantity_needed": qty,
         "merchant": str(raw.get("merchant") or "").strip() or None,
         "merchant_country": str(raw.get("merchant_country") or "").strip().upper() or None,
+        "unit_price_amount_minor": minor,
         "price_amount_minor": minor,
         "price_currency": currency,
         "price_display": minor_to_major_str(minor),
-        "unit_target_amount_minor": minor * qty,
-        "unit_target_currency": currency,
+        "catalog_default_target_amount_minor": minor * qty,
+        "catalog_default_target_currency": currency,
         "image_url": str(raw.get("image_url") or raw.get("image") or "").strip() or None,
         "caution": str(raw.get("caution") or "").strip() or None,
         "max_commission_rate": raw.get("max_commission_rate"),
@@ -94,8 +95,8 @@ def default_wishlist_seed_items() -> list[dict[str, Any]]:
         {
             "channel3_product_id": row["channel3_product_id"],
             "quantity": row["quantity_needed"],
-            "target_amount_minor": row["unit_target_amount_minor"],
-            "target_currency": row["unit_target_currency"],
+            "target_amount_minor": row["catalog_default_target_amount_minor"],
+            "target_currency": row["catalog_default_target_currency"],
         }
         for row in list_catalog_items(include_optional=False)
     ]

@@ -16,6 +16,15 @@ export function resetBryntumTimelineModulesForTests() {
   timelineModulesPromise = undefined;
 }
 
+/** Dynamic import specifiers used by loadBryntumTimelineModules (for build fallback tests). */
+export const BRYNTUM_TIMELINE_IMPORTS = [
+  "@bryntum/scheduler-react-community",
+  "@bryntum/scheduler-community",
+  "@bryntum/scheduler-community/locales/scheduler.locale.FrFr.js",
+  "@bryntum/scheduler-community/scheduler.css",
+  "@bryntum/scheduler-community/svalbard-light.css",
+];
+
 export function loadBryntumTimelineModules() {
   if (!timelineModulesPromise) {
     timelineModulesPromise = Promise.all([
@@ -24,11 +33,10 @@ export function loadBryntumTimelineModules() {
       import("@bryntum/scheduler-community/locales/scheduler.locale.FrFr.js"),
       import("@bryntum/scheduler-community/scheduler.css"),
       import("@bryntum/scheduler-community/svalbard-light.css"),
-      import("@bryntum/core-community"),
     ])
-      .then(([reactMod, , , , , coreMod]) => ({
+      .then(([reactMod, schedMod]) => ({
         BryntumScheduler: reactMod.BryntumScheduler,
-        LocaleManager: coreMod.LocaleManager,
+        LocaleManager: schedMod.LocaleManager,
       }))
       .catch((error) => {
         timelineModulesPromise = undefined;
@@ -77,7 +85,7 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
       syncLocale(lng);
       const column = schedulerRef.current?.instance?.columns?.first;
       if (column) {
-        column.text = columnHeadingRef.current;
+        column.text = i18n.t("scheduler.heading", { lng });
       }
     };
     i18n.on("languageChanged", onLanguageChanged);

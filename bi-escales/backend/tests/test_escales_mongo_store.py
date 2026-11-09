@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 pytest.importorskip("motor")
 
+from tests.schedule_clocks import near_mayotte_clock
 from app.escales.ledger import MongoLedger, get_ledger, record_finance, reset_ledger
 from app.escales.pledges import create_pledge
 
@@ -21,7 +22,7 @@ def mongo_store(monkeypatch):
     from mongomock_motor import AsyncMongoMockClient
 
     monkeypatch.setenv("ESCALES_STORE", "mongo")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     monkeypatch.setenv("MONGO_URL", "mongodb://mongomock")
     monkeypatch.setenv("DB_NAME", "bi_escales_test")
     import app.db as dbmod

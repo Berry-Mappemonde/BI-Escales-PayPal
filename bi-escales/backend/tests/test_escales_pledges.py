@@ -14,6 +14,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.escales.config import EscalesConfig, load_config
 from app.escales.paypal_client import PayPalClient, approve_link
+from tests.schedule_clocks import (
+    mayotte_authorize_window_clock,
+    mayotte_cabin_vault_clock,
+    near_mayotte_clock,
+)
 from app.escales.pledges import (
     COLLECTIONS,
     IllegalTransition,
@@ -31,8 +36,7 @@ from app.escales.pledges import (
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    # Within 29 days of Mayotte arrival so AUTHORIZE mile pledges succeed (schedule ~2027-06-11).
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-01T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", mayotte_authorize_window_clock())
     reset_ledger()
     yield
     reset_ledger()
@@ -305,7 +309,7 @@ def test_state_machine_and_forbidden_transitions(monkeypatch):
         with pytest.raises(IllegalTransition):
             await authorize_pledge(created["_id"], spy)
 
-        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
         captured = await capture_pledge(created["_id"], spy)
         assert captured["status"] == "captured"
         with pytest.raises(IllegalTransition):
@@ -457,7 +461,7 @@ def test_cabin_leg_authorizes_and_waits_for_departure(monkeypatch):
 
     monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
     # Far Mayotte leg departure still beyond the vault horizon; autouse is nearer arrival.
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-04-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", mayotte_cabin_vault_clock())
     monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
     leg = "leg-la-rochelle-to-ajaccio-corse"
 
@@ -642,7 +646,7 @@ def test_pending_capture_is_recorded_and_can_be_retried(monkeypatch):
             client_key="pending-cap",
         )
         await authorize_pledge(created["_id"], spy)
-        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
         pending = await capture_pledge(created["_id"], spy)
         assert pending["status"] == "pending"
         assert pending["paypal_status"] == "PENDING"

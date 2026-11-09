@@ -24,6 +24,7 @@ from app.escales.milestones import record_evidence
 from app.escales.pledges import authorize_pledge, capture_pledge, create_pledge, reset_ledger
 from app.escales.toolkit_tools import ReadOnlyTools
 from app.routers.escales import router, set_paypal_client_factory
+from tests.schedule_clocks import near_mayotte_clock
 from tests.test_escales_captain import Spy
 from tests.test_escales_router import ADMIN, FakePayPal, _ready
 
@@ -50,7 +51,7 @@ def isolated(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     reset_ledger()
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: False)
     yield

@@ -591,12 +591,15 @@ def test_official_route_order_no_repeat_departure_then_arrival():
     _assert_departure_arrival_pairs(blob_en, "en")
 
 
+from schedule_offsets import iso_after_days
+
+_SIM_T0 = iso_after_days(165)
 SIM_CLOCK = {
-    "t0": "2027-04-25T08:00:00Z",
+    "t0": _SIM_T0,
     "marks": [
-        {"name": "La Rochelle", "nm": 0, "filmNm": 122, "iso": "2027-04-25T08:00:00Z", "holdHours": 72, "lat": 46.15, "lon": -1.16},
-        {"name": "Ajaccio (Corse)", "nm": 1820, "filmNm": 1942, "iso": "2027-06-04T12:00:00Z", "holdHours": 72, "lat": 41.9, "lon": 8.7},
-        {"name": "Fort-de-France (Martinique)", "nm": 6973, "filmNm": 7095, "iso": "2027-06-02T08:00:00Z", "holdHours": 72, "lat": 14.6, "lon": -61.0},
+        {"name": "La Rochelle", "nm": 0, "filmNm": 122, "iso": _SIM_T0, "holdHours": 72, "lat": 46.15, "lon": -1.16},
+        {"name": "Ajaccio (Corse)", "nm": 1820, "filmNm": 1942, "iso": iso_after_days(205, hour=12), "holdHours": 72, "lat": 41.9, "lon": 8.7},
+        {"name": "Fort-de-France (Martinique)", "nm": 6973, "filmNm": 7095, "iso": iso_after_days(203), "holdHours": 72, "lat": 14.6, "lon": -61.0},
     ],
 }
 
@@ -643,7 +646,7 @@ def test_official_dated_stops_pins_first_rochelle_not_return():
     """La Rochelle départ (filmNm 122) ne doit pas hériter de l'iso du retour."""
     marks = [
         {"name": "Saint-Maur (Berry, Indre)", "nm": 0, "filmNm": 0, "iso": None},
-        {"name": "La Rochelle", "nm": 122, "filmNm": 122, "iso": "2027-06-10T02:40:39Z", "holdHours": 72},
+        {"name": "La Rochelle", "nm": 122, "filmNm": 122, "iso": iso_after_days(181, hour=2, minute=40, second=39), "holdHours": 72},
         {"name": "Ajaccio (Corse)", "nm": 1942, "filmNm": 1942, "iso": "2026-05-30T13:56:06Z", "holdHours": 72},
         {"name": "Fort-de-France (Martinique)", "nm": 7095, "filmNm": 7095, "iso": "2026-07-10T23:11:45Z", "holdHours": 72},
     ]
@@ -5800,7 +5803,7 @@ def test_reread_refuses_a_later_stop_announced_on_the_wrong_leg():
 
 
 def test_scrambled_clock_keeps_mata_utu_before_dzaoudzi():
-    """L'horloge recolle Mata-Utu loin en 2027 : la route réelle le garde avant Dzaoudzi.
+    """L'horloge recolle Mata-Utu quand des dates simulées sont fausses : la route réelle le garde avant Dzaoudzi.
 
     Sans la date du sommet au mille d'itinéraire, le chapitre dit
     « cap sur Dzaoudzi : 12 124 milles » et la liste à venir commence par Dzaoudzi.
@@ -5817,9 +5820,9 @@ def test_scrambled_clock_keeps_mata_utu_before_dzaoudzi():
         ],
         "marks": [
             {"name": "Mata-Utu (Wallis-et-Futuna)", "tHours": 8454, "filmNm": 38364,
-             "iso": "2027-06-02T14:00:00Z", "lat": 28.1, "lon": -16.1},
+             "iso": iso_after_days(202, hour=14), "lat": 28.1, "lon": -16.1},
             {"name": "Nouméa (Nouvelle-Calédonie)", "tHours": 9020, "filmNm": 39295,
-             "iso": "2027-06-26T04:00:00Z", "lat": 42.9, "lon": -9.7},
+             "iso": iso_after_days(226, hour=4), "lat": 42.9, "lon": -9.7},
         ],
     }
     marks = [
@@ -5831,7 +5834,7 @@ def test_scrambled_clock_keeps_mata_utu_before_dzaoudzi():
         {"name": "Nouméa (Nouvelle-Calédonie)", "nm": 19177, "filmNm": 19337,
          "lat": -22.2, "lon": 166.4},
         {"name": "Dzaoudzi (Mayotte)", "nm": 28328, "filmNm": 28488,
-         "iso": "2027-01-14T00:00:00Z", "lat": -12.8, "lon": 45.2},
+         "iso": iso_after_days(63), "lat": -12.8, "lon": 45.2},
     ]
     stops = official_dated_stops(marks, clock)
     names = [s["name"] for s in stops]
@@ -5839,7 +5842,8 @@ def test_scrambled_clock_keeps_mata_utu_before_dzaoudzi():
     assert names.index("Nouméa (Nouvelle-Calédonie)") < names.index("Dzaoudzi (Mayotte)")
     mata = next(s for s in stops if "Mata-Utu" in s["name"])
     assert mata["iso"].startswith("2026-")
-    assert not mata["iso"].startswith("2027-06")
+    scrambled_prefix = iso_after_days(202, hour=14)[:7]
+    assert not mata["iso"].startswith(scrambled_prefix)
     review = {
         "legs": [
             {"from": "Cayenne", "to": "Papeete", "legNm": 8000},

@@ -26,6 +26,7 @@ from app.escales.pledges import (
 )
 from app.escales.project_payouts import approve_project_payout, propose_project_payout
 from tests.review_helpers import approve_capture_review
+from tests.schedule_clocks import near_mayotte_clock
 from app.routers.escales import router, set_paypal_client_factory
 
 
@@ -118,7 +119,7 @@ def test_mock_response_header_is_sent(monkeypatch):
 
 
 def test_reauthorize_after_honor_period(monkeypatch):
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
 
     async def run():
         spy = AuditSpy()
@@ -133,7 +134,7 @@ def test_reauthorize_after_honor_period(monkeypatch):
         pledge = await get_ledger().get_pledge(created["_id"])
         pledge["authorized_at"] = "2026-11-06T12:00:00+00:00"
         await get_ledger().save_pledge(pledge)
-        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
         captured = await capture_pledge(created["_id"], spy)
         assert ("reauthorize", f"A-{created['order_id']}") in spy.calls
         assert captured["status"] == "captured"
@@ -143,7 +144,7 @@ def test_reauthorize_after_honor_period(monkeypatch):
 
 
 def test_refund_captured_pledge(monkeypatch):
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
 
     async def run():
         spy = AuditSpy()
@@ -155,7 +156,7 @@ def test_refund_captured_pledge(monkeypatch):
             client_key="rf",
         )
         await authorize_pledge(created["_id"], spy)
-        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
         await capture_pledge(created["_id"], spy)
         refunded = await refund_pledge(created["_id"], spy)
         assert refunded["status"] == "refunded"
@@ -238,7 +239,7 @@ def test_treasurer_chat_exposes_readonly_paypal_tools():
 
 
 def test_admin_refund_route(api, monkeypatch):
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     spy = AuditSpy()
     set_paypal_client_factory(lambda: spy)
     created = api.post(
@@ -246,7 +247,7 @@ def test_admin_refund_route(api, monkeypatch):
         json={"amount_eur": "5.00", "description": "miles", "milestone_id": "dep-mayotte"},
     ).json()
     api.post(f"/api/escales/pledges/{created['id']}/authorize")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     asyncio.run(approve_capture_review(created["milestone_id"]))
     api.post(
         f"/api/escales/pledges/{created['id']}/capture",

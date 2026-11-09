@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.escales.config import AUTH_MAX_DAYS
 from app.escales.payment_mode import days_until_arrival, select_payment_mode
+from tests.schedule_clocks import synthetic_far_vault_departure_iso
 
 
 def test_days_until_arrival():
@@ -22,7 +23,7 @@ def test_days_until_arrival():
 
 def test_select_authorize_when_vault_disabled(monkeypatch):
     monkeypatch.delenv("ESCALES_VAULT_ENABLED", raising=False)
-    far = "2027-07-01T08:00:00+00:00"
+    far = synthetic_far_vault_departure_iso().replace("Z", "+00:00")
     assert select_payment_mode(far) == "AUTHORIZE"
 
 

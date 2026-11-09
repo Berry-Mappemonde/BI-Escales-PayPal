@@ -15,6 +15,18 @@ permissions:
   contents: read
 
 jobs:
+  release-copy:
+    name: Release copy preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest discover -s bi-escales/scripts -p 'test_check_release_copy.py'
+      - run: python bi-escales/scripts/check_release_copy.py --root .
+
   backend:
     name: Backend (pytest)
     runs-on: ubuntu-latest

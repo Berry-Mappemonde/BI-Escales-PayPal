@@ -1,6 +1,7 @@
 import { FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { FundView, PublicPledge } from "../api/types";
+import type { FundView, PublicPledge, ScheduleResponse } from "../api/types";
+import { milestoneDisplayName } from "../utils/displayLabels";
 import { MaskedSecretInput } from "./MaskedSecretInput";
 import { TreasurerPayPalPanel } from "./TreasurerPayPalPanel";
 import { TreasurerWebhookPanel } from "./TreasurerWebhookPanel";
@@ -48,6 +49,7 @@ export interface TreasurerPanelProps {
   settleNote: string | null;
   onSettle: () => void;
   clockPinned: boolean;
+  schedule?: ScheduleResponse | null;
   settleAt: string;
   onSettleAtChange: (value: string) => void;
   onSettleAt: () => void;
@@ -83,6 +85,7 @@ export function TreasurerPanel({
   settleNote,
   onSettle,
   clockPinned,
+  schedule = null,
   settleAt,
   onSettleAtChange,
   onSettleAt,
@@ -146,7 +149,9 @@ export function TreasurerPanel({
             autoComplete="off"
           />
           <p className="hint" data-testid="treasurer-milestone-hint">
-            {t("treasurer.milestoneFromStop", { id: milestoneId.trim() || "—" })}
+            {t("treasurer.milestoneFromStop", {
+              name: milestoneDisplayName(milestoneId, schedule, [], t),
+            })}
           </p>
           <button
             type="button"
@@ -204,6 +209,7 @@ export function TreasurerPanel({
             needsKey={needsKey}
             adminKey={adminKey}
             demoTreasurer={demoMode}
+            schedule={schedule}
             onRefresh={onRefreshQueue}
             onUpdated={onPledgeUpdated}
           />
@@ -215,6 +221,7 @@ export function TreasurerPanel({
           <TreasurerGrid
             pledges={pledges}
             milestones={[]}
+            schedule={schedule}
             adminKey={adminKey}
             selectedMilestoneId={milestoneId}
             onSelectMilestone={_onMilestoneIdChange}

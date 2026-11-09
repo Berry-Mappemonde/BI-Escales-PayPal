@@ -274,7 +274,7 @@ describe("stop panel", () => {
     it("wraps the existing form, with the agreed wording under it", async () => {
       await show();
       const block = within(screen.getByTestId("stop-next-step"));
-      expect(block.getByRole("heading", { name: "Back this leg" })).toBeInTheDocument();
+      expect(block.getByRole("heading", { name: "Back a stop" })).toBeInTheDocument();
       expect(block.getByTestId("pledge-kind")).toBeInTheDocument();
       expect(block.getByTestId("pledge-amount")).toBeInTheDocument();
       expect(block.getByTestId("pledge-values")).toBeInTheDocument();

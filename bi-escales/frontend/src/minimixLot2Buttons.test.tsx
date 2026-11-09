@@ -68,7 +68,8 @@ describe("minimix lot 2 removed controls", () => {
       </I18nextProvider>,
     );
     expect(screen.queryByRole("textbox", { name: /milestone/i })).toBeNull();
-    expect(screen.getByTestId("treasurer-milestone-hint")).toHaveTextContent("dep-mayotte");
+    expect(screen.getByTestId("treasurer-milestone-hint")).toHaveTextContent(/stop/i);
+    expect(screen.getByTestId("treasurer-milestone-hint")).not.toHaveTextContent("dep-mayotte");
   });
 
   it("drops the duplicate treasurer admin-key hint above the queue refresh button", async () => {

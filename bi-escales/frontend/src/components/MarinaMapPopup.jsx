@@ -3,6 +3,7 @@
  * Pattern: ``MarinasPanel.jsx`` reserve block + ``ProjectMapPopup.jsx`` Leaflet popup shell.
  */
 import { useTranslation } from "react-i18next";
+import { googleMapsLinkLabel } from "../utils/displayLabels";
 import { PledgeButton } from "./PledgeButton";
 
 const BERTH_EUR = "30.00";
@@ -30,7 +31,7 @@ export function MarinaMapPopup({ properties, milestoneId, contributorDefault = "
         ) : null}
         {maps ? (
           <a href={maps} target="_blank" rel="noopener noreferrer" data-testid="marina-map-maps">
-            {t("sheet.marina.maps")} ◎
+            {googleMapsLinkLabel(maps, t)} ◎
           </a>
         ) : null}
       </div>

@@ -101,7 +101,7 @@ export function CrewSupporterPublicSection({ adminKey }: { adminKey?: string }) 
     treasurerContext && !planId && !planLoading && (planLoadIssue === "missing" || planLoadIssue === "timeout");
 
   return (
-    <section className="crew-supporter-public" data-testid="crew-supporter-public">
+    <section className="crew-supporter-public crew-supporter-public--secondary" data-testid="crew-supporter-public">
       <div className="crew-supporter-heading">
         <h2>{t("pledge.crewSubscribeHint")}</h2>
         <small className="crew-sandbox-note">{t("pledge.crewSubscribeSandbox")}</small>

@@ -5,6 +5,7 @@
  */
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { marinaDisplayName } from "../utils/displayLabels";
 import { PledgeButton } from "./PledgeButton";
 
 const BERTH_EUR = "30.00";
@@ -87,7 +88,7 @@ export default function MarinasPanel({ marinas, onFlyTo, milestoneId, contributo
                   onFlyTo?.(props.id, lat, lon);
                 }}
               >
-                <strong>{props.name || t("marinas.unnamed")}</strong>
+                <strong>{marinaDisplayName(props, t)}</strong>
                 <span className="hint marina-coords" data-testid="marina-coords">
                   {`${Number(lat).toFixed(3)}, ${Number(lon).toFixed(3)}`}
                 </span>

@@ -9,6 +9,7 @@ import {
 } from "../api/escales";
 
 const DEMO_STOP_ID = "dep-la-rochelle";
+const DEMO_STOP_NAME = "La Rochelle";
 
 function formatNote(actions: DemoStopAction[], t: (key: string, opts?: Record<string, unknown>) => string): string {
   const lines: string[] = [];
@@ -72,7 +73,7 @@ export function DemoStopMoment({ adminKey, onRefresh }: DemoStopMomentProps) {
   return (
     <section className="demo-stop-moment stack-form" data-testid="demo-stop-moment">
       <h3>{t("treasurer.demoStop.heading")}</h3>
-      <p className="hint">{t("treasurer.demoStop.hint", { id: DEMO_STOP_ID })}</p>
+      <p className="hint">{t("treasurer.demoStop.hint", { name: DEMO_STOP_NAME })}</p>
       <div className="demo-stop-moment-actions">
         <button
           type="button"

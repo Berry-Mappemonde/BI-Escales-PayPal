@@ -1,5 +1,5 @@
 /**
- * Bryntum Scheduler timeline (public npm trial @bryntum/scheduler-trial), read-only.
+ * Bryntum Scheduler Community timeline (@bryntum/scheduler-community), read-only.
  * Loaded only behind ESCALES_BRYNTUM_ENABLED. Falls back to the local list if the package is absent.
  */
 import { useEffect, useRef, useState } from "react";
@@ -13,7 +13,11 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([import("@bryntum/scheduler"), import("@bryntum/scheduler/scheduler.css"), import("@bryntum/scheduler/stockholm-light.css")])
+    Promise.all([
+      import("@bryntum/scheduler-community"),
+      import("@bryntum/scheduler-community/scheduler.css"),
+      import("@bryntum/scheduler-community/svalbard-light.css"),
+    ])
       .then(([mod]) => {
         if (!cancelled) setScheduler(() => mod.Scheduler || mod.default?.Scheduler);
       })

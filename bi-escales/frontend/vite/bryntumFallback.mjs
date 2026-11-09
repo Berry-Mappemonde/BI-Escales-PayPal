@@ -1,15 +1,15 @@
 /**
- * Build-time fallback for the optional Bryntum Scheduler trial.
+ * Build-time fallback for the optional Bryntum Scheduler Community package.
  *
- * `@bryntum/scheduler` is an optionalDependency: npm may skip it (registry hiccup,
- * platform, licence). Rollup then fails on the dynamic import in BryntumTimeline and
+ * `@bryntum/scheduler-community` is an optionalDependency: npm may skip it (registry
+ * hiccup, platform). Rollup then fails on the dynamic import in BryntumTimeline and
  * the whole Render build breaks. When the package is missing, this plugin resolves
- * every `@bryntum/scheduler` import to a stub that throws at load time, so the lazy
- * import rejects and BryntumTimeline renders its plain-list fallback.
+ * every `@bryntum/scheduler-community` import to a stub that throws at load time, so
+ * the lazy import rejects and BryntumTimeline renders its plain-list fallback.
  */
 import { createRequire } from "node:module";
 
-const PACKAGE = "@bryntum/scheduler";
+const PACKAGE = "@bryntum/scheduler-community";
 const STUB_JS = "\0bryntum-scheduler-missing.js";
 const STUB_CSS = "\0bryntum-scheduler-missing.css";
 
@@ -42,7 +42,7 @@ export function bryntumFallback({ isInstalled = bryntumInstalled, root } = {}) {
       return source.endsWith(".css") ? STUB_CSS : STUB_JS;
     },
     load(id) {
-      if (id === STUB_CSS) return "/* @bryntum/scheduler not installed */";
+      if (id === STUB_CSS) return "/* @bryntum/scheduler-community not installed */";
       if (id === STUB_JS) {
         return `throw new Error("${PACKAGE} is not installed (optional dependency)");`;
       }

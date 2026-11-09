@@ -27,6 +27,7 @@ Both must be enabled for wishlist routes. Treasurer mutations still require `x-a
 For catalogue `project_id` values (`gear-c3-*`):
 
 - `POST /pledges` with `kind: "project_pledge"` sets PayPal `currency_code` from the catalogue (`price_currency`). Any client-sent currency is ignored.
+- Request field **`amount_eur`** is the legacy JSON name; for catalogue items it carries the **native** amount in `price_currency` (not always euros).
 - Funding totals sum captures **in that currency only** (`funded_amount_minor`, `funded_pct`). No FX conversion.
 - `paypal_currency_supported` is `true` when the currency is on PayPal’s allow-list in `channel3_paypal.py` ([currency codes](https://developer.paypal.com/reference/currency-codes/)). Unsupported catalogue currencies return **422** on pledge create.
 - **JPY, HUF, TWD**: PayPal order amounts are whole units (no decimal `.value`). Other supported currencies use two decimal places.

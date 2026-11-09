@@ -556,6 +556,9 @@ def _public_pledge(doc: dict, *, lang: Optional[str] = None) -> dict:
     public["payment_mode"] = doc.get("payment_mode") or doc.get("intent")
     kind = str(public.get("kind") or "mile")
     public["simulated_price"] = simulated_unit(kind, resolved)
+    pledge_ccy = str(doc.get("currency") or "EUR").strip().upper()
+    if pledge_ccy != "EUR":
+        public["simulated_price"]["currency"] = pledge_ccy
     public["price_label"] = simulated_price_label(resolved)
     if not public.get("approve_link") and public.get("order_id"):
         public["approve_link"] = approve_link({"id": public["order_id"]})

@@ -5,16 +5,16 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 from app.channel3_catalog import lookup_catalog_by_project_id
-from app.channel3_paypal import minor_to_major_display, paypal_currency_supported
+from app.channel3_paypal import (
+    major_string_to_minor,
+    minor_to_major_display,
+    paypal_currency_supported,
+)
 from app.gear_projects_catalog import funded_percent
 
 
-def _major_to_minor(amount: str) -> int:
-    try:
-        value = Decimal(str(amount or "0").replace(",", "."))
-    except (InvalidOperation, ValueError):
-        return 0
-    return int((value * Decimal("100")).quantize(Decimal("1")))
+def _major_to_minor(amount: str, currency: str) -> int:
+    return major_string_to_minor(amount, currency)
 
 
 async def _project_finance_lines(project_id: str) -> list[dict]:
@@ -47,14 +47,15 @@ async def fund_snapshot_for_project(project_id: str) -> dict[str, Any]:
             elif kind == "pledge_refunded":
                 refunded += amount
         net = captured - refunded
-        text = f"{net.quantize(Decimal('0.01')):.2f}"
+        text = minor_to_major_display(major_string_to_minor(str(net), native), native)
+        refunded_text = minor_to_major_display(major_string_to_minor(str(refunded), native), native)
         return {
             "milestone_id": project_id,
             "currency": native,
             "captured_eur": text,
             "amount_eur": text,
             "donation_count": donation_count,
-            "refunded_eur": f"{refunded.quantize(Decimal('0.01')):.2f}",
+            "refunded_eur": refunded_text,
         }
     from app.escales.ledger import fund_for_milestone
 
@@ -101,7 +102,10 @@ def enrich_item_funding(
     fund_ccy = str(fund.get("currency") or "EUR").upper()
     funded_minor = 0
     if supported and fund_ccy == native_ccy:
-        funded_minor = _major_to_minor(str(fund.get("captured_eur") or fund.get("amount_eur") or "0"))
+        funded_minor = _major_to_minor(
+            str(fund.get("captured_eur") or fund.get("amount_eur") or "0"),
+            native_ccy,
+        )
 
     funded_major = minor_to_major_display(funded_minor, native_ccy)
     pct = (

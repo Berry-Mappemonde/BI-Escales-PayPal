@@ -108,43 +108,178 @@
    },
    {
     "id": "leg-13",
-    "tA": "2026-11-07T15:57:44Z",
-    "tB": "2027-06-11T15:43:32.015Z",
+    "tA": "2027-04-11T21:47:56Z",
+    "tB": "2027-06-11T15:43:32Z",
     "fromName": "Nouméa (Nouvelle-Calédonie)",
     "toName": "Dzaoudzi (Mayotte)",
-    "text": "Le 10 novembre, Berry-Mappemonde quitte Nouméa (Nouvelle-Calédonie), cap à l'ouest pour la longue traversée vers Dzaoudzi (Mayotte). 9 152 milles, 48 jours de mer, à 8 nœuds de moyenne. Puis, la zone de la campagne océanographique MAYOBS33. Le 10 novembre, les eaux de Nouvelle-Calédonie. Puis, les eaux australiennes. Le 19 novembre, les eaux papouanes, puis les eaux indonésiennes. Puis, le bateau longe Dili. Le 24 novembre, le bateau longe Ende. Puis, le bateau longe Tanjung Benete. Le 4 décembre, les eaux indiennes. Puis, haute mer. Le 8 décembre, les alizés de nord-est s'installent : vents moyens de saison. Puis, les eaux sri-lankaises. Le 18 décembre, à l'équateur, les alizés de sud-est s'installent : vents moyens de saison. Puis, les eaux maldiviennes. Le 26 décembre, les eaux seychelloises. Le lendemain, le bateau longe Victoria. Puis, les eaux malgaches, puis celles des Terres australes et antarctiques françaises, puis celles de Mayotte. Arrivée à Dzaoudzi (Mayotte) le 11 juin, amarré au port de Dzaoudzi (Mayotte)."
+    "text": "Le 11 avril, Berry-Mappemonde quitte Nouméa (Nouvelle-Calédonie), cap à l'ouest pour la longue traversée vers Dzaoudzi (Mayotte). 9 152 milles, 61 jours de mer, à 8 nœuds de moyenne. Arrivée à Dzaoudzi (Mayotte) le 11 juin, amarré au port de Dzaoudzi (Mayotte).",
+    "anchors": [
+     {
+      "charIdx": 0,
+      "t": "2027-04-11T21:47:56Z",
+      "kind": "depart"
+     },
+     {
+      "charIdx": 73,
+      "t": "2027-04-30T12:46:28Z",
+      "place": "Zone économique exclusive française (Nouvelle-Calédonie)",
+      "kind": "zee-enter"
+     },
+     {
+      "charIdx": 172,
+      "t": "2027-04-30T12:45:00Z",
+      "place": "Marine Education Seychelles",
+      "kind": "project"
+     },
+     {
+      "charIdx": 191,
+      "t": "2027-06-11T00:00:00Z",
+      "place": "Dzaoudzi (Mayotte)",
+      "kind": "escale"
+     }
+    ]
    },
    {
     "id": "leg-14",
-    "tA": "2027-06-11T15:43:32.015Z",
-    "tB": "2027-06-19T06:35:44.317Z",
+    "tA": "2027-06-11T15:43:32Z",
+    "tB": "2027-06-19T06:35:44Z",
     "fromName": "Dzaoudzi (Mayotte)",
     "toName": "Tromelin (TAAF)",
-    "text": "Le 14 juin, Berry-Mappemonde quitte Dzaoudzi (Mayotte) pour Tromelin (TAAF). 925 milles, une vingtaine de jours de mer. Arrivée à Tromelin (TAAF) le 19 juin, amarré au port de Tromelin (TAAF)."
+    "text": "Le 14 juin, Berry-Mappemonde quitte Dzaoudzi (Mayotte) pour Tromelin (TAAF). 925 milles, huit jours de mer. Arrivée à Tromelin (TAAF) le 19 juin, amarré au port de Tromelin (TAAF).",
+    "anchors": [
+     {
+      "charIdx": 0,
+      "t": "2027-06-14T15:43:32Z",
+      "kind": "depart"
+     },
+     {
+      "charIdx": 83,
+      "t": "2027-06-16T23:09:38Z",
+      "place": "Mayotte: France / Comores",
+      "kind": "zee-enter"
+     },
+     {
+      "charIdx": 127,
+      "t": "2027-06-19T00:00:00Z",
+      "place": "Tromelin (TAAF)",
+      "kind": "escale"
+     }
+    ]
    },
    {
     "id": "leg-15",
-    "tA": "2027-06-19T06:35:44.317Z",
-    "tB": "2027-06-24T03:20:51.040Z",
+    "tA": "2027-06-19T06:35:44Z",
+    "tB": "2027-06-24T03:20:51Z",
     "fromName": "Tromelin (TAAF)",
     "toName": "Saint-Gilles (La Réunion)",
-    "text": "Le 22 juin, Berry-Mappemonde quitte Tromelin (TAAF) pour Saint-Gilles (La Réunion). 322 milles, trois jours de mer. Arrivée à Saint-Gilles (La Réunion) le 24 juin, amarré au port de Saint-Gilles (La Réunion)."
+    "text": "Le 22 juin, Berry-Mappemonde quitte Tromelin (TAAF) pour Saint-Gilles (La Réunion). 322 milles, cinq jours de mer. Arrivée à Saint-Gilles (La Réunion) le 24 juin, amarré au port de Saint-Gilles (La Réunion).",
+    "anchors": [
+     {
+      "charIdx": 0,
+      "t": "2027-06-22T06:35:44Z",
+      "kind": "depart"
+     },
+     {
+      "charIdx": 77,
+      "t": "2027-06-22T21:30:46Z",
+      "place": "Ile Tromelin: France / Madagascar / Republic of Mauritius (Terres australes et antarctiques françaises)",
+      "kind": "zee-enter"
+     },
+     {
+      "charIdx": 163,
+      "t": "2027-06-23T12:25:48Z",
+      "place": "Best Run",
+      "kind": "project"
+     },
+     {
+      "charIdx": 215,
+      "t": "2027-06-24T00:00:00Z",
+      "place": "Saint-Gilles (La Réunion)",
+      "kind": "escale"
+     }
+    ]
    },
    {
     "id": "leg-16",
-    "tA": "2027-06-24T03:20:51.040Z",
-    "tB": "2027-07-03T16:04:24.999Z",
+    "tA": "2027-06-24T03:20:51Z",
+    "tB": "2027-07-03T16:04:24Z",
     "fromName": "Saint-Gilles (La Réunion)",
     "toName": "Europa (TAAF)",
-    "text": "Le 27 juin, Berry-Mappemonde quitte Saint-Gilles (La Réunion) pour Europa (TAAF). 1 457 milles, une vingtaine de jours de mer. Arrivée à Europa (TAAF) le 3 juillet, amarré au port d’Europa (TAAF)."
+    "text": "Le 27 juin, Berry-Mappemonde quitte Saint-Gilles (La Réunion) pour Europa (TAAF). 1 457 milles, une dizaine de jours de mer. Arrivée à Europa (TAAF) le 3 juillet, amarré au port de Europa (TAAF).",
+    "anchors": [
+     {
+      "charIdx": 0,
+      "t": "2027-06-27T03:20:51Z",
+      "kind": "depart"
+     },
+     {
+      "charIdx": 83,
+      "t": "2027-06-28T18:31:44Z",
+      "place": "Haute mer",
+      "kind": "zee-enter"
+     },
+     {
+      "charIdx": 92,
+      "t": "2027-06-30T09:42:37Z",
+      "place": "Zone économique exclusive (Mauritian)",
+      "kind": "zee-enter"
+     },
+     {
+      "charIdx": 141,
+      "t": "2027-07-02T00:53:30Z",
+      "place": "Les Iles Éparses, sentinelles de l'évolution de l'océan (ISEO)",
+      "kind": "project"
+     },
+     {
+      "charIdx": 235,
+      "t": "2027-07-03T00:00:00Z",
+      "place": "Europa (TAAF)",
+      "kind": "escale"
+     }
+    ]
    },
    {
     "id": "leg-17",
-    "tA": "2027-07-06T16:04:24.999Z",
-    "tB": "2027-08-27T04:23:32.501Z",
+    "tA": "2027-07-06T16:04:24Z",
+    "tB": "2027-08-27T04:23:32Z",
     "fromName": "Europa (TAAF)",
     "toName": "La Rochelle",
-    "text": "Le 9 juillet, pour la dernière étape, Berry-Mappemonde quitte Europa (TAAF) pour La Rochelle. 8 393 milles, 52 jours de mer. Puis, les eaux des Terres australes et antarctiques françaises. Puis, haute mer. Puis, à vingt-trois milles, le projet High Seas: New Hope Beyond National Boundaries. Puis, les eaux françaises. Arrivée à La Rochelle le 27 août, amarré à Port de Saint-Martin-de-Ré. Aujourd’hui, le bateau est à La Rochelle."
+    "text": "Le 6 juillet, pour la dernière étape, Berry-Mappemonde quitte Europa (TAAF) pour La Rochelle. 8 393 milles, 52 jours de mer. Puis, les eaux des Terres australes et antarctiques françaises. Puis, haute mer. Puis, à vingt-trois milles, le projet High Seas: New Hope Beyond National Boundaries. Puis, les eaux françaises. Arrivée à La Rochelle le 27 août, amarré à Port de Saint-Martin-de-Ré. Puis, le bateau passe près de l'aire marine protégée Pointe d'Arçay. Aujourd’hui, le bateau est à La Rochelle.",
+    "anchors": [
+     {
+      "charIdx": 0,
+      "t": "2027-07-06T16:04:24Z",
+      "kind": "depart"
+     },
+     {
+      "charIdx": 75,
+      "t": "2027-07-16T23:20:13Z",
+      "place": "Zone économique exclusive française (Terres australes et antarctiques françaises)",
+      "kind": "zee-enter"
+     },
+     {
+      "charIdx": 162,
+      "t": "2027-07-27T06:36:03Z",
+      "place": "High Seas: New Hope Beyond National Boundaries",
+      "kind": "project"
+     },
+     {
+      "charIdx": 271,
+      "t": "2027-08-06T13:51:52Z",
+      "place": "Pointe d'Arçay",
+      "kind": "alert-on"
+     },
+     {
+      "charIdx": 358,
+      "t": "2027-08-27T00:00:00Z",
+      "place": "La Rochelle",
+      "kind": "escale"
+     },
+     {
+      "charIdx": 380,
+      "t": "2027-08-27T04:23:32Z"
+     }
+    ]
    }
   ]
  },
@@ -256,43 +391,178 @@
    },
    {
     "id": "leg-13",
-    "tA": "2026-11-07T15:57:44Z",
-    "tB": "2027-06-11T15:43:32.015Z",
+    "tA": "2027-04-11T21:47:56Z",
+    "tB": "2027-06-11T15:43:32Z",
     "fromName": "Nouméa (Nouvelle-Calédonie)",
     "toName": "Dzaoudzi (Mayotte)",
-    "text": "On November 10, Berry-Mappemonde leaves Nouméa (New Caledonia), heading west for the long crossing to Dzaoudzi (Mayotte). 9,152 miles, 48 days at sea, at 8 knots average. Then, the MAYOBS33 oceanographic campaign area. On November 10, New Caledonian waters. Then, Australian waters. On November 19, Papuan waters, then Indonesian waters. Then, the boat passes Dili. On November 24, the boat passes Ende. Then, the boat passes Tanjung Benete. On December 4, Indian Ocean waters. Then, high seas. On December 8, north-east trade winds settle in: seasonal average winds. Then, Sri Lankan waters. On December 18, at the equator, south-east trade winds settle in: seasonal average winds. Then, Maldivian waters. On December 26, Seychellois waters. The next day, the boat passes Victoria. Then, Malagasy waters, then those of the French Southern and Antarctic Lands, then those of Mayotte. Arrival at Dzaoudzi (Mayotte) on June 11, moored at Dzaoudzi (Mayotte) port."
+    "text": "On April 11, Berry-Mappemonde leaves Nouméa (Nouvelle-Calédonie) for the long crossing to Dzaoudzi (Mayotte). 9,152 miles, 61 days at sea, at 8 knots on average. Arrival at Dzaoudzi (Mayotte) on June 11, moored at Dzaoudzi (Mayotte) port.",
+    "anchors": [
+     {
+      "charIdx": 0,
+      "t": "2027-04-11T21:47:56Z",
+      "kind": "depart"
+     },
+     {
+      "charIdx": 73,
+      "t": "2027-04-30T12:46:28Z",
+      "place": "Zone économique exclusive française (Nouvelle-Calédonie)",
+      "kind": "zee-enter"
+     },
+     {
+      "charIdx": 172,
+      "t": "2027-04-30T12:45:00Z",
+      "place": "Marine Education Seychelles",
+      "kind": "project"
+     },
+     {
+      "charIdx": 191,
+      "t": "2027-06-11T00:00:00Z",
+      "place": "Dzaoudzi (Mayotte)",
+      "kind": "escale"
+     }
+    ]
    },
    {
     "id": "leg-14",
-    "tA": "2027-06-11T15:43:32.015Z",
-    "tB": "2027-06-19T06:35:44.317Z",
+    "tA": "2027-06-11T15:43:32Z",
+    "tB": "2027-06-19T06:35:44Z",
     "fromName": "Dzaoudzi (Mayotte)",
     "toName": "Tromelin (TAAF)",
-    "text": "On June 14, Berry-Mappemonde leaves Dzaoudzi (Mayotte) for Tromelin (TAAF). 925 miles, about twenty days at sea. Arrival at Tromelin (TAAF) on June 19, moored at Tromelin (TAAF) port."
+    "text": "On June 14, Berry-Mappemonde leaves Dzaoudzi (Mayotte) for Tromelin (TAAF). 925 miles, eight days at sea. Arrival at Tromelin (TAAF) on June 19, moored at Tromelin (TAAF) port.",
+    "anchors": [
+     {
+      "charIdx": 0,
+      "t": "2027-06-14T15:43:32Z",
+      "kind": "depart"
+     },
+     {
+      "charIdx": 83,
+      "t": "2027-06-16T23:09:38Z",
+      "place": "Mayotte: France / Comores",
+      "kind": "zee-enter"
+     },
+     {
+      "charIdx": 127,
+      "t": "2027-06-19T00:00:00Z",
+      "place": "Tromelin (TAAF)",
+      "kind": "escale"
+     }
+    ]
    },
    {
     "id": "leg-15",
-    "tA": "2027-06-19T06:35:44.317Z",
-    "tB": "2027-06-24T03:20:51.040Z",
+    "tA": "2027-06-19T06:35:44Z",
+    "tB": "2027-06-24T03:20:51Z",
     "fromName": "Tromelin (TAAF)",
     "toName": "Saint-Gilles (La Réunion)",
-    "text": "On June 22, Berry-Mappemonde leaves Tromelin (TAAF) for Saint-Gilles (La Réunion). 322 miles, three days at sea. Arrival at Saint-Gilles (La Réunion) on June 24, moored at Saint-Gilles (La Réunion) port."
+    "text": "On June 22, Berry-Mappemonde leaves Tromelin (TAAF) for Saint-Gilles (La Réunion). 322 miles, five days at sea. Arrival at Saint-Gilles (La Réunion) on June 24, moored at Saint-Gilles (La Réunion) port.",
+    "anchors": [
+     {
+      "charIdx": 0,
+      "t": "2027-06-22T06:35:44Z",
+      "kind": "depart"
+     },
+     {
+      "charIdx": 77,
+      "t": "2027-06-22T21:30:46Z",
+      "place": "Ile Tromelin: France / Madagascar / Republic of Mauritius (Terres australes et antarctiques françaises)",
+      "kind": "zee-enter"
+     },
+     {
+      "charIdx": 163,
+      "t": "2027-06-23T12:25:48Z",
+      "place": "Best Run",
+      "kind": "project"
+     },
+     {
+      "charIdx": 215,
+      "t": "2027-06-24T00:00:00Z",
+      "place": "Saint-Gilles (La Réunion)",
+      "kind": "escale"
+     }
+    ]
    },
    {
     "id": "leg-16",
-    "tA": "2027-06-24T03:20:51.040Z",
-    "tB": "2027-07-03T16:04:24.999Z",
+    "tA": "2027-06-24T03:20:51Z",
+    "tB": "2027-07-03T16:04:24Z",
     "fromName": "Saint-Gilles (La Réunion)",
     "toName": "Europa (TAAF)",
-    "text": "On June 27, Berry-Mappemonde leaves Saint-Gilles (La Réunion) for Europa (TAAF). 1,457 miles, about twenty days at sea. Arrival at Europa (TAAF) on July 3, moored at Europa (TAAF) port."
+    "text": "On June 27, Berry-Mappemonde leaves Saint-Gilles (La Réunion) for Europa (TAAF). 1,457 miles, about ten days at sea. Arrival at Europa (TAAF) on July 3, moored at Europa (TAAF) port.",
+    "anchors": [
+     {
+      "charIdx": 0,
+      "t": "2027-06-27T03:20:51Z",
+      "kind": "depart"
+     },
+     {
+      "charIdx": 83,
+      "t": "2027-06-28T18:31:44Z",
+      "place": "Haute mer",
+      "kind": "zee-enter"
+     },
+     {
+      "charIdx": 92,
+      "t": "2027-06-30T09:42:37Z",
+      "place": "Zone économique exclusive (Mauritian)",
+      "kind": "zee-enter"
+     },
+     {
+      "charIdx": 141,
+      "t": "2027-07-02T00:53:30Z",
+      "place": "Les Iles Éparses, sentinelles de l'évolution de l'océan (ISEO)",
+      "kind": "project"
+     },
+     {
+      "charIdx": 235,
+      "t": "2027-07-03T00:00:00Z",
+      "place": "Europa (TAAF)",
+      "kind": "escale"
+     }
+    ]
    },
    {
     "id": "leg-17",
-    "tA": "2027-07-06T16:04:24.999Z",
-    "tB": "2027-08-27T04:23:32.501Z",
+    "tA": "2027-07-06T16:04:24Z",
+    "tB": "2027-08-27T04:23:32Z",
     "fromName": "Europa (TAAF)",
     "toName": "La Rochelle",
-    "text": "On July 9, for the last leg, Berry-Mappemonde leaves Europa (TAAF) for La Rochelle. 8,393 miles, 52 days at sea. Then, waters of the French Southern and Antarctic Lands. Then, high sea. Then, at twenty-three miles, the High Seas: New Hope Beyond National Boundaries project. Then, French waters. Arrival in La Rochelle on August 27, moored at Port de Saint-Martin-de-Ré. Today, the boat is in La Rochelle."
+    "text": "On July 6, for the last leg, Berry-Mappemonde leaves Europa (TAAF) for La Rochelle. 8,393 miles, 52 days at sea. Then, waters of the French Southern and Antarctic Lands. Then, high sea. Then, at twenty-three miles, the High Seas: New Hope Beyond National Boundaries project. Then, French waters. Arrival in La Rochelle on August 27, moored at Port de Saint-Martin-de-Ré. Then, the boat passes near the Pointe d'Arçay marine protected area. Today, the boat is in La Rochelle.",
+    "anchors": [
+     {
+      "charIdx": 0,
+      "t": "2027-07-06T16:04:24Z",
+      "kind": "depart"
+     },
+     {
+      "charIdx": 75,
+      "t": "2027-07-16T23:20:13Z",
+      "place": "Zone économique exclusive française (Terres australes et antarctiques françaises)",
+      "kind": "zee-enter"
+     },
+     {
+      "charIdx": 162,
+      "t": "2027-07-27T06:36:03Z",
+      "place": "High Seas: New Hope Beyond National Boundaries",
+      "kind": "project"
+     },
+     {
+      "charIdx": 271,
+      "t": "2027-08-06T13:51:52Z",
+      "place": "Pointe d'Arçay",
+      "kind": "alert-on"
+     },
+     {
+      "charIdx": 358,
+      "t": "2027-08-27T00:00:00Z",
+      "place": "La Rochelle",
+      "kind": "escale"
+     },
+     {
+      "charIdx": 380,
+      "t": "2027-08-27T04:23:32Z"
+     }
+    ]
    }
   ]
  }

@@ -349,24 +349,24 @@
   },
   {
    "id": "leg-13",
-   "tA": "2026-11-07T15:57:44Z",
-   "tB": "2027-06-11T15:43:32.015Z",
-   "text": "Le 10 novembre, départ vers Dzaoudzi : 9 152 milles, 48 jours de mer. Arrivée à Dzaoudzi (Mayotte) le 11 juin.",
+   "tA": "2027-04-11T21:47:56Z",
+   "tB": "2027-06-11T15:43:32Z",
+   "text": "Le 11 avril, départ vers Dzaoudzi : 9 152 milles, 61 jours de mer. Arrivée à Dzaoudzi (Mayotte) le 11 juin.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-11-10T00:00:00Z",
+     "t": "2027-04-11T21:47:56Z",
      "kind": "depart"
     },
     {
      "charIdx": 73,
-     "t": "2026-12-29T00:00:00Z",
+     "t": "2027-04-30T12:46:28Z",
      "place": "Zone économique exclusive française (Nouvelle-Calédonie)",
      "kind": "zee-enter"
     },
     {
      "charIdx": 172,
-     "t": "2026-12-29T00:00:00Z",
+     "t": "2027-04-30T12:45:00Z",
      "place": "Marine Education Seychelles",
      "kind": "project"
     },
@@ -382,24 +382,24 @@
   },
   {
    "id": "leg-14",
-   "tA": "2027-06-11T15:43:32.015Z",
-   "tB": "2027-06-19T06:35:44.317Z",
-   "text": "Le 14 juin, départ vers Tromelin : 925 milles, une vingtaine de jours de mer. Arrivée à Tromelin (TAAF) le 19 juin.",
+   "tA": "2027-06-11T15:43:32Z",
+   "tB": "2027-06-19T06:35:44Z",
+   "text": "Le 14 juin, départ vers Tromelin : 925 milles, huit jours de mer. Arrivée à Tromelin (TAAF) le 19 juin.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2027-06-14T00:00:00Z",
+     "t": "2027-06-14T15:43:32Z",
      "kind": "depart"
     },
     {
      "charIdx": 83,
-     "t": "2027-06-15T11:09:38Z",
+     "t": "2027-06-16T23:09:38Z",
      "place": "Mayotte: France / Comores",
      "kind": "zee-enter"
     },
     {
      "charIdx": 127,
-     "t": "2027-06-19T06:35:44Z",
+     "t": "2027-06-19T00:00:00Z",
      "place": "Tromelin (TAAF)",
      "kind": "escale"
     }
@@ -409,30 +409,30 @@
   },
   {
    "id": "leg-15",
-   "tA": "2027-06-19T06:35:44.317Z",
-   "tB": "2027-06-24T03:20:51.040Z",
-   "text": "Le 22 juin, départ vers Saint-Gilles : 322 milles, trois jours de mer. Arrivée à Saint-Gilles (La Réunion) le 24 juin.",
+   "tA": "2027-06-19T06:35:44Z",
+   "tB": "2027-06-24T03:20:51Z",
+   "text": "Le 22 juin, départ vers Saint-Gilles : 322 milles, cinq jours de mer. Arrivée à Saint-Gilles (La Réunion) le 24 juin.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2027-06-22T00:00:00Z",
+     "t": "2027-06-22T06:35:44Z",
      "kind": "depart"
     },
     {
      "charIdx": 77,
-     "t": "2027-06-20T21:30:46Z",
+     "t": "2027-06-22T21:30:46Z",
      "place": "Ile Tromelin: France / Madagascar / Republic of Mauritius (Terres australes et antarctiques françaises)",
      "kind": "zee-enter"
     },
     {
      "charIdx": 163,
-     "t": "2027-06-22T12:25:48Z",
+     "t": "2027-06-23T12:25:48Z",
      "place": "Best Run",
      "kind": "project"
     },
     {
      "charIdx": 215,
-     "t": "2027-06-24T03:20:51Z",
+     "t": "2027-06-24T00:00:00Z",
      "place": "Saint-Gilles (La Réunion)",
      "kind": "escale"
     }
@@ -442,36 +442,36 @@
   },
   {
    "id": "leg-16",
-   "tA": "2027-06-24T03:20:51.040Z",
-   "tB": "2027-07-03T16:04:24.999Z",
-   "text": "Le 27 juin, départ vers Europa : 1 457 milles, une vingtaine de jours de mer. Arrivée à Europa (TAAF) le 3 juillet.",
+   "tA": "2027-06-24T03:20:51Z",
+   "tB": "2027-07-03T16:04:24Z",
+   "text": "Le 27 juin, départ vers Europa : 1 457 milles, une dizaine de jours de mer. Arrivée à Europa (TAAF) le 3 juillet.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2027-06-27T00:00:00Z",
+     "t": "2027-06-27T03:20:51Z",
      "kind": "depart"
     },
     {
      "charIdx": 83,
-     "t": "2027-06-26T12:31:44Z",
+     "t": "2027-06-28T18:31:44Z",
      "place": "Haute mer",
      "kind": "zee-enter"
     },
     {
      "charIdx": 92,
-     "t": "2027-06-28T21:42:38Z",
+     "t": "2027-06-30T09:42:37Z",
      "place": "Zone économique exclusive (Mauritian)",
      "kind": "zee-enter"
     },
     {
      "charIdx": 141,
-     "t": "2027-07-01T06:53:31Z",
+     "t": "2027-07-02T00:53:30Z",
      "place": "Les Iles Éparses, sentinelles de l'évolution de l'océan (ISEO)",
      "kind": "project"
     },
     {
      "charIdx": 235,
-     "t": "2027-07-03T16:04:24Z",
+     "t": "2027-07-03T00:00:00Z",
      "place": "Europa (TAAF)",
      "kind": "escale"
     }
@@ -481,36 +481,36 @@
   },
   {
    "id": "leg-17",
-   "tA": "2027-07-06T16:04:24.999Z",
-   "tB": "2027-08-27T04:23:32.501Z",
-   "text": "Le 9 juillet, départ vers La Rochelle : 8 393 milles, 52 jours de mer. Le lendemain, le bateau passe près de l'aire marine protégée Pointe d'Arçay, à trois milles. Arrivée à La Rochelle le 27 août, à Port de Saint-Denis d'Oléron. Aujourd’hui, le bateau est à La Rochelle.",
+   "tA": "2027-07-06T16:04:24Z",
+   "tB": "2027-08-27T04:23:32Z",
+   "text": "Le 6 juillet, départ vers La Rochelle : 8 393 milles, 52 jours de mer. Arrivée à La Rochelle le 27 août, à Port de Saint-Denis d'Oléron. Puis, le bateau passe près de l'aire marine protégée Pointe d'Arçay, à trois milles. Aujourd’hui, le bateau est à La Rochelle.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2027-07-09T00:00:00Z",
+     "t": "2027-07-06T16:04:24Z",
      "kind": "depart"
     },
     {
      "charIdx": 75,
-     "t": "2027-07-18T00:03:49Z",
+     "t": "2027-07-16T23:20:13Z",
      "place": "Zone économique exclusive française (Terres australes et antarctiques françaises)",
      "kind": "zee-enter"
     },
     {
      "charIdx": 162,
-     "t": "2027-07-29T20:25:01Z",
+     "t": "2027-07-27T06:36:03Z",
      "place": "High Seas: New Hope Beyond National Boundaries",
      "kind": "project"
     },
     {
      "charIdx": 271,
-     "t": "2027-08-15T20:24:08Z",
+     "t": "2027-08-06T13:51:52Z",
      "place": "Pointe d'Arçay",
      "kind": "alert-on"
     },
     {
      "charIdx": 358,
-     "t": "2027-08-27T04:23:32Z",
+     "t": "2027-08-27T00:00:00Z",
      "place": "La Rochelle",
      "kind": "escale"
     },

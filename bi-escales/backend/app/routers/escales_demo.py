@@ -1,4 +1,9 @@
-"""Judge-moment demo routes: sandbox treasurer only, no admin key."""
+"""Judge-moment demo routes: sandbox only, and always behind the treasurer key.
+
+These routes capture and void real (sandbox) pledges, so they follow the same
+rule as every other money route: ``x-admin-key`` is required (HamidZ11 review
+on #149, blocker for #145). The demo flag and sandbox checks stay on top.
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
@@ -13,7 +18,7 @@ from app.escales.demo_stop import (
     demo_simulate_arrival,
 )
 from app.escales.rate_limit import RateLimited, client_ip, hit_demo
-from app.routers.escales import _as_http, _paypal
+from app.routers.escales import _as_http, _paypal, _require_treasurer
 
 
 class _EnabledRoute(APIRoute):
@@ -43,6 +48,8 @@ def _require_demo_judge(request: Request) -> None:
         raise _demo_forbidden_http()
     if not demo_treasurer_enabled():
         raise HTTPException(status_code=403, detail="Demo treasurer is not enabled")
+    # Money moves (capture / void) and a stop-wide flag: treasurer key only.
+    _require_treasurer(request)
 
 
 def _require_demo_stop(milestone_id: str) -> str:

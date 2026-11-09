@@ -1,8 +1,9 @@
-"""Judge-moment demo routes (sandbox treasurer, La Rochelle only)."""
+"""Judge-moment demo routes (sandbox, treasurer key, La Rochelle only)."""
 from __future__ import annotations
 
 import asyncio
 import copy
+import datetime as dt
 import json
 import sys
 from pathlib import Path
@@ -74,7 +75,18 @@ def api():
     app = FastAPI()
     app.include_router(escales_router)
     app.include_router(demo_router)
+    return TestClient(app, headers=KEY)
+
+
+@pytest.fixture
+def anon():
+    app = FastAPI()
+    app.include_router(escales_router)
+    app.include_router(demo_router)
     return TestClient(app)
+
+
+KEY = {"x-admin-key": "judge-moment-key"}
 
 
 def _path(action: str, milestone_id: str = "dep-la-rochelle") -> str:
@@ -242,9 +254,57 @@ def test_reset_clears_demo_override_and_keeps_captured(api):
     asyncio.run(run())
 
 
-def test_keyed_routes_still_require_admin_key(api):
-    assert api.post("/api/escales/clock/settle", json={}).status_code == 401
+def test_keyed_routes_still_require_admin_key(anon):
+    assert anon.post("/api/escales/clock/settle", json={}).status_code == 401
     pledge_id = asyncio.run(_seed_authorized())
-    assert api.post(f"/api/escales/pledges/{pledge_id}/capture", json={}).status_code == 401
-    assert api.post(f"/api/escales/pledges/{pledge_id}/void", json={}).status_code == 401
-    assert api.post("/api/escales/milestones/dep-la-rochelle/captain-review/approve").status_code == 401
+    assert anon.post(f"/api/escales/pledges/{pledge_id}/capture", json={}).status_code == 401
+    assert anon.post(f"/api/escales/pledges/{pledge_id}/void", json={}).status_code == 401
+    assert anon.post("/api/escales/milestones/dep-la-rochelle/captain-review/approve").status_code == 401
+
+
+@pytest.mark.parametrize("action", ["simulate-arrival", "cancel", "reset"])
+def test_demo_routes_require_treasurer_key(anon, action):
+    """HamidZ11 #149 blocker 1: no anonymous capture / void / stop-wide flag."""
+    async def run():
+        pledge_id = await _seed_authorized()
+        assert anon.post(_path(action)).status_code == 401
+        assert anon.post(_path(action), headers={"x-admin-key": "wrong"}).status_code == 403
+        row = await get_ledger().get_pledge(pledge_id)
+        assert row["status"] == "authorized"
+        stored = await get_ledger().get_milestone("dep-la-rochelle")
+        assert not ((stored or {}).get("meta") or {}).get("demo_cancelled")
+
+    asyncio.run(run())
+
+
+def test_simulate_arrival_leaves_no_persisted_approval(api, monkeypatch):
+    """HamidZ11 #149 blocker 2: the real clock must not inherit a demo approval."""
+    from app.escales.departure_clock import run_departure_clock_for_milestone
+    from app.escales.ledger import list_finance_entries
+    from app.escales.milestones import captain_review_approved
+
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-12T08:00:00+00:00")
+
+    async def run():
+        ledger = get_ledger()
+        before = await ledger.get_milestone("dep-la-rochelle")
+        before_proposal = copy.deepcopy((before or {}).get("proposal"))
+        await _seed_authorized()
+        res = api.post(_path("simulate-arrival"))
+        assert res.status_code == 200
+        assert res.json()["approval_persisted"] is False
+        kinds = [row.get("kind") for row in await list_finance_entries()]
+        assert "captain_review_approved" not in kinds
+        after = await ledger.get_milestone("dep-la-rochelle")
+        assert (after or {}).get("proposal") == before_proposal
+        doc = await resolve_schedule_milestone("dep-la-rochelle", read_only=True)
+        arrival = _parse_moment(str((doc or {}).get("meta", {}).get("arrival_iso")))
+        late = arrival + dt.timedelta(days=1)
+        assert await captain_review_approved("dep-la-rochelle", now=late) is False
+        fresh = await _seed_authorized()
+        settled = await run_departure_clock_for_milestone(FakePayPal(), "dep-la-rochelle", now=late)
+        rows = [r for r in settled["actions"] if r.get("pledge_id") == fresh]
+        assert rows and rows[0]["action"] == "await_review_approval"
+        assert (await ledger.get_pledge(fresh))["status"] == "authorized"
+
+    asyncio.run(run())

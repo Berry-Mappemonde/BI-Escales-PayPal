@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 from .config import simulated_now
 from .departure_clock import _parse_moment, run_departure_clock_for_milestone
-from .milestones import record_captain_review_approval
+from .milestones import demo_arrival_approval
 from .naviguide_bridge import resolve_milestone, resolve_schedule_milestone
 from .pledges import get_ledger, void_pledge
 
@@ -35,22 +35,19 @@ async def _arrival_moment(milestone_id: str) -> dt.datetime:
     return anchor
 
 
-async def _ensure_capture_proposal(milestone_id: str, *, at: str) -> None:
-    ledger = get_ledger()
-    milestone = await ledger.get_milestone(milestone_id)
-    review = (milestone or {}).get("proposal") or {}
-    proposal = review.get("proposal") if isinstance(review, dict) else None
-    if proposal != "capture":
-        await ledger.set_proposal(milestone_id, {"proposal": "capture", "at": at})
-
-
 async def demo_simulate_arrival(milestone_id: str, client: Any) -> dict:
+    """Run the departure clock for the demo stop at its arrival time.
+
+    The treasurer pressing this button is the approval, for this call only: no
+    Captain proposal is overwritten and no ``captain_review_approved`` finance
+    row is written, so the real voyage clock (12 Nov) never sees an approval
+    nobody gave (HamidZ11 review on #149, blocker 2).
+    """
     mid = resolve_milestone(milestone_id) or milestone_id
     arrival = await _arrival_moment(mid)
     arrival_iso = arrival.replace(microsecond=0).isoformat()
-    await _ensure_capture_proposal(mid, at=arrival_iso)
-    await record_captain_review_approval(mid, at=arrival_iso)
-    settled = await run_departure_clock_for_milestone(client, mid, now=arrival)
+    with demo_arrival_approval(mid):
+        settled = await run_departure_clock_for_milestone(client, mid, now=arrival)
     actions = []
     for entry in settled.get("actions") or []:
         pledge_id = entry.get("pledge_id")
@@ -70,6 +67,7 @@ async def demo_simulate_arrival(milestone_id: str, client: Any) -> dict:
         "milestone_id": mid,
         "now": settled.get("now") or arrival_iso,
         "captain_review_approved_at": arrival_iso,
+        "approval_persisted": False,
         "actions": actions,
     }
 

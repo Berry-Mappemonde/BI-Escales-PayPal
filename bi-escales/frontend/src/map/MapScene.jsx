@@ -230,7 +230,7 @@ export function MapScene({
       const offsets = stopOffsetsRef.current.length
         ? stopOffsetsRef.current
         : computeStopOffsets(uniqueStops, segments, project, []);
-      const boatOffset = boatMarkerAnchorOffset(boat, uniqueStops, offsets);
+      const boatOffset = boatMarkerAnchorOffset(boat, uniqueStops, offsets, project);
       const iconAnchor = offsetToIconAnchor([32, 32], boatOffset);
       const marker = L.marker([boat.lat, boat.lon], {
         icon: L.divIcon({

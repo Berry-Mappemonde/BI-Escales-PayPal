@@ -28,7 +28,8 @@
   },
   "settings": {
     "heading": "Réglages",
-    "lead": "Langue, thème, outils trésorier et contrôles opérateur sandbox."
+    "lead": "Langue, thème, outils trésorier et contrôles opérateur sandbox.",
+    "leadPanel": "Langue, thème et contrôles opérateur bac à sable."
   },
   "gear": {
     "heading": "Matériel d'expédition"
@@ -361,6 +362,8 @@
     "status": "Statut",
     "amount": "Montant",
     "description": "Description",
+    "pledgeRef": "Promesse",
+    "createdAt": "Créée le",
     "milestoneFromStop": "La caisse et les dépenses utilisent le jalon de l’escale sélectionnée : {{id}}",
     "milestone": "Jalon",
     "actions": "Actions",

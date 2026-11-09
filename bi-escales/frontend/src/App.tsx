@@ -291,7 +291,7 @@ export default function App() {
   useEffect(() => {
     if (hash === "#tresorier") {
       setTreasurerOpen(true);
-      setToolsOpen(true);
+      setSidebarOpen(true);
     }
   }, [hash]);
 
@@ -908,6 +908,7 @@ export default function App() {
             onAuthorized={onAuthorized}
           />
         ) : null}
+        {treasurerPanel}
       </aside>
 
       <aside
@@ -922,9 +923,7 @@ export default function App() {
           onDevT0Change={setDevT0}
           theme={theme}
           onToggleTheme={toggleTheme}
-        >
-          {treasurerPanel}
-        </ShellSettingsPanel>
+        />
       </aside>
     </div>
   );

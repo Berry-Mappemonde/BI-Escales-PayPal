@@ -9,7 +9,7 @@ import {
   voidPledge,
 } from "../api/escales";
 import i18n from "../i18n";
-import { TreasurerQueue } from "./TreasurerQueue";
+import { formatPledgeCreatedAt, shortPledgeId, TreasurerQueue } from "./TreasurerQueue";
 
 vi.mock("../api/escales", () => ({
   approveCaptainReview: vi.fn(),
@@ -244,5 +244,51 @@ describe("TreasurerQueue", () => {
     fireEvent.click(screen.getByTestId("refund-p-1"));
     expect(refundPledge).not.toHaveBeenCalled();
   });
+
+  it.each(["en", "fr"] as const)(
+    "lists demo queue rows with short pledge id, localized created_at, and newest first (%s)",
+    async (lang) => {
+      const older = {
+        ...pledge,
+        id: "aaaa1111-older-pledge-id",
+        status: "authorized" as const,
+        created_at: "2026-11-01T10:00:00.000Z",
+      };
+      const newer = {
+        ...pledge,
+        id: "bbbb2222-newer-pledge-id",
+        status: "vaulted" as const,
+        created_at: "2026-11-08T14:30:00.000Z",
+      };
+      await i18n.changeLanguage(lang);
+      vi.mocked(captainReview).mockResolvedValue({
+        milestone_id: "dep-la-rochelle",
+        proposal: "capture",
+        pledge_ids: [],
+      });
+      render(
+        <I18nextProvider i18n={i18n}>
+          <TreasurerQueue
+            pledges={[older, newer]}
+            adminKey=""
+            demoTreasurer
+            onRefresh={() => {}}
+            onUpdated={() => {}}
+          />
+        </I18nextProvider>,
+      );
+      expect(screen.getByTestId("treasurer-demo-readonly")).toBeInTheDocument();
+      const rows = screen.getAllByTestId(/^queue-row-/);
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toHaveAttribute("data-testid", "queue-row-bbbb2222-newer-pledge-id");
+      const shortNewer = screen.getByTestId("pledge-short-id-bbbb2222-newer-pledge-id");
+      expect(shortNewer).toHaveTextContent(shortPledgeId(newer.id));
+      expect(shortNewer).toHaveAttribute("title", newer.id);
+      expect(screen.getByTestId("pledge-created-bbbb2222-newer-pledge-id")).toHaveTextContent(
+        formatPledgeCreatedAt(newer.created_at, lang),
+      );
+      expect(screen.queryByTestId("capture-bbbb2222-newer-pledge-id")).toBeNull();
+    },
+  );
 
 });

@@ -109,7 +109,7 @@ describe("L-2 sidebar split", () => {
     document.body.className = "";
   });
 
-  it("keeps treasurer settings on the right and features on the left", async () => {
+  it("keeps treasurer tools on the left and settings on the right", async () => {
     const user = userEvent.setup();
     render(
       <I18nextProvider i18n={i18n}>
@@ -122,9 +122,9 @@ describe("L-2 sidebar split", () => {
 
     expect(within(sidebar).getByTestId("captain-panel")).toBeInTheDocument();
     expect(within(sidebar).getByTestId("crew-supporter-public")).toBeInTheDocument();
-    expect(within(settings).getByTestId("treasurer-panel")).toBeInTheDocument();
+    expect(within(sidebar).getByTestId("treasurer-panel")).toBeInTheDocument();
     expect(within(settings).getByTestId("ng-settings-controls")).toBeInTheDocument();
-    expect(within(sidebar).queryByTestId("treasurer-panel")).toBeNull();
+    expect(within(settings).queryByTestId("treasurer-panel")).toBeNull();
 
     await user.click(screen.getByRole("tab", { name: /marinas/i }));
     expect(within(sidebar).getByTestId("marinas-panel")).toBeInTheDocument();
@@ -152,7 +152,7 @@ describe("L-2 sidebar split", () => {
       </I18nextProvider>,
     );
     await user.click(screen.getByTestId("treasurer-panel-toggle"));
-    const treasurer = within(screen.getByTestId("ng-tools-panel")).getByTestId("treasurer-panel");
+    const treasurer = within(screen.getByTestId("ng-sidebar")).getByTestId("treasurer-panel");
     const treasurerHeadings = within(treasurer).getAllByRole("heading", { level: 2 });
     expect(treasurerHeadings).toHaveLength(1);
     expect(treasurerHeadings[0]).toHaveTextContent(/treasurer/i);

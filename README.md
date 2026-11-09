@@ -126,13 +126,21 @@ See `bi-escales/docs/deploiement-render.md` and `bi-escales/scripts/smoke_same_o
 
 PayPal’s remote **MCP** server lets developers connect Claude Desktop or Cursor to **sandbox** PayPal data. Setup: [PayPal MCP server quickstart](https://developer.paypal.com/ai-tools/mcp-server). Sandbox endpoint: `https://mcp.sandbox.paypal.com`. Separate from in-app `ESCALES_TOOLKIT_ENABLED`.
 
-### Captain limits (production only)
-
-`ESCALES_ENV=production` (Render) enables per-IP rate limits on captain routes and a daily LLM cap (`ESCALES_CAPTAIN_RATE_*`, `ESCALES_LLM_DAILY_CAP`). Development and tests are unlimited unless `ESCALES_RATE_LIMIT_ENABLED=true`.
-
 ## Operations
 
 Notes for operators and maintainers (not required for judging).
+
+### `ESCALES_ENV` and Captain limits
+
+`ESCALES_ENV` defaults to `development`. Locally and in tests, captain routes and the LLM cascade are not rate limited and LLM usage is not capped.
+
+`ESCALES_ENV=production` is set in `bi-escales/render.yaml` on Render; that turns both limits on:
+
+- `POST /api/escales/captain/chat` and `POST /api/escales/captain/review/{id}` share 10 requests per minute and 100 per UTC day per IP (`ESCALES_CAPTAIN_RATE_PER_MINUTE`, `ESCALES_CAPTAIN_RATE_PER_DAY`). Over the limit the API returns **429** in French or English.
+- Behind Render (or another reverse proxy), client IP for that limit comes from `X-Forwarded-For` using the rightmost trusted hop (`ESCALES_TRUSTED_PROXY_HOPS`, default **1**). Set **0** to use the connection host only.
+- LLM calls share one UTC-day budget (`ESCALES_LLM_DAILY_CAP`, default 100). The next call is not sent; the captain answers from its rules.
+
+`ESCALES_RATE_LIMIT_ENABLED=true` forces both on even in `development`. `ESCALES_RATE_LIMIT_ENABLED=false` forces both off even in production. Counts stay in memory for the life of the process.
 
 ### Void id
 

@@ -25,8 +25,14 @@ def test_robots_and_sitemap_from_dist(monkeypatch, tmp_path):
     main.attach_frontend(application)
     client = TestClient(application)
 
+    (dist / "favicon.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"></svg>',
+        encoding="utf-8",
+    )
+
     robots = client.get("/robots.txt")
     assert robots.status_code == 200
+    assert client.head("/robots.txt").status_code == 200
     assert robots.headers["content-type"].startswith("text/plain")
     assert "Sitemap:" in robots.text
     assert "<!doctype" not in robots.text.lower()
@@ -34,10 +40,15 @@ def test_robots_and_sitemap_from_dist(monkeypatch, tmp_path):
 
     sitemap = client.get("/sitemap.xml")
     assert sitemap.status_code == 200
+    assert client.head("/sitemap.xml").status_code == 200
     assert "xml" in sitemap.headers["content-type"]
     assert "escales.naviguide.fr" in sitemap.text
     assert "<!doctype" not in sitemap.text.lower()
     assert "<html" not in sitemap.text.lower()
+
+    favicon = client.get("/favicon.svg")
+    assert favicon.status_code == 200
+    assert client.head("/favicon.svg").status_code == 200
 
     spa = client.get("/unknown-spa-route")
     assert spa.status_code == 200

@@ -58,15 +58,17 @@ def test_public_catalog_excludes_needs_confirmation(api):
     ids = {i["channel3_product_id"] for i in body["items"]}
     assert LIFERAFT_UNCONFIRMED not in ids
     assert "60BXA1O" not in ids
-    assert all(not i.get("needs_confirmation") for i in body["items"])
+    assert all(
+        str(i.get("catalog_status") or "").casefold() != "needs_confirmation" for i in body["items"]
+    )
 
 
 def test_removed_and_unconfirmed_return_404(api):
     assert api.get(f"/api/escales/channel3/catalog/{REMOVED}").status_code == 404
     assert api.get(f"/api/escales/channel3/catalog/{LIFERAFT_UNCONFIRMED}").status_code == 404
-    internal = get_catalog_item(LIFERAFT_UNCONFIRMED)
+    internal = get_catalog_item(LIFERAFT_UNCONFIRMED, include_needs_confirmation=True)
     assert internal is not None
-    assert internal.get("needs_confirmation") is True
+    assert internal.get("catalog_status") == "needs_confirmation"
 
 
 def test_stale_wishlist_line_flagged_without_500(api):
@@ -155,5 +157,6 @@ def test_unconfirmed_project_pledge_rejected_no_order(api, monkeypatch):
         },
     )
     set_paypal_client_factory(lambda: object())
-    assert res.status_code in (400, 422)
+    assert res.status_code == 422
+    assert "needs confirmation" in res.text.lower() or "not available" in res.text.lower()
     assert not orders

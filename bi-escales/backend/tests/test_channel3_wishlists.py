@@ -194,6 +194,76 @@ def test_public_wishlist_item_shows_line_quantity(api):
     assert item["target_amount_minor"] == 7998
 
 
+def test_needs_confirmation_is_not_public_or_fundable(api, monkeypatch):
+    import app.channel3_catalog as catalog
+
+    original = catalog.load_catalog_seed
+
+    def _with_pending():
+        payload = original()
+        items = list(payload.get("items") or [])
+        items.append(
+            {
+                "channel3_product_id": "NEEDCONF",
+                "project_id": "gear-c3-needconf",
+                "name": "Pending shackle",
+                "price_currency": "USD",
+                "price_display": "10.00",
+                "price_amount_minor": 1000,
+                "unit_price_amount_minor": 1000,
+                "catalog_default_target_amount_minor": 1000,
+                "catalog_default_target_currency": "USD",
+                "catalog_status": "needs_confirmation",
+            }
+        )
+        return {**payload, "items": items}
+
+    monkeypatch.setattr(catalog, "load_catalog_seed", _with_pending)
+    listed = api.get("/api/escales/channel3/catalog").json()
+    assert all(row["channel3_product_id"] != "NEEDCONF" for row in listed["items"])
+    assert api.get("/api/escales/channel3/catalog/NEEDCONF").status_code == 404
+    blocked = api.post(
+        "/api/escales/pledges",
+        json={
+            "amount_eur": "10.00",
+            "description": "Pending",
+            "milestone_id": "",
+            "kind": "project_pledge",
+            "target_id": "gear-c3-needconf",
+        },
+    )
+    assert blocked.status_code == 422
+    assert "needs confirmation" in blocked.text.lower()
+
+
+def test_wishlist_writes_require_admin_key(api):
+    missing = api.post(
+        "/api/escales/treasurer/wishlists",
+        json={"title": "No key", "slug": "no-key", "items": []},
+    )
+    assert missing.status_code == 401
+    wrong = api.post(
+        "/api/escales/treasurer/wishlists",
+        headers={"x-admin-key": "nope"},
+        json={"title": "Bad key", "slug": "bad-key", "items": []},
+    )
+    assert wrong.status_code == 403
+    created = api.post(
+        "/api/escales/treasurer/wishlists",
+        headers=_treasurer_headers(),
+        json={"title": "Keyed", "slug": "keyed", "items": []},
+    )
+    wid = created.json()["_id"]
+    writes = [
+        ("post", f"/api/escales/treasurer/wishlists/{wid}/items", {"channel3_product_id": "hwD0sF9", "quantity": 1}),
+        ("post", f"/api/escales/treasurer/wishlists/{wid}/publish", {"published": True}),
+        ("delete", f"/api/escales/treasurer/wishlists/{wid}/items/hwD0sF9", None),
+    ]
+    for method, path, body in writes:
+        res = getattr(api, method)(path, json=body) if body is not None else getattr(api, method)(path)
+        assert res.status_code == 401, path
+
+
 def test_flags_off_returns_404(api, monkeypatch):
     monkeypatch.setenv("ESCALES_WISHLISTS_ENABLED", "")
     res = api.get("/api/escales/channel3/catalog")

@@ -204,11 +204,12 @@ async def sanitize_public_gear_collection(payload: dict[str, Any]) -> dict[str, 
                 if props.get("goal_eur")
                 else str(props.get("channel3_currency") or props.get("goal_currency") or "EUR").upper()
             )
+            fund_ccy = str(fund.get("currency") or "EUR").upper()
             pct = (
                 funded_percent(
                     str(fund.get("captured_eur") or fund.get("amount_eur") or "0"),
                     goal,
-                    amount_currency="EUR",
+                    amount_currency=fund_ccy,
                     goal_currency=goal_ccy,
                 )
                 if goal

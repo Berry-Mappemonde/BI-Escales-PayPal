@@ -17,6 +17,18 @@ def project_id_for_product(channel3_product_id: str) -> str:
     return f"gear-c3-{token.casefold()}"
 
 
+def _review_status(raw: dict[str, Any]) -> str:
+    """Seed review flag. URL-check HTTP status is not a catalogue status."""
+    status = str(raw.get("catalog_status") or raw.get("review_status") or "").strip().casefold()
+    if not status and raw.get("needs_confirmation"):
+        status = "needs_confirmation"
+    return status
+
+
+def catalog_needs_confirmation(item: dict[str, Any]) -> bool:
+    return str(item.get("catalog_status") or "").strip().casefold() == "needs_confirmation"
+
+
 def _normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
     pid = str(raw.get("channel3_product_id") or "").strip()
     category = str(raw.get("category") or "").strip()
@@ -24,14 +36,12 @@ def _normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
     minor = minor_units_for_major(float(raw["price"]), currency)
     qty = int(raw.get("quantity") or 1)
     optional = category in _OPTIONAL_CATEGORIES
-    needs_confirmation = bool(raw.get("needs_confirmation"))
     return {
         "channel3_product_id": pid,
         "project_id": project_id_for_product(pid),
         "name": str(raw.get("name") or "").strip(),
         "category": category,
         "catalog_optional": optional,
-        "needs_confirmation": needs_confirmation,
         "core_catalogue": category in _CORE_CATEGORIES,
         "why_needed": str(raw.get("why_needed") or "").strip() or None,
         "quantity_needed": qty,
@@ -47,6 +57,7 @@ def _normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
         "caution": str(raw.get("caution") or "").strip() or None,
         "max_commission_rate": raw.get("max_commission_rate"),
         "channel3_buy_url": str(raw.get("product_url") or "").strip() or None,
+        "catalog_status": _review_status(raw) or None,
         "source_catalogue": str(raw.get("source_catalogue") or "").strip() or None,
     }
 
@@ -67,32 +78,31 @@ def load_catalog_seed() -> dict[str, Any]:
     }
 
 
-def _catalog_visible_public(row: dict[str, Any]) -> bool:
-    if row.get("needs_confirmation"):
-        return False
-    return True
-
-
 def list_catalog_items(
     *,
     include_optional: bool = True,
+    include_needs_confirmation: bool = False,
     public_only: bool = False,
 ) -> list[dict[str, Any]]:
     rows = load_catalog_seed().get("items") or []
+    if public_only or not include_needs_confirmation:
+        rows = [row for row in rows if not catalog_needs_confirmation(row)]
     if not include_optional:
         rows = [row for row in rows if row.get("core_catalogue")]
-    if public_only:
-        rows = [row for row in rows if _catalog_visible_public(row)]
     return list(rows)
 
 
 def get_catalog_item(
     channel3_product_id: str,
     *,
+    include_needs_confirmation: bool = False,
     public_only: bool = False,
 ) -> Optional[dict[str, Any]]:
     token = str(channel3_product_id or "").strip()
-    for row in list_catalog_items(public_only=public_only):
+    for row in list_catalog_items(
+        include_needs_confirmation=include_needs_confirmation,
+        public_only=public_only,
+    ):
         if row["channel3_product_id"] == token:
             return dict(row)
     return None
@@ -101,10 +111,14 @@ def get_catalog_item(
 def lookup_catalog_by_project_id(
     project_id: str,
     *,
+    include_needs_confirmation: bool = False,
     public_only: bool = False,
 ) -> Optional[dict[str, Any]]:
     token = str(project_id or "").strip().casefold()
-    for row in list_catalog_items(public_only=public_only):
+    for row in list_catalog_items(
+        include_needs_confirmation=include_needs_confirmation,
+        public_only=public_only,
+    ):
         if str(row.get("project_id") or "").casefold() == token:
             return dict(row)
     return None
@@ -119,5 +133,5 @@ def default_wishlist_seed_items() -> list[dict[str, Any]]:
             "target_amount_minor": row["catalog_default_target_amount_minor"],
             "target_currency": row["catalog_default_target_currency"],
         }
-        for row in list_catalog_items(include_optional=False, public_only=True)
+        for row in list_catalog_items(include_optional=False, include_needs_confirmation=False)
     ]

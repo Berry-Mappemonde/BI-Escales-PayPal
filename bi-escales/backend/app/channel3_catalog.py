@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-from app.channel3_money import catalog_unit_price_minor, minor_to_major_str
+from app.channel3_paypal import minor_to_major_display, minor_units_for_major
 
 _SEED = Path(__file__).resolve().parents[1] / "static" / "channel3-catalogue.seed.json"
 _CORE_CATEGORIES = frozenset({"accastillage", "crew_safety"})
@@ -20,10 +20,8 @@ def project_id_for_product(channel3_product_id: str) -> str:
 def _normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
     pid = str(raw.get("channel3_product_id") or "").strip()
     category = str(raw.get("category") or "").strip()
-    minor, currency = catalog_unit_price_minor(
-        price=float(raw["price"]),
-        currency=str(raw.get("currency") or "EUR"),
-    )
+    currency = str(raw.get("currency") or "EUR").strip().upper()
+    minor = minor_units_for_major(float(raw["price"]), currency)
     qty = int(raw.get("quantity") or 1)
     optional = category in _OPTIONAL_CATEGORIES
     return {
@@ -37,11 +35,12 @@ def _normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
         "quantity_needed": qty,
         "merchant": str(raw.get("merchant") or "").strip() or None,
         "merchant_country": str(raw.get("merchant_country") or "").strip().upper() or None,
+        "unit_price_amount_minor": minor,
         "price_amount_minor": minor,
         "price_currency": currency,
-        "price_display": minor_to_major_str(minor),
-        "unit_target_amount_minor": minor * qty,
-        "unit_target_currency": currency,
+        "price_display": minor_to_major_display(minor, currency),
+        "catalog_default_target_amount_minor": minor * qty,
+        "catalog_default_target_currency": currency,
         "image_url": str(raw.get("image_url") or raw.get("image") or "").strip() or None,
         "caution": str(raw.get("caution") or "").strip() or None,
         "max_commission_rate": raw.get("max_commission_rate"),
@@ -94,8 +93,8 @@ def default_wishlist_seed_items() -> list[dict[str, Any]]:
         {
             "channel3_product_id": row["channel3_product_id"],
             "quantity": row["quantity_needed"],
-            "target_amount_minor": row["unit_target_amount_minor"],
-            "target_currency": row["unit_target_currency"],
+            "target_amount_minor": row["catalog_default_target_amount_minor"],
+            "target_currency": row["catalog_default_target_currency"],
         }
         for row in list_catalog_items(include_optional=False)
     ]

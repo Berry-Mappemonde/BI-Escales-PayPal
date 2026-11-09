@@ -106,7 +106,7 @@ def lookup_project_fund_meta(project_id: str) -> Optional[dict[str, Any]]:
 
     catalog = lookup_catalog_by_project_id(token)
     if catalog:
-        goal_currency = str(catalog.get("unit_target_currency") or catalog.get("price_currency") or "EUR")
+        goal_currency = str(catalog.get("price_currency") or "EUR")
         amount = str(catalog.get("price_display") or "")
         meta: dict[str, Any] = {
             "project_id": token,

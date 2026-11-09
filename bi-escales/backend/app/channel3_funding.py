@@ -1,22 +1,61 @@
-"""Per-item funding totals in native currency (pledges stored in EUR)."""
+"""Per-item funding totals in native currency (no FX conversion)."""
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
-from app.channel3_money import minor_to_major_str
+from app.channel3_catalog import lookup_catalog_by_project_id
+from app.channel3_paypal import minor_to_major_display, paypal_currency_supported
 from app.gear_projects_catalog import funded_percent
 
 
-def _eur_to_minor(amount_eur: str) -> int:
+def _major_to_minor(amount: str) -> int:
     try:
-        value = Decimal(str(amount_eur or "0").replace(",", "."))
+        value = Decimal(str(amount or "0").replace(",", "."))
     except (InvalidOperation, ValueError):
         return 0
     return int((value * Decimal("100")).quantize(Decimal("1")))
 
 
+async def _project_finance_lines(project_id: str) -> list[dict]:
+    from app.escales.ledger import _entry_for_project_target, list_finance_entries
+
+    token = str(project_id or "").strip().casefold()
+    return [entry for entry in await list_finance_entries() if _entry_for_project_target(entry, token)]
+
+
 async def fund_snapshot_for_project(project_id: str) -> dict[str, Any]:
+    """Captured totals for a catalogue ``project_id`` in the item's native currency."""
+    catalog = lookup_catalog_by_project_id(project_id)
+    if catalog:
+        native = str(catalog.get("price_currency") or "EUR").upper()
+        captured = Decimal("0.00")
+        refunded = Decimal("0.00")
+        donation_count = 0
+        for entry in await _project_finance_lines(project_id):
+            entry_ccy = str(entry.get("currency") or "EUR").upper()
+            if entry_ccy != native:
+                continue
+            kind = str(entry.get("kind") or "")
+            try:
+                amount = Decimal(str(entry.get("amount_eur") or "0").replace(",", "."))
+            except (InvalidOperation, ValueError):
+                amount = Decimal("0.00")
+            if kind == "pledge_captured":
+                captured += amount
+                donation_count += 1
+            elif kind == "pledge_refunded":
+                refunded += amount
+        net = captured - refunded
+        text = f"{net.quantize(Decimal('0.01')):.2f}"
+        return {
+            "milestone_id": project_id,
+            "currency": native,
+            "captured_eur": text,
+            "amount_eur": text,
+            "donation_count": donation_count,
+            "refunded_eur": f"{refunded.quantize(Decimal('0.01')):.2f}",
+        }
     from app.escales.ledger import fund_for_milestone
 
     try:
@@ -27,6 +66,7 @@ async def fund_snapshot_for_project(project_id: str) -> dict[str, Any]:
             "currency": "EUR",
             "captured_eur": "0.00",
             "amount_eur": "0.00",
+            "donation_count": 0,
         }
 
 
@@ -37,25 +77,36 @@ def enrich_item_funding(
     target_amount_minor: Optional[int] = None,
     target_currency: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Attach funded_* fields; EUR pledges only count toward EUR targets."""
     out = dict(item)
-    native_ccy = str(target_currency or item.get("unit_target_currency") or item.get("price_currency") or "EUR").upper()
+    native_ccy = str(
+        target_currency
+        or item.get("target_currency")
+        or fund.get("currency")
+        or item.get("catalog_default_target_currency")
+        or item.get("price_currency")
+        or "EUR"
+    ).upper()
     target_minor = int(
         target_amount_minor
         if target_amount_minor is not None
-        else item.get("unit_target_amount_minor") or item.get("price_amount_minor") or 0
+        else item.get("catalog_default_target_amount_minor")
+        or item.get("price_amount_minor")
+        or 0
     )
-    target_major = minor_to_major_str(target_minor) if target_minor > 0 else "0.00"
+    target_major = (
+        minor_to_major_display(target_minor, native_ccy) if target_minor > 0 else minor_to_major_display(0, native_ccy)
+    )
 
-    eur_funding_supported = native_ccy == "EUR"
+    supported = paypal_currency_supported(native_ccy)
+    fund_ccy = str(fund.get("currency") or "EUR").upper()
     funded_minor = 0
-    if eur_funding_supported:
-        funded_minor = _eur_to_minor(str(fund.get("captured_eur") or fund.get("amount_eur") or "0"))
+    if supported and fund_ccy == native_ccy:
+        funded_minor = _major_to_minor(str(fund.get("captured_eur") or fund.get("amount_eur") or "0"))
 
-    funded_major = minor_to_major_str(funded_minor)
+    funded_major = minor_to_major_display(funded_minor, native_ccy)
     pct = (
         funded_percent(funded_major, target_major, amount_currency=native_ccy, goal_currency=native_ccy)
-        if target_minor > 0 and eur_funding_supported
+        if target_minor > 0 and supported
         else None
     )
     fully_funded = pct is not None and pct >= 100
@@ -70,10 +121,11 @@ def enrich_item_funding(
             "funded_display": funded_major,
             "funded_pct": pct,
             "fully_funded": fully_funded,
-            "eur_funding_supported": eur_funding_supported,
-            "indicative_target_eur": None,
-            "fx_source": None,
-            "fx_date": None,
+            "paypal_currency_supported": supported,
         }
     )
+    out.pop("eur_funding_supported", None)
+    out.pop("indicative_target_eur", None)
+    out.pop("fx_source", None)
+    out.pop("fx_date", None)
     return out

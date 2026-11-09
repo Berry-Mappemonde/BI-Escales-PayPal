@@ -95,13 +95,23 @@ def new_wishlist_id() -> str:
 
 
 def normalize_wishlist_item(item: dict[str, Any], catalog: dict[str, Any]) -> dict[str, Any]:
-    qty = int(item.get("quantity") or catalog.get("quantity_needed") or 1)
-    minor = int(item.get("target_amount_minor") or catalog["unit_target_amount_minor"])
-    currency = str(item.get("target_currency") or catalog["unit_target_currency"]).upper()
+    unit = int(catalog.get("unit_price_amount_minor") or catalog.get("price_amount_minor") or 0)
+    if item.get("quantity") is not None:
+        qty = int(item["quantity"])
+    else:
+        qty = int(catalog.get("quantity_needed") or 1)
+    if qty < 1:
+        raise ValueError("quantity must be at least 1")
+    currency = str(item.get("target_currency") or catalog.get("price_currency") or "EUR").upper()
+    if item.get("target_amount_minor") is not None:
+        minor = int(item["target_amount_minor"])
+    else:
+        minor = unit * qty
     return {
         "channel3_product_id": catalog["channel3_product_id"],
         "project_id": catalog["project_id"],
         "quantity": qty,
+        "unit_price_amount_minor": unit,
         "target_amount_minor": minor,
         "target_currency": currency,
     }

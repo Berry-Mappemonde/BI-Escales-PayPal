@@ -10,7 +10,6 @@ import { EscalePopup } from "./components/EscalePopup.jsx";
 import MarinasPanel from "./components/MarinasPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
 import { TreasurerPanel } from "./components/TreasurerPanel";
-import { ShellSettingsPanel } from "./components/ShellSettingsPanel";
 import { CrewSupporterPublicSection } from "./components/CrewSubscribeButton";
 import { HowItWorks } from "./components/stop/HowItWorks.jsx";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
@@ -18,6 +17,7 @@ import { ToastContainer } from "./components/Toast";
 import type { ToastItem } from "./components/Toast";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { useTheme } from "./hooks/useTheme";
+import { setLanguage } from "./i18n";
 import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { resolveBoatStop } from "./voyage/boatStop.js";
@@ -101,7 +101,7 @@ export default function App() {
   const [crewSubscribeNote, setCrewSubscribeNote] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [toolsOpen, setToolsOpen] = useState(true);
-  const sidebarPanelRef = useRef<HTMLElement>(null);
+  const toolsPanelRef = useRef<HTMLElement>(null);
   const [panelFocusRequest, setPanelFocusRequest] = useState(0);
   const [allMarinas, setAllMarinas] = useState<{ type: string; features?: unknown[] }>({
     type: "FeatureCollection",
@@ -339,7 +339,7 @@ export default function App() {
 
   // After the render, because the panel may only just have reopened.
   useEffect(() => {
-    if (panelFocusRequest) sidebarPanelRef.current?.focus({ preventScroll: true });
+    if (panelFocusRequest) toolsPanelRef.current?.focus({ preventScroll: true });
   }, [panelFocusRequest]);
 
   const chooseStop = (next: VoyageStop) => {
@@ -347,8 +347,8 @@ export default function App() {
     setMilestoneId(next.milestoneId);
     if (tab !== "voyage") setTab("voyage");
     if (isNarrowScreen()) {
-      setToolsOpen(false);
-      setSidebarOpen(true);
+      setSidebarOpen(false);
+      setToolsOpen(true);
       setPanelFocusRequest((count) => count + 1);
     }
     if (Number.isFinite(next.lat) && Number.isFinite(next.lon)) {
@@ -785,8 +785,6 @@ export default function App() {
 
 
       <aside
-        ref={sidebarPanelRef}
-        tabIndex={-1}
         className={`ng-sidebar panel${sidebarOpen ? "" : " ng-collapsed"}`}
         data-testid="ng-sidebar"
       >
@@ -800,6 +798,53 @@ export default function App() {
             <h1 aria-label={t("app.title")}>
               BI Escales <small>{t("app.subtitle")}</small>
             </h1>
+          </div>
+          <div className="ng-controls">
+            <div className="lang-switch" role="group" aria-label={t("app.language")}>
+              <button
+                type="button"
+                className={i18n.language === "fr" ? "active" : ""}
+                aria-label={t("app.langFr")}
+                aria-pressed={i18n.language === "fr"}
+                onClick={() => setLanguage("fr")}
+              >
+                FR
+              </button>
+              <button
+                type="button"
+                className={i18n.language === "en" ? "active" : ""}
+                aria-label={t("app.langEn")}
+                aria-pressed={i18n.language === "en"}
+                onClick={() => setLanguage("en")}
+              >
+                EN
+              </button>
+            </div>
+            <div className="theme-switch" data-testid="theme-switch">
+              <button
+                type="button"
+                data-testid="theme-toggle"
+                aria-label={theme === "light" ? t("app.themeDark") : t("app.themeLight")}
+                aria-pressed={theme === "light"}
+                onClick={() => toggleTheme()}
+              >
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  {theme === "light" ? (
+                    <path
+                      d="M20.2 15.1A8.4 8.4 0 0 1 8.9 3.8 8.5 8.5 0 1 0 20.2 15.1Z"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinejoin="round"
+                    />
+                  ) : (
+                    <>
+                      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.7" />
+                      <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                    </>
+                  )}
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
         <div className="ng-tab-bar" role="tablist">
@@ -832,6 +877,17 @@ export default function App() {
             {t("clock.sailed", { nm: sailedNm })} · {t("clock.simulated")}
           </span>
         </p>
+        {!prod ? (
+          <label className="dev-t0">
+            {t("clock.devT0")}
+            <input
+              type="text"
+              value={devT0 || t0}
+              onChange={(event) => setDevT0(event.target.value)}
+              aria-label={t("clock.devT0")}
+            />
+          </label>
+        ) : null}
         {tab === "voyage" ? (
           <>
             <EscalesPanel
@@ -872,32 +928,6 @@ export default function App() {
                 onAuthorized={onAuthorized}
               />
             ) : null}
-            {stop ? (
-              <EscalePopup
-                stop={stop}
-                fiche={fiche}
-                loading={ficheLoading}
-                error={ficheError}
-                onClose={() => setStop(null)}
-                arrivalIso={sheetArrivalIso}
-                logbookEntries={sheetLogbook}
-                priceCatalog={schedule?.prices}
-                schedule={schedule}
-                pledge={{
-                  amount,
-                  milestoneId,
-                  contributor,
-                  kind,
-                  onAmount: setAmount,
-                  onMilestoneId: setMilestoneId,
-                  onContributor: setContributor,
-                  onKind,
-                }}
-                onPledgeAuthorized={onAuthorized}
-              />
-            ) : (
-              <HowItWorks />
-            )}
           </>
         ) : null}
         {tab === "marinas" ? (
@@ -924,18 +954,38 @@ export default function App() {
       </aside>
 
       <aside
-        className={`ng-tools-panel ng-settings-panel${toolsOpen ? "" : " ng-collapsed"}`}
+        ref={toolsPanelRef}
+        tabIndex={-1}
+        className={`ng-tools-panel${toolsOpen ? "" : " ng-collapsed"}`}
         data-testid="ng-tools-panel"
         aria-hidden={!toolsOpen}
       >
-        <ShellSettingsPanel
-          prod={prod}
-          devT0={devT0}
-          t0={t0}
-          onDevT0Change={setDevT0}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-        />
+        {stop ? (
+          <EscalePopup
+            stop={stop}
+            fiche={fiche}
+            loading={ficheLoading}
+            error={ficheError}
+            onClose={() => setStop(null)}
+            arrivalIso={sheetArrivalIso}
+            logbookEntries={sheetLogbook}
+            priceCatalog={schedule?.prices}
+            schedule={schedule}
+            pledge={{
+              amount,
+              milestoneId,
+              contributor,
+              kind,
+              onAmount: setAmount,
+              onMilestoneId: setMilestoneId,
+              onContributor: setContributor,
+              onKind,
+            }}
+            onPledgeAuthorized={onAuthorized}
+          />
+        ) : (
+          <HowItWorks />
+        )}
       </aside>
     </div>
   );

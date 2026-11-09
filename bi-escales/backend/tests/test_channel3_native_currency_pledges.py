@@ -141,7 +141,7 @@ def test_eur_catalog_pledge_order_payload(api):
 def test_jpy_catalog_pledge_whole_units(api, monkeypatch):
     client, spy = api
 
-    def _fake_lookup(project_id: str):
+    def _fake_lookup(project_id: str, **kwargs):
         return {
             "channel3_product_id": "jpy1",
             "project_id": project_id,
@@ -201,7 +201,7 @@ def test_usd_funded_pct_uses_native_captures_only(api):
 def test_unsupported_catalog_currency_rejected(api, monkeypatch):
     client, spy = api
 
-    def _fake_lookup(project_id: str):
+    def _fake_lookup(project_id: str, **kwargs):
         return {
             "channel3_product_id": "bad",
             "project_id": project_id,

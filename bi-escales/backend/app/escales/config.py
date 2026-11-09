@@ -334,6 +334,26 @@ def zapiper_enabled() -> bool:
     return os.environ.get("ESCALES_ZAPIER_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def onboard_after_payment_enabled() -> bool:
+    """Sandbox demo: donation held until project PayPal Business onboarding."""
+    return os.environ.get("ESCALES_ONBOARD_AFTER_PAYMENT_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def email_enabled() -> bool:
+    """Outbound email (Cloudflare Email Service). Off unless ESCALES_EMAIL_ENABLED is truthy."""
+    return os.environ.get("ESCALES_EMAIL_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def demo_project_contact_email() -> str:
+    """Runtime contact for the fictional demo project (never committed)."""
+    return (os.environ.get("ESCALES_DEMO_PROJECT_CONTACT_EMAIL") or "").strip()
+
+
+def paypal_partner_merchant_id() -> str:
+    """Platform partner id for merchant-integrations lookups (sandbox)."""
+    return (os.environ.get("PAYPAL_PARTNER_MERCHANT_ID") or os.environ.get("PAYPAL_PARTNER_ID") or "").strip()
+
+
 def paypal_webhook_id() -> str:
     return (os.environ.get("PAYPAL_WEBHOOK_ID") or "").strip()
 

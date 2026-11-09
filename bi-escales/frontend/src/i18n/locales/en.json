@@ -522,6 +522,37 @@
       "addSubmit": "Add to list"
     }
   },
+  "projectOnboarding": {
+    "featureOff": "Onboard-after-payment is disabled (ESCALES_ONBOARD_AFTER_PAYMENT_ENABLED).",
+    "loading": "Loading demo project…",
+    "sandboxBanner": "Sandbox test — fictional project, no real funds movement.",
+    "walletOnly": "PayPal wallet only (card fields hidden for this project).",
+    "donatePayPal": "Donate with PayPal",
+    "donationError": "Could not create the donation.",
+    "captureDone": "Donation processed — see status below.",
+    "captureError": "PayPal capture failed; status may show onboarding required.",
+    "missingApproveLink": "PayPal approval link missing.",
+    "deadline": "(deadline {{date}})",
+    "openOnboardingLink": "Open PayPal Business onboarding link",
+    "returnTitle": "Back from PayPal",
+    "backToProject": "Back to demo project",
+    "treasurerHeading": "Onboard after payment (fictional demo)",
+    "emailPreview": "Preview onboarding email",
+    "copyOnboardingLink": "Copy onboarding link",
+    "copied": "Link copied to clipboard.",
+    "copyError": "Could not copy the link (treasurer key required).",
+    "projectStatus": {
+      "pending": "Held pending project onboarding",
+      "onboarded": "Onboarded",
+      "error": "Could not read status"
+    },
+    "status": {
+      "held_pending_onboarding": "Held pending project onboarding",
+      "onboarding_required_before_payment": "Onboarding required before payment",
+      "onboarded": "Onboarded",
+      "created": "Created"
+    }
+  },
   "certificate": {
     "heading": "Download my certificate",
     "downloadPng": "PNG",

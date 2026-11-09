@@ -1,0 +1,98 @@
+"""CAPTURE orders with unlinked payee email for onboard-after-payment."""
+
+from __future__ import annotations
+
+import os
+from typing import Any, Optional
+
+from app.escales.config import order_cancel_url, order_return_url
+from app.escales.paypal_client import PayPalClient, approve_link
+from app.escales.paypal_idempotency import paypal_request_id
+
+
+def bn_code_header() -> dict[str, str]:
+    code = (os.environ.get("ESCALES_PAYPAL_BN_CODE") or os.environ.get("PAYPAL_BN_CODE") or "").strip()
+    if code:
+        return {"PayPal-Partner-Attribution-Id": code}
+    return {}
+
+
+def create_unlinked_payee_capture_order(
+    client: PayPalClient,
+    *,
+    amount_eur: str,
+    description: str,
+    project_id: str,
+    payee_email: str,
+    donation_id: str,
+    return_url: str,
+    cancel_url: str,
+    checkout_locale: Optional[str] = None,
+) -> dict:
+    body = {
+        "intent": "CAPTURE",
+        "payment_source": {
+            "paypal": {
+                "experience_context": client._experience_context(
+                    return_url or order_return_url(),
+                    cancel_url or order_cancel_url(),
+                    locale=checkout_locale,
+                ),
+            },
+        },
+        "purchase_units": [
+            {
+                "reference_id": donation_id[:256],
+                "description": str(description or "")[:127],
+                "custom_id": str(project_id)[:127],
+                "amount": {
+                    "currency_code": client.cfg.currency,
+                    "value": amount_eur,
+                },
+                "payee": {"email_address": payee_email},
+            }
+        ],
+    }
+    idem = paypal_request_id(donation_id, "onboard-capture-order")[:127]
+    hdrs = {
+        "Authorization": f"Bearer {client._access_token()}",
+        "Content-Type": "application/json",
+        "PayPal-Request-Id": idem,
+        "Prefer": "return=representation",
+        **bn_code_header(),
+    }
+    response = client._request_with_retry("POST", "/v2/checkout/orders", json=body, headers=hdrs)
+    if response.status_code >= 400:
+        from app.escales.paypal_client import PayPalError
+
+        raise PayPalError(response.status_code, response.text)
+    return response.json() if response.content else {}
+
+
+def capture_order_once(client: PayPalClient, order_id: str) -> dict:
+    return client._req("POST", f"/v2/checkout/orders/{order_id}/capture", {})
+
+
+def order_approve_url(order: dict) -> str:
+    return approve_link(order)
+
+
+def capture_status_and_id(payload: dict) -> tuple[str, Optional[str]]:
+    for unit in payload.get("purchase_units") or []:
+        payments = (unit or {}).get("payments") or {}
+        for cap in payments.get("captures") or []:
+            if isinstance(cap, dict):
+                return str(cap.get("status") or "").upper(), cap.get("id")
+    status = str(payload.get("status") or "").upper()
+    return status, None
+
+
+def is_unlinked_payee_failure(exc: Exception) -> bool:
+    from app.escales.paypal_client import PayPalError
+
+    if not isinstance(exc, PayPalError):
+        return False
+    if exc.status in {422, 500}:
+        return True
+    blob = str(exc.body or "").upper()
+    return "UNLINKED" in blob or "PAYEE" in blob

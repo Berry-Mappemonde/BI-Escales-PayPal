@@ -1,0 +1,205 @@
+"""Onboard-after-payment routes (sandbox, feature-flagged)."""
+
+from __future__ import annotations
+
+import os
+import secrets
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from starlette.responses import JSONResponse
+
+from app.escales.config import (
+    email_enabled,
+    escales_enabled,
+    load_config,
+    onboard_after_payment_enabled,
+)
+from app.escales.paypal_client import PayPalClient, PayPalError
+from app.escales.webhooks import WebhookRejected
+from app.project_onboarding.constants import DEMO_PROJECT_ID
+from app.project_onboarding.seed import seed_demo_onboarding
+from app.project_onboarding import service
+from app.project_onboarding.webhooks import verify_merchant_onboarding_webhook
+
+router = APIRouter(prefix="/api/escales/project-onboarding", tags=["project-onboarding"])
+webhooks_router = APIRouter(prefix="/api/escales/project-onboarding", tags=["project-onboarding-webhooks"])
+
+
+def _require_escales() -> None:
+    if not escales_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+def _require_feature() -> None:
+    _require_escales()
+    if not onboard_after_payment_enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+def _require_admin(request: Request) -> None:
+    try:
+        expected = os.environ["ESCALES_ADMIN_KEY"]
+    except KeyError:
+        raise HTTPException(status_code=401, detail="ESCALES_ADMIN_KEY is not configured") from None
+    provided = request.headers.get("x-admin-key", "")
+    if not provided or not secrets.compare_digest(provided, expected):
+        raise HTTPException(status_code=403, detail="Admin key required")
+
+
+def _lang(request: Request) -> str:
+    accept = request.headers.get("accept-language", "fr")
+    token = accept.split(",")[0].strip().lower()
+    return "en" if token.startswith("en") else "fr"
+
+
+def _paypal_client() -> PayPalClient:
+    return PayPalClient(load_config())
+
+
+@router.get("/status")
+async def feature_status():
+    _require_escales()
+    return {
+        "enabled": onboard_after_payment_enabled(),
+        "email_enabled": email_enabled(),
+        "demo_project_id": DEMO_PROJECT_ID,
+    }
+
+
+@router.post("/seed")
+async def post_seed(request: Request):
+    _require_feature()
+    _require_admin(request)
+    payload = await seed_demo_onboarding()
+    return payload
+
+
+@router.get("/projects/{project_id}")
+async def get_project_status(project_id: str, request: Request):
+    _require_feature()
+    view = await service.public_project_view(project_id, lang=_lang(request))
+    if not view:
+        raise HTTPException(status_code=404, detail="project not found")
+    return view
+
+
+@router.post("/projects/{project_id}/donations")
+async def post_donation(project_id: str, body: dict, request: Request):
+    _require_feature()
+    try:
+        saved = await service.create_donation_order(
+            project_id,
+            amount_eur=str(body.get("amount_eur") or ""),
+            contributor=str(body.get("contributor") or ""),
+            lang=str(body.get("lang") or _lang(request)),
+            return_url=str(body.get("return_url") or ""),
+            cancel_url=str(body.get("cancel_url") or ""),
+        )
+    except PermissionError:
+        raise HTTPException(status_code=404, detail="Not Found") from None
+    except LookupError:
+        raise HTTPException(status_code=404, detail="project not found") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except PayPalError as exc:
+        raise HTTPException(status_code=exc.status, detail="PayPal error") from exc
+    return saved
+
+
+@router.post("/donations/{donation_id}/capture")
+async def post_capture(donation_id: str):
+    _require_feature()
+    try:
+        return await service.finalize_donation_capture(donation_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="donation not found") from None
+    except PayPalError as exc:
+        raise HTTPException(status_code=exc.status, detail="PayPal error") from exc
+
+
+@router.post("/projects/{project_id}/onboarding-link")
+async def post_onboarding_link(project_id: str, request: Request):
+    _require_feature()
+    try:
+        return await service.ensure_onboarding_link(project_id, lang=_lang(request))
+    except LookupError:
+        raise HTTPException(status_code=404, detail="project not found") from None
+    except PayPalError as exc:
+        raise HTTPException(status_code=exc.status, detail="PayPal error") from exc
+
+
+@router.get("/projects/{project_id}/onboarding-link/copy")
+async def get_copy_link(project_id: str, request: Request):
+    _require_feature()
+    _require_admin(request)
+    try:
+        referral = await service.refresh_action_url(project_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="referral not found") from None
+    except PayPalError as exc:
+        raise HTTPException(status_code=exc.status, detail="PayPal error") from exc
+    return {"action_url": referral.get("action_url"), "project_id": project_id}
+
+
+@router.get("/projects/{project_id}/email/preview", response_class=HTMLResponse)
+async def get_email_preview(project_id: str, request: Request, donation_id: str = ""):
+    _require_feature()
+    try:
+        preview = await service.email_preview(project_id, lang=_lang(request), donation_id=donation_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="project not found") from None
+    except PayPalError as exc:
+        raise HTTPException(status_code=exc.status, detail="PayPal error") from exc
+    if request.query_params.get("format") == "json":
+        return JSONResponse(preview)
+    return HTMLResponse(preview["html"])
+
+
+@router.post("/projects/{project_id}/email/send")
+async def post_email_send(project_id: str, request: Request, donation_id: str = ""):
+    _require_feature()
+    _require_admin(request)
+    try:
+        return await service.send_onboarding_email(project_id, lang=_lang(request), donation_id=donation_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="project not found") from None
+    except PayPalError as exc:
+        raise HTTPException(status_code=exc.status, detail="PayPal error") from exc
+
+
+@router.get("/projects/{project_id}/onboarding/return")
+async def get_onboarding_return(
+    project_id: str,
+    merchantIdInPayPal: str = "",
+    permissionsGranted: str = "",
+    isEmailConfirmed: str = "",
+):
+    _require_feature()
+    perms = str(permissionsGranted or "").strip().lower() in {"1", "true", "yes"}
+    email_ok = str(isEmailConfirmed or "").strip().lower() in {"1", "true", "yes"}
+    try:
+        return await service.handle_onboarding_return(
+            project_id,
+            merchant_id_in_paypal=merchantIdInPayPal,
+            permissions_granted=perms,
+            is_email_confirmed=email_ok,
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="project not found") from None
+    except PayPalError as exc:
+        raise HTTPException(status_code=exc.status, detail="PayPal error") from exc
+
+
+@webhooks_router.post("/webhooks/paypal-merchant")
+async def post_merchant_webhook(request: Request):
+    _require_feature()
+    raw = await request.body()
+    try:
+        return await verify_merchant_onboarding_webhook(
+            raw_body=raw,
+            headers=request.headers,
+            client=_paypal_client(),
+        )
+    except WebhookRejected as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc

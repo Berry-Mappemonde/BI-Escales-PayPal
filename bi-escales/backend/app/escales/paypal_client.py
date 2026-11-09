@@ -605,14 +605,31 @@ class PayPalClient:
 
     def authorize_order(self, order_id: str, *, pledge_id: Optional[str] = None) -> dict:
         ref = pledge_id or order_id
+        key = paypal_request_id(ref, "authorize")
+        delegated = self._sdk_writes(
+            "authorize_order",
+            order_id,
+            idempotency_key=key,
+            mock_response=self.mock_response,
+        )
+        if delegated is not None:
+            return delegated
         return self._req(
             "POST",
             f"/v2/checkout/orders/{order_id}/authorize",
             {},
-            idempotency_key=paypal_request_id(ref, "authorize"),
+            idempotency_key=key,
         )
 
     def capture_order(self, order_id: str, *, idempotency_key: str) -> dict:
+        delegated = self._sdk_writes(
+            "capture_order",
+            order_id,
+            idempotency_key=idempotency_key,
+            mock_response=self.mock_response,
+        )
+        if delegated is not None:
+            return delegated
         return self._req(
             "POST",
             f"/v2/checkout/orders/{order_id}/capture",
@@ -627,6 +644,15 @@ class PayPalClient:
         *,
         idempotency_key: str,
     ) -> dict:
+        delegated = self._sdk_writes(
+            "capture_authorized_payment",
+            authorization_id,
+            final_capture=final,
+            idempotency_key=idempotency_key,
+            mock_response=self.mock_response,
+        )
+        if delegated is not None:
+            return delegated
         return self._req(
             "POST",
             f"/v2/payments/authorizations/{authorization_id}/capture",
@@ -636,11 +662,20 @@ class PayPalClient:
 
     def void_authorization(self, authorization_id: str, *, pledge_id: Optional[str] = None) -> dict:
         ref = pledge_id or authorization_id
+        key = paypal_request_id(ref, "void")
+        delegated = self._sdk_writes(
+            "void_payment",
+            authorization_id,
+            idempotency_key=key,
+            mock_response=self.mock_response,
+        )
+        if delegated is not None:
+            return delegated
         return self._req(
             "POST",
             f"/v2/payments/authorizations/{authorization_id}/void",
             None,
-            idempotency_key=paypal_request_id(ref, "void"),
+            idempotency_key=key,
         )
 
     def reauthorize(self, authorization_id: str, *, pledge_id: Optional[str] = None) -> dict:
@@ -652,8 +687,8 @@ class PayPalClient:
             idempotency_key=paypal_request_id(ref, "reauthorize"),
         )
 
-    def _sdk_reads(self, method: str, *args: Any, **kwargs: Any) -> Optional[dict]:
-        """Delegate one read when the Server SDK flag is on. ``None`` keeps httpx."""
+    def _sdk_delegate(self, method: str, *args: Any, **kwargs: Any) -> Optional[dict]:
+        """Delegate one call when the Server SDK flag is on. ``None`` keeps httpx."""
         from .paypal_sdk_gateway import paypal_sdk_reads_enabled
 
         if not paypal_sdk_reads_enabled():
@@ -664,6 +699,14 @@ class PayPalClient:
         if not isinstance(result, dict):
             raise PayPalError(502, "PayPal SDK response was not an object")
         return result
+
+    def _sdk_reads(self, method: str, *args: Any, **kwargs: Any) -> Optional[dict]:
+        """Delegate one read when the Server SDK flag is on. ``None`` keeps httpx."""
+        return self._sdk_delegate(method, *args, **kwargs)
+
+    def _sdk_writes(self, method: str, *args: Any, **kwargs: Any) -> Optional[dict]:
+        """Delegate one write when the Server SDK flag is on. ``None`` keeps httpx."""
+        return self._sdk_delegate(method, *args, **kwargs)
 
     def get_order(self, order_id: str) -> dict:
         delegated = self._sdk_reads("get_order", order_id)
@@ -705,11 +748,15 @@ class PayPalClient:
                 },
             },
         }
+        key = idempotency_key or paypal_request_id(customer_id, "setup-token")
+        delegated = self._sdk_writes("create_setup_token", body, idempotency_key=key)
+        if delegated is not None:
+            return delegated
         return self._req(
             "POST",
             "/v3/vault/setup-tokens",
             body,
-            idempotency_key=idempotency_key or paypal_request_id(customer_id, "setup-token"),
+            idempotency_key=key,
         )
 
     def create_card_setup_token(
@@ -745,12 +792,16 @@ class PayPalClient:
 
     def create_payment_token(self, setup_token_id: str, *, pledge_id: Optional[str] = None) -> dict:
         ref = pledge_id or setup_token_id
+        key = paypal_request_id(ref, "payment-token")
         body = {"payment_source": {"token": {"id": setup_token_id, "type": "SETUP_TOKEN"}}}
+        delegated = self._sdk_writes("create_payment_token", body, idempotency_key=key)
+        if delegated is not None:
+            return delegated
         return self._req(
             "POST",
             "/v3/vault/payment-tokens",
             body,
-            idempotency_key=paypal_request_id(ref, "payment-token"),
+            idempotency_key=key,
         )
 
     def charge_vaulted(
@@ -999,6 +1050,13 @@ class PayPalClient:
                 "cancel_url": cancel_url,
             },
         }
+        delegated = self._sdk_writes(
+            "create_subscription",
+            body,
+            idempotency_key=idempotency_key,
+        )
+        if delegated is not None:
+            return delegated
         return self._req(
             "POST",
             "/v1/billing/subscriptions",
@@ -1027,6 +1085,16 @@ class PayPalClient:
                 "currency_code": ccy,
                 "value": format_paypal_amount_value(amount_eur, ccy),
             }
+        amount = body.get("amount") if isinstance(body.get("amount"), dict) else None
+        delegated = self._sdk_writes(
+            "refund_captured_payment",
+            capture_id,
+            idempotency_key=idempotency_key,
+            amount=amount,
+            mock_response=self.mock_response,
+        )
+        if delegated is not None:
+            return delegated
         return self._req(
             "POST",
             f"/v2/payments/captures/{capture_id}/refund",

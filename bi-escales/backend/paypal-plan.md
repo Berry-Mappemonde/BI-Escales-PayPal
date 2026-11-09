@@ -149,3 +149,139 @@ Every call below is `HttpMethodEnum.GET` on `Server.DEFAULT`.
 Each distinct reason writes one warning on logger `escales.paypal.sdk` (`PayPal SDK read gateway unavailable; using the httpx client`) and does not raise. A later read with the same reason does not log again until `reset_client`. Direct calls to `build_sandbox_client` still raise. The gateway never passes `Environment.PRODUCTION`.
 
 Connection errors and timeouts from a read (`requests` `ConnectionError` and `Timeout`, including connect and read timeouts, plus urllib3 connection and timeout errors, including when chained as `__cause__`) become `PayPalError` with status 502. That replaces the bullet above that said those failures propagate. `ApiException` mapping is unchanged. These seven operations remain GETs. The flag default stays off.
+
+# PayPal Server SDK write contract (APIM-3)
+
+Same client, same flag, same sandbox pin as the read contract. `paypal-server-sdk` **2.4.0** (`paypalserversdk`). The eight writes below run only when `paypal_sdk_reads_enabled()` is true (flag on, `PAYPAL_ENV=sandbox`, client built). Otherwise `PayPalClient` keeps the httpx body and the `PayPal-Request-Id` it already computed. The `paypalserversdk` import still happens only inside `build_sandbox_client`.
+
+`Environment.PRODUCTION` is never passed. A non-sandbox `PAYPAL_ENV` or a non-sandbox base URI keeps httpx and does not call the SDK.
+
+Capture timing is not in this gateway. `departure_clock.py` and `pledges.py` still decide when money moves:
+
+- Stop pledges are captured at boat arrival, and voided when the stop is cancelled.
+- Cabin pledges are captured at leg departure.
+- Common fund and project donations are captured immediately (`CAPTURE` intent).
+
+The AI Captain still does not capture or void. Refund idempotency keys from the pledge layer (issue 152) and `ORDER_ALREADY_AUTHORIZED` adoption (PAY-AUTH-RECOVER, issues 160 and 166) are unchanged. The gateway only forwards the key the caller already chose.
+
+## Shared write rules
+
+| Item | Value |
+| --- | --- |
+| Call shape | Every write below is shape 2: one `options` dict. |
+| `PayPal-Request-Id` | `options["paypal_request_id"]`, the caller key sliced to 127 characters. The same string is passed to httpx when the flag is off. |
+| `Prefer` | `return=representation` on every operation whose signature has `prefer`. Matches `PayPalClient._req` for POST. |
+| `PayPal-Mock-Response` | Forwarded only when `PayPalClient.mock_response` is non-empty and the operation lists `paypal_mock_response`. Vault setup, payment token, and create-subscription do not list it, so the header is not on those three SDK calls. |
+| Body | A generated model. `APIHelper.json_serialize` of that model is the JSON body. `None` omits the body (void, and a full refund with no amount). |
+| Response | `APIHelper.to_dictionary(ApiResponse.body)`. `None` body becomes `{}`, matching httpx on an empty 2xx. |
+| Errors | Same mapping as reads: `ApiException.response_code` and `ApiException.response.text` become `PayPalError`. Typed subclasses (`ErrorException`, `SubscriptionErrorException`) are caught as `ApiException`. Transport failures stay `PayPalError` 502. |
+| Wallet and card | `create_authorize_order`, `create_card_authorize_order`, `create_card_setup_token`, `charge_vaulted`, and Card Fields are not delegated. |
+
+`CreateSubscriptionRequest` always assigns deprecated `auto_renewal=false`. The gateway deletes that attribute before send so the JSON matches the httpx body, which does not send the field.
+
+Capture models materialize `final_capture` (default `false`) and `disbursement_mode` (default `INSTANT`) when PayPal omits them. Settlement reads `seller_receivable_breakdown`, not those defaults.
+
+## Operations
+
+### 1. `orders.authorize_order`
+
+| | |
+| --- | --- |
+| `PayPalClient` | `authorize_order(order_id, *, pledge_id=None)` |
+| HTTP | `POST /v2/checkout/orders/{id}/authorize` |
+| Request id | `paypal_request_id(pledge_id or order_id, "authorize")` |
+| Body | `OrderAuthorizeRequest()` → `{}`. No `payment_source`. |
+| Response model | `OrderAuthorizeResponse` |
+| Fields used | `purchase_units[].payments.authorizations[]` `id`, `status`, `amount`, `expiration_time`. `authorization_from` reads id and expiration. |
+| Errors | `400` `422` `401` `403` `404` `500` `ErrorException`, other `ErrorException` (`default`). `422` + `details[].issue=ORDER_ALREADY_AUTHORIZED` still adopts the hold via `get_order` (read contract). |
+
+### 2. `orders.capture_order`
+
+| | |
+| --- | --- |
+| `PayPalClient` | `capture_order(order_id, *, idempotency_key)` |
+| HTTP | `POST /v2/checkout/orders/{id}/capture` |
+| Request id | The capture-attempt key from the pledge (`capture-{pledge_id}-{attempt}`). |
+| Body | `OrderCaptureRequest()` → `{}`. |
+| Response model | `Order` |
+| Fields used | Nested `purchase_units[].payments.captures[]` `id`, `status`, `amount`, `seller_receivable_breakdown` (`gross_amount`, `paypal_fee`, `net_amount`). `read_capture_result` and `apply_capture_settlement`. |
+| Errors | `400` `401` `403` `404` `422` `500` `ErrorException`, other `ErrorException` (`default`). |
+
+Immediate capture of a common-fund or project donation calls this method. The gateway does not choose that timing.
+
+### 3. `payments.capture_authorized_payment`
+
+| | |
+| --- | --- |
+| `PayPalClient` | `capture_authorization(authorization_id, final=True, *, idempotency_key)` |
+| HTTP | `POST /v2/payments/authorizations/{authorization_id}/capture` |
+| Request id | The same capture-attempt key as `capture_order`. |
+| Body | `CaptureRequest(final_capture=final)` → `{"final_capture": true}` when `final` is true, which is the caller default. |
+| Response model | `CapturedPayment` |
+| Fields used | `id`, `status`, `amount`, `seller_receivable_breakdown`. A bare capture (no `purchase_units`) is the capture id. |
+| Errors | `400` `401` `403` `404` `409` `422` `ErrorException`. `500` base `ApiException` (no unboxed fields). Other `ErrorException` (`default`). |
+
+Stop arrival and cabin leg departure call this method after `refuse_early_capture`. A cancelled stop is voided, not captured.
+
+### 4. `payments.void_payment`
+
+| | |
+| --- | --- |
+| `PayPalClient` | `void_authorization(authorization_id, *, pledge_id=None)` |
+| HTTP | `POST /v2/payments/authorizations/{authorization_id}/void` |
+| Request id | `paypal_request_id(pledge_id or authorization_id, "void")` |
+| Body | Omitted. httpx sends `json=None`. |
+| Response model | `PaymentAuthorization` |
+| Fields used | `id` when present (`void_id_source=paypal`). An empty 2xx body becomes `{}` and the pledge stores the authorization id as `void_id`. |
+| Errors | `401` `403` `404` `409` `422` `ErrorException`. `500` base `ApiException`. Other `ErrorException` (`default`). |
+
+### 5. `vault.create_setup_token`
+
+| | |
+| --- | --- |
+| `PayPalClient` | `create_setup_token(return_url, cancel_url, *, customer_id, idempotency_key=None, checkout_locale=None)` |
+| HTTP | `POST /v3/vault/setup-tokens` |
+| Request id | `idempotency_key` or `paypal_request_id(customer_id, "setup-token")` |
+| Body | `SetupTokenRequest` |
+| Mapping | `customer.id` ← `customer.id` (already sliced to 127). `payment_source.paypal` ← `VaultPaypalWalletRequest`: `usage_type`, `usage_pattern`, `permit_multiple_payment_tokens`, `experience_context` (`VaultExperienceContext`: `brand_name`, `locale`, `return_url`, `cancel_url`, `shipping_preference`, `user_action`). Card setup tokens stay on httpx. |
+| Response model | `SetupTokenResponse` |
+| Fields used | `id`, `status`, `links[]` (`rel`, `href`) for the approve link. Finance row `pledge_created` stores `setup_token_id`. |
+| Errors | `400` `403` `422` `500` `ErrorException`. A status outside that list uses the controller global default: base `ApiException`. No `prefer` parameter on this operation. |
+
+### 6. `vault.create_payment_token`
+
+| | |
+| --- | --- |
+| `PayPalClient` | `create_payment_token(setup_token_id, *, pledge_id=None)` |
+| HTTP | `POST /v3/vault/payment-tokens` |
+| Request id | `paypal_request_id(pledge_id or setup_token_id, "payment-token")` |
+| Body | `PaymentTokenRequest` |
+| Mapping | `payment_source.token` ← `VaultTokenRequest(id=setup_token_id, mtype=SETUP_TOKEN)`. Wire name of `mtype` is `type`. |
+| Response model | `PaymentTokenResponse` |
+| Fields used | `id` (`vault_id_from_token`), `payment_source.card` vs `paypal` (`vault_source_from_token`). Finance row `pledge_vaulted`. |
+| Errors | `400` `403` `422` `500` `ErrorException`. No `prefer` parameter. |
+
+### 7. `payments.refund_captured_payment`
+
+| | |
+| --- | --- |
+| `PayPalClient` | `refund_capture(capture_id, *, amount_eur=None, currency_code=None, idempotency_key)` |
+| HTTP | `POST /v2/payments/captures/{capture_id}/refund` |
+| Request id | The pledge refund key (`refund-{pledge_id}-{request_key}` or `refund-{pledge_id}-{amount}`), not a new id. |
+| Body | Amount present: `RefundRequest(amount=Money(currency_code, value))` with the value already formatted by `format_paypal_amount_value`. Amount absent: body omitted (full refund). |
+| Response model | `Refund` |
+| Fields used | `id`, `status` (`COMPLETED` or `PENDING`), `amount`, `seller_payable_breakdown` (`gross_amount`, `paypal_fee`, `net_amount`) for `refund_net_eur`. |
+| Errors | `400` `401` `403` `404` `409` `422` `ErrorException`. `500` base `ApiException`. Other `ErrorException` (`default`). |
+
+### 8. `subscriptions.create_subscription`
+
+| | |
+| --- | --- |
+| `PayPalClient` | `create_billing_subscription(*, plan_id, return_url, cancel_url, idempotency_key, locale=None)` |
+| HTTP | `POST /v1/billing/subscriptions` |
+| Request id | The checkout replay key (or the random key the caller already generated). |
+| Body | `CreateSubscriptionRequest(plan_id, application_context=SubscriptionApplicationContext)`. |
+| Mapping | `application_context`: `brand_name`, `locale`, `shipping_preference=NO_SHIPPING`, `user_action=SUBSCRIBE_NOW`, `return_url`, `cancel_url`. `auto_renewal` is omitted (see shared rules). |
+| Response model | `Subscription` |
+| Fields used | `id`, `status`, `links[]` where `rel=approve`. Finance kind `paypal_subscription_create_cache` stores that projection. |
+| Errors | `400` `401` `403` `404` `422` `500` `SubscriptionErrorException`, other `SubscriptionErrorException` (`default`). Unboxed when the body is a JSON object: `name`, `message`, `debug_id`, `details`, `links`. |

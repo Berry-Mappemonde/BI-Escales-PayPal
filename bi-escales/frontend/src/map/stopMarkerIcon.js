@@ -1,6 +1,6 @@
 import { drawingPinHtml } from "../../../../naviguide-escales/src/utils/waypointFlags.js";
 
-function escapeAttr(value) {
+export function escapeAttr(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;")

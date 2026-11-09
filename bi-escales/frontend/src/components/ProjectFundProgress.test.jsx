@@ -37,6 +37,25 @@ describe("ProjectFundProgress", () => {
     expect(screen.getByTestId("project-fund-goal").textContent).toMatch(/10\.00 EUR/);
   });
 
+  it("n’affiche pas le lien si l’URL est la page d’accueil Channel3", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProjectFundProgress
+          properties={{ title: "Gear" }}
+          fund={{
+            goal_eur: "100.00",
+            amount_eur: "100.00",
+            funded_pct: 100,
+            fully_funded: true,
+            channel3_buy_url: "https://trychannel3.com/",
+            currency: "EUR",
+          }}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.queryByTestId("gear-channel3-buy")).toBeNull();
+  });
+
   it("affiche le lien Channel3 à 100%", () => {
     render(
       <I18nextProvider i18n={i18n}>

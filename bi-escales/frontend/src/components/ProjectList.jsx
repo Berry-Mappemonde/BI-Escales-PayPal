@@ -9,6 +9,7 @@ import { fetchPublicProjectFund } from "../api/escales";
 import { filterProjectFeatures } from "../projects/filterProjectFeatures.js";
 import { parseProjectPledgeAmount } from "../projects/projectPledgeAmount.js";
 import { visibleProjectFeatures } from "../projects/visibleProjectFeatures.js";
+import { gearPageHref } from "../gear/channel3ProductUrl.js";
 import { PledgeButton } from "./PledgeButton";
 import { ProjectFundProgress } from "./ProjectFundProgress";
 
@@ -176,6 +177,11 @@ export default function ProjectList({
               >
                 <strong>{props.title}</strong>
                 <span className="hint">{props.funder}</span>
+                {isGearFeature(feature) && props.funded_pct != null ? (
+                  <span className="hint" data-testid="gear-funded-pct">
+                    {t("gear.fundedPctInline", { pct: props.funded_pct })}
+                  </span>
+                ) : null}
               </button>
               <button
                 type="button"
@@ -184,7 +190,18 @@ export default function ProjectList({
               >
                 {t("projects.pledge")}
               </button>
-              {props.url ? (
+              {isGearFeature(feature) ? (
+                gearPageHref(props) ? (
+                  <a
+                    href={gearPageHref(props)}
+                    target="_blank"
+                    rel="noreferrer"
+                    data-testid="gear-page-link"
+                  >
+                    {t("projects.open")}
+                  </a>
+                ) : null
+              ) : props.url ? (
                 <a href={props.url} target="_blank" rel="noreferrer">
                   {t("projects.open")}
                 </a>

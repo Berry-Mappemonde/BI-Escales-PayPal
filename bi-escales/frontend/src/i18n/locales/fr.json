@@ -31,7 +31,15 @@
     "lead": "Langue, thème, outils trésorier et contrôles opérateur sandbox."
   },
   "gear": {
-    "heading": "Matériel d'expédition"
+    "heading": "Matériel d'expédition",
+    "fundedPctInline": "{{pct}} % financés"
+  },
+  "cart": {
+    "heading": "Panier",
+    "loading": "Chargement du panier…",
+    "item": "Article",
+    "price": "Prix",
+    "priceUnavailable": "prix indisponible"
   },
   "clock": {
     "waiting": "Départ dans {{days}} j {{hours}} h",

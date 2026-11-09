@@ -120,7 +120,7 @@ def product_to_gear_feature(product: dict, *, query: str) -> Optional[dict]:
         "id": gear_id,
         "title": title,
         "funder": "Channel3",
-        "url": buy_url or "https://trychannel3.com/",
+        "url": buy_url or None,
         "category_group": "Gear",
         "location": "Channel3",
         "description": f"Produit Channel3 (recherche « {query} »).",

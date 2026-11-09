@@ -31,7 +31,15 @@
     "lead": "Language, theme, treasurer tools, and sandbox operator controls."
   },
   "gear": {
-    "heading": "Expedition gear"
+    "heading": "Expedition gear",
+    "fundedPctInline": "{{pct}}% funded"
+  },
+  "cart": {
+    "heading": "Cart",
+    "loading": "Loading cart…",
+    "item": "Item",
+    "price": "Price",
+    "priceUnavailable": "price unavailable"
   },
   "clock": {
     "waiting": "Departure in {{days}}d {{hours}}h",

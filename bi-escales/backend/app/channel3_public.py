@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Optional
 
+from app.channel3_urls import normalize_channel3_product_url
+
 CHANNEL3_BUY_DISCLOSURE = (
     "If you follow this Channel3 link and complete a purchase, the association may "
     "receive a referral commission from the merchant. The association never purchases "
@@ -23,7 +25,8 @@ def apply_buy_link_policy(
 ) -> dict[str, Any]:
     """Strip checkout URLs unless the item is fully funded; attach disclosure when shown."""
     out = dict(payload)
-    link = (buy_url or out.get("channel3_buy_url") or out.get("product_url") or "").strip()
+    raw = (buy_url or out.get("channel3_buy_url") or out.get("product_url") or "").strip()
+    link = normalize_channel3_product_url(raw) or ""
     if fully_funded and link:
         out["channel3_buy_url"] = link
         out["channel3_buy_disclosure"] = CHANNEL3_BUY_DISCLOSURE

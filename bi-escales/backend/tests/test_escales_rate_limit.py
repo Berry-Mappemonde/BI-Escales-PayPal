@@ -22,6 +22,7 @@ from app.escales.rate_limit import (
     captain_rate_feature,
     captain_rate_key,
     client_ip,
+    demo_retry_after,
     hit,
     hit_demo,
     judging_window_active,
@@ -150,6 +151,27 @@ def test_development_does_not_limit_captain_routes(api, monkeypatch):
         assert response.status_code == 200, response.text
     review = _review(api)
     assert review.status_code == 200, review.text
+
+
+def test_demo_retry_after_uses_calling_ip_sliding_window(monkeypatch):
+    monkeypatch.setenv("ESCALES_DEMO_RATE_PER_MINUTE", "6")
+    reset()
+    t0 = dt.datetime(2026, 11, 9, 12, 0, 0, tzinfo=dt.timezone.utc)
+    t0_plus_40 = t0 + dt.timedelta(seconds=40)
+    ip_a = "198.51.100.10"
+    ip_b = "198.51.100.20"
+    for _ in range(6):
+        hit_demo(ip_a, now=t0)
+    for _ in range(6):
+        hit_demo(ip_b, now=t0_plus_40)
+    with pytest.raises(RateLimited) as blocked_b:
+        hit_demo(ip_b, now=t0_plus_40)
+    assert 59 <= blocked_b.value.retry_after <= 61
+    assert demo_retry_after(ip_b, now=t0_plus_40) == blocked_b.value.retry_after
+    with pytest.raises(RateLimited) as blocked_a:
+        hit_demo(ip_a, now=t0_plus_40)
+    assert 19 <= blocked_a.value.retry_after <= 21
+    assert demo_retry_after(ip_a, now=t0_plus_40) == blocked_a.value.retry_after
 
 
 def test_reset_clears_captain_hits_demo_hits_and_judging_cache(monkeypatch):

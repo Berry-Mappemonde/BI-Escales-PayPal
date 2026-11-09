@@ -316,6 +316,16 @@
     "panelTitle": "Treasurer",
     "demoButton": "Demo treasurer",
     "demoBanner": "Sandbox demo — queue, review, capture, and void only. No admin key on this device.",
+    "demoStop": {
+      "heading": "Judge moment — La Rochelle",
+      "hint": "Sandbox only: stop {{id}}. Simulate arrival captures authorized pledges; cancel voids authorizations; reset clears demo state without undoing captures.",
+      "simulateArrival": "Simulate boat arrival",
+      "cancelStop": "Cancel stop",
+      "resetDemo": "Reset demo",
+      "captureLine": "Pledge {{pledgeId}} — capture id {{captureId}}",
+      "voidLine": "Pledge {{pledgeId}} — void id {{voidId}}",
+      "emptyActions": "Done. No authorized pledges to process."
+    },
     "heading": "Treasurer queue",
     "adminKey": "Treasurer key (x-admin-key)",
     "adminKeyHint": "Held in memory only — never stored.",

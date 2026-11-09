@@ -316,6 +316,16 @@
     "panelTitle": "Trésorier",
     "demoButton": "Trésorier démo",
     "demoBanner": "Démo bac à sable — file, revue, capture et annulation seulement. Aucune clé admin sur cet appareil.",
+    "demoStop": {
+      "heading": "Moment juge — La Rochelle",
+      "hint": "Bac à sable : escale {{id}} uniquement. Simuler l'arrivée capture les promesses autorisées ; annuler vide les autorisations ; réinitialiser efface l'état démo sans toucher aux captures.",
+      "simulateArrival": "Simuler l'arrivée du bateau",
+      "cancelStop": "Annuler l'escale",
+      "resetDemo": "Réinitialiser la démo",
+      "captureLine": "Promesse {{pledgeId}} — ID capture {{captureId}}",
+      "voidLine": "Promesse {{pledgeId}} — ID void {{voidId}}",
+      "emptyActions": "Action terminée. Aucune promesse autorisée à traiter."
+    },
     "heading": "File trésorier",
     "adminKey": "Clé trésorier (x-admin-key)",
     "adminKeyHint": "Saisie en mémoire uniquement — jamais enregistrée.",

@@ -237,6 +237,27 @@ class MemoryLedger:
         with self._lock:
             return [copy.deepcopy(doc) for doc in self._milestones.values()]
 
+    async def set_demo_cancelled(self, milestone_id: str, cancelled: bool) -> dict:
+        with self._lock:
+            doc = self._milestones.get(milestone_id)
+            if doc is None:
+                doc = {
+                    "_id": milestone_id,
+                    "evidence": [],
+                    "proposal": None,
+                    "meta": {},
+                    "updated_at": now_iso(),
+                }
+            meta = dict(doc.get("meta") or {})
+            if cancelled:
+                meta["demo_cancelled"] = True
+            else:
+                meta.pop("demo_cancelled", None)
+            doc["meta"] = meta
+            doc["updated_at"] = now_iso()
+            self._milestones[milestone_id] = doc
+            return copy.deepcopy(doc)
+
     async def set_proposal(self, milestone_id: str, proposal: dict) -> dict:
         with self._lock:
             doc = self._milestones.get(milestone_id)
@@ -454,6 +475,25 @@ class MongoLedger:
         await self._ensure()
         cursor = self._milestones.find({})
         return [doc async for doc in cursor]
+
+    async def set_demo_cancelled(self, milestone_id: str, cancelled: bool) -> dict:
+        await self._ensure()
+        existing = await self._milestones.find_one({"_id": milestone_id})
+        meta = dict((existing or {}).get("meta") or {})
+        if cancelled:
+            meta["demo_cancelled"] = True
+        else:
+            meta.pop("demo_cancelled", None)
+        await self._milestones.update_one(
+            {"_id": milestone_id},
+            {
+                "$set": {"meta": meta, "updated_at": now_iso()},
+                "$setOnInsert": {"evidence": [], "proposal": None},
+            },
+            upsert=True,
+        )
+        doc = await self._milestones.find_one({"_id": milestone_id})
+        return doc or {"_id": milestone_id, "meta": meta, "evidence": [], "proposal": None}
 
     async def set_proposal(self, milestone_id: str, proposal: dict) -> dict:
         await self._ensure()

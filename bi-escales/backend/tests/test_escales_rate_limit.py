@@ -23,6 +23,7 @@ from app.escales.rate_limit import (
     captain_rate_key,
     client_ip,
     hit,
+    hit_demo,
     judging_window_active,
     per_day,
     per_minute,
@@ -149,6 +150,33 @@ def test_development_does_not_limit_captain_routes(api, monkeypatch):
         assert response.status_code == 200, response.text
     review = _review(api)
     assert review.status_code == 200, review.text
+
+
+def test_reset_clears_captain_hits_demo_hits_and_judging_cache(monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "1")
+    monkeypatch.setenv("ESCALES_DEMO_RATE_PER_MINUTE", "1")
+    reset()
+    hit("198.51.100.1")
+    hit_demo("198.51.100.2")
+    assert rate_limit_module._hits
+    assert rate_limit_module._demo_hits
+    rate_limit_module._judging_cache = (
+        _WALL_INSIDE,
+        rate_limit_module._JudgingLimits(36, 9000, True),
+    )
+    rate_limit_module._judging_warning_logged = True
+    reset()
+    assert rate_limit_module._hits == {}
+    assert rate_limit_module._demo_hits == {}
+    assert rate_limit_module._judging_cache is None
+    assert rate_limit_module._judging_warning_logged is False
+    hit("198.51.100.1")
+    hit_demo("198.51.100.2")
+    with pytest.raises(RateLimited):
+        hit("198.51.100.1")
+    with pytest.raises(RateLimited):
+        hit_demo("198.51.100.2")
 
 
 def test_development_calls_are_not_counted_when_production_turns_on(monkeypatch):

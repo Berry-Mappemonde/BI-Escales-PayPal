@@ -236,7 +236,11 @@ def latest_evidence(milestone: Optional[dict]) -> dict:
     return evidence[-1]
 
 
-async def record_captain_review_approval(milestone_id: str) -> dict[str, Any]:
+async def record_captain_review_approval(
+    milestone_id: str,
+    *,
+    at: Optional[str] = None,
+) -> dict[str, Any]:
     """Append the approved verdict and voyage-clock time; never infer it later."""
     from .config import simulated_now
     from .ledger import record_finance
@@ -253,13 +257,13 @@ async def record_captain_review_approval(milestone_id: str) -> dict[str, Any]:
     proposal = review.get("proposal") if isinstance(review, dict) else None
     if not isinstance(proposal, str) or proposal not in {"capture", "void", "wait", "reauthorize"}:
         raise ValueError("a Captain review is required before approval")
-    at = simulated_now().isoformat()
+    approved_at = (at or "").strip() or simulated_now().isoformat()
     await record_finance(
         "captain_review_approved", milestone_id=mid, proposal=proposal,
-        proposal_at=review.get("at"), at=at,
+        proposal_at=review.get("at"), at=approved_at,
         recorded_at=dt.datetime.now(dt.timezone.utc).isoformat(),
     )
-    return {"milestone_id": mid, "approved": True, "proposal": proposal, "at": at}
+    return {"milestone_id": mid, "approved": True, "proposal": proposal, "at": approved_at}
 
 
 async def captain_review_approved(

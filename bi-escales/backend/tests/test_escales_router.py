@@ -879,7 +879,9 @@ def test_main_registers_escales_only_when_enabled():
     for line in text.splitlines():
         if line.startswith("from app.routers import") and "escales" in line:
             raise AssertionError("escales must be imported only inside the ESCALES_ENABLED branch")
-    assert "\n    from app.routers import escales\n" in text
+    assert "from app.routers import escales" in text
+    assert "escales_demo" in text
+    assert "app.include_router(escales_demo.router)" in text
     assert "webhooks_router" in text
 
 

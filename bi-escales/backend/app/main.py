@@ -81,10 +81,11 @@ async def escale_marinas_geojson(name: str = ""):
 
 _escales_on = os.environ.get("ESCALES_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
 if _escales_on:
-    from app.routers import escales
+    from app.routers import escales, escales_demo
 
     app.include_router(escales.router)
     app.include_router(escales.webhooks_router)
+    app.include_router(escales_demo.router)
 
 
 def frontend_dist() -> Path:

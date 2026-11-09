@@ -19,12 +19,14 @@ logger = logging.getLogger(__name__)
 
 PER_MINUTE_DEFAULT = 10
 PER_DAY_DEFAULT = 100
+DEMO_PER_MINUTE_DEFAULT = 6
 PER_MINUTE_JUDGING_DEFAULT = 36
 PER_DAY_JUDGING_DEFAULT = 9000
 LLM_DAILY_CAP_JUDGING_DEFAULT = 9000
 _MINUTE = dt.timedelta(seconds=60)
 
 _hits: dict[str, list[dt.datetime]] = {}
+_demo_hits: dict[str, list[dt.datetime]] = {}
 
 
 def _now() -> dt.datetime:
@@ -197,7 +199,30 @@ def reset_judging_cache() -> None:
 
 def reset() -> None:
     _hits.clear()
+    _demo_hits.clear()
     reset_judging_cache()
+
+
+def demo_per_minute() -> int:
+    return _positive("ESCALES_DEMO_RATE_PER_MINUTE", DEMO_PER_MINUTE_DEFAULT)
+
+
+def demo_retry_after(now: Optional[dt.datetime] = None) -> int:
+    """Seconds until the oldest hit in the current minute window expires."""
+    moment = now or _now()
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    window_start = moment - _MINUTE
+    oldest = None
+    for stamps in _demo_hits.values():
+        recent = [stamp for stamp in stamps if stamp >= window_start]
+        if recent:
+            candidate = min(recent)
+            oldest = candidate if oldest is None or candidate < oldest else oldest
+    if oldest is None:
+        return 60
+    remaining = _MINUTE - (moment - oldest)
+    return max(1, int(remaining.total_seconds()) + 1)
 
 
 class RateLimited(Exception):
@@ -330,3 +355,23 @@ def hit(ip: str, now: Optional[dt.datetime] = None) -> None:
     for key, today in buckets.items():
         today.append(moment)
         _hits[key] = today
+
+
+def hit_demo(ip: str, now: Optional[dt.datetime] = None) -> None:
+    """Judge demo routes: always limited per client IP (sandbox demo treasurer)."""
+    moment = now or _now()
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    else:
+        moment = moment.astimezone(dt.timezone.utc)
+    key = (ip or "").strip() or "unknown"
+    recent = [
+        stamp for stamp in _demo_hits.get(key, [])
+        if moment - stamp < _MINUTE
+    ]
+    limit = demo_per_minute()
+    if len(recent) >= limit:
+        _demo_hits[key] = recent
+        raise RateLimited("minute", limit)
+    recent.append(moment)
+    _demo_hits[key] = recent

@@ -394,6 +394,44 @@ export async function fetchPublicCommonFund(): Promise<FundView | null> {
   }
 }
 
+export interface DemoStopAction {
+  pledge_id: string;
+  action: string;
+  status?: string;
+  capture_id?: string;
+  void_id?: string;
+  detail?: string;
+}
+
+export interface DemoStopMomentResponse {
+  milestone_id: string;
+  now?: string;
+  demo_cancelled?: boolean;
+  captain_review_approved_at?: string;
+  actions: DemoStopAction[];
+}
+
+async function postDemoStop(action: string, milestoneId: string): Promise<DemoStopMomentResponse> {
+  const res = await fetch(
+    url(`/api/escales/demo/stops/${encodeURIComponent(milestoneId)}/${action}`),
+    { method: "POST", headers: { "Content-Type": "application/json" } },
+  );
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export function demoSimulateArrival(milestoneId: string): Promise<DemoStopMomentResponse> {
+  return postDemoStop("simulate-arrival", milestoneId);
+}
+
+export function demoCancelStop(milestoneId: string): Promise<DemoStopMomentResponse> {
+  return postDemoStop("cancel", milestoneId);
+}
+
+export function demoResetStop(milestoneId: string): Promise<DemoStopMomentResponse> {
+  return postDemoStop("reset", milestoneId);
+}
+
 export async function listMilestones(): Promise<Milestone[]> {
   const res = await fetch(url("/api/escales/milestones"));
   if (!res.ok) throw new Error(await parseError(res));

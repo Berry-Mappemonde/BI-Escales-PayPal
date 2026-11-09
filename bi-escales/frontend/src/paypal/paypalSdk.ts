@@ -1,3 +1,5 @@
+import type { CardFieldComponent, CardFieldOptions, Components } from "@paypal/paypal-js/sdk-v6";
+
 /**
  * PayPal Web SDK v6 sandbox adapter for BI Escales.
  *
@@ -33,7 +35,7 @@ type V6Session = {
   start: (options: { presentationMode: "auto" }, order: Promise<Record<string, string>>) => Promise<void>;
 };
 type V6CardSession = {
-  createCardFieldsComponent: (options: { type: string; placeholder?: string }) => HTMLElement;
+  createCardFieldsComponent: (options: CardFieldOptions) => CardFieldComponent;
   submit: (id: string) => Promise<{ state: string; data?: { message?: string } }>;
 };
 type V6Instance = {
@@ -49,7 +51,7 @@ type V6Instance = {
 type V6Core = {
   createInstance: (options: {
     clientId: string;
-    components: string[];
+    components: Components[];
     locale: string;
     pageType: "checkout";
   }) => Promise<V6Instance>;
@@ -203,10 +205,10 @@ export function buildV6Adapter(
             if (subscription) {
               token = createSubscriptionOnServer().then((subscriptionId) => ({ subscriptionId }));
             } else if (vault) {
-              token = Promise.resolve(config.createVaultSetupToken!())
+              token = Promise.resolve().then(() => config.createVaultSetupToken!())
                 .then((vaultSetupToken: string) => ({ vaultSetupToken }));
             } else {
-              token = Promise.resolve(config.createOrder?.())
+              token = Promise.resolve().then(() => config.createOrder?.())
                 .then((orderId: string) => ({ orderId }));
             }
             void session.start({ presentationMode: "auto" }, token)
@@ -227,14 +229,14 @@ export function buildV6Adapter(
       const session = vault
         ? sdk.createCardFieldsSavePaymentSession()
         : sdk.createCardFieldsOneTimePaymentSession();
-      const mountField = (type: string) => () => {
-        let field: HTMLElement | null = null;
+      const mountField = (type: CardFieldOptions["type"]) => () => {
+        let field: CardFieldComponent | null = null;
         return {
           render: async (host: HTMLElement) => {
             field = session.createCardFieldsComponent({ type });
             host.appendChild(field);
           },
-          close: async () => { field?.remove(); },
+          close: async () => { field?.destroy(); field = null; },
         };
       };
       return {
@@ -268,8 +270,9 @@ function loadConfigured(clientId: string, appLang: string | undefined, currency:
       pageType: "checkout",
       components: [
         "paypal-payments",
+        "paypal-subscriptions",
         "card-fields",
-        ...(walletPay ? ["googlepay-payments", "applepay-payments"] : []),
+        ...(walletPay ? ["googlepay-payments", "applepay-payments"] as const : []),
       ],
     });
     const eligible = await sdk.findEligibleMethods({ currencyCode: currency.toUpperCase() });

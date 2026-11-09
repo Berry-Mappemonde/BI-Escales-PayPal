@@ -38,7 +38,7 @@ describe("PayPal Web SDK v6 core", () => {
     expect(createInstance).toHaveBeenCalledWith(expect.objectContaining({
       clientId: "safe-client",
       locale: "en-US",
-      components: expect.arrayContaining(["paypal-payments", "card-fields"]),
+      components: expect.arrayContaining(["paypal-payments", "paypal-subscriptions", "card-fields"]),
     }));
     expect(findEligibleMethods).toHaveBeenCalledWith({ currencyCode: "EUR" });
     expect(document.querySelectorAll('script[data-paypal-web-sdk="v6"]')).toHaveLength(0);
@@ -166,7 +166,7 @@ describe("v6 payment session adapters", () => {
     const sdk = {
       createCardFieldsOneTimePaymentSession: () => ({
         createCardFieldsComponent: ({ type }: { type: string }) => {
-          const node = document.createElement("div");
+          const node = Object.assign(document.createElement("div"), { destroy: vi.fn() });
           node.dataset.field = type;
           return node;
         },
@@ -178,11 +178,15 @@ describe("v6 payment session adapters", () => {
     const cards = adapter.CardFields!({ createOrder: makeOrder, onApprove: vi.fn() }) as Record<string, any>;
     expect(cards.isEligible()).toBe(true);
     const host = document.createElement("div");
-    await cards.NumberField().render(host);
+    const number = cards.NumberField();
+    await number.render(host);
     await cards.ExpiryField().render(host);
     await cards.CVVField().render(host);
     expect([...host.querySelectorAll("[data-field]")].map((node) => (node as HTMLElement).dataset.field))
       .toEqual(["number", "expiry", "cvv"]);
+    const field = host.firstElementChild as HTMLElement & { destroy: ReturnType<typeof vi.fn> };
+    await number.close();
+    expect(field.destroy).toHaveBeenCalledOnce();
     await cards.submit();
     expect(submit).toHaveBeenCalledWith("C-ORDER");
   });

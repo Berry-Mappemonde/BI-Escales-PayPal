@@ -41,13 +41,14 @@ def _treasurer_headers():
     return {"x-admin-key": ADMIN}
 
 
-def test_catalog_has_37_items_and_optional_clothing(api):
+def test_catalog_public_count_and_no_optional_clothing(api):
     res = api.get("/api/escales/channel3/catalog")
     assert res.status_code == 200
     body = res.json()
-    assert body["item_count"] == 37
+    assert body["item_count"] == 50
+    assert body["seed_item_count"] == 52
     optional = [i for i in body["items"] if i.get("catalog_optional")]
-    assert len(optional) == 15
+    assert optional == []
     assert "channel3_buy_url" not in body["items"][0]
 
 
@@ -59,11 +60,11 @@ def test_wishlist_publish_visibility(api):
     )
     assert create.status_code == 200
     wid = create.json()["_id"]
-    item = get_catalog_item("hwD0sF9")
+    item = get_catalog_item("QE0Vp6a")
     add = api.post(
         f"/api/escales/treasurer/wishlists/{wid}/items",
         headers=_treasurer_headers(),
-        json={"channel3_product_id": "hwD0sF9", "quantity": item["quantity_needed"]},
+        json={"channel3_product_id": "QE0Vp6a", "quantity": item["quantity_needed"]},
     )
     assert add.status_code == 200
     assert api.get(f"/api/escales/wishlists/{wid}").status_code == 404
@@ -79,7 +80,7 @@ def test_wishlist_publish_visibility(api):
 
 
 def test_usd_item_eur_funding_not_supported(api):
-    res = api.get("/api/escales/channel3/catalog/hwD0sF9")
+    res = api.get("/api/escales/channel3/catalog/QE0Vp6a")
     assert res.status_code == 200
     body = res.json()
     assert body["price_currency"] == "USD"
@@ -89,7 +90,7 @@ def test_usd_item_eur_funding_not_supported(api):
 
 
 def test_buy_link_shown_only_when_fully_funded(api):
-    pid = project_id_for_product("hwD0sF9")
+    pid = project_id_for_product("QE0Vp6a")
     before = api.get(f"/api/escales/channel3/catalog/by-project/{pid}/fund")
     assert before.status_code == 200
     assert "channel3_buy_url" not in before.json()
@@ -142,13 +143,13 @@ def test_wishlist_line_quantity_sets_default_target(api):
     add = api.post(
         f"/api/escales/treasurer/wishlists/{wid}/items",
         headers=_treasurer_headers(),
-        json={"channel3_product_id": "hwD0sF9", "quantity": 2},
+        json={"channel3_product_id": "QE0Vp6a", "quantity": 2},
     )
     assert add.status_code == 200
     line = add.json()["items"][0]
     assert line["quantity"] == 2
-    assert line["unit_price_amount_minor"] == 999
-    assert line["target_amount_minor"] == 1998
+    assert line["unit_price_amount_minor"] == 3999
+    assert line["target_amount_minor"] == 7998
 
 
 def test_wishlist_explicit_target_preserved(api):
@@ -161,7 +162,7 @@ def test_wishlist_explicit_target_preserved(api):
     add = api.post(
         f"/api/escales/treasurer/wishlists/{wid}/items",
         headers=_treasurer_headers(),
-        json={"channel3_product_id": "hwD0sF9", "quantity": 2, "target_amount_minor": 1500},
+        json={"channel3_product_id": "QE0Vp6a", "quantity": 2, "target_amount_minor": 1500},
     )
     assert add.status_code == 200
     line = add.json()["items"][0]
@@ -179,7 +180,7 @@ def test_public_wishlist_item_shows_line_quantity(api):
     api.post(
         f"/api/escales/treasurer/wishlists/{wid}/items",
         headers=_treasurer_headers(),
-        json={"channel3_product_id": "hwD0sF9", "quantity": 2},
+        json={"channel3_product_id": "QE0Vp6a", "quantity": 2},
     )
     api.post(
         f"/api/escales/treasurer/wishlists/{wid}/publish",
@@ -190,7 +191,7 @@ def test_public_wishlist_item_shows_line_quantity(api):
     item = body["items"][0]
     assert item["quantity"] == 2
     assert item["quantity_needed"] == 2
-    assert item["target_amount_minor"] == 1998
+    assert item["target_amount_minor"] == 7998
 
 
 def test_needs_confirmation_is_not_public_or_fundable(api, monkeypatch):

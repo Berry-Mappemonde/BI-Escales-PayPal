@@ -2578,9 +2578,7 @@ def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
             client_key="qa-stop",
         )
         await authorize_pledge(stop["_id"], spy)
-        import os
-
-        os.environ["ESCALES_CLOCK_NOW"] = "2027-06-12T08:00:00Z"
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
         await capture_pledge(stop["_id"], spy)
         from app.escales.ledger import fund_for_milestone
 

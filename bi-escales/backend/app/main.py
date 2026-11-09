@@ -102,7 +102,7 @@ def attach_frontend(application: FastAPI) -> None:
     if assets.is_dir():
         application.mount("/assets", StaticFiles(directory=assets), name="frontend-assets")
 
-    @application.get("/{full_path:path}", include_in_schema=False)
+    @application.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     def spa(full_path: str):
         if full_path == "api" or full_path.startswith("api/"):
             raise HTTPException(status_code=404)

@@ -84,7 +84,7 @@ describe("App vault return", () => {
 
     expect(screen.getByText("Saving the payment method…")).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByText("Saved — charged only if we sail")).toBeInTheDocument();
+      expect(screen.getByText("Saved — captured on arrival (voided if the stop is cancelled)")).toBeInTheDocument();
     });
     expect(registerVault).toHaveBeenCalledWith("p-vault", "tok1");
     replaceState.mockRestore();

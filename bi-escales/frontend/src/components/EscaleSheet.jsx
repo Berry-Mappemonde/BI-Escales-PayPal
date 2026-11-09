@@ -27,7 +27,11 @@ import { MileCertificateDownload } from "./MileCertificateDownload";
 import { useStopContext } from "./stop/useStopContext.js";
 import { evaluateGooglePlaceLink, googleMapsSearchUrl } from "../marinas/marinaPlaceLink.js";
 
-const STOP_KINDS = ["mile", "berth", "night", "meal", "care", "cabin_leg", "common_fund"];
+const STOP_KINDS = ["mile", "berth", "night", "meal", "care", "cabin_leg"];
+
+function stopPaymentRuleKey(kind) {
+  return kind === "cabin_leg" ? "stopPanel.paymentRuleCabin" : "stopPanel.paymentRuleStop";
+}
 
 const SECTION_KEYS = [
   "mooring",
@@ -246,15 +250,9 @@ export const EscaleSheet = memo(function EscaleSheet({
           </div>
           <MileCertificateDownload pledge={receiptPledge} contributor={pledge.contributor} />
           <h4 className="money-heading">{t("stopPanel.moneyHeading")}</h4>
-          {pledge.kind === "common_fund" ? (
-            <p className="stop-note" data-testid="stop-money-rule">{t("stopPanel.ruleCommonFund")}</p>
-          ) : (
-            <ol className="money-steps" data-testid="stop-money-rule">
-              <li>{t("stopPanel.ruleHeld")} </li>
-              <li>{t(pledge.kind === "cabin_leg" ? "stopPanel.ruleCabin" : "stopPanel.ruleCaptured")} </li>
-              <li>{t("stopPanel.ruleReleased")}</li>
-            </ol>
-          )}
+          <p className="stop-note" data-testid="stop-money-rule">
+            {t(stopPaymentRuleKey(pledge.kind))}
+          </p>
         </section>
       ) : null}
       {pledge && cancelled ? (

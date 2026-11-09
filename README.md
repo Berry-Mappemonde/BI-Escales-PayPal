@@ -1,4 +1,4 @@
-# BI Escales — Pay Only If We Sail
+# BI Escales — Pay only when we arrive
 
 PayPal AI Hackathon 2026 — Association Berry-Mappemonde.
 

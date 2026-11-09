@@ -279,15 +279,22 @@ describe("stop panel", () => {
       expect(block.getByTestId("pledge-amount")).toBeInTheDocument();
       expect(block.getByTestId("pledge-values")).toBeInTheDocument();
       expect(block.getByTestId("stop-money-rule").textContent).toBe(
-        "Held by PayPal, not charged. The treasurer can approve capture once the boat arrives at this stop. Released if we don't sail.",
+        "Held by PayPal, not charged yet. Captured when the boat arrives at this stop (after treasurer approval); released if the stop is cancelled.",
       );
+      expect(block.getByTestId("stop-money-rule").textContent).not.toMatch(/don't sail|only if we sail/i);
     });
 
-    it("says the common fund is charged at once, never held", async () => {
-      await show({ pledge: pledge("common_fund") });
-      const rule = screen.getByTestId("stop-money-rule").textContent;
-      expect(rule).toBe("Common fund gifts are charged as soon as you approve in PayPal.");
-      expect(rule).not.toMatch(/held|arrival/i);
+    it("omits common fund from pledge kinds on the stop sheet", async () => {
+      await show();
+      const options = [...screen.getByTestId("pledge-kind").querySelectorAll("option")].map((node) => node.textContent);
+      expect(options).not.toContain("Common fund");
+    });
+
+    it("uses the cabin leg payment rule when that kind is selected", async () => {
+      await show({ pledge: pledge("cabin_leg") });
+      expect(screen.getByTestId("stop-money-rule").textContent).toBe(
+        "Held by PayPal, not charged yet. Captured when this leg departs (after treasurer approval).",
+      );
     });
 
     it("sends the same values as before", async () => {

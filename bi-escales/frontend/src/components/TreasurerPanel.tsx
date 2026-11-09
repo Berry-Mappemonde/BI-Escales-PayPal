@@ -108,23 +108,27 @@ export function TreasurerPanel({
   children,
 }: TreasurerPanelProps) {
   const { t } = useTranslation();
+  const panelTitle = t("treasurer.panelTitle");
+  const showHeading = Boolean(panelTitle.trim());
 
   return (
     <section className="treasurer-panel panel" data-testid="treasurer-panel">
-      <header className="treasurer-panel-heading">
-        <h2>
-          <button
-            type="button"
-            className="treasurer-panel-toggle"
-            data-testid="treasurer-panel-toggle"
-            aria-expanded={open}
-            aria-controls="treasurer-panel-body"
-            onClick={() => onOpenChange(!open)}
-          >
-            {t("treasurer.panelTitle")}
-          </button>
-        </h2>
-        {children}
+      <header className="treasurer-panel-heading" data-testid="treasurer-panel-heading">
+        {showHeading ? (
+          <h2 className="treasurer-panel-title">
+            <button
+              type="button"
+              className="treasurer-panel-toggle"
+              data-testid="treasurer-panel-toggle"
+              aria-expanded={open}
+              aria-controls="treasurer-panel-body"
+              onClick={() => onOpenChange(!open)}
+            >
+              {panelTitle}
+            </button>
+          </h2>
+        ) : null}
+        {children ? <div className="treasurer-panel-heading-extra">{children}</div> : null}
       </header>
       {open ? (
         <div className="treasurer-panel-body" id="treasurer-panel-body" data-testid="treasurer-panel-body">

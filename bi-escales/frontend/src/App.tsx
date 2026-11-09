@@ -9,6 +9,7 @@ import { EscalesPanel } from "./components/EscalesPanel";
 import { EscalePopup } from "./components/EscalePopup.jsx";
 import MarinasPanel from "./components/MarinasPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
+import { ShellSettingsPanel } from "./components/ShellSettingsPanel";
 import { TreasurerPanel } from "./components/TreasurerPanel";
 import { CrewSupporterPublicSection } from "./components/CrewSubscribeButton";
 import { HowItWorks } from "./components/stop/HowItWorks.jsx";
@@ -17,13 +18,12 @@ import { ToastContainer } from "./components/Toast";
 import type { ToastItem } from "./components/Toast";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { useTheme } from "./hooks/useTheme";
-import { setLanguage } from "./i18n";
 import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { resolveBoatStop } from "./voyage/boatStop.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
-import { isNarrowScreen } from "./utils/narrowScreen";
+import { isMobileToolsSheet, isNarrowScreen } from "./utils/narrowScreen";
 import { formatCivilDate } from "./voyage/voyageClock.js";
 import { escaleArrivalIso, logbookEntriesForStop } from "./voyage/journalDisplay.js";
 import {
@@ -686,6 +686,16 @@ export default function App() {
     return { ...projects, features: [] };
   }, [projects, tab]);
 
+  const mobileToolsSheet = isMobileToolsSheet();
+  const toolsPanelToggleLabel = mobileToolsSheet
+    ? toolsOpen
+      ? t("app.stopPanelSheetCollapse")
+      : t("app.stopPanelSheetExpand")
+    : toolsOpen
+      ? t("app.toolsCollapse")
+      : t("app.toolsExpand");
+  const toggleToolsPanel = useCallback(() => setToolsOpen((open) => !open), []);
+
   const treasurerPanel = (
     <TreasurerPanel
       open={treasurerOpen}
@@ -774,8 +784,8 @@ export default function App() {
           className={`ng-tools-toggle ng-tools-toggle--right${toolsOpen ? " is-open" : ""}`}
           data-testid="ng-tools-toggle"
           aria-expanded={toolsOpen}
-          aria-label={toolsOpen ? t("app.toolsCollapse") : t("app.toolsExpand")}
-          onClick={() => setToolsOpen((open) => !open)}
+          aria-label={toolsPanelToggleLabel}
+          onClick={toggleToolsPanel}
         >
           {toolsOpen ? "▶" : "⚙"}
         </button>
@@ -799,27 +809,7 @@ export default function App() {
               BI Escales <small>{t("app.subtitle")}</small>
             </h1>
           </div>
-          <div className="ng-controls">
-            <div className="lang-switch" role="group" aria-label={t("app.language")}>
-              <button
-                type="button"
-                className={i18n.language === "fr" ? "active" : ""}
-                aria-label={t("app.langFr")}
-                aria-pressed={i18n.language === "fr"}
-                onClick={() => setLanguage("fr")}
-              >
-                FR
-              </button>
-              <button
-                type="button"
-                className={i18n.language === "en" ? "active" : ""}
-                aria-label={t("app.langEn")}
-                aria-pressed={i18n.language === "en"}
-                onClick={() => setLanguage("en")}
-              >
-                EN
-              </button>
-            </div>
+          <div className="ng-controls ng-controls--header">
             <div className="theme-switch" data-testid="theme-switch">
               <button
                 type="button"
@@ -877,17 +867,6 @@ export default function App() {
             {t("clock.sailed", { nm: sailedNm })} · {t("clock.simulated")}
           </span>
         </p>
-        {!prod ? (
-          <label className="dev-t0">
-            {t("clock.devT0")}
-            <input
-              type="text"
-              value={devT0 || t0}
-              onChange={(event) => setDevT0(event.target.value)}
-              aria-label={t("clock.devT0")}
-            />
-          </label>
-        ) : null}
         {tab === "voyage" ? (
           <>
             <EscalesPanel
@@ -956,36 +935,51 @@ export default function App() {
       <aside
         ref={toolsPanelRef}
         tabIndex={-1}
-        className={`ng-tools-panel${toolsOpen ? "" : " ng-collapsed"}`}
+        className={`ng-tools-panel ng-settings-panel${toolsOpen ? "" : " ng-collapsed"}`}
         data-testid="ng-tools-panel"
         aria-hidden={!toolsOpen}
       >
-        {stop ? (
-          <EscalePopup
-            stop={stop}
-            fiche={fiche}
-            loading={ficheLoading}
-            error={ficheError}
-            onClose={() => setStop(null)}
-            arrivalIso={sheetArrivalIso}
-            logbookEntries={sheetLogbook}
-            priceCatalog={schedule?.prices}
-            schedule={schedule}
-            pledge={{
-              amount,
-              milestoneId,
-              contributor,
-              kind,
-              onAmount: setAmount,
-              onMilestoneId: setMilestoneId,
-              onContributor: setContributor,
-              onKind,
-            }}
-            onPledgeAuthorized={onAuthorized}
-          />
-        ) : (
-          <HowItWorks />
-        )}
+        {mobileToolsSheet ? (
+          <button
+            type="button"
+            className="ng-tools-sheet-handle"
+            data-testid="ng-tools-sheet-handle"
+            aria-expanded={toolsOpen}
+            aria-label={toolsPanelToggleLabel}
+            onClick={toggleToolsPanel}
+          >
+            <span className="ng-tools-sheet-handle-bar" aria-hidden="true" />
+            <span className="ng-tools-sheet-handle-label">{toolsPanelToggleLabel}</span>
+          </button>
+        ) : null}
+        <ShellSettingsPanel prod={prod} devT0={devT0} t0={t0} onDevT0Change={setDevT0}>
+          {stop ? (
+            <EscalePopup
+              stop={stop}
+              fiche={fiche}
+              loading={ficheLoading}
+              error={ficheError}
+              onClose={() => setStop(null)}
+              arrivalIso={sheetArrivalIso}
+              logbookEntries={sheetLogbook}
+              priceCatalog={schedule?.prices}
+              schedule={schedule}
+              pledge={{
+                amount,
+                milestoneId,
+                contributor,
+                kind,
+                onAmount: setAmount,
+                onMilestoneId: setMilestoneId,
+                onContributor: setContributor,
+                onKind,
+              }}
+              onPledgeAuthorized={onAuthorized}
+            />
+          ) : (
+            <HowItWorks />
+          )}
+        </ShellSettingsPanel>
       </aside>
     </div>
   );

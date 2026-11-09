@@ -103,7 +103,8 @@ export function CrewSupporterPublicSection({ adminKey }: { adminKey?: string }) 
   return (
     <section className="crew-supporter-public" data-testid="crew-supporter-public">
       <div className="crew-supporter-heading">
-        <h2>{t("pledge.crewSubscribeHint")}</h2>
+        <h2>{t("pledge.crewSubscribeProduct")}</h2>
+        <small className="crew-supporter-subtitle">{t("pledge.crewSubscribeSubtitle")}</small>
         <small className="crew-sandbox-note">{t("pledge.crewSubscribeSandbox")}</small>
       </div>
       <div className="crew-paypal-frame">

@@ -97,7 +97,7 @@ def main() -> None:
     small_font = _font(22, bold=False)
 
     draw.text((72, 48), "BI Escales", font=title_font, fill=WHITE)
-    draw.text((72, 108), "Pay Only If We Sail", font=sub_font, fill=MUTED)
+    draw.text((72, 108), "Pay only when we arrive", font=sub_font, fill=MUTED)
     draw.text((72, H - 72), "Berry-Mappemonde", font=sub_font, fill=WHITE)
     draw.text(
         (72, H - 40),

@@ -1086,18 +1086,21 @@ async def get_public_project_fund(project_id: str):
     Same spirit as public stopover ``GET /milestones/{id}/fund`` via ``to_public_fund``:
     aggregates only. Treasurer detail stays on ``GET /milestones/{project_id}/fund``.
     """
-    try:
-        if await _project_fund_target(project_id) is None:
-            raise LookupError("not a project fund")
-        fund = await fund_for_milestone(project_id)
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail="Project fund not found") from exc
     from app.channel3_catalog import lookup_catalog_by_project_id
-    from app.channel3_funding import enrich_item_funding
+    from app.channel3_funding import enrich_item_funding, fund_snapshot_for_project
     from app.channel3_public import apply_buy_link_policy
 
     meta = lookup_project_fund_meta(project_id)
     catalog = lookup_catalog_by_project_id(project_id)
+    try:
+        if catalog:
+            fund = await fund_snapshot_for_project(project_id)
+        else:
+            if await _project_fund_target(project_id) is None:
+                raise LookupError("not a project fund")
+            fund = await fund_for_milestone(project_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Project fund not found") from exc
     goal_eur = str((meta or {}).get("goal_eur") or "").strip()
     goal_amount = goal_eur or str((meta or {}).get("channel3_price") or "").strip()
     goal_currency = (

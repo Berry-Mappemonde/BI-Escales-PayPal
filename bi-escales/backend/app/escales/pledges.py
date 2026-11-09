@@ -557,7 +557,7 @@ def _create_capture_order(client: Any, **kwargs: Any) -> dict:
         slim = {
             key: value
             for key, value in kwargs.items()
-            if key not in {"return_url", "cancel_url", "checkout_locale"}
+            if key not in {"return_url", "cancel_url", "checkout_locale", "currency_code"}
         }
         return create(**slim)
 
@@ -750,6 +750,20 @@ async def _create_pledge(
 
         await resolve_schedule_milestone(milestone_id)
     if pledge_kind == "project_pledge":
+        pledge_currency = "EUR"
+        from app.channel3_catalog import lookup_catalog_by_project_id
+        from app.channel3_paypal import paypal_currency_supported
+
+        catalog = lookup_catalog_by_project_id(resolved_target)
+        if catalog:
+            from app.channel3_paypal import normalize_project_pledge_amount
+
+            pledge_currency = str(catalog.get("price_currency") or "EUR").upper()
+            if not paypal_currency_supported(pledge_currency):
+                raise ValueError(
+                    f"PayPal checkout does not support catalog currency {pledge_currency}"
+                )
+            amount = normalize_project_pledge_amount(amount_eur, pledge_currency)
         return await _create_capture_pledge(
             amount=amount,
             description=description,
@@ -763,6 +777,7 @@ async def _create_pledge(
             caller_origin=caller_origin,
             checkout_locale=checkout_locale,
             checkout_method=checkout_method,
+            currency=pledge_currency,
         )
     mode: PaymentMode = payment_mode or "AUTHORIZE"
     from .departure_clock import refuse_cancelled_departure
@@ -821,6 +836,7 @@ async def _create_capture_pledge(
     caller_origin: Optional[str] = None,
     checkout_locale: Optional[str] = None,
     checkout_method: Optional[str] = None,
+    currency: str = "EUR",
 ) -> dict:
     """Project crowdfunding: CAPTURE intent, charged when the buyer approves on return."""
     key = _client_key(client_key)
@@ -844,15 +860,20 @@ async def _create_capture_pledge(
         pledge_id,
         "cancel",
     )
+    pledge_currency = str(currency or "EUR").strip().upper()
+    from app.channel3_paypal import format_paypal_amount_value
+
+    paypal_amount = format_paypal_amount_value(amount, pledge_currency)
     order = _create_capture_order(
         client,
-        amount_eur=amount,
+        amount_eur=paypal_amount,
         description=description,
         reference_id=pledge_id,
         idempotency_key=idempotency_key,
         return_url=back,
         cancel_url=cancel,
         checkout_locale=checkout_locale,
+        currency_code=pledge_currency,
     )
     order_id = order.get("id")
     if not order_id:
@@ -867,7 +888,7 @@ async def _create_capture_pledge(
         "status": "created",
         "intent": "CAPTURE",
         "payment_mode": "CAPTURE",
-        "currency": "EUR",
+        "currency": pledge_currency,
         "amount_eur": amount,
         "description": description,
         "milestone_id": milestone_id,
@@ -894,7 +915,7 @@ async def _create_capture_pledge(
             pledge_id=pledge_id,
             milestone_id=milestone_id,
             amount_eur=amount,
-            currency="EUR",
+            currency=pledge_currency,
             order_id=order_id,
             status="created",
             payment_mode="CAPTURE",

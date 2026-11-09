@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-from app.channel3_money import catalog_unit_price_minor, minor_to_major_str
+from app.channel3_paypal import minor_to_major_display, minor_units_for_major
 
 _SEED = Path(__file__).resolve().parents[1] / "static" / "channel3-catalogue.seed.json"
 _CORE_CATEGORIES = frozenset({"accastillage", "crew_safety"})
@@ -20,10 +20,8 @@ def project_id_for_product(channel3_product_id: str) -> str:
 def _normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
     pid = str(raw.get("channel3_product_id") or "").strip()
     category = str(raw.get("category") or "").strip()
-    minor, currency = catalog_unit_price_minor(
-        price=float(raw["price"]),
-        currency=str(raw.get("currency") or "EUR"),
-    )
+    currency = str(raw.get("currency") or "EUR").strip().upper()
+    minor = minor_units_for_major(float(raw["price"]), currency)
     qty = int(raw.get("quantity") or 1)
     optional = category in _OPTIONAL_CATEGORIES
     return {
@@ -40,7 +38,7 @@ def _normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
         "unit_price_amount_minor": minor,
         "price_amount_minor": minor,
         "price_currency": currency,
-        "price_display": minor_to_major_str(minor),
+        "price_display": minor_to_major_display(minor, currency),
         "catalog_default_target_amount_minor": minor * qty,
         "catalog_default_target_currency": currency,
         "image_url": str(raw.get("image_url") or raw.get("image") or "").strip() or None,

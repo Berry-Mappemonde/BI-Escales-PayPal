@@ -83,9 +83,9 @@ def test_usd_item_eur_funding_not_supported(api):
     assert res.status_code == 200
     body = res.json()
     assert body["price_currency"] == "USD"
-    assert body["eur_funding_supported"] is False
-    assert body.get("indicative_target_eur") is None
-    assert body.get("funded_pct") is None
+    assert body["paypal_currency_supported"] is True
+    assert body["funded_currency"] == "USD"
+    assert body.get("funded_pct") == 0
 
 
 def test_buy_link_shown_only_when_fully_funded(api):

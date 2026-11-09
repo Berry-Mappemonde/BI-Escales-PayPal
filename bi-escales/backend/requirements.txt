@@ -2,6 +2,9 @@ fastapi==0.110.1
 httpx==0.28.1
 paypal-server-sdk==2.4.0
 pydantic==2.13.4
+# Runtime for the vendored Payouts batch and Partner Referrals SDKs.
+httpx2==2.16.0
+email-validator==2.3.0
 uvicorn==0.25.0
 pytest==9.1.1
 motor==3.3.1

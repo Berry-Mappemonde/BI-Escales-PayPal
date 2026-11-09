@@ -521,6 +521,7 @@
       "slug": "Slug (URL)",
       "createSubmit": "Créer",
       "created": "Liste créée.",
+      "itemAdded": "Article ajouté à la liste.",
       "pickList": "Liste active",
       "pickListEmpty": "— Choisir —",
       "badgePublished": "Publiée",

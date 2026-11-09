@@ -521,6 +521,7 @@
       "slug": "Slug (URL)",
       "createSubmit": "Create",
       "created": "Wishlist created.",
+      "itemAdded": "Item added to the wishlist.",
       "pickList": "Active wishlist",
       "pickListEmpty": "— Select —",
       "badgePublished": "Published",

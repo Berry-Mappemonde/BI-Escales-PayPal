@@ -56,8 +56,7 @@ class ApimaticExtrasSandboxRequiredError(RuntimeError):
 
 def apimatic_extras_enabled() -> bool:
     """True when the operator turned the APIMatic extras flag on."""
-    # Single-quoted so the app-wide flag inventory does not require an env-file edit.
-    raw = os.environ.get('ESCALES_APIMATIC_EXTRAS_ENABLED', '')
+    raw = os.environ.get("ESCALES_APIMATIC_EXTRAS_ENABLED", "")
     return raw.strip().lower() in _TRUTHY
 
 

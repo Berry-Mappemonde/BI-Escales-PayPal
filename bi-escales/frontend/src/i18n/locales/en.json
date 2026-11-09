@@ -513,5 +513,12 @@
       "clothingNeedsOptional": "Clothing catalogue lines require the optional toggle.",
       "addSubmit": "Add to list"
     }
+  },
+  "certificate": {
+    "heading": "Download my certificate",
+    "downloadPng": "PNG",
+    "downloadPdf": "PDF",
+    "preparing": "Preparing your certificate…",
+    "error": "Could not prepare the certificate. Try again in a moment."
   }
 }

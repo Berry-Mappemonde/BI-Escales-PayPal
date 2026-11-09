@@ -513,5 +513,12 @@
       "clothingNeedsOptional": "Les articles vestiaire nécessitent le toggle optionnel.",
       "addSubmit": "Ajouter à la liste"
     }
+  },
+  "certificate": {
+    "heading": "Télécharger mon certificat",
+    "downloadPng": "PNG",
+    "downloadPdf": "PDF",
+    "preparing": "Préparation du certificat…",
+    "error": "Impossible de préparer le certificat. Réessayez dans un instant."
   }
 }

@@ -187,6 +187,49 @@ export async function authorizePledge(pledgeId: string): Promise<PublicPledge> {
   return res.json();
 }
 
+export type MileCertificateLinks = {
+  token: string;
+  mile_number: number;
+  mile_quantity: number;
+  issue_date: string;
+  png: string;
+  pdf: string;
+};
+
+export function mileCertificatePayerProof(pledge: PublicPledge): string | null {
+  const vault = pledge.payment_mode === "VAULT" || pledge.intent === "VAULT";
+  if (vault) {
+    const setup = pledge.setup_token_id?.trim();
+    return setup || null;
+  }
+  const order = pledge.order_id?.trim();
+  return order || null;
+}
+
+export async function issueMileCertificate(
+  pledgeId: string,
+  payerProof: string,
+  displayName?: string,
+  lang?: string,
+): Promise<MileCertificateLinks> {
+  const query = lang ? `?lang=${encodeURIComponent(lang)}` : "";
+  const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}/certificate${query}`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      payer_proof: payerProof,
+      ...(displayName ? { display_name: displayName } : {}),
+    }),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export function certificateAssetUrl(token: string, fmt: "png" | "pdf", lang?: string): string {
+  const suffix = lang ? `?lang=${encodeURIComponent(lang)}` : "";
+  return url(`/api/escales/certificates/${encodeURIComponent(token)}.${fmt}${suffix}`);
+}
+
 export async function listPledges(
   adminKey: string,
   access?: TreasurerAccessOptions,

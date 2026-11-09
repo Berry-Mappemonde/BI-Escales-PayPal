@@ -451,15 +451,28 @@ def _limits_enabled() -> bool:
     return limits_enabled()
 
 
-def llm_daily_cap() -> int:
-    raw = _env("ESCALES_LLM_DAILY_CAP")
+def _positive_env(name: str) -> Optional[int]:
+    raw = _env(name)
     if not raw:
-        return LLM_DAILY_CAP_DEFAULT
+        return None
     try:
         value = int(raw)
     except ValueError:
-        return LLM_DAILY_CAP_DEFAULT
-    return value if value > 0 else LLM_DAILY_CAP_DEFAULT
+        return None
+    return value if value > 0 else None
+
+
+def llm_daily_cap() -> int:
+    from app.escales.rate_limit import judging_window_active
+
+    if judging_window_active():
+        judging = _positive_env("ESCALES_LLM_DAILY_CAP_JUDGING")
+        if judging is not None:
+            return judging
+    base = _positive_env("ESCALES_LLM_DAILY_CAP")
+    if base is not None:
+        return base
+    return LLM_DAILY_CAP_DEFAULT
 
 
 def reset_llm_budget() -> None:

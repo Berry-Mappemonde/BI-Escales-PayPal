@@ -109,10 +109,8 @@ class Spy:
         return {"id": authorization_id, "status": "CREATED"}
 
 
-def _enable(*names: str, nebius: str | None = None) -> None:
-    import os
-
-    os.environ["ESCALES_LLM_ENABLED"] = "1"
+def _enable(monkeypatch: pytest.MonkeyPatch, *names: str, nebius: str | None = None) -> None:
+    monkeypatch.setenv("ESCALES_LLM_ENABLED", "1")
     keys = {
         "nim": ("NVIDIA_API_KEY", "test-nvidia-key"),
         "openrouter": ("OPENROUTER_API_KEY", "test-openrouter-key"),
@@ -121,9 +119,9 @@ def _enable(*names: str, nebius: str | None = None) -> None:
     }
     for name in names:
         var, value = keys[name]
-        os.environ[var] = value
+        monkeypatch.setenv(var, value)
     if nebius is not None:
-        os.environ["ESCALES_LLM_NEBIUS_ENABLED"] = nebius
+        monkeypatch.setenv("ESCALES_LLM_NEBIUS_ENABLED", nebius)
 
 
 def _openai(text: str, model: str, status: int = 200) -> httpx.Response:
@@ -286,7 +284,7 @@ def test_configured_providers_keep_nim_openrouter_anthropic_nebius_order(monkeyp
 
 
 def test_nim_answers_first_with_the_benchmarked_model(monkeypatch):
-    _enable("nim", "openrouter", "anthropic", "tokenfactory", nebius="true")
+    _enable(monkeypatch, "nim", "openrouter", "anthropic", "tokenfactory", nebius="true")
     seen, client = _transport({
         "integrate.api.nvidia.com": [_openai("Rapport NIM.", llm.NIM_MODEL)],
         "openrouter.ai": [_openai("ne doit pas partir", "openai/gpt-4o-mini")],
@@ -319,7 +317,7 @@ def test_nim_answers_first_with_the_benchmarked_model(monkeypatch):
 
 
 def test_fallback_order_is_openrouter_then_anthropic_then_nebius(monkeypatch):
-    _enable("nim", "openrouter", "anthropic", "tokenfactory", nebius="true")
+    _enable(monkeypatch, "nim", "openrouter", "anthropic", "tokenfactory", nebius="true")
     monkeypatch.setenv("OPENROUTER_MODEL", "meta/example-small")
     seen, client = _transport({
         "integrate.api.nvidia.com": [_fail(503), _fail(503)],
@@ -363,7 +361,7 @@ def test_fallback_order_is_openrouter_then_anthropic_then_nebius(monkeypatch):
 
 
 def test_nebius_is_not_called_when_its_flag_is_off(monkeypatch):
-    _enable("nim", "openrouter", "anthropic", "tokenfactory", nebius="false")
+    _enable(monkeypatch, "nim", "openrouter", "anthropic", "tokenfactory", nebius="false")
     seen, client = _transport({
         "integrate.api.nvidia.com": [_fail(503), _fail(503)],
         "openrouter.ai": [_openai("", "openai/gpt-4o-mini")],
@@ -385,8 +383,8 @@ def test_nebius_is_not_called_when_its_flag_is_off(monkeypatch):
     asyncio.run(body())
 
 
-def test_openrouter_answers_when_nim_returns_only_a_think_block():
-    _enable("nim", "openrouter")
+def test_openrouter_answers_when_nim_returns_only_a_think_block(monkeypatch):
+    _enable(monkeypatch, "nim", "openrouter")
     seen, client = _transport({
         "integrate.api.nvidia.com": [
             _openai("<think>secret plan</think>", llm.NIM_MODEL),
@@ -410,8 +408,8 @@ def test_openrouter_answers_when_nim_returns_only_a_think_block():
     asyncio.run(body())
 
 
-def test_anthropic_text_blocks_and_echoed_model():
-    _enable("anthropic")
+def test_anthropic_text_blocks_and_echoed_model(monkeypatch):
+    _enable(monkeypatch, "anthropic")
     seen, client = _transport({
         "api.anthropic.com": [_anthropic("Rapport Claude.", model="claude-haiku-4-5-20251001")],
     })
@@ -427,8 +425,8 @@ def test_anthropic_text_blocks_and_echoed_model():
     asyncio.run(body())
 
 
-def test_missing_keys_are_skipped():
-    _enable("openrouter")
+def test_missing_keys_are_skipped(monkeypatch):
+    _enable(monkeypatch, "openrouter")
     seen, client = _transport({
         "openrouter.ai": [_openai("Seul OpenRouter.", "openai/gpt-4o-mini")],
     })
@@ -443,7 +441,7 @@ def test_missing_keys_are_skipped():
 
 
 def test_captain_review_exposes_nim_and_never_captures(monkeypatch):
-    _enable("nim", "tokenfactory", nebius="true")
+    _enable(monkeypatch, "nim", "tokenfactory", nebius="true")
     seen_box: dict = {"narrative": None}
 
     def factory():
@@ -490,7 +488,7 @@ def test_captain_review_exposes_nim_and_never_captures(monkeypatch):
 
 
 def test_captain_strips_invented_figures_and_keeps_the_source(monkeypatch):
-    _enable("nim")
+    _enable(monkeypatch, "nim")
     monkeypatch.setattr(
         llm,
         "_client",
@@ -511,7 +509,7 @@ def test_captain_strips_invented_figures_and_keeps_the_source(monkeypatch):
 
 
 def test_captain_chat_exposes_the_model_and_does_not_order(monkeypatch):
-    _enable("openrouter")
+    _enable(monkeypatch, "openrouter")
     monkeypatch.setattr(
         llm,
         "_client",
@@ -553,7 +551,7 @@ def test_captain_uses_rules_when_the_flag_is_off(monkeypatch):
 
 
 def test_captain_uses_rules_when_every_provider_fails(monkeypatch):
-    _enable("nim", "tokenfactory", nebius="false")
+    _enable(monkeypatch, "nim", "tokenfactory", nebius="false")
     seen_box: dict = {}
 
     def factory():
@@ -581,7 +579,7 @@ def test_captain_uses_rules_when_every_provider_fails(monkeypatch):
 
 
 def test_nim_http_429_retries_the_same_model_once(monkeypatch):
-    _enable("nim")
+    _enable(monkeypatch, "nim")
     pauses = []
 
     async def fake_sleep(seconds):
@@ -632,7 +630,7 @@ def test_nim_http_429_retries_the_same_model_once(monkeypatch):
 
 
 def test_nim_calls_are_spaced_by_more_than_one_second(monkeypatch):
-    _enable("nim")
+    _enable(monkeypatch, "nim")
     monkeypatch.delenv("ESCALES_NIM_GAP_S", raising=False)
     assert llm.nim_call_gap() > 1
     clock = {"t": 1000.0}
@@ -668,7 +666,7 @@ def test_nim_calls_are_spaced_by_more_than_one_second(monkeypatch):
 
 
 def test_nim_params_come_from_the_environment(monkeypatch):
-    _enable("nim")
+    _enable(monkeypatch, "nim")
     monkeypatch.setenv("NIM_MODEL", "nvidia/benchmark-model")
     monkeypatch.setenv("NIM_TEMPERATURE", "0.15")
     monkeypatch.setenv("NIM_MAX_TOKENS", "128")
@@ -696,7 +694,7 @@ def test_nim_params_come_from_the_environment(monkeypatch):
 
 
 def test_invalid_nim_extra_body_is_ignored(monkeypatch):
-    _enable("nim")
+    _enable(monkeypatch, "nim")
     monkeypatch.setenv("NIM_EXTRA_BODY", "not-json")
     seen, client = _transport({
         "integrate.api.nvidia.com": [_openai("Rapport.", llm.nim_model())],
@@ -728,8 +726,8 @@ def test_provider_timeout_defaults_to_ten_seconds_and_is_configurable(monkeypatc
     assert timeout.read == 8
 
 
-def test_nim_fallback_answers_before_openrouter():
-    _enable("nim", "openrouter")
+def test_nim_fallback_answers_before_openrouter(monkeypatch):
+    _enable(monkeypatch, "nim", "openrouter")
     calls = []
 
     class FakeClient:
@@ -773,7 +771,7 @@ def test_nim_fallback_answers_before_openrouter():
 
 
 def test_global_extra_body_cannot_carry_guided_json(monkeypatch):
-    _enable("nim")
+    _enable(monkeypatch, "nim")
     monkeypatch.setenv(
         "NIM_EXTRA_BODY",
         '{"guided_json": {"type": "object"}, "nvext": {"guided_json": {"type": "object"}}, "seed": 3}',
@@ -797,7 +795,7 @@ def test_global_extra_body_cannot_carry_guided_json(monkeypatch):
 
 
 def test_each_call_sends_its_own_timeout(monkeypatch):
-    _enable("nim")
+    _enable(monkeypatch, "nim")
     captured = {}
 
     class FakeClient:
@@ -820,8 +818,8 @@ def test_each_call_sends_its_own_timeout(monkeypatch):
     asyncio.run(body())
 
 
-def test_ask_json_parses_a_fenced_object():
-    _enable("nim")
+def test_ask_json_parses_a_fenced_object(monkeypatch):
+    _enable(monkeypatch, "nim")
     seen, client = _transport({
         "integrate.api.nvidia.com": [_openai(
             '```json\n{"proposal":"wait","reason":"ok"}\n```',
@@ -852,7 +850,7 @@ def test_ask_json_parses_a_fenced_object():
 
 
 def test_report_temperature_is_about_0_2_unless_nim_env_overrides(monkeypatch):
-    _enable("nim")
+    _enable(monkeypatch, "nim")
     monkeypatch.setenv("NIM_TEMPERATURE", "0.33")
     seen, client = _transport({
         "integrate.api.nvidia.com": [_openai("Fait pour dep-mayotte.", llm.nim_model())],
@@ -877,7 +875,7 @@ def test_private_nim_id_is_the_default_and_a_404_is_counted(monkeypatch, caplog)
     assert "private/nvidia/nemotron-3.5-super-120b-a12b" in render
     assert "returns 404" in render
     llm.reset_nim_404_fallbacks()
-    _enable("nim")
+    _enable(monkeypatch, "nim")
     seen, client = _transport({
         "integrate.api.nvidia.com": [
             httpx.Response(404, json={"error": {"message": "model not found"}}),
@@ -921,7 +919,7 @@ def test_rejected_nim_model_env_sends_the_private_super(monkeypatch, caplog):
     assert llm.nim_model() == "nvidia/benchmark-model"
     assert llm.nim_model_reason() == ""
 
-    _enable("nim")
+    _enable(monkeypatch, "nim")
     monkeypatch.setenv("NIM_MODEL", "nvidia/nemotron-3.5-super-vl-120b-a12b")
     seen, client = _transport({
         "integrate.api.nvidia.com": [_openai("Rapport Super.", llm.NIM_MODEL_DEFAULT)],
@@ -957,7 +955,7 @@ def test_garbled_nim_model_is_not_sent(monkeypatch):
     assert "nvapi" not in llm.nim_model_reason()
     assert garbled not in reason["nim"]
 
-    _enable("nim")
+    _enable(monkeypatch, "nim")
     seen, client = _transport({
         "integrate.api.nvidia.com": [_openai("Rapport.", llm.NIM_MODEL_DEFAULT)],
     })
@@ -973,8 +971,8 @@ def test_garbled_nim_model_is_not_sent(monkeypatch):
     asyncio.run(body())
 
 
-def test_nim_timeout_names_the_fallback_and_the_sent_id(caplog):
-    _enable("nim")
+def test_nim_timeout_names_the_fallback_and_the_sent_id(monkeypatch, caplog):
+    _enable(monkeypatch, "nim")
     calls = []
 
     class Slow:
@@ -1007,8 +1005,8 @@ def test_nim_timeout_names_the_fallback_and_the_sent_id(caplog):
     asyncio.run(body())
 
 
-def test_probe_cascade_asks_for_a_valid_advisory_and_reports_ask_json_on_nim():
-    _enable("nim")
+def test_probe_cascade_asks_for_a_valid_advisory_and_reports_ask_json_on_nim(monkeypatch):
+    _enable(monkeypatch, "nim")
     seen, client = _transport({
         "integrate.api.nvidia.com": [
             _openai("ok", llm.nim_model()),
@@ -1030,8 +1028,8 @@ def test_probe_cascade_asks_for_a_valid_advisory_and_reports_ask_json_on_nim():
     asyncio.run(body())
 
 
-def test_probe_cascade_reports_the_real_ask_json_error_message():
-    _enable("nim")
+def test_probe_cascade_reports_the_real_ask_json_error_message(monkeypatch):
+    _enable(monkeypatch, "nim")
     wrong_shape = '{"decision":"wait","language":"en"}'
     seen, client = _transport({
         "integrate.api.nvidia.com": [
@@ -1065,3 +1063,14 @@ def test_probe_cascade_reports_the_real_ask_json_error_message():
         await client.aclose()
 
     asyncio.run(parse_body())
+
+
+def test_ci_guard_blocks_real_nim_http_without_mocks(monkeypatch):
+    """Proves conftest blocks integrate.api.nvidia.com when ESCALES_RUN_LIVE is unset."""
+    _enable(monkeypatch, "nim")
+
+    async def body():
+        with pytest.raises(pytest.fail.Exception, match="Live LLM HTTP blocked"):
+            await llm.ask_text("probe")
+
+    asyncio.run(body())

@@ -896,7 +896,7 @@ def test_pledge_defaults_to_mile_and_labels_the_simulated_price(api):
     assert body["intent"] == "AUTHORIZE"
     assert body["status"] == "created"
     assert body["price_label"] == "prix simulé"
-    assert body["simulated_price"]["label"] == "prix simulé"
+    assert body["simulated_price"]["label"] == "prix fixe"
     assert body["simulated_price"]["simulated"] is True
     assert body["simulated_price"]["amount_eur"] == "1.00"
     assert "capture" not in [call[0] for call in fake.calls]
@@ -917,7 +917,7 @@ def test_pledge_accepts_kind_and_target(api, monkeypatch):
     assert body["target_id"] == "dzaoudzi-mayotte"
     assert body["milestone_id"] == "dep-dzaoudzi-mayotte"
     assert body["simulated_price"]["amount_eur"] == "60.00"
-    assert body["simulated_price"]["label"] == "prix simulé"
+    assert body["simulated_price"]["label"] == "prix fixe"
 
 
 def test_target_slug_must_be_known_for_a_stopover_kind(api, monkeypatch):
@@ -980,8 +980,16 @@ def test_prices_and_clock(api, monkeypatch):
     assert kinds == [
         "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "common_fund",
     ]
-    assert all(row["label"] == "prix simulé" and row["simulated"] is True for row in catalogue["prices"])
     by_kind = {row["kind"]: row for row in catalogue["prices"]}
+    fixed_kinds = ("mile", "berth", "night", "meal", "care", "cabin_leg")
+    free_kinds = ("project_pledge", "common_fund")
+    assert all(by_kind[k]["label"] == "prix fixe" for k in fixed_kinds)
+    assert all(by_kind[k]["label"] == "montant libre" for k in free_kinds)
+    assert all(by_kind[k]["free_amount"] is False for k in fixed_kinds)
+    assert all(by_kind[k]["free_amount"] is True for k in free_kinds)
+    assert all(by_kind[k]["indicative"] is False for k in fixed_kinds)
+    assert all(by_kind[k]["indicative"] is True for k in free_kinds)
+    assert all(row["simulated"] is True for row in catalogue["prices"])
     assert by_kind["mile"]["amount_eur"] == "1.00"
     assert by_kind["berth"]["amount_eur"] == "30.00"
     assert by_kind["night"]["amount_eur"] == "60.00"
@@ -990,11 +998,12 @@ def test_prices_and_clock(api, monkeypatch):
     assert by_kind["cabin_leg"]["amount_eur"] == "80.00"
     assert "amount_eur" not in by_kind["project_pledge"]
     assert "amount_eur" not in by_kind["common_fund"]
-    assert by_kind["project_pledge"]["free_amount"] is True
-    assert by_kind["mile"]["free_amount"] is False
-    assert by_kind["mile"]["indicative"] is True
-    assert catalogue["indicative"] is True
-    assert "indicatif" in catalogue["note"].lower()
+    note = catalogue["note"].lower()
+    assert "tarifs fixes" in note
+    assert "fonds commun" in note
+    assert "montant libre" in note
+    assert "1 €" in catalogue["note"]
+    assert catalogue["indicative"] is False
     clock = client.get("/api/escales/clock")
     assert clock.status_code == 200
     assert clock.json()["start"] == "2026-11-12"

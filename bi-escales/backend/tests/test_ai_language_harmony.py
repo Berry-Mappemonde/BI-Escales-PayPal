@@ -19,9 +19,12 @@ FRENCH = "Je voudrais parrainer 120 milles près d'Ajaccio"
 
 
 def _french_only(reply: str) -> None:
+    import re
+
     folded = reply.casefold()
-    for word in ("stopover", "leg", "intent", "sponsored miles"):
+    for word in ("stopover", "leg", "sponsored miles"):
         assert word not in folded, reply
+    assert not re.search(r"\bintent\b", folded), reply
 
 
 def _english_only(reply: str) -> None:

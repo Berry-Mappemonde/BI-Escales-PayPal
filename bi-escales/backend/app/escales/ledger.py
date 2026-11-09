@@ -693,10 +693,22 @@ def _euros_text(amount: Decimal) -> str:
     return f"{amount.quantize(Decimal('0.01')):.2f}"
 
 
+def _entry_currency(entry: dict) -> str:
+    return str(entry.get("currency") or "EUR").strip().upper()
+
+
+def _format_ledger_amount(amount: Decimal, currency: str) -> str:
+    from app.channel3_paypal import currency_uses_whole_units
+
+    if currency_uses_whole_units(currency):
+        return str(int(amount.quantize(Decimal("1"))))
+    return _euros_text(amount)
+
+
 def to_public_fund(fund: dict) -> dict:
     """Aggregated totals. No journal lines and no pledge ids."""
     captured = str(fund.get("income_eur") or "0.00")
-    return {
+    out = {
         "milestone_id": fund.get("milestone_id"),
         "currency": fund.get("currency") or "EUR",
         "income_eur": captured,
@@ -707,6 +719,9 @@ def to_public_fund(fund: dict) -> dict:
         "balance_eur": str(fund.get("balance_eur") or "0.00"),
         "overdrawn": bool(fund.get("overdrawn")),
     }
+    if isinstance(fund.get("totals_by_currency"), dict):
+        out["totals_by_currency"] = fund["totals_by_currency"]
+    return out
 
 
 def to_public_project_donation_total(fund: dict, *, goal_eur: Optional[str] = None, funded_pct: Optional[int] = None) -> dict:
@@ -715,7 +730,7 @@ def to_public_project_donation_total(fund: dict, *, goal_eur: Optional[str] = No
     Donor-facing read: captured amount, donation count, refunds. No journal lines or ids.
     """
     income = fund.get("income")
-    donation_count = len(income) if isinstance(income, list) else 0
+    donation_count = int(fund.get("donation_count") or 0) or (len(income) if isinstance(income, list) else 0)
     captured = str(fund.get("captured_eur") or fund.get("income_eur") or "0.00")
     out = {
         "project_id": fund.get("milestone_id"),
@@ -875,7 +890,7 @@ _PAYOUT_NOT_PAID = {"denied", "failed", "canceled", "cancelled", "returned", "bl
 
 
 async def _assemble_fund(milestone_id: str, entries: list[dict]) -> dict:
-    """Same totals the stopover fund route already returns."""
+    """Same totals the stopover fund route already returns (EUR bucket + per-currency breakdown)."""
     income = [entry for entry in entries if entry.get("kind") == "pledge_captured"]
     spending = [entry for entry in entries if entry.get("kind") == "spending"]
     refunds = [entry for entry in entries if entry.get("kind") == "pledge_refunded"]
@@ -885,12 +900,46 @@ async def _assemble_fund(milestone_id: str, entries: list[dict]) -> dict:
         if entry.get("kind") == "marina_payout_sent"
         and str(entry.get("status") or "").strip().lower() not in _PAYOUT_NOT_PAID
     ]
-    income_total = sum((_euros(entry.get("amount_eur")) for entry in income), Decimal("0.00"))
-    spending_total = sum((_euros(entry.get("amount_eur")) for entry in spending), Decimal("0.00"))
-    refund_total = sum((_euros(entry.get("amount_eur")) for entry in refunds), Decimal("0.00"))
-    payout_total = sum((_euros(entry.get("amount_eur")) for entry in payouts), Decimal("0.00"))
-    outflow = spending_total + refund_total + payout_total
-    balance = income_total - outflow
+
+    buckets: dict[str, dict[str, Decimal]] = {}
+
+    def _add(ccy: str, key: str, amount: Decimal) -> None:
+        row = buckets.setdefault(ccy, {})
+        row[key] = row.get(key, Decimal("0.00")) + amount
+
+    for entry in income:
+        _add(_entry_currency(entry), "captured", _euros(entry.get("amount_eur")))
+    for entry in refunds:
+        _add(_entry_currency(entry), "refunded", _euros(entry.get("amount_eur")))
+    for entry in spending:
+        _add(_entry_currency(entry), "spending", _euros(entry.get("amount_eur")))
+    for entry in payouts:
+        _add(_entry_currency(entry), "payouts", _euros(entry.get("amount_eur")))
+
+    totals_by_currency: dict[str, dict[str, str]] = {}
+    for ccy, row in buckets.items():
+        captured = row.get("captured", Decimal("0.00"))
+        refunded = row.get("refunded", Decimal("0.00"))
+        spending_amt = row.get("spending", Decimal("0.00"))
+        payouts_amt = row.get("payouts", Decimal("0.00"))
+        outflow = refunded + spending_amt + payouts_amt
+        balance = captured - outflow
+        totals_by_currency[ccy] = {
+            "currency": ccy,
+            "captured": _format_ledger_amount(captured, ccy),
+            "refunded": _format_ledger_amount(refunded, ccy),
+            "spending": _format_ledger_amount(spending_amt, ccy),
+            "payouts": _format_ledger_amount(payouts_amt, ccy),
+            "balance": _format_ledger_amount(balance, ccy),
+        }
+
+    eur = buckets.get("EUR", {})
+    income_total = eur.get("captured", Decimal("0.00"))
+    spending_total = eur.get("spending", Decimal("0.00"))
+    refund_total = eur.get("refunded", Decimal("0.00"))
+    payout_total = eur.get("payouts", Decimal("0.00"))
+    eur_outflow = spending_total + refund_total + payout_total
+    balance = income_total - eur_outflow
     return {
         "milestone_id": milestone_id,
         "currency": "EUR",
@@ -899,12 +948,14 @@ async def _assemble_fund(milestone_id: str, entries: list[dict]) -> dict:
         "refunded_eur": _euros_text(refund_total),
         "payouts_eur": _euros_text(payout_total),
         "balance_eur": _euros_text(balance),
-        "overdrawn": outflow > income_total,
+        "overdrawn": eur_outflow > income_total,
         "income": [await _income_line(entry) for entry in income],
         "spending": [_public_finance(entry) for entry in spending],
         "payouts": [_public_finance(entry) for entry in payouts],
         "captured_eur": _euros_text(income_total),
         "authorized_eur": "0.00",
+        "totals_by_currency": totals_by_currency,
+        "donation_count": len(income),
     }
 
 

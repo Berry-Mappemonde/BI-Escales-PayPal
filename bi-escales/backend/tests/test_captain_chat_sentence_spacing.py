@@ -34,7 +34,7 @@ def test_chat_assembly_fr_and_en_no_glued_stops(monkeypatch):
         reply_fr = str(fr.get("reply") or "")
         _assert_no_sentence_glue(reply_fr)
         assert ". La promesse" in reply_fr
-        assert "étape. Au-delà" in reply_fr or ". Au-delà" in reply_fr
+        assert "étape. Les promesses" in reply_fr or "étape. Votre carte" in reply_fr
 
         reset_ledger()
 
@@ -45,8 +45,8 @@ def test_chat_assembly_fr_and_en_no_glued_stops(monkeypatch):
         en = await chat("250 mi near Dakar", lang="en")
         reply_en = str(en.get("reply") or "")
         _assert_no_sentence_glue(reply_en)
-        assert ". A pledge" in reply_en
-        assert "leg. When" in reply_en
+        assert ". A pledge" in reply_en or ". Stop-level" in reply_en
+        assert "leg. Stop" in reply_en or "leg. Your" in reply_en
 
     asyncio.run(run())
 

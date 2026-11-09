@@ -27,9 +27,15 @@ import {
 import { worldCopyLineCoords } from "../../../../naviguide-escales/src/utils/geo.js";
 import { officialAirRouteStyles } from "../../../../naviguide-escales/src/utils/berryLegs.js";
 import { catamaranSvg } from "../../../../naviguide-escales/src/engine/catamaranIcon.js";
-import { stopMarkerIconHtml, stopMarkerIconSize } from "./stopMarkerIcon.js";
+import { escapeAttr, stopMarkerIconHtml, stopMarkerIconSize } from "./stopMarkerIcon.js";
 import { applyMarkerRotation } from "../../../../naviguide-escales/src/utils/markerRotation.js";
 import { mapTileUrlForTheme } from "./mapTileUrl.js";
+import { dedupeStopsByMilestone } from "../voyage/stopsForMap.js";
+import {
+  boatMarkerAnchorOffset,
+  computeStopOffsets,
+  offsetToIconAnchor,
+} from "./stopMarkerLayout.js";
 
 const WORLD_CENTER = [22, 5];
 
@@ -70,6 +76,7 @@ export function MapScene({
   showMarinas,
   flyTo,
   onSelectStop,
+  onSelectBoat,
   onSelectProject,
   onFlyTo,
   contributor = "",
@@ -77,13 +84,15 @@ export function MapScene({
   marinaMilestoneId = "",
   theme = "dark",
 }) {
-  const { i18n: i18nInstance } = useTranslation();
+  const { i18n: i18nInstance, t } = useTranslation();
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const baseLayerRef = useRef(null);
   const layersRef = useRef(null);
   const onSelectRef = useRef(onSelectStop);
   onSelectRef.current = onSelectStop;
+  const onSelectBoatRef = useRef(onSelectBoat);
+  onSelectBoatRef.current = onSelectBoat;
   const onProjectRef = useRef(onSelectProject);
   onProjectRef.current = onSelectProject;
   const onFlyToRef = useRef(onFlyTo);
@@ -93,6 +102,7 @@ export function MapScene({
   const onPledgeAuthorizedRef = useRef(onPledgeAuthorized);
   onPledgeAuthorizedRef.current = onPledgeAuthorized;
   const popupRootsRef = useRef(new Map());
+  const stopOffsetsRef = useRef([]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return undefined;
@@ -154,43 +164,101 @@ export function MapScene({
   useEffect(() => {
     const map = mapRef.current;
     const layers = layersRef.current;
-    if (!map || !layers) return;
+    if (!map || !layers) return undefined;
+
+    const uniqueStops = dedupeStopsByMilestone(stops);
     const group = layers.update("stops", () => L.layerGroup().addTo(map), (layer) => layer.clearLayers());
-    (stops || []).forEach((stop) => {
-      const { iconSize, iconAnchor } = stopMarkerIconSize(stop);
-      const icon = L.divIcon({
-        className: "flag-divicon",
-        html: stopMarkerIconHtml(stop),
-        iconSize,
-        iconAnchor,
+
+    const renderStops = () => {
+      group.clearLayers();
+      const project = (lon, lat) => {
+        const point = map.latLngToLayerPoint([lat, lon]);
+        return { x: point.x, y: point.y };
+      };
+      const offsets = computeStopOffsets(uniqueStops, segments, project, stopOffsetsRef.current);
+      stopOffsetsRef.current = offsets;
+
+      uniqueStops.forEach((stop, index) => {
+        const { iconSize, iconAnchor } = stopMarkerIconSize(stop);
+        const anchor = offsetToIconAnchor(iconAnchor, offsets[index] || [0, 0]);
+        const icon = L.divIcon({
+          className: "flag-divicon",
+          html: stopMarkerIconHtml(stop),
+          iconSize,
+          iconAnchor: anchor,
+        });
+        const marker = L.marker([stop.lat, stop.lon], {
+          icon,
+          pane: "markerPane",
+          stopData: stop,
+        }).addTo(group);
+        marker.bindTooltip(stop.name, { direction: "top" });
+        marker.on("click", (event) => {
+          L.DomEvent.stopPropagation(event);
+          const target = event?.target?.options?.stopData || stop;
+          onSelectRef.current?.(target);
+        });
       });
-      const marker = L.marker([stop.lat, stop.lon], { icon, pane: "markerPane" }).addTo(group);
-      marker.bindTooltip(stop.name, { direction: "top" });
-      marker.on("click", (event) => {
-        L.DomEvent.stopPropagation(event);
-        onSelectRef.current?.(stop);
-      });
-    });
-  }, [stops]);
+    };
+
+    renderStops();
+    map.on("zoomend", renderStops);
+    map.on("moveend", renderStops);
+    return () => {
+      map.off("zoomend", renderStops);
+      map.off("moveend", renderStops);
+    };
+  }, [stops, segments]);
 
   useEffect(() => {
     const map = mapRef.current;
     const layers = layersRef.current;
-    if (!map || !layers) return;
+    if (!map || !layers) return undefined;
+
+    const uniqueStops = dedupeStopsByMilestone(stops);
     const group = layers.update("boat", () => L.layerGroup().addTo(map), (layer) => layer.clearLayers());
-    if (!boat || !Number.isFinite(boat.lat) || !Number.isFinite(boat.lon)) return;
-    const marker = L.marker([boat.lat, boat.lon], {
-      icon: L.divIcon({
-        className: "boat-divicon",
-        html: catamaranSvg(boat.bearing || 0),
-        iconSize: [64, 64],
-        iconAnchor: [32, 32],
-      }),
-      pane: "boat",
-      interactive: false,
-    }).addTo(group);
-    applyMarkerRotation(marker, boat.bearing || 0);
-  }, [boat]);
+    if (!boat || !Number.isFinite(boat.lat) || !Number.isFinite(boat.lon)) return undefined;
+
+    const boatLabel = t("map.boatMarker");
+
+    const renderBoat = () => {
+      group.clearLayers();
+      const project = (lon, lat) => {
+        const point = map.latLngToLayerPoint([lat, lon]);
+        return { x: point.x, y: point.y };
+      };
+      const offsets = stopOffsetsRef.current.length
+        ? stopOffsetsRef.current
+        : computeStopOffsets(uniqueStops, segments, project, []);
+      const boatOffset = boatMarkerAnchorOffset(boat, uniqueStops, offsets);
+      const iconAnchor = offsetToIconAnchor([32, 32], boatOffset);
+      const marker = L.marker([boat.lat, boat.lon], {
+        icon: L.divIcon({
+          className: "boat-divicon",
+          html: `<div role="img" aria-label="${escapeAttr(boatLabel)}">${catamaranSvg(boat.bearing || 0)}</div>`,
+          iconSize: [64, 64],
+          iconAnchor,
+        }),
+        pane: "boat",
+        interactive: true,
+        riseOnHover: true,
+        zIndexOffset: 1200,
+      }).addTo(group);
+      applyMarkerRotation(marker, boat.bearing || 0);
+      marker.on("click", (event) => {
+        L.DomEvent.stopPropagation(event);
+        onSelectBoatRef.current?.();
+      });
+    };
+
+    renderBoat();
+    map.on("zoomend", renderBoat);
+    map.on("moveend", renderBoat);
+    return () => {
+      map.off("zoomend", renderBoat);
+      map.off("moveend", renderBoat);
+    };
+  }, [boat, stops, segments, i18nInstance.language, t]);
 
   useEffect(() => {
     const map = mapRef.current;

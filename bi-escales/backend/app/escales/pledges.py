@@ -324,6 +324,23 @@ class RefundRequestKeyRequired(Exception):
         )
 
 
+class PledgeAlreadyFullyRefunded(Exception):
+    """Refund requested after the capture is already fully reversed."""
+
+    def __init__(self, paypal_refund_id: str = "") -> None:
+        self.paypal_refund_id = str(paypal_refund_id or "").strip()
+        super().__init__("pledge already fully refunded")
+
+
+def _ledger_paypal_refund_id(pledge: dict) -> str:
+    """Latest PayPal refund resource id stored on the pledge ledger row."""
+    for row in reversed(_normalize_refunds(pledge)):
+        rid = str(row.get("id") or "").strip()
+        if rid:
+            return rid
+    return str(pledge.get("refund_id") or "").strip()
+
+
 class PledgeNotFound(Exception):
     def __init__(self, pledge_id: str):
         self.pledge_id = pledge_id
@@ -1980,8 +1997,6 @@ async def refund_pledge(
     capture_total = Decimal(str(pledge.get("amount_eur") or "0"))
     already_refunded = refunded_amount_from_pledge(pledge)
     remaining = capture_total - already_refunded
-    if current == "refunded" and remaining <= Decimal("0"):
-        return await _finish_idempotent_refund(pledge_id, pledge)
     expected_refund_id = str(paypal_refund_id or "").strip()
     pending = pledge.get("pending_refund")
     resuming_pending = isinstance(pending, dict) and str(pending.get("key") or "").strip()
@@ -2002,9 +2017,8 @@ async def refund_pledge(
         else:
             refund_this = remaining
         if refund_this <= Decimal("0"):
-            if already_refunded > Decimal("0") and remaining <= Decimal("0"):
-                return await _finish_idempotent_refund(pledge_id, pledge)
-            raise ValueError("refund amount must be positive")
+            if remaining > Decimal("0"):
+                raise ValueError("refund amount must be positive")
         refund_value = format_paypal_amount_value(f"{refund_this}", pledge_currency)
         caller = str(request_key or "").strip()
         if caller:
@@ -2039,7 +2053,7 @@ async def refund_pledge(
             raise RefundRequestKeyRequired()
         return await _finish_idempotent_refund(pledge_id, pledge)
     if remaining <= Decimal("0") and already_refunded > Decimal("0"):
-        return await _finish_idempotent_refund(pledge_id, pledge)
+        raise PledgeAlreadyFullyRefunded(_ledger_paypal_refund_id(pledge))
     if refund_this > remaining:
         raise ValueError("refund exceeds remaining refundable amount")
     if not resuming_pending and new_pending_row is not None:

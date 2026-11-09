@@ -12,7 +12,7 @@ export interface ShellSettingsPanelProps {
   children?: ReactNode;
 }
 
-/** Language, theme, dev clock pin, and treasurer tools — right rail only. */
+/** Language, theme, and dev clock pin — right settings rail only. */
 export function ShellSettingsPanel({
   prod,
   devT0,
@@ -28,7 +28,7 @@ export function ShellSettingsPanel({
     <div className="ng-settings-body" data-testid="ng-settings-body">
       <header className="ng-settings-header">
         <h2 className="ng-settings-title">{t("settings.heading")}</h2>
-        <p className="hint ng-settings-lead">{t("settings.lead")}</p>
+        <p className="hint ng-settings-lead">{t("settings.leadPanel")}</p>
       </header>
       <div className="ng-controls ng-settings-controls" data-testid="ng-settings-controls">
         <div className="lang-switch" role="group" aria-label={t("app.language")}>

@@ -71,6 +71,8 @@ export interface TreasurerPanelProps {
   fund: FundView | null;
   onSpendSubmit: (event: FormEvent) => void;
   demoMode?: boolean;
+  /** Host allows the sandbox judge moment (``features.demo_treasurer``); still keyed. */
+  demoStopAvailable?: boolean;
   children?: ReactNode;
 }
 
@@ -106,6 +108,7 @@ export function TreasurerPanel({
   fund,
   onSpendSubmit,
   demoMode = false,
+  demoStopAvailable = false,
   children,
 }: TreasurerPanelProps) {
   const { t } = useTranslation();
@@ -138,7 +141,6 @@ export function TreasurerPanel({
             <p className="notice demo-treasurer-banner" data-testid="demo-treasurer-banner">
               {t("treasurer.demoBanner")}
             </p>
-            <DemoStopMoment onRefresh={onRefreshQueue} />
             </>
           ) : (
             <>
@@ -192,6 +194,9 @@ export function TreasurerPanel({
                 {t("treasurer.settleAtButton")}
               </button>
             </div>
+          ) : null}
+          {demoStopAvailable ? (
+            <DemoStopMoment adminKey={adminKey} onRefresh={onRefreshQueue} />
           ) : null}
           <section className="panel" data-testid="treasurer-open-funds">
             <h3>{t("fund.openHeading")}</h3>

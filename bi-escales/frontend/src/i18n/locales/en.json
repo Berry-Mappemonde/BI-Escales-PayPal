@@ -15,7 +15,9 @@
     "dismissNotice": "Dismiss",
     "dismissNoticeAria": "Dismiss",
     "toolsCollapse": "Hide tools",
-    "toolsExpand": "Show settings"
+    "toolsExpand": "Show settings",
+    "metaDescription": "BI Escales — support the Berry-Mappemonde expedition. Stop pledges capture on boat arrival (voided if the stop is cancelled); cabins on leg departure; common fund and project gifts at once.",
+    "ogLocale": "en_US"
   },
   "common": {
     "showSecret": "Show",
@@ -28,10 +30,16 @@
   },
   "settings": {
     "heading": "Settings",
-    "lead": "Language, theme, treasurer tools, and sandbox operator controls."
+    "lead": "Language, theme, treasurer tools, and sandbox operator controls.",
+    "leadPanel": "Language, theme, and sandbox operator controls."
   },
   "gear": {
-    "heading": "Expedition gear"
+    "heading": "Expedition gear",
+    "seedTitles": {
+      "gear-dive-computer-expedition": "Expedition dive computer",
+      "gear-dry-bag-expedition": "Dry bags (expedition lot)",
+      "gear-marine-binoculars": "Marine binoculars"
+    }
   },
   "clock": {
     "waiting": "Departure in {{days}}d {{hours}}h",
@@ -99,6 +107,9 @@
     "legendDefault": "Marina — red on the map (Maps search link)",
     "legendRejected": "Rejected Google place — red on the map"
   },
+  "map": {
+    "boatMarker": "Boat / catamaran"
+  },
   "fund": {
     "heading": "Common fund",
     "figures": "balance {{balance}} {{currency}} (income {{income}}, spending {{spending}})",
@@ -114,6 +125,13 @@
     "projectTotals": "Project pledges",
     "boatTotals": "Common fund",
     "publicCommon": "Community fund · {{balance}}"
+  },
+  "cabinLegPicker": {
+    "label": "Choose a voyage leg",
+    "hint": "Cabins are charged when this leg departs.",
+    "empty": "No legs available in the schedule.",
+    "loading": "Loading voyage legs…",
+    "error": "Could not load the schedule"
   },
   "scheduler": {
     "heading": "Stopover calendar",
@@ -327,7 +345,7 @@
     "demoBanner": "Sandbox demo — queue, review, capture, and void only. No admin key on this device.",
     "demoStop": {
       "heading": "Judge moment — La Rochelle",
-      "hint": "Sandbox only: stop {{id}}. Simulate arrival captures authorized pledges; cancel voids authorizations; reset clears demo state without undoing captures.",
+      "hint": "Sandbox only, treasurer key required: stop {{id}}. Simulate arrival captures authorized pledges (approval applies to this action only, nothing is stored); cancel voids authorizations; reset clears demo state without undoing captures.",
       "simulateArrival": "Simulate boat arrival",
       "cancelStop": "Cancel stop",
       "resetDemo": "Reset demo",
@@ -354,6 +372,8 @@
     "status": "Status",
     "amount": "Amount",
     "description": "Description",
+    "pledgeRef": "Pledge",
+    "createdAt": "Created",
     "milestoneFromStop": "Spending and fund use the selected stop milestone: {{id}}",
     "milestone": "Milestone",
     "actions": "Actions",
@@ -501,6 +521,7 @@
       "slug": "Slug (URL)",
       "createSubmit": "Create",
       "created": "Wishlist created.",
+      "itemAdded": "Item added to the wishlist.",
       "pickList": "Active wishlist",
       "pickListEmpty": "— Select —",
       "badgePublished": "Published",

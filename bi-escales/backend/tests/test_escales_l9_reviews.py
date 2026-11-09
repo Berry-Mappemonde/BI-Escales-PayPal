@@ -39,6 +39,7 @@ from app.escales.config import (
     zapiper_enabled,
 )
 from app.escales.ledger import MongoLedger, get_ledger, reset_ledger
+from app.escales.paypal_apimatic_extras import apimatic_extras_enabled
 from app.escales.paypal_client import PayPalClient, read_capture_result
 from app.escales.pledges import authorize_pledge, capture_pledge, create_pledge
 from app.main import install_cors
@@ -52,6 +53,7 @@ FLAG_GETTERS = {
     "ESCALES_ENABLED": escales_enabled,
     "ESCALES_TOOLKIT_ENABLED": toolkit_enabled,
     "ESCALES_PAYPAL_SDK_ENABLED": paypal_sdk_reads_enabled,
+    "ESCALES_APIMATIC_EXTRAS_ENABLED": apimatic_extras_enabled,
     "ESCALES_NAVIGUIDE_ENABLED": naviguide_bridge_enabled,
     "ESCALES_ELASTIC_ENABLED": elastic_evidence_enabled,
     "ESCALES_KERNEL_ENABLED": kernel_evidence_enabled,

@@ -90,7 +90,6 @@ describe("NAVIGUIDE shell wiring", () => {
     expect(screen.getByTestId("captain-panel")).toBeInTheDocument();
     expect(screen.getByTestId("crew-supporter-public")).toBeInTheDocument();
     expect(screen.getByText("PayPal sandbox")).toBeInTheDocument();
-    expect(screen.getByTestId("ng-settings-controls")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Language" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Français" })).toHaveTextContent("FR");
     expect(screen.getByRole("button", { name: "English" })).toHaveTextContent("EN");

@@ -90,7 +90,7 @@ describe("opening a stop on a narrow screen", () => {
     vi.unstubAllGlobals();
   });
 
-  it("collapses the settings panel and moves focus to the stop sheet on the left", async () => {
+  it("collapses the left sidebar and moves focus to the stop panel", async () => {
     setViewport(390);
     const user = userEvent.setup();
     const { sidebar, tools, openStop } = renderApp();
@@ -99,43 +99,45 @@ describe("opening a stop on a narrow screen", () => {
     await user.click(openStop);
 
     expect(await screen.findByTestId("stop-sheet")).toHaveTextContent("Ajaccio (Corse)");
+    expect(sidebar.className).toMatch(/ng-collapsed/);
+    await waitFor(() => expect(tools).toHaveFocus());
+  });
+
+  it("reopens a closed stop panel, so the stop is not hidden", async () => {
+    setViewport(390);
+    const user = userEvent.setup();
+    const { sidebar, tools, openStop, toolsToggle } = renderApp();
+    await user.click(toolsToggle);
     expect(tools.className).toMatch(/ng-collapsed/);
-    await waitFor(() => expect(sidebar).toHaveFocus());
-  });
-
-  it("reopens a collapsed left sidebar so the stop sheet is visible", async () => {
-    setViewport(390);
-    const user = userEvent.setup();
-    const { sidebar, openStop, sidebarToggle } = renderApp();
-    await user.click(sidebarToggle);
-    expect(sidebar.className).toMatch(/ng-collapsed/);
 
     await user.click(openStop);
 
+    expect(tools.className).not.toMatch(/ng-collapsed/);
+    expect(tools).toHaveAttribute("aria-hidden", "false");
+    expect(sidebar.className).toMatch(/ng-collapsed/);
+    await waitFor(() => expect(tools).toHaveFocus());
+  });
+
+  it("lets the user reopen the sidebar, and collapses it again on the next stop", async () => {
+    setViewport(390);
+    const user = userEvent.setup();
+    const { sidebar, tools, openStop, sidebarToggle } = renderApp();
+    await user.click(openStop);
+
+    await user.click(sidebarToggle);
     expect(sidebar.className).not.toMatch(/ng-collapsed/);
-    await waitFor(() => expect(sidebar).toHaveFocus());
-  });
-
-  it("lets the user collapse the sidebar manually while keeping the stop sheet mounted", async () => {
-    setViewport(390);
-    const user = userEvent.setup();
-    const { sidebar, openStop, sidebarToggle } = renderApp();
-    await user.click(openStop);
-
-    await user.click(sidebarToggle);
-    expect(sidebar.className).toMatch(/ng-collapsed/);
     expect(await screen.findByTestId("stop-sheet")).toBeInTheDocument();
 
     await user.click(openStop);
-    expect(sidebar.className).not.toMatch(/ng-collapsed/);
-    await waitFor(() => expect(sidebar).toHaveFocus());
+    expect(sidebar.className).toMatch(/ng-collapsed/);
+    await waitFor(() => expect(tools).toHaveFocus());
   });
 
   it("does not touch the panels or focus until a stop is opened", () => {
     setViewport(390);
-    const { sidebar } = renderApp();
+    const { sidebar, tools } = renderApp();
     expect(sidebar.className).not.toMatch(/ng-collapsed/);
-    expect(sidebar).not.toHaveFocus();
+    expect(tools).not.toHaveFocus();
   });
 
   it("reads the width at the moment a stop opens, so rotating counts", async () => {
@@ -147,7 +149,7 @@ describe("opening a stop on a narrow screen", () => {
 
     setViewport(390);
     await user.click(openStop);
-    expect(sidebar.className).not.toMatch(/ng-collapsed/);
+    expect(sidebar.className).toMatch(/ng-collapsed/);
   });
 });
 
@@ -160,7 +162,7 @@ describe("opening a stop on a wider screen", () => {
     vi.unstubAllGlobals();
   });
 
-  it.each([768, 1280])("keeps both rails open at %ipx", async (width) => {
+  it.each([768, 1280])("changes nothing at %ipx", async (width) => {
     setViewport(width);
     const user = userEvent.setup();
     const { sidebar, tools, openStop, toolsToggle } = renderApp();
@@ -170,7 +172,7 @@ describe("opening a stop on a wider screen", () => {
 
     expect(sidebar.className).not.toMatch(/ng-collapsed/);
     expect(tools.className).toMatch(/ng-collapsed/);
-    expect(sidebar).not.toHaveFocus();
+    expect(tools).not.toHaveFocus();
     expect(openStop).toHaveFocus();
   });
 });

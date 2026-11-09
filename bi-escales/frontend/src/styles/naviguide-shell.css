@@ -307,9 +307,8 @@ body.ng-naviguide-shell {
   box-sizing: border-box;
 }
 
-.ng-tools-panel > .ng-settings-body > .treasurer-panel,
 .ng-sidebar > .treasurer-panel {
-  padding: var(--space-3) 0 0;
+  padding: var(--space-3) var(--space-5) 0;
   margin-top: var(--space-3);
   border: 0;
   border-top: 1px solid var(--color-line);

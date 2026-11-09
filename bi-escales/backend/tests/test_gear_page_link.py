@@ -62,6 +62,31 @@ def test_public_gear_strips_buy_link_until_funded(api):
                 assert not is_channel3_homepage_url(props[key])
 
 
+def test_sanitize_strips_non_https_buy_url_even_when_fully_funded(monkeypatch):
+    payload = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {
+                    "id": "gear-test-js",
+                    "goal_eur": "10.00",
+                    "channel3_buy_url": "javascript:alert(1)",
+                },
+            }
+        ],
+    }
+
+    async def _fund(_pid: str):
+        return {"currency": "EUR", "captured_eur": "10.00", "amount_eur": "10.00"}
+
+    monkeypatch.setattr("app.channel3_funding.fund_snapshot_for_project", _fund)
+    out = asyncio.run(sanitize_public_gear_collection(payload))
+    props = out["features"][0]["properties"]
+    assert "channel3_buy_url" not in props
+    assert props.get("url") in (None, "")
+
+
 def test_sanitize_hides_homepage_even_if_marked_fully_funded(monkeypatch):
     payload = {
         "type": "FeatureCollection",

@@ -283,7 +283,7 @@ async def sanitize_public_gear_collection(payload: dict[str, Any]) -> dict[str, 
             continue
         props = dict(feature.get("properties") or {})
         pid = str(props.get("id") or "").strip()
-        raw_buy = normalize_channel3_product_url(props.get("channel3_buy_url"))
+        raw_buy = normalize_channel3_product_url(props.get("channel3_buy_url") or props.get("url"))
         props.pop("url", None)
         if pid:
             fund = await fund_snapshot_for_project(pid)

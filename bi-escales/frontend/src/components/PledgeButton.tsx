@@ -90,6 +90,9 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   );
   const cabinLegReady = !isCabinLeg || Boolean(cabinLegId.trim());
   const checkoutDisabled = Boolean(disabled || busy || !cabinLegReady);
+  // Smart Buttons must not depend on `busy`: their own createOrder sets busy, and tearing the
+  // buttons down mid-checkout closes the PayPal window and leaves "Creating pledge…" stuck.
+  const smartButtonsBlocked = Boolean(disabled || !cabinLegReady);
   const modeMatchesValues =
     pledgeMode?.milestoneId === effectiveMilestoneId && pledgeMode.kind === values.kind;
   const shouldRenderSmartButtons =
@@ -272,7 +275,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     const host = buttonsHost.current;
     if (!host) return;
     host.innerHTML = "";
-    if (!paypal || !shouldRenderSmartButtons || checkoutDisabled) return;
+    if (!paypal || !shouldRenderSmartButtons || smartButtonsBlocked) return;
     const vaultSmartButtons = isCabinLeg && modeMatchesValues && pledgeMode?.paymentMode === "VAULT";
     let pledgeId: string | null = null;
     let closed = false;
@@ -398,7 +401,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   }, [
     paypal,
     shouldRenderSmartButtons,
-    checkoutDisabled,
+    smartButtonsBlocked,
     isProjectPledge,
     isCabinLeg,
     modeMatchesValues,

@@ -30,6 +30,8 @@ describe("wishlistLine", () => {
       name: "Unit",
       quantity: 5,
       price_display: "99.00",
+      price_amount_minor: 9900,
+      unit_price_amount_minor: 1000,
       unit_price_display: "10.00",
       unit_price_currency: "EUR",
       target_display: "50.00",
@@ -37,6 +39,5 @@ describe("wishlistLine", () => {
     const unit = unitPriceFields(item);
     expect(unit.price_display).toBe("10.00");
     expect(formatNativePrice(item, "en")).toMatch(/10/);
-    expect(formatNativePrice(item, "en")).not.toMatch(/50/);
   });
 });

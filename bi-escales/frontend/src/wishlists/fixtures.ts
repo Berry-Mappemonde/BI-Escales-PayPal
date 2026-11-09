@@ -21,10 +21,8 @@ export function mockCatalogItem(overrides: Partial<Channel3CatalogItem> & Pick<C
     funded_display: "20.00",
     funded_pct: 40,
     fully_funded: false,
-    eur_funding_supported: true,
-    indicative_target_eur: null,
-    fx_source: null,
-    fx_date: null,
+    paypal_currency_supported: true,
+    unit_price_amount_minor: 2500,
     ...overrides,
   };
 }
@@ -33,7 +31,7 @@ export const fixtureCatalogEur = mockCatalogItem({
   channel3_product_id: "mock-prod-eur-01",
   project_id: "gear-c3-mock-eur-01",
   name: "Mock EUR block",
-  eur_funding_supported: true,
+  paypal_currency_supported: true,
   funded_pct: 55,
 });
 
@@ -44,8 +42,32 @@ export const fixtureCatalogUsd = mockCatalogItem({
   price_currency: "USD",
   price_display: "19.99",
   target_currency: "USD",
+  funded_pct: 42,
+  paypal_currency_supported: true,
+});
+
+export const fixtureCatalogJpy = mockCatalogItem({
+  channel3_product_id: "mock-prod-jpy-01",
+  project_id: "gear-c3-mock-jpy-01",
+  name: "Mock JPY line",
+  price_currency: "JPY",
+  price_display: "1200",
+  price_amount_minor: 1200,
+  unit_price_amount_minor: 1200,
+  target_currency: "JPY",
+  target_amount_minor: 2400,
+  funded_pct: 10,
+  paypal_currency_supported: true,
+});
+
+export const fixtureCatalogUnsupported = mockCatalogItem({
+  channel3_product_id: "mock-prod-xyz-01",
+  project_id: "gear-c3-mock-xyz-01",
+  name: "Unsupported currency",
+  price_currency: "XYZ",
+  target_currency: "XYZ",
+  paypal_currency_supported: false,
   funded_pct: null,
-  eur_funding_supported: false,
 });
 
 export const fixtureCatalogFunded = mockCatalogItem({

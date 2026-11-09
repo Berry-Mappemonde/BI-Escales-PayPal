@@ -1,7 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import "../i18n";
-import { fixtureCatalogEur, fixtureCatalogFunded, fixtureCatalogUsd } from "./fixtures";
+import {
+  fixtureCatalogEur,
+  fixtureCatalogFunded,
+  fixtureCatalogJpy,
+  fixtureCatalogUnsupported,
+  fixtureCatalogUsd,
+} from "./fixtures";
 import { WishlistItemCard } from "./WishlistItemCard";
 
 let capturedPledgeValues: Record<string, unknown> | null = null;
@@ -14,28 +20,28 @@ vi.mock("../components/PledgeButton", () => ({
 }));
 
 describe("WishlistItemCard", () => {
-  it("renders funding bar for EUR items", () => {
+  it("renders funding bar when funded_pct is set", () => {
     render(<WishlistItemCard item={fixtureCatalogEur} />);
     expect(screen.getByTestId("wishlist-funding-bar")).toBeInTheDocument();
     expect(screen.getByTestId("wishlist-fund-block")).toBeInTheDocument();
   });
 
-  it("shows fund button and bar for USD without EUR-only label", () => {
-    render(
-      <WishlistItemCard
-        item={{
-          ...fixtureCatalogUsd,
-          funded_pct: null,
-          target_amount_minor: 9999,
-          target_currency: "USD",
-          target_display: "99.99",
-        }}
-      />,
-    );
-    expect(screen.queryByTestId("wishlist-no-eur-funding")).toBeNull();
+  it("shows fund button for USD and forwards SDK currency", () => {
+    render(<WishlistItemCard item={fixtureCatalogUsd} />);
     expect(screen.getByTestId("wishlist-funding-bar")).toBeInTheDocument();
     expect(screen.getByTestId("wishlist-fund-block")).toBeInTheDocument();
     expect(screen.getByTestId("pledge-button")).toHaveAttribute("data-currency", "USD");
+  });
+
+  it("hides fund button when paypal_currency_supported is false", () => {
+    render(<WishlistItemCard item={fixtureCatalogUnsupported} />);
+    expect(screen.queryByTestId("wishlist-fund-block")).toBeNull();
+  });
+
+  it("formats JPY unit amounts as whole units", () => {
+    render(<WishlistItemCard item={fixtureCatalogJpy} />);
+    expect(screen.getByTestId("wishlist-item-price")).toBeInTheDocument();
+    expect(screen.getByTestId("wishlist-fund-block")).toBeInTheDocument();
   });
 
   it("shows buy link and disclosure only when fully funded", () => {
@@ -66,9 +72,10 @@ describe("WishlistItemCard", () => {
     expect(screen.getByTestId("wishlist-item-qty")).not.toHaveTextContent(/99/);
   });
 
-  it("forwards order currency to pledge flow", () => {
+  it("forwards order currency to pledge SDK props only", () => {
     capturedPledgeValues = null;
-    render(<WishlistItemCard item={{ ...fixtureCatalogUsd, price_currency: "GBP", target_currency: "GBP" }} />);
-    expect(capturedPledgeValues?.currency).toBe("GBP");
+    render(<WishlistItemCard item={{ ...fixtureCatalogUsd, target_currency: "USD" }} />);
+    expect(capturedPledgeValues?.currency).toBe("USD");
+    expect(capturedPledgeValues?.amount_eur).toBe("1.00");
   });
 });

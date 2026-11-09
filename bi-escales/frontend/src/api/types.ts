@@ -167,12 +167,9 @@ export interface Channel3CatalogItem {
   funded_display?: string;
   funded_pct?: number | null;
   fully_funded?: boolean;
-  eur_funding_supported?: boolean;
-  /** Preferred multicurrency gate when backend ships it (C3-APP). */
-  funding_supported?: boolean;
-  indicative_target_eur?: null;
-  fx_source?: null;
-  fx_date?: null;
+  paypal_currency_supported?: boolean;
+  catalog_default_target_amount_minor?: number;
+  catalog_default_target_currency?: string;
   channel3_buy_url?: string;
   channel3_buy_disclosure?: string;
 }

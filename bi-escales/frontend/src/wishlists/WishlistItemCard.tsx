@@ -1,13 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Channel3CatalogItem, PublicPledge } from "../api/types";
 import { PledgeButton } from "../components/PledgeButton";
-import { parseProjectPledgeAmount } from "../projects/projectPledgeAmount.js";
+import { currencyUsesWholeUnits, parseWishlistPledgeAmount } from "./channel3Money";
 import { formatMinorMoney, formatNativePrice, fundingPct } from "./channel3Format";
 import { wishlistLineQuantity } from "./wishlistLine";
 import { itemPresentmentCurrency, wishlistItemFundable, wishlistPledgeBody } from "./wishlistPledge";
-
-const MIN_MAJOR = "1.00";
 
 export interface WishlistItemCardProps {
   item: Channel3CatalogItem;
@@ -19,7 +17,8 @@ export function WishlistItemCard({ item, contributor = "", onAuthorized }: Wishl
   const { t, i18n } = useTranslation();
   const lang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const currency = itemPresentmentCurrency(item);
-  const [amount, setAmount] = useState(MIN_MAJOR);
+  const defaultAmount = currencyUsesWholeUnits(currency) ? "1" : "1.00";
+  const [amount, setAmount] = useState(defaultAmount);
   const [who, setWho] = useState(contributor);
   const pct = fundingPct(item);
   const priceLabel = formatNativePrice(item, lang);
@@ -28,12 +27,12 @@ export function WishlistItemCard({ item, contributor = "", onAuthorized }: Wishl
   const buyUrl = String(item.channel3_buy_url || "").trim();
   const disclosure = String(item.channel3_buy_disclosure || "").trim();
   const showBuy = Boolean(item.fully_funded && buyUrl);
-  const parsed = parseProjectPledgeAmount(amount);
+  const parsed = useMemo(() => parseWishlistPledgeAmount(amount, currency), [amount, currency]);
   const title = String(item.name || "").trim();
   const fundable = wishlistItemFundable(item);
 
   const pledgeValues = wishlistPledgeBody(item, {
-    amountMajor: parsed.apiAmount || MIN_MAJOR,
+    amountMajor: parsed.apiAmount || defaultAmount,
     description: t("wishlists.pledgeDescription", { title }),
     contributor: who.trim() || undefined,
     lang,
@@ -64,7 +63,7 @@ export function WishlistItemCard({ item, contributor = "", onAuthorized }: Wishl
           <p className="hint" data-testid="wishlist-funded-pct">
             {t("wishlists.fundedPctNative", {
               pct,
-              funded: item.funded_display || "0.00",
+              funded: item.funded_display || "0",
               currency: item.funded_currency || currency,
               target: item.target_display || "—",
               targetCurrency: item.target_currency || currency,

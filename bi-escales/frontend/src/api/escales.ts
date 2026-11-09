@@ -156,8 +156,6 @@ export async function createPledge(
   body: {
     quantity?: number;
     amount_eur: string;
-    /** Presentment currency for project_pledge (multicurrency); backend may ignore until contract lands. */
-    currency?: string;
     description: string;
     milestone_id: string;
     contributor?: string;

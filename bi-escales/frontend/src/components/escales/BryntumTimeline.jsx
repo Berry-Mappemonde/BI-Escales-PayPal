@@ -46,16 +46,53 @@ export function loadBryntumTimelineModules() {
   return timelineModulesPromise;
 }
 
+/**
+ * Resolve the live Bryntum Scheduler widget instance.
+ * The React wrapper ref is a class component (`.instance` when set); in some runtimes only
+ * `bryntum.fromElement` finds the widget — both paths are tried.
+ */
+export function resolveSchedulerWidget(schedulerRef, hostRef) {
+  const reactWrapper = schedulerRef?.current;
+  if (reactWrapper?.instance) {
+    return reactWrapper.instance;
+  }
+  const host = hostRef?.current;
+  const schedEl = host?.querySelector?.(".b-scheduler") ?? null;
+  const fromElement = globalThis.bryntum?.fromElement;
+  if (schedEl && typeof fromElement === "function") {
+    try {
+      return fromElement(schedEl);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export function syncTimelineLocale({ schedulerRef, hostRef, modules, i18n, lng }) {
+  const localeName = bryntumLocaleForLanguage(lng);
+  const widget = resolveSchedulerWidget(schedulerRef, hostRef);
+  const localeManager = widget?.localeManager ?? modules?.LocaleManager;
+  if (localeManager) {
+    void localeManager.applyLocale(localeName);
+  }
+  const heading = i18n.t("scheduler.heading", { lng });
+  const column = widget?.columns?.first;
+  if (column) {
+    column.text = heading;
+  }
+  return { widget, heading, localeName };
+}
+
 export default function BryntumTimeline({ events, onSelect, fallback }) {
   const { t, i18n } = useTranslation();
   const [modules, setModules] = useState(null);
   const [failed, setFailed] = useState(false);
   const schedulerRef = useRef(null);
+  const hostRef = useRef(null);
   const loadGenerationRef = useRef(0);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
-  const columnHeadingRef = useRef(t("scheduler.heading"));
-  columnHeadingRef.current = t("scheduler.heading");
 
   useEffect(() => {
     const loadId = ++loadGenerationRef.current;
@@ -76,17 +113,16 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
   }, []);
 
   useEffect(() => {
-    if (!modules?.LocaleManager) return undefined;
-    const syncLocale = (lng) => {
-      void modules.LocaleManager.applyLocale(bryntumLocaleForLanguage(lng));
-    };
-    syncLocale(i18n.language);
-    const onLanguageChanged = (lng) => {
-      syncLocale(lng);
-      const column = schedulerRef.current?.instance?.columns?.first;
-      if (column) {
-        column.text = i18n.t("scheduler.heading", { lng });
+    if (!modules) return undefined;
+    const apply = (lng) => {
+      const { widget } = syncTimelineLocale({ schedulerRef, hostRef, modules, i18n, lng });
+      if (!widget) {
+        requestAnimationFrame(() => syncTimelineLocale({ schedulerRef, hostRef, modules, i18n, lng }));
       }
+    };
+    apply(i18n.language);
+    const onLanguageChanged = (lng) => {
+      apply(lng);
     };
     i18n.on("languageChanged", onLanguageChanged);
     return () => {
@@ -134,9 +170,8 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
   );
 
   const columns = useMemo(
-    () => [{ text: columnHeadingRef.current, field: "name", width: 160 }],
-    // Column title is refreshed on i18n languageChanged via schedulerRef (see effect above).
-    [],
+    () => [{ text: t("scheduler.heading"), field: "name", width: 160 }],
+    [i18n.language, t],
   );
 
   const schedulerProps = useMemo(
@@ -166,7 +201,11 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
 
   const { BryntumScheduler } = modules;
   return (
-    <div className="escales-scheduler-bryntum" data-testid="escales-scheduler-bryntum">
+    <div
+      className="escales-scheduler-bryntum"
+      data-testid="escales-scheduler-bryntum"
+      ref={hostRef}
+    >
       <BryntumScheduler ref={schedulerRef} {...schedulerProps} />
     </div>
   );

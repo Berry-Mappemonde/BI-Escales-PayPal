@@ -42,7 +42,7 @@ type V6Instance = {
   }>;
   createPayPalOneTimePaymentSession: (callbacks: Record<string, unknown>) => V6Session;
   createPayPalSavePaymentSession: (callbacks: Record<string, unknown>) => V6Session;
-  createPayPalSubscriptionSession: (callbacks: Record<string, unknown>) => V6Session;
+  createPayPalSubscriptionPaymentSession: (callbacks: Record<string, unknown>) => V6Session;
   createCardFieldsOneTimePaymentSession: () => V6CardSession;
   createCardFieldsSavePaymentSession: () => V6CardSession;
 };
@@ -185,7 +185,7 @@ export function buildV6Adapter(
         ...(!subscription && !vault ? { commit: false } : {}),
       };
       const session = subscription
-        ? sdk.createPayPalSubscriptionSession(callbacks)
+        ? sdk.createPayPalSubscriptionPaymentSession(callbacks)
         : vault
           ? sdk.createPayPalSavePaymentSession(callbacks)
           : sdk.createPayPalOneTimePaymentSession(callbacks);
@@ -204,7 +204,7 @@ export function buildV6Adapter(
               token = createSubscriptionOnServer().then((subscriptionId) => ({ subscriptionId }));
             } else if (vault) {
               token = Promise.resolve(config.createVaultSetupToken!())
-                .then((setupToken: string) => ({ setupToken }));
+                .then((vaultSetupToken: string) => ({ vaultSetupToken }));
             } else {
               token = Promise.resolve(config.createOrder?.())
                 .then((orderId: string) => ({ orderId }));

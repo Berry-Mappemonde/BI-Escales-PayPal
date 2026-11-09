@@ -33,6 +33,25 @@ describe("DemoStopMoment", () => {
   });
 
 
+  it("shows a working message while PayPal processes the pledges", async () => {
+    const user = userEvent.setup();
+    await i18n.changeLanguage("en");
+    let finish: (value: { milestone_id: string; actions: [] }) => void = () => undefined;
+    vi.mocked(demoSimulateArrival).mockImplementation(
+      () => new Promise((resolve) => { finish = resolve; }),
+    );
+    render(
+      <I18nextProvider i18n={i18n}>
+        <DemoStopMoment adminKey="tk" onRefresh={refresh} />
+      </I18nextProvider>,
+    );
+    expect(screen.queryByTestId("demo-stop-working")).toBeNull();
+    await user.click(screen.getByTestId("demo-stop-simulate-arrival"));
+    expect(await screen.findByTestId("demo-stop-working")).toHaveTextContent(/up to a minute/i);
+    finish({ milestone_id: "dep-la-rochelle", actions: [] });
+    await waitFor(() => expect(screen.queryByTestId("demo-stop-working")).toBeNull());
+  });
+
   it("shows FR and EN labels and wires actions", async () => {
     const user = userEvent.setup();
     await i18n.changeLanguage("fr");

@@ -346,6 +346,7 @@
     "demoStop": {
       "heading": "Judge moment — La Rochelle",
       "hint": "Sandbox only, treasurer key required: stop {{id}}. Simulate arrival captures authorized pledges (approval applies to this action only, nothing is stored); cancel voids authorizations; reset clears demo state without undoing captures.",
+      "working": "Working… PayPal handles each pledge in turn, this can take up to a minute.",
       "simulateArrival": "Simulate boat arrival",
       "cancelStop": "Cancel stop",
       "resetDemo": "Reset demo",

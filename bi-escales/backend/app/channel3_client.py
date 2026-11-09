@@ -19,22 +19,36 @@ def _slug(text: str) -> str:
     return token or "item"
 
 
-def _money_eur(raw: Any) -> Optional[str]:
+def _parse_money(raw: Any) -> Optional[tuple[str, str]]:
+    """Parse REST ``{price, currency}`` or UCP minor-unit ``{amount, currency}`` → (major, ISO)."""
     if raw is None:
         return None
-    if isinstance(raw, dict):
-        value = raw.get("value") or raw.get("amount")
-        currency = str(raw.get("currency") or raw.get("currency_code") or "EUR").upper()
-        if currency not in {"EUR", "EURO"}:
-            return None
-        raw = value
+    if not isinstance(raw, dict):
+        return None
+    currency = str(raw.get("currency") or raw.get("currency_code") or "").strip().upper()
+    if not currency:
+        return None
+    if raw.get("price") is not None:
+        value = raw.get("price")
+        minor_units = False
+    elif raw.get("amount") is not None:
+        value = raw.get("amount")
+        minor_units = isinstance(value, int) and not isinstance(value, bool)
+    elif raw.get("value") is not None:
+        value = raw.get("value")
+        minor_units = False
+    else:
+        return None
     try:
-        amount = Decimal(str(raw).strip().replace(",", "."))
-    except (InvalidOperation, ValueError):
+        if minor_units:
+            amount = Decimal(int(value)) / Decimal("100")
+        else:
+            amount = Decimal(str(value).strip().replace(",", "."))
+    except (InvalidOperation, ValueError, TypeError):
         return None
     if amount <= 0:
         return None
-    return f"{amount:.2f}"
+    return f"{amount:.2f}", currency
 
 
 def _walk_products(node: Any, out: list[dict]) -> None:
@@ -101,29 +115,36 @@ def product_to_gear_feature(product: dict, *, query: str) -> Optional[dict]:
         or offer.get("image_url")
         or ""
     ).strip()
-    price = _money_eur(product.get("price") or offer.get("price") or product.get("min_price"))
+    money = _parse_money(product.get("price") or offer.get("price") or product.get("min_price"))
     digest = hashlib.sha1(title.encode("utf-8")).hexdigest()[:10]
     gear_id = f"gear-c3-{_slug(title)[:32]}-{digest}"
-    goal = price or "99.00"
+    props: dict[str, Any] = {
+        "id": gear_id,
+        "title": title,
+        "funder": "Channel3",
+        "url": buy_url or "https://trychannel3.com/",
+        "category_group": "Gear",
+        "location": "Channel3",
+        "description": f"Produit Channel3 (recherche « {query} »).",
+        "project_kind": "gear_project",
+        "channel3_image_url": image or None,
+        "channel3_buy_url": buy_url or None,
+        "channel3_product_name": title,
+        "channel3_source": "live",
+    }
+    if money:
+        amount, currency = money
+        props["channel3_price"] = amount
+        props["channel3_currency"] = currency
+        if currency in {"EUR", "EURO"}:
+            props["goal_eur"] = amount
+            props["channel3_price_eur"] = amount
+        else:
+            props["goal_currency"] = currency
     return {
         "type": "Feature",
         "geometry": {"type": "Point", "coordinates": [55.5, -20.9]},
-        "properties": {
-            "id": gear_id,
-            "title": title,
-            "funder": "Channel3",
-            "url": buy_url or "https://trychannel3.com/",
-            "category_group": "Gear",
-            "location": "Channel3",
-            "description": f"Produit Channel3 (recherche « {query} »).",
-            "project_kind": "gear_project",
-            "goal_eur": goal,
-            "channel3_price_eur": goal,
-            "channel3_image_url": image or None,
-            "channel3_buy_url": buy_url or None,
-            "channel3_product_name": title,
-            "channel3_source": "live",
-        },
+        "properties": props,
     }
 
 

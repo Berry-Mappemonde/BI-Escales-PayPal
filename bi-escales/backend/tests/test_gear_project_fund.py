@@ -27,6 +27,10 @@ def test_funded_percent_caps_at_100():
     assert funded_percent("225.00", "450.00") == 50
 
 
+def test_funded_percent_skips_mismatched_currency():
+    assert funded_percent("10.00", "20.00", amount_currency="EUR", goal_currency="USD") is None
+
+
 @pytest.fixture
 def api(monkeypatch):
     monkeypatch.setenv("ESCALES_ENABLED", "1")

@@ -18,7 +18,8 @@ Both must be enabled for wishlist routes. Treasurer mutations still require `x-a
 
 ## Public safety
 
-- `channel3_buy_url` is omitted until an item is **fully funded** in its native currency.
+- Items whose seed `catalog_status` or `review_status` is `needs_confirmation` are omitted from the public catalogue and wishlists, and `POST /pledges` returns 422.
+- `channel3_buy_url` is omitted until funded minor units cover the target (`funded_minor >= target_minor` in the item currency, whole units for JPY/HUF/TWD). `funded_pct` is floored and is 100 only at that point.
 - When shown, responses include `channel3_buy_disclosure` (referral commission notice).
 - No checkout/purchase/order calls to Channel3 are permitted in code (guard in `channel3_client.py`).
 
@@ -27,6 +28,7 @@ Both must be enabled for wishlist routes. Treasurer mutations still require `x-a
 For catalogue `project_id` values (`gear-c3-*`):
 
 - `POST /pledges` with `kind: "project_pledge"` sets PayPal `currency_code` from the catalogue (`price_currency`). Any client-sent currency is ignored.
+- Request field **`amount_eur`** is the legacy JSON name; for catalogue items it carries the **native** amount in `price_currency` (not always euros).
 - Funding totals sum captures **in that currency only** (`funded_amount_minor`, `funded_pct`). No FX conversion.
 - `paypal_currency_supported` is `true` when the currency is on PayPal’s allow-list in `channel3_paypal.py` ([currency codes](https://developer.paypal.com/reference/currency-codes/)). Unsupported catalogue currencies return **422** on pledge create.
 - **JPY, HUF, TWD**: PayPal order amounts are whole units (no decimal `.value`). Other supported currencies use two decimal places.

@@ -157,6 +157,26 @@ def lookup_project_fund_meta(project_id: str) -> Optional[dict[str, Any]]:
     return None
 
 
+def _funding_minors(
+    amount: str,
+    goal: str,
+    *,
+    amount_currency: str,
+    goal_currency: str,
+) -> Optional[tuple[int, int]]:
+    """Minor units of one currency. Mismatched currencies are not comparable."""
+    pledge_ccy = str(amount_currency or "EUR").strip().upper()
+    goal_ccy = str(goal_currency or "EUR").strip().upper()
+    if pledge_ccy != goal_ccy:
+        return None
+    from app.channel3_paypal import major_string_to_minor
+
+    return (
+        major_string_to_minor(str(amount), pledge_ccy),
+        major_string_to_minor(str(goal), goal_ccy),
+    )
+
+
 def funded_percent(
     amount: str,
     goal: str,
@@ -164,19 +184,41 @@ def funded_percent(
     amount_currency: str = "EUR",
     goal_currency: str = "EUR",
 ) -> Optional[int]:
-    """Progress percent when pledge and goal share the same currency; otherwise unset."""
-    pledge_ccy = str(amount_currency or "EUR").strip().upper()
-    goal_ccy = str(goal_currency or "EUR").strip().upper()
-    if pledge_ccy != goal_ccy:
+    """Floored progress when pledge and goal share a currency. 100 only when minors are covered."""
+    pair = _funding_minors(
+        amount,
+        goal,
+        amount_currency=amount_currency,
+        goal_currency=goal_currency,
+    )
+    if pair is None:
         return None
-    try:
-        pledged = float(str(amount).replace(",", "."))
-        target = float(str(goal).replace(",", "."))
-    except ValueError:
+    funded_minor, target_minor = pair
+    if target_minor <= 0:
         return None
-    if target <= 0:
-        return None
-    return min(100, max(0, round((pledged / target) * 100)))
+    if funded_minor >= target_minor:
+        return 100
+    return (funded_minor * 100) // target_minor
+
+
+def is_fully_funded_amount(
+    amount: str,
+    goal: str,
+    *,
+    amount_currency: str = "EUR",
+    goal_currency: str = "EUR",
+) -> bool:
+    """True only when funded minor units cover the target. No rounding."""
+    pair = _funding_minors(
+        amount,
+        goal,
+        amount_currency=amount_currency,
+        goal_currency=goal_currency,
+    )
+    if pair is None:
+        return False
+    funded_minor, target_minor = pair
+    return target_minor > 0 and funded_minor >= target_minor
 
 
 def reset_gear_catalog_cache() -> None:
@@ -204,17 +246,14 @@ async def sanitize_public_gear_collection(payload: dict[str, Any]) -> dict[str, 
                 if props.get("goal_eur")
                 else str(props.get("channel3_currency") or props.get("goal_currency") or "EUR").upper()
             )
-            pct = (
-                funded_percent(
-                    str(fund.get("captured_eur") or fund.get("amount_eur") or "0"),
-                    goal,
-                    amount_currency="EUR",
-                    goal_currency=goal_ccy,
-                )
-                if goal
-                else None
+            fund_ccy = str(fund.get("currency") or "EUR").upper()
+            captured = str(fund.get("captured_eur") or fund.get("amount_eur") or "0")
+            fully = bool(goal) and is_fully_funded_amount(
+                captured,
+                goal,
+                amount_currency=fund_ccy,
+                goal_currency=goal_ccy,
             )
-            fully = pct is not None and pct >= 100
             props = apply_buy_link_policy(props, fully_funded=fully, buy_url=buy_url)
         feature_out = {**feature, "properties": props}
         features_out.append(feature_out)

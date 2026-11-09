@@ -19,6 +19,7 @@ from app.core import llm
 from app.gear_projects_catalog import (
     funded_percent,
     get_gear_feature_collection,
+    is_fully_funded_amount,
     lookup_project_fund_meta,
     sanitize_public_gear_collection,
 )
@@ -556,6 +557,9 @@ def _public_pledge(doc: dict, *, lang: Optional[str] = None) -> dict:
     public["payment_mode"] = doc.get("payment_mode") or doc.get("intent")
     kind = str(public.get("kind") or "mile")
     public["simulated_price"] = simulated_unit(kind, resolved)
+    pledge_ccy = str(doc.get("currency") or "EUR").strip().upper()
+    if pledge_ccy != "EUR":
+        public["simulated_price"]["currency"] = pledge_ccy
     public["price_label"] = simulated_price_label(resolved)
     if not public.get("approve_link") and public.get("order_id"):
         public["approve_link"] = approve_link({"id": public["order_id"]})
@@ -1130,6 +1134,12 @@ async def get_public_project_fund(project_id: str):
             amount_currency=fund_currency,
             goal_currency=goal_currency,
         )
+        fully = is_fully_funded_amount(
+            base["amount_eur"],
+            goal_amount,
+            amount_currency=fund_currency,
+            goal_currency=goal_currency,
+        )
         payload = to_public_project_donation_total(
             fund,
             goal_eur=goal_eur or None,
@@ -1152,7 +1162,6 @@ async def get_public_project_fund(project_id: str):
         if not goal_eur and goal_amount:
             payload["goal_amount"] = goal_amount
             payload["goal_currency"] = goal_currency
-        fully = pct is not None and pct >= 100
         payload["fully_funded"] = fully
         buy_url = str((meta or {}).get("channel3_buy_url") or "").strip() or None
         return apply_buy_link_policy(payload, fully_funded=fully, buy_url=buy_url)

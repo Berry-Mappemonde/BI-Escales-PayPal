@@ -890,6 +890,7 @@ class PayPalClient:
         capture_id: str,
         *,
         amount_eur: Optional[str] = None,
+        currency_code: Optional[str] = None,
         idempotency_key: str,
     ) -> dict:
         """Refund a captured payment (full or partial).
@@ -898,7 +899,13 @@ class PayPalClient:
         """
         body: dict = {}
         if amount_eur:
-            body["amount"] = {"currency_code": self.cfg.currency, "value": amount_eur}
+            from app.channel3_paypal import format_paypal_amount_value
+
+            ccy = str(currency_code or self.cfg.currency).strip().upper()
+            body["amount"] = {
+                "currency_code": ccy,
+                "value": format_paypal_amount_value(amount_eur, ccy),
+            }
         return self._req(
             "POST",
             f"/v2/payments/captures/{capture_id}/refund",

@@ -100,6 +100,15 @@ def normalize_project_pledge_amount(raw: str, currency: str) -> str:
     return f"{value:.2f}"
 
 
+def major_string_to_minor(amount: str, currency: str) -> int:
+    """Convert a major-unit amount string to internal minor counter."""
+    try:
+        value = float(Decimal(str(amount or "0").replace(",", ".")))
+    except (InvalidOperation, ValueError):
+        return 0
+    return minor_units_for_major(value, currency)
+
+
 def format_paypal_amount_value(amount: str, currency: str) -> str:
     """PayPal Orders ``purchase_units[].amount.value`` string."""
     ccy = str(currency or "").strip().upper()

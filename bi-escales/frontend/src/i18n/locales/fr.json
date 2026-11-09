@@ -15,7 +15,9 @@
     "dismissNotice": "Fermer",
     "dismissNoticeAria": "Fermer",
     "toolsCollapse": "Masquer les outils",
-    "toolsExpand": "Afficher les réglages"
+    "toolsExpand": "Afficher les réglages",
+    "metaDescription": "BI Escales — soutenez l'expédition Berry-Mappemonde. Promesses escale encaissées à l'arrivée du bateau (annulées si l'escale est annulée) ; cabines au départ de l'étape ; fonds commun et dons projet immédiatement.",
+    "ogLocale": "fr_FR"
   },
   "common": {
     "showSecret": "Afficher",
@@ -31,7 +33,12 @@
     "lead": "Langue, thème, outils trésorier et contrôles opérateur sandbox."
   },
   "gear": {
-    "heading": "Matériel d'expédition"
+    "heading": "Matériel d'expédition",
+    "seedTitles": {
+      "gear-dive-computer-expedition": "Ordinateur de plongée expedition",
+      "gear-dry-bag-expedition": "Sacs étanches (lot expédition)",
+      "gear-marine-binoculars": "Jumelles marines"
+    }
   },
   "clock": {
     "waiting": "Départ dans {{days}} j {{hours}} h",

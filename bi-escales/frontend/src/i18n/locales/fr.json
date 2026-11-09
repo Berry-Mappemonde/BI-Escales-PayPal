@@ -114,6 +114,13 @@
     "boatTotals": "Fonds commun",
     "publicCommon": "Fonds communautaire · {{balance}}"
   },
+  "cabinLegPicker": {
+    "label": "Choisir une jambe de voyage",
+    "hint": "Les cabines sont débitées au départ de cette jambe.",
+    "empty": "Aucune jambe disponible dans le calendrier.",
+    "loading": "Chargement des jambes du voyage…",
+    "error": "Impossible de charger le calendrier"
+  },
   "scheduler": {
     "heading": "Calendrier des escales",
     "empty": "Aucune escale planifiée.",

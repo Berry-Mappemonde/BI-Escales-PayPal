@@ -12,7 +12,7 @@ PayPal AI Hackathon 2026 — Association Berry-Mappemonde.
 | **Devpost project** | [https://devpost.com/software/bi-escales-pay-only-if-we-sail](https://devpost.com/software/bi-escales-pay-only-if-we-sail) |
 | **Detailed test script** | [bi-escales/docs/TESTING_INSTRUCTIONS.md](bi-escales/docs/TESTING_INSTRUCTIONS.md) |
 
-PayPal **sandbox only** — no live money moves. The real expedition is planned to **depart 15 May 2027**; judging hosts pin a **demo voyage clock** to **12 Nov 2026** (`GET /api/escales/clock`) so arrivals and captures can be exercised during the hackathon window.
+PayPal **sandbox only** — no live money moves. The voyage departs on 12 Nov 2026 (the submission deadline); judging hosts pin the voyage clock to that date (`GET /api/escales/clock`).
 
 ### Five-step judge path
 

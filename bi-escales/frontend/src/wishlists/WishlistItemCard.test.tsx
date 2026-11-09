@@ -55,6 +55,21 @@ describe("WishlistItemCard", () => {
     expect(screen.queryByTestId("wishlist-buy-link")).toBeNull();
   });
 
+  it("hides buy link when funded_pct is 99 but fully_funded is false (exact minor units)", () => {
+    render(
+      <WishlistItemCard
+        item={{
+          ...fixtureCatalogEur,
+          funded_pct: 99,
+          fully_funded: false,
+          channel3_buy_url: "https://example.test/should-not-show",
+          channel3_buy_disclosure: "Disclosure",
+        }}
+      />,
+    );
+    expect(screen.queryByTestId("wishlist-buy-link")).toBeNull();
+  });
+
   it("shows line quantity and line target from API", () => {
     render(
       <WishlistItemCard

@@ -758,6 +758,12 @@ async def _create_pledge(
         from app.channel3_paypal import paypal_currency_supported
 
         catalog = lookup_catalog_by_project_id(resolved_target)
+        if catalog is None:
+            pending = lookup_catalog_by_project_id(
+                resolved_target, include_needs_confirmation=True
+            )
+            if pending is not None:
+                raise ValueError("catalog item needs confirmation and cannot be funded")
         if catalog:
             from app.channel3_paypal import normalize_project_pledge_amount
 

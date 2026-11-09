@@ -18,6 +18,7 @@ Both must be enabled for wishlist routes. Treasurer mutations still require `x-a
 
 ## Public safety
 
+- Items whose seed `catalog_status` or `review_status` is `needs_confirmation` are omitted from the public catalogue and wishlists, and `POST /pledges` returns 422.
 - `channel3_buy_url` is omitted until an item is **fully funded** in its native currency.
 - When shown, responses include `channel3_buy_disclosure` (referral commission notice).
 - No checkout/purchase/order calls to Channel3 are permitted in code (guard in `channel3_client.py`).

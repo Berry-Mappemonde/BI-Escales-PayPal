@@ -34,24 +34,26 @@ async def verify_merchant_onboarding_webhook(
     if _cert_url_is_malformed(tx["PAYPAL-CERT-URL"]):
         raise WebhookRejected(400, "Invalid cert url")
     try:
+        event = json.loads(raw_body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise WebhookRejected(400, "Invalid JSON") from exc
+    body_for_verify = raw_body.lstrip(b"\xef\xbb\xbf")
+    try:
         verification = client.verify_webhook_signature(
-            transmission_id=tx["PAYPAL-TRANSMISSION-ID"],
-            transmission_time=tx["PAYPAL-TRANSMISSION-TIME"],
-            cert_url=tx["PAYPAL-CERT-URL"],
             auth_algo=tx["PAYPAL-AUTH-ALGO"],
+            cert_url=tx["PAYPAL-CERT-URL"],
+            transmission_id=tx["PAYPAL-TRANSMISSION-ID"],
             transmission_sig=tx["PAYPAL-TRANSMISSION-SIG"],
+            transmission_time=tx["PAYPAL-TRANSMISSION-TIME"],
             webhook_id=webhook_id,
-            event_body=raw_body,
+            webhook_event=event,
+            raw_event=body_for_verify,
         )
     except PayPalError as exc:
         raise WebhookRejected(exc.status, "Webhook verification failed") from exc
     status = str((verification or {}).get("verification_status") or "").upper()
     if status != "SUCCESS":
         raise WebhookRejected(401, "Webhook verification failed")
-    try:
-        event = json.loads(raw_body.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise WebhookRejected(400, "Invalid JSON") from exc
     return await process_merchant_onboarding_event(event)
 
 

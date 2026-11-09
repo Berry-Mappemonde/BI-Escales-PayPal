@@ -73,6 +73,27 @@ def capture_order_once(client: PayPalClient, order_id: str) -> dict:
     return client._req("POST", f"/v2/checkout/orders/{order_id}/capture", {})
 
 
+def order_belongs_to_donation(order: dict, donation: dict) -> bool:
+    """True when PayPal order metadata matches a donation row from this app."""
+    donation_id = str(donation.get("_id") or "")
+    project_id = str(donation.get("project_id") or "")
+    stored_order_id = str(donation.get("order_id") or "")
+    paypal_order_id = str(order.get("id") or "")
+    if stored_order_id and paypal_order_id and stored_order_id != paypal_order_id:
+        return False
+    units = order.get("purchase_units") or []
+    if not units or not isinstance(units[0], dict):
+        return bool(stored_order_id and stored_order_id == paypal_order_id)
+    unit = units[0]
+    ref = str(unit.get("reference_id") or "")
+    custom = str(unit.get("custom_id") or "")
+    if ref and donation_id and ref != donation_id:
+        return False
+    if custom and project_id and custom != project_id:
+        return False
+    return True
+
+
 def order_approve_url(order: dict) -> str:
     return approve_link(order)
 

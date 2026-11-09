@@ -32,8 +32,11 @@ class MockPayPal:
         fail_referral_status: int = 0,
         seller_receivable: bool = True,
         seller_email_confirmed: bool = True,
+        order_status: str = "APPROVED",
     ):
         self.cfg = EscalesConfig(client_id="cid", client_secret="secret", base_url=SANDBOX_BASE, env="sandbox")
+        self.order_status = order_status
+        self.capture_calls: list[str] = []
         self.capture_status = capture_status
         self.capture_body = capture_body or {
             "status": "COMPLETED",
@@ -63,7 +66,23 @@ class MockPayPal:
                 },
             )
             return response
+        if method == "GET" and "/v2/checkout/orders/" in path and not path.endswith("/capture"):
+            order_id = path.rsplit("/", 1)[-1]
+            unit = {}
+            if self.orders:
+                unit = dict((self.orders[-1].get("purchase_units") or [{}])[0])
+            return httpx.Response(
+                200,
+                json={
+                    "id": order_id,
+                    "status": self.order_status,
+                    "purchase_units": [unit] if unit else [],
+                },
+            )
         if method == "POST" and path.endswith("/capture"):
+            prefix = "/v2/checkout/orders/"
+            order_id = path[len(prefix) :].split("/capture", 1)[0] if prefix in path else path
+            self.capture_calls.append(order_id)
             if self.fail_capture:
                 response = httpx.Response(500, text='{"name":"UNPROCESSABLE_ENTITY"}')
                 return response
@@ -110,6 +129,10 @@ class MockPayPal:
                     },
                 )
         raise AssertionError(f"unexpected {method} {path}")
+
+    def get_order(self, order_id: str):
+        response = self._request_with_retry("GET", f"/v2/checkout/orders/{order_id}")
+        return response.json()
 
     def _req(self, method, path, json=None, idempotency_key=None, content=None, **kwargs):
         response = self._request_with_retry(method, path, json=json)

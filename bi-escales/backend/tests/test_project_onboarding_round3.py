@@ -183,13 +183,25 @@ def test_forged_return_ignored_when_seller_status_negative(monkeypatch):
 
 
 def test_merchant_webhook_rejects_failed_verification(onboarding_api, monkeypatch):
+    import httpx
+
+    from app.escales.config import EscalesConfig, SANDBOX_BASE
+    from app.escales.paypal_client import PayPalClient
+
     onboarding_api.post("/api/escales/project-onboarding/seed", headers={"x-admin-key": "test-admin"})
 
-    class FailVerifyPayPal(MockPayPal):
-        def verify_webhook_signature(self, **kwargs):
-            return {"verification_status": "FAILURE"}
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "mock-token", "expires_in": 3600})
+        if request.url.path == "/v1/notifications/verify-webhook-signature":
+            return httpx.Response(200, json={"verification_status": "FAILURE"})
+        return httpx.Response(404, json={"name": "NOT_FOUND"})
 
-    monkeypatch.setattr("app.routers.project_onboarding._paypal_client", lambda: FailVerifyPayPal())
+    client = PayPalClient(
+        EscalesConfig(client_id="cid", client_secret="secret", base_url=SANDBOX_BASE, env="sandbox"),
+        transport=httpx.MockTransport(handler),
+    )
+    monkeypatch.setattr("app.routers.project_onboarding._paypal_client", lambda: client)
     payload = {
         "id": "WH-EVENT-FAIL",
         "event_type": "MERCHANT.ONBOARDING.COMPLETED",

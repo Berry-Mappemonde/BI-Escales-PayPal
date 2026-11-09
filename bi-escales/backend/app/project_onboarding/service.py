@@ -40,6 +40,7 @@ from app.project_onboarding.paypal_orders import (
     create_unlinked_payee_capture_order,
     is_unlinked_payee_failure,
     order_approve_url,
+    order_belongs_to_donation,
 )
 from app.project_onboarding.store import (
     get_donation,
@@ -52,6 +53,15 @@ from app.project_onboarding.store import (
 )
 
 log = logging.getLogger("escales.project_onboarding.service")
+
+
+class DonationCaptureRejected(Exception):
+    """Capture blocked before PayPal money movement."""
+
+    def __init__(self, status: int, detail: str):
+        self.status = status
+        self.detail = detail
+        super().__init__(detail)
 
 
 def _paypal() -> PayPalClient:
@@ -224,6 +234,19 @@ async def finalize_donation_capture(
         return donation
     client = client or _paypal()
     order_id = str(donation.get("order_id") or "")
+    if not order_id:
+        raise DonationCaptureRejected(400, "donation has no PayPal order")
+    try:
+        order = client.get_order(order_id)
+    except PayPalError as exc:
+        if exc.status == 404:
+            raise DonationCaptureRejected(404, "PayPal order not found") from exc
+        raise
+    paypal_status = str(order.get("status") or "").upper()
+    if paypal_status != "APPROVED":
+        raise DonationCaptureRejected(409, f"order status is {paypal_status or 'UNKNOWN'}, not APPROVED")
+    if not order_belongs_to_donation(order, donation):
+        raise DonationCaptureRejected(400, "PayPal order does not match this donation")
     try:
         payload = capture_order_once(client, order_id)
         status, capture_id = capture_status_and_id(payload)

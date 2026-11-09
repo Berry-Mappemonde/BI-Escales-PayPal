@@ -16,6 +16,7 @@ from app.escales.config import (
     onboard_after_payment_enabled,
 )
 from app.escales.paypal_client import PayPalClient, PayPalError
+from app.escales.rate_limit import RateLimited, client_ip, hit
 from app.escales.webhooks import WebhookRejected
 from app.project_onboarding.constants import DEMO_PROJECT_ID
 from app.project_onboarding.seed import seed_demo_onboarding
@@ -55,6 +56,19 @@ def _lang(request: Request) -> str:
 
 def _paypal_client() -> PayPalClient:
     return PayPalClient(load_config())
+
+
+def _enforce_capture_rate(request: Request) -> None:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    host = request.client.host if request.client else ""
+    try:
+        hit(client_ip(forwarded, host))
+    except RateLimited as exc:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many capture requests",
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from exc
 
 
 @router.get("/status")
@@ -108,12 +122,15 @@ async def post_donation(project_id: str, body: dict, request: Request):
 
 
 @router.post("/donations/{donation_id}/capture")
-async def post_capture(donation_id: str):
+async def post_capture(donation_id: str, request: Request):
     _require_feature()
+    _enforce_capture_rate(request)
     try:
         return await service.finalize_donation_capture(donation_id)
     except LookupError:
         raise HTTPException(status_code=404, detail="donation not found") from None
+    except service.DonationCaptureRejected as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
     except PayPalError as exc:
         raise HTTPException(status_code=exc.status, detail="PayPal error") from exc
 

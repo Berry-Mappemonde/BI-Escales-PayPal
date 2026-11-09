@@ -14,6 +14,11 @@ _memory: dict[str, dict[str, Any]] = {"projects": {}, "donations": {}, "referral
 COLLECTION = "escales_project_onboarding"
 
 
+def referral_document_id(project_id: str) -> str:
+    """Mongo _id for a referral row (distinct from the project row _id)."""
+    return f"referral:{project_id}"
+
+
 def _mongo_wanted() -> bool:
     mode = os.environ.get("ESCALES_STORE", "").strip().lower()
     if mode == "memory":
@@ -130,11 +135,13 @@ async def save_referral(doc: dict) -> dict:
     if not pid:
         raise ValueError("project_id required")
     payload = copy.deepcopy(doc)
+    payload["project_id"] = pid
+    rid = referral_document_id(pid)
     if _mongo_wanted():
         coll = await _collection()
         await coll.replace_one(
-            {"_id": pid, "kind": "referral"},
-            {**payload, "kind": "referral", "_id": pid},
+            {"_id": rid, "kind": "referral"},
+            {**payload, "kind": "referral", "_id": rid},
             upsert=True,
         )
     with _lock:
@@ -152,7 +159,7 @@ async def get_referral(project_id: str) -> Optional[dict]:
             return copy.deepcopy(cached)
     if _mongo_wanted():
         coll = await _collection()
-        row = await coll.find_one({"_id": pid, "kind": "referral"})
+        row = await coll.find_one({"kind": "referral", "project_id": pid})
         if row:
             doc = {k: v for k, v in row.items() if k != "kind"}
             with _lock:

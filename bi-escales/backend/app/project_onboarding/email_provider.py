@@ -14,10 +14,10 @@ log = logging.getLogger("escales.project_onboarding.email")
 
 
 def allowlist_allows(recipient: str) -> bool:
-    """Recipient domain must match ESCALES_EMAIL_ALLOWLIST when configured."""
+    """Recipient domain must be listed in ESCALES_EMAIL_ALLOWLIST (fail closed)."""
     allow = (os.environ.get("ESCALES_EMAIL_ALLOWLIST") or "").strip()
     if not allow:
-        return True
+        return False
     domains = {part.strip().lower().lstrip("@") for part in allow.split(",") if part.strip()}
     email = str(recipient or "").strip().lower()
     if "@" not in email:

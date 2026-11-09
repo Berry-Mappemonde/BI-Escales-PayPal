@@ -319,33 +319,47 @@ async def handle_onboarding_return(
     project = await get_project(project_id)
     if not project:
         raise LookupError("project not found")
+    _ = permissions_granted
+    _ = is_email_confirmed
     partner_id = paypal_partner_merchant_id()
     receivable = False
-    email_confirmed = bool(is_email_confirmed)
+    email_confirmed = False
     integrations: dict[str, Any] = {}
-    if partner_id:
-        client = client or _paypal()
-        referrals = RawHttpPartnerReferralsClient(client)
-        integrations = referrals.merchant_integrations(partner_id=partner_id, tracking_id=project_id)
-        items = integrations.get("merchant_integrations") or integrations.get("items") or []
-        if isinstance(items, list) and items:
-            row = items[0] if isinstance(items[0], dict) else {}
-            receivable = bool(row.get("payments_receivable"))
-            email_confirmed = email_confirmed or bool(row.get("primary_email_confirmed"))
-    elif permissions_granted and merchant_id_in_paypal:
-        receivable = True
+    merchant_verified: Optional[str] = None
+    if not partner_id:
+        return {
+            "project_id": project_id,
+            "onboarding_status": project.get("onboarding_status"),
+            "payments_receivable": False,
+            "primary_email_confirmed": False,
+            "merchant_id_in_paypal": None,
+            "integrations_summary": False,
+            "verified": False,
+            "reason": "partner_merchant_id_not_configured",
+        }
+    client = client or _paypal()
+    referrals = RawHttpPartnerReferralsClient(client)
+    integrations = referrals.merchant_integrations(partner_id=partner_id, tracking_id=project_id)
+    items = integrations.get("merchant_integrations") or integrations.get("items") or []
+    if isinstance(items, list) and items:
+        row = items[0] if isinstance(items[0], dict) else {}
+        receivable = bool(row.get("payments_receivable"))
+        email_confirmed = bool(row.get("primary_email_confirmed"))
+        merchant_verified = str(row.get("merchant_id") or row.get("merchant_id_in_paypal") or "").strip() or None
     if receivable and email_confirmed:
         project["onboarding_status"] = ONBOARDED_STATUS
         project["onboarded_at"] = now_iso()
-        project["merchant_id"] = merchant_id_in_paypal or None
+        project["merchant_id"] = merchant_verified
         await save_project(project)
     return {
         "project_id": project_id,
         "onboarding_status": project.get("onboarding_status"),
         "payments_receivable": receivable,
         "primary_email_confirmed": email_confirmed,
-        "merchant_id_in_paypal": merchant_id_in_paypal or None,
+        "merchant_id_in_paypal": merchant_verified,
         "integrations_summary": bool(integrations),
+        "verified": bool(receivable and email_confirmed),
+        "query_merchant_ignored": bool(merchant_id_in_paypal) and merchant_id_in_paypal != merchant_verified,
     }
 
 

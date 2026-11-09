@@ -29,6 +29,9 @@ PayPal **sandbox only** — no live money moves. The voyage departs on 12 Nov 20
 - **Stop pledges** (miles, nights, meals, care, berths): **captured** when the boat **arrives**; **voided** if the stop is **cancelled**.
 - **Cabins:** **captured** at leg **departure**.
 - **Common fund** and **project donations:** **captured immediately** (no Captain/treasurer gate on those paths).
+
+**No tax receipts:** BI Escales does not issue tax receipts for pledges, cabins, fund contributions or project donations.
+
 - Authorizations are not opened more than **29 days** before the relevant arrival or departure; farther horizons use PayPal **Vault** when `ESCALES_VAULT_ENABLED=1`.
 - **Abonnement Crew** (English UI: **Crew subscription**) is the association **membership** — one PayPal subscription product, not a second membership SKU.
 - The expedition **crew is six people** (capacity checks on safety gear in the Channel3 seed catalogue; see [CHANNEL3_WISHLISTS.md](bi-escales/docs/CHANNEL3_WISHLISTS.md)).

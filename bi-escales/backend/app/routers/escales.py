@@ -134,6 +134,7 @@ from app.escales.certificates import (
 )
 from app.escales.pledges import (
     IllegalTransition,
+    PledgeAlreadyFullyRefunded,
     PledgeNotFound,
     RefundRequestKeyRequired,
     admin_reauthorize_pledge,
@@ -247,8 +248,21 @@ class SpendingIn(BaseModel):
 class RefundIn(BaseModel):
     amount_eur: Optional[str] = None
     now: Optional[str] = None
-    request_key: Optional[str] = None
-    paypal_refund_id: Optional[str] = None
+    request_key: Optional[str] = Field(
+        None,
+        description=(
+            "Per-refund idempotency token; maps to PayPal-Request-Id "
+            "(refund-{pledge_id}-{request_key}). Replays return HTTP 200 with the existing pledge."
+        ),
+    )
+    paypal_refund_id: Optional[str] = Field(
+        None,
+        description=(
+            "PayPal refund resource id when reconciling a webhook-first refund. "
+            "On idempotent replay the public pledge includes refund_id; HTTP 409 responses "
+            "include paypal_refund_id when the pledge is already fully refunded."
+        ),
+    )
 
 
 class CaptureIn(BaseModel):
@@ -825,8 +839,27 @@ def _resolve_refund_request_key(request: Request, body: RefundIn) -> Optional[st
     return field or None
 
 
-@router.post("/pledges/{pledge_id}/refund")
+@router.post(
+    "/pledges/{pledge_id}/refund",
+    responses={
+        409: {
+            "description": (
+                "Conflict: illegal state, duplicate amount without request_key, "
+                "or pledge already fully refunded (body includes paypal_refund_id)."
+            ),
+        },
+    },
+)
 async def post_refund(pledge_id: str, body: RefundIn, request: Request):
+    """Treasurer refund for a captured pledge (sandbox authorize-then-capture flow).
+
+    Idempotent replays (same ``request_key`` / ``Idempotency-Key`` or matching
+    ``paypal_refund_id``) return HTTP 200 and the public pledge; the pledge
+    ``refund_id`` field is the latest PayPal refund resource id.
+
+    When nothing remains refundable and the call is not a replay, HTTP 409 returns
+    ``detail`` plus ``paypal_refund_id`` (the PayPal refund id already on file).
+    """
     _require_treasurer(request)
     effective_at = None
     if (body.now or "").strip():
@@ -844,6 +877,16 @@ async def post_refund(pledge_id: str, body: RefundIn, request: Request):
             effective_at=effective_at,
             request_key=_resolve_refund_request_key(request, body),
             paypal_refund_id=(body.paypal_refund_id or "").strip() or None,
+        )
+    except PledgeAlreadyFullyRefunded as exc:
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": "pledge already fully refunded",
+                "paypal_refund_id": exc.paypal_refund_id,
+            },
         )
     except (PledgeNotFound, IllegalTransition, PayPalError, ValueError, RefundRequestKeyRequired) as exc:
         raise _money_http(exc) from exc

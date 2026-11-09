@@ -22,7 +22,15 @@
   },
   "tabs": {
     "voyage": "Voyage map",
-    "marinas": "Marinas"
+    "marinas": "Marinas",
+    "gear": "Gear"
+  },
+  "settings": {
+    "heading": "Settings",
+    "lead": "Language, theme, treasurer tools, and sandbox operator controls."
+  },
+  "gear": {
+    "heading": "Expedition gear"
   },
   "clock": {
     "waiting": "Departure in {{days}}d {{hours}}h",
@@ -73,7 +81,7 @@
     "visitSite": "Project website",
     "noDescription": "No description in the snapshot.",
     "publicTotal": "{{amount}} {{currency}} collected · {{count}} donations",
-    "goalProgress": "{{amount}} / {{goal}} {{currency}} funded ({{pct}}%)",
+    "goalProgress": "{{amount}} {{amountCurrency}} / {{goal}} {{goalCurrency}} funded ({{pct}}%)",
     "buyViaChannel3": "Buy via Channel3 (goal reached)"
   },
   "marinas": {

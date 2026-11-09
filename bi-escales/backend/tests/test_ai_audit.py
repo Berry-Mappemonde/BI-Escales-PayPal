@@ -64,8 +64,9 @@ def _transport(script: dict[str, list[httpx.Response]]):
 
 def _french_only(reply: str) -> None:
     folded = reply.casefold()
-    for word in ("stopover", "leg", "intent"):
+    for word in ("stopover", "leg"):
         assert word not in folded, reply
+    assert not re.search(r"\bintent\b", folded), reply
 
 
 def _english_only(reply: str) -> None:
@@ -89,7 +90,7 @@ def test_1_english_sponsorship_names_the_computed_line(monkeypatch):
         assert "Ajaccio" in reply
         assert reply.casefold().count("treasurer decides") == 0
         assert "arrival at the stop" in reply
-        assert "PayPal Vault" in reply
+        assert "authorized now" in reply.casefold() or "within about 29 days" in reply.casefold()
         source = result["model_source"]
         super_answered = source.get("provider") == "nim" and "super" in source.get("model", "")
         assert super_answered or source.get("fallback_reason")

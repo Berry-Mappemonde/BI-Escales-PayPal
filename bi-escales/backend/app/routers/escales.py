@@ -16,7 +16,13 @@ from pydantic import BaseModel, Field
 from starlette.responses import Response
 
 from app.core import llm
-from app.gear_projects_catalog import funded_percent, get_gear_feature_collection, lookup_project_fund_meta
+from app.gear_projects_catalog import (
+    funded_percent,
+    get_gear_feature_collection,
+    is_fully_funded_amount,
+    lookup_project_fund_meta,
+    sanitize_public_gear_collection,
+)
 from app.escales.captain import chat as captain_chat
 from app.escales.captain import review as captain_review
 from app.escales.captain import simulated_price_label, simulated_prices, simulated_unit
@@ -24,6 +30,7 @@ from app.escales.config import (
     bryntum_scheduler_enabled,
     card_fields_enabled,
     channel3_enabled,
+    wishlists_enabled,
     clock_start,
     clock_now_pinned,
     parse_clock_moment,
@@ -111,6 +118,7 @@ from app.escales.app_i18n import (
 )
 from app.escales.rate_limit import (
     RateLimited,
+    captain_rate_feature,
     captain_rate_key,
     client_ip,
     hit as hit_captain_rate,
@@ -550,6 +558,9 @@ def _public_pledge(doc: dict, *, lang: Optional[str] = None) -> dict:
     public["payment_mode"] = doc.get("payment_mode") or doc.get("intent")
     kind = str(public.get("kind") or "mile")
     public["simulated_price"] = simulated_unit(kind, resolved)
+    pledge_ccy = str(doc.get("currency") or "EUR").strip().upper()
+    if pledge_ccy != "EUR":
+        public["simulated_price"]["currency"] = pledge_ccy
     public["price_label"] = simulated_price_label(resolved)
     if not public.get("approve_link") and public.get("order_id"):
         public["approve_link"] = approve_link({"id": public["order_id"]})
@@ -589,6 +600,7 @@ async def get_features():
         "elastic": elastic_evidence_enabled(),
         "kernel": kernel_evidence_enabled(),
         "channel3": channel3_enabled(),
+        "wishlists": wishlists_enabled(),
         "bryntum": bryntum_scheduler_enabled(),
         "vault": vault_enabled(),
         "card_fields": card_fields_enabled(),
@@ -602,6 +614,7 @@ async def get_features():
         "crew_supporter_plan_id": crew_plan_id,
         "demo_treasurer": demo_treasurer_enabled(),
         "fastlane": False,
+        "captain_rate": captain_rate_feature(),
     }
 
 
@@ -672,28 +685,9 @@ async def post_schedule_sync():
 @router.get("/pledges/mode")
 async def get_pledge_mode(milestone_id: str, kind: str = "mile"):
     """Read-only card checkout preview: no PayPal calls or ledger writes."""
-    from app.escales.pledges import _kind, _resolve_target
-    from app.escales.naviguide_bridge import resolve_milestone, leg_departing_from
-    from app.escales.payment_mode import resolve_pledge_mode
+    from app.escales.payment_mode import preview_payment_mode
     try:
-        milestone_id = milestone_id.strip()
-        pledge_kind = _kind(kind)
-        if pledge_kind == "project_pledge":
-            raise ValueError("project_pledge uses PayPal wallet checkout only")
-        canonical = (
-            "" if pledge_kind == "common_fund" and not milestone_id
-            else resolve_milestone(milestone_id)
-        )
-        if canonical is None:
-            if not await get_ledger().get_milestone(milestone_id):
-                raise ValueError("milestone_id must name a known stopover")
-            canonical = milestone_id
-        if pledge_kind == "cabin_leg" and not canonical.startswith("leg-"):
-            leg = leg_departing_from(canonical)
-            if leg:
-                canonical = str(leg["id"])
-        await _resolve_target(None, canonical, pledge_kind)
-        mode = await resolve_pledge_mode({"milestone_id": canonical, "kind": pledge_kind}, read_only=True)
+        mode = await preview_payment_mode(milestone_id, kind)
         return {"payment_mode": mode}
     except ValueError as exc:
         raise _as_http(exc) from exc
@@ -1068,7 +1062,8 @@ async def post_subscription_approve(body: SubscriptionApproveIn):
 @router.get("/gear")
 async def get_public_gear_list():
     """Expedition Gear projects (sandbox seed + optional Channel3 search when enabled)."""
-    return await get_gear_feature_collection()
+    payload = await get_gear_feature_collection()
+    return await sanitize_public_gear_collection(payload)
 
 
 @router.get("/projects/{project_id}/fund")
@@ -1078,24 +1073,87 @@ async def get_public_project_fund(project_id: str):
     Same spirit as public stopover ``GET /milestones/{id}/fund`` via ``to_public_fund``:
     aggregates only. Treasurer detail stays on ``GET /milestones/{project_id}/fund``.
     """
+    from app.channel3_catalog import lookup_catalog_by_project_id
+    from app.channel3_funding import enrich_item_funding, fund_snapshot_for_project
+    from app.channel3_paypal import catalog_project_id
+    from app.channel3_public import apply_buy_link_policy
+
+    if catalog_project_id(project_id):
+        catalog = lookup_catalog_by_project_id(project_id, public_only=True)
+        if not catalog:
+            raise HTTPException(status_code=404, detail="Project fund not found")
+    else:
+        catalog = lookup_catalog_by_project_id(project_id)
+    meta = lookup_project_fund_meta(project_id)
     try:
-        if await _project_fund_target(project_id) is None:
-            raise LookupError("not a project fund")
-        fund = await fund_for_milestone(project_id)
+        if catalog:
+            fund = await fund_snapshot_for_project(project_id)
+        else:
+            if await _project_fund_target(project_id) is None:
+                raise LookupError("not a project fund")
+            fund = await fund_for_milestone(project_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Project fund not found") from exc
-    meta = lookup_project_fund_meta(project_id)
-    goal = str((meta or {}).get("goal_eur") or "").strip()
-    if goal:
+    goal_eur = str((meta or {}).get("goal_eur") or "").strip()
+    goal_amount = goal_eur or str((meta or {}).get("channel3_price") or "").strip()
+    goal_currency = (
+        "EUR"
+        if goal_eur
+        else str((meta or {}).get("channel3_currency") or (meta or {}).get("goal_currency") or "EUR").strip().upper()
+    )
+    if catalog:
+        enriched = enrich_item_funding(catalog, fund)
         base = to_public_project_donation_total(fund)
-        pct = funded_percent(base["amount_eur"], goal)
-        payload = to_public_project_donation_total(fund, goal_eur=goal, funded_pct=pct)
+        payload = {**base, **{k: enriched[k] for k in enriched if k not in ("channel3_buy_url", "product_url")}}
+        payload["project_kind"] = "gear_project"
+        if meta and meta.get("channel3_product_name"):
+            payload["channel3_product_name"] = meta["channel3_product_name"]
+        buy_url = (meta or {}).get("channel3_buy_url") or catalog.get("channel3_buy_url")
+        return apply_buy_link_policy(
+            payload,
+            fully_funded=bool(enriched.get("fully_funded")),
+            buy_url=buy_url,
+        )
+    if goal_amount:
+        base = to_public_project_donation_total(fund)
+        fund_currency = str(base.get("currency") or "EUR").strip().upper()
+        pct = funded_percent(
+            base["amount_eur"],
+            goal_amount,
+            amount_currency=fund_currency,
+            goal_currency=goal_currency,
+        )
+        fully = is_fully_funded_amount(
+            base["amount_eur"],
+            goal_amount,
+            amount_currency=fund_currency,
+            goal_currency=goal_currency,
+        )
+        payload = to_public_project_donation_total(
+            fund,
+            goal_eur=goal_eur or None,
+            funded_pct=pct,
+        )
+        meta_keys = (
+            "channel3_image_url",
+            "project_kind",
+            "channel3_product_name",
+            "channel3_price",
+            "channel3_currency",
+            "goal_currency",
+            "price_amount_minor",
+            "price_currency",
+        )
         if meta:
-            for key in ("channel3_buy_url", "channel3_image_url", "project_kind", "channel3_product_name"):
+            for key in meta_keys:
                 if meta.get(key):
                     payload[key] = meta[key]
-        payload["fully_funded"] = pct >= 100
-        return payload
+        if not goal_eur and goal_amount:
+            payload["goal_amount"] = goal_amount
+            payload["goal_currency"] = goal_currency
+        payload["fully_funded"] = fully
+        buy_url = str((meta or {}).get("channel3_buy_url") or "").strip() or None
+        return apply_buy_link_policy(payload, fully_funded=fully, buy_url=buy_url)
     return to_public_project_donation_total(fund)
 
 
@@ -1229,6 +1287,7 @@ def _enforce_captain_rate(
         raise HTTPException(
             status_code=429,
             detail=limit_message(exc.kind, app_lang, exc.limit),
+            headers={"Retry-After": str(exc.retry_after)},
         ) from exc
 
 
@@ -1301,3 +1360,8 @@ async def post_paypal_webhook(request: Request):
         return {"accepted": True, "duplicate": True, "transmission_id": exc.transmission_id}
     except WebhookRejected as exc:
         raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+
+
+from app.routers import wishlists as _wishlists_router
+
+router.include_router(_wishlists_router.router)

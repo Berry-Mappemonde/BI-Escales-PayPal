@@ -80,7 +80,7 @@ export function TreasurerPayPalPanel({ adminKey }: TreasurerPayPalPanelProps) {
 
   return (
     <section className="panel treasurer-paypal" data-testid="treasurer-paypal-panel">
-      <h2>{t("treasurer.paypal.heading")}</h2>
+      <h3>{t("treasurer.paypal.heading")}</h3>
       <ul className="treasurer-paypal-list">
         <li data-testid="treasurer-dispute-count">
           {t("treasurer.paypal.disputes", { count: disputeCount ?? "—" })}

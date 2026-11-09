@@ -4,14 +4,37 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 import httpx
 
+from app.channel3_money import minor_to_major_str, parse_money_major, parse_money_minor
 from app.escales.config import channel3_api_key, channel3_enabled, channel3_mcp_url
 
 _SLUG = re.compile(r"[^a-z0-9-]+")
+_BLOCKED_CHANNEL3 = re.compile(
+    r"(?:^|[/:])(?:checkout|checkouts|purchase|purchases|order|orders)(?:/|$|\?)",
+    re.IGNORECASE,
+)
+_ALLOWED_MCP_TOOLS = frozenset({"search_catalog"})
+
+
+class Channel3GuardError(RuntimeError):
+    """Raised when a non read-only Channel3 endpoint is requested (C3-08)."""
+
+
+def assert_channel3_read_only_url(url: str) -> None:
+    """Only allow search/MCP read paths — never checkout, purchase, or order."""
+    token = str(url or "").strip()
+    if not token:
+        raise Channel3GuardError("empty Channel3 URL")
+    if _BLOCKED_CHANNEL3.search(token):
+        raise Channel3GuardError(f"forbidden Channel3 endpoint: {token}")
+
+
+def assert_channel3_mcp_tool(tool_name: str) -> None:
+    if str(tool_name or "").strip() not in _ALLOWED_MCP_TOOLS:
+        raise Channel3GuardError(f"forbidden Channel3 MCP tool: {tool_name}")
 
 
 def _slug(text: str) -> str:
@@ -19,22 +42,9 @@ def _slug(text: str) -> str:
     return token or "item"
 
 
-def _money_eur(raw: Any) -> Optional[str]:
-    if raw is None:
-        return None
-    if isinstance(raw, dict):
-        value = raw.get("value") or raw.get("amount")
-        currency = str(raw.get("currency") or raw.get("currency_code") or "EUR").upper()
-        if currency not in {"EUR", "EURO"}:
-            return None
-        raw = value
-    try:
-        amount = Decimal(str(raw).strip().replace(",", "."))
-    except (InvalidOperation, ValueError):
-        return None
-    if amount <= 0:
-        return None
-    return f"{amount:.2f}"
+def _parse_money(raw: Any) -> Optional[tuple[str, str]]:
+    """Legacy helper — major-unit display string + ISO currency."""
+    return parse_money_major(raw)
 
 
 def _walk_products(node: Any, out: list[dict]) -> None:
@@ -101,29 +111,41 @@ def product_to_gear_feature(product: dict, *, query: str) -> Optional[dict]:
         or offer.get("image_url")
         or ""
     ).strip()
-    price = _money_eur(product.get("price") or offer.get("price") or product.get("min_price"))
+    money_raw = product.get("price") or offer.get("price") or product.get("min_price")
+    money_minor = parse_money_minor(money_raw)
+    money = _parse_money(money_raw)
     digest = hashlib.sha1(title.encode("utf-8")).hexdigest()[:10]
     gear_id = f"gear-c3-{_slug(title)[:32]}-{digest}"
-    goal = price or "99.00"
+    props: dict[str, Any] = {
+        "id": gear_id,
+        "title": title,
+        "funder": "Channel3",
+        "url": buy_url or "https://trychannel3.com/",
+        "category_group": "Gear",
+        "location": "Channel3",
+        "description": f"Produit Channel3 (recherche « {query} »).",
+        "project_kind": "gear_project",
+        "channel3_image_url": image or None,
+        "channel3_buy_url": buy_url or None,
+        "channel3_product_name": title,
+        "channel3_source": "live",
+    }
+    if money_minor:
+        minor, currency = money_minor
+        amount = minor_to_major_str(minor)
+        props["price_amount_minor"] = minor
+        props["price_currency"] = currency
+        props["channel3_price"] = amount
+        props["channel3_currency"] = currency
+        if currency in {"EUR", "EURO"}:
+            props["goal_eur"] = amount
+            props["channel3_price_eur"] = amount
+        else:
+            props["goal_currency"] = currency
     return {
         "type": "Feature",
         "geometry": {"type": "Point", "coordinates": [55.5, -20.9]},
-        "properties": {
-            "id": gear_id,
-            "title": title,
-            "funder": "Channel3",
-            "url": buy_url or "https://trychannel3.com/",
-            "category_group": "Gear",
-            "location": "Channel3",
-            "description": f"Produit Channel3 (recherche « {query} »).",
-            "project_kind": "gear_project",
-            "goal_eur": goal,
-            "channel3_price_eur": goal,
-            "channel3_image_url": image or None,
-            "channel3_buy_url": buy_url or None,
-            "channel3_product_name": title,
-            "channel3_source": "live",
-        },
+        "properties": props,
     }
 
 
@@ -136,6 +158,8 @@ async def search_gear_products(
     """Return GeoJSON-like gear features from Channel3 search_catalog (Token tier when keyed)."""
     if not channel3_enabled():
         return []
+    assert_channel3_read_only_url(channel3_mcp_url())
+    assert_channel3_mcp_tool("search_catalog")
     owns = client is None
     if owns:
         client = httpx.AsyncClient(timeout=25.0)

@@ -557,7 +557,7 @@ def _create_capture_order(client: Any, **kwargs: Any) -> dict:
         slim = {
             key: value
             for key, value in kwargs.items()
-            if key not in {"return_url", "cancel_url", "checkout_locale"}
+            if key not in {"return_url", "cancel_url", "checkout_locale", "currency_code"}
         }
         return create(**slim)
 
@@ -701,17 +701,20 @@ async def _create_pledge(
     checkout_locale: Optional[str] = None,
     checkout_method: Optional[str] = None,
 ) -> dict:
-    amount = normalize_amount(amount_eur)
+    raw_amount = amount_eur
     description = _require_text(description, "description")
     pledge_kind = _kind(kind)
-    exact = _EXACT_PRICE.get(pledge_kind)
-    if exact is not None:
-        exact *= quantity or 1
-    if exact is not None and Decimal(amount) != exact:
-        raise ValueError(f"{pledge_kind} amount must be {exact:.2f} EUR")
-    floor = _UNIT_FLOOR.get(pledge_kind)
-    if exact is None and floor is not None and Decimal(amount) < floor:
-        raise ValueError(f"{pledge_kind} amount must be at least {floor:.2f} EUR")
+    amount: Optional[str] = None
+    if pledge_kind != "project_pledge":
+        amount = normalize_amount(raw_amount)
+        exact = _EXACT_PRICE.get(pledge_kind)
+        if exact is not None:
+            exact *= quantity or 1
+        if exact is not None and Decimal(amount) != exact:
+            raise ValueError(f"{pledge_kind} amount must be {exact:.2f} EUR")
+        floor = _UNIT_FLOOR.get(pledge_kind)
+        if exact is None and floor is not None and Decimal(amount) < floor:
+            raise ValueError(f"{pledge_kind} amount must be at least {floor:.2f} EUR")
     if pledge_kind in _UNPLACED_TARGET and not (milestone_id or "").strip():
         milestone_id = ""
     else:
@@ -750,6 +753,36 @@ async def _create_pledge(
 
         await resolve_schedule_milestone(milestone_id)
     if pledge_kind == "project_pledge":
+        pledge_currency = "EUR"
+        from app.channel3_catalog import catalog_needs_confirmation, lookup_catalog_by_project_id
+        from app.channel3_paypal import catalog_project_id, paypal_currency_supported
+
+        catalog = lookup_catalog_by_project_id(
+            resolved_target,
+            public_only=catalog_project_id(resolved_target),
+        )
+        if catalog is None:
+            pending = lookup_catalog_by_project_id(
+                resolved_target,
+                include_needs_confirmation=True,
+            )
+            if pending is not None and catalog_needs_confirmation(pending):
+                raise ValueError("catalog item needs confirmation and cannot be funded")
+        if catalog_project_id(resolved_target) and catalog is None:
+            raise ValueError("catalog item is not available for public funding")
+        if catalog:
+            from app.channel3_paypal import normalize_project_pledge_amount
+
+            pledge_currency = str(catalog.get("price_currency") or "EUR").upper()
+            if not paypal_currency_supported(pledge_currency):
+                raise ValueError(
+                    f"PayPal checkout does not support catalog currency {pledge_currency}"
+                )
+            amount = normalize_project_pledge_amount(raw_amount, pledge_currency)
+        elif amount is None:
+            amount = normalize_amount(raw_amount)
+            if Decimal(amount) < Decimal("1.00"):
+                raise ValueError("project_pledge amount must be at least 1.00 EUR")
         return await _create_capture_pledge(
             amount=amount,
             description=description,
@@ -763,6 +796,7 @@ async def _create_pledge(
             caller_origin=caller_origin,
             checkout_locale=checkout_locale,
             checkout_method=checkout_method,
+            currency=pledge_currency,
         )
     mode: PaymentMode = payment_mode or "AUTHORIZE"
     from .departure_clock import refuse_cancelled_departure
@@ -821,6 +855,7 @@ async def _create_capture_pledge(
     caller_origin: Optional[str] = None,
     checkout_locale: Optional[str] = None,
     checkout_method: Optional[str] = None,
+    currency: str = "EUR",
 ) -> dict:
     """Project crowdfunding: CAPTURE intent, charged when the buyer approves on return."""
     key = _client_key(client_key)
@@ -844,15 +879,20 @@ async def _create_capture_pledge(
         pledge_id,
         "cancel",
     )
+    pledge_currency = str(currency or "EUR").strip().upper()
+    from app.channel3_paypal import format_paypal_amount_value
+
+    paypal_amount = format_paypal_amount_value(amount, pledge_currency)
     order = _create_capture_order(
         client,
-        amount_eur=amount,
+        amount_eur=paypal_amount,
         description=description,
         reference_id=pledge_id,
         idempotency_key=idempotency_key,
         return_url=back,
         cancel_url=cancel,
         checkout_locale=checkout_locale,
+        currency_code=pledge_currency,
     )
     order_id = order.get("id")
     if not order_id:
@@ -867,7 +907,7 @@ async def _create_capture_pledge(
         "status": "created",
         "intent": "CAPTURE",
         "payment_mode": "CAPTURE",
-        "currency": "EUR",
+        "currency": pledge_currency,
         "amount_eur": amount,
         "description": description,
         "milestone_id": milestone_id,
@@ -894,7 +934,7 @@ async def _create_capture_pledge(
             pledge_id=pledge_id,
             milestone_id=milestone_id,
             amount_eur=amount,
-            currency="EUR",
+            currency=pledge_currency,
             order_id=order_id,
             status="created",
             payment_mode="CAPTURE",
@@ -1776,6 +1816,9 @@ async def refund_pledge(
     from .audit import record
 
     pledge = await require_pledge(pledge_id)
+    pledge_currency = str(pledge.get("currency") or "EUR").strip().upper()
+    from app.channel3_paypal import format_paypal_amount_value, normalize_project_pledge_amount
+
     current = str(pledge.get("status") or "")
     if current not in ("captured", "partially_refunded"):
         raise IllegalTransition(current, "refunded")
@@ -1792,7 +1835,10 @@ async def refund_pledge(
             refund_this = capture_total - already_refunded
     else:
         if amount_eur:
-            refund_this = Decimal(normalize_amount(amount_eur))
+            if pledge_currency == "EUR":
+                refund_this = Decimal(normalize_amount(amount_eur))
+            else:
+                refund_this = Decimal(normalize_project_pledge_amount(amount_eur, pledge_currency))
         else:
             refund_this = capture_total - already_refunded
         if refund_this <= Decimal("0"):
@@ -1803,15 +1849,17 @@ async def refund_pledge(
         idempotency_key = f"refund-{pledge_id}-{refund_count + 1}"
         pledge["pending_refund"] = {
             "key": idempotency_key,
-            "amount": f"{refund_this:.2f}",
+            "amount": format_paypal_amount_value(f"{refund_this}", pledge_currency),
         }
         pledge = await get_ledger().save_pledge(pledge)
     if already_refunded + refund_this > capture_total:
         raise ValueError("refund exceeds captured amount")
+    refund_value = format_paypal_amount_value(f"{refund_this}", pledge_currency)
     try:
         payload = client.refund_capture(
             capture_id,
-            amount_eur=f"{refund_this:.2f}",
+            amount_eur=refund_value,
+            currency_code=pledge_currency,
             idempotency_key=idempotency_key,
         )
     except Exception as exc:
@@ -1832,7 +1880,7 @@ async def refund_pledge(
     saved = await reconcile_refund_on_pledge(
         pledge,
         refund_id=refund_id,
-        amount_eur=f"{refund_this:.2f}",
+        amount_eur=refund_value,
         status=normalized_status,
         key=idempotency_key,
         at=_money_event_timestamp(
@@ -1854,8 +1902,8 @@ async def refund_pledge(
         actor="treasurer",
         pledge_id=saved["_id"],
         milestone_id=milestone_id,
-        amount_eur=f"{refund_this:.2f}",
-        currency="EUR",
+        amount_eur=refund_value,
+        currency=pledge_currency,
         capture_id=capture_id,
         refund_id=saved.get("refund_id"),
         refunded_amount_eur=saved.get("refunded_amount_eur"),
@@ -1865,8 +1913,8 @@ async def refund_pledge(
         "pledge_refunded",
         pledge_id=saved["_id"],
         milestone_id=milestone_id,
-        amount_eur=f"{refund_this:.2f}",
-        currency="EUR",
+        amount_eur=refund_value,
+        currency=pledge_currency,
         capture_id=capture_id,
         refund_id=saved.get("refund_id"),
         refunded_amount_eur=saved.get("refunded_amount_eur"),

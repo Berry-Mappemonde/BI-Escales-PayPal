@@ -5,7 +5,6 @@ import {
   approveCaptainReview,
   captainReview,
   capturePledge,
-  fetchSchedule,
   refundPledge,
   voidPledge,
 } from "../api/escales";

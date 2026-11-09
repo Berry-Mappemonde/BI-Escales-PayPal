@@ -103,15 +103,15 @@ async function parseError(res: Response): Promise<string> {
   return res.statusText || `HTTP ${res.status}`;
 }
 
-export async function fetchHealth(): Promise<{ status: string }> {
+async function fetchHealth(): Promise<{ status: string }> {
   const res = await fetch(url("/api/health"));
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
 
 /** A cold Render start often answers 502 before the process is up. */
-export const HEALTH_ATTEMPTS = 6;
-export const HEALTH_WAIT_MS = 3000;
+const HEALTH_ATTEMPTS = 6;
+const HEALTH_WAIT_MS = 3000;
 
 export type HealthBanner = "ok" | "wait" | "down";
 
@@ -226,12 +226,6 @@ export async function fetchFeatures(): Promise<FeatureFlags> {
 export function isVaultPledge(pledge: PublicPledge): boolean {
   if (pledge.payment_mode === "VAULT" || pledge.intent === "VAULT") return true;
   return Boolean(pledge.setup_token_id && !pledge.order_id);
-}
-
-export async function getPledge(pledgeId: string): Promise<PublicPledge> {
-  const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}`));
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json();
 }
 
 export async function settleClock(adminKey: string, now?: string): Promise<ClockSettleResponse> {
@@ -403,19 +397,6 @@ export async function listMilestones(): Promise<Milestone[]> {
   return res.json();
 }
 
-export async function postEvidence(
-  milestoneId: string,
-  body: { met?: boolean; facts?: Record<string, unknown> },
-): Promise<Record<string, unknown>> {
-  const res = await fetch(url(`/api/escales/milestones/${encodeURIComponent(milestoneId)}/evidence`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json();
-}
-
 export async function captainReview(
   milestoneId: string,
   adminKey?: string,
@@ -518,36 +499,6 @@ export async function fetchCrewSupporterPlan(lang?: string): Promise<{ plan_id: 
   if (lang?.trim()) params.set("lang", lang.trim());
   const qs = params.toString();
   const res = await fetch(url(`/api/escales/paypal/subscriptions/plan${qs ? `?${qs}` : ""}`));
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json();
-}
-
-export async function createCrewSubscriptionCheckout(body?: {
-  return_url?: string;
-  cancel_url?: string;
-  clientRequestId?: string;
-  lang?: string;
-}): Promise<{
-  plan_id: string;
-  subscription_id?: string;
-  approve_link?: string | null;
-  product_id?: string;
-  status?: string;
-}> {
-  const defaults = typeof window !== "undefined" ? crewSubscriptionPageUrls() : { return_url: "", cancel_url: "" };
-  const payload = {
-    return_url: body?.return_url ?? defaults.return_url,
-    cancel_url: body?.cancel_url ?? defaults.cancel_url,
-    lang: body?.lang,
-  };
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const clientRequestId = body?.clientRequestId?.trim() || crypto.randomUUID();
-  headers["paypal-request-id"] = clientRequestId;
-  const res = await fetch(url("/api/escales/paypal/subscriptions/create"), {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-  });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }

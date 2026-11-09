@@ -16,6 +16,8 @@ export interface CrewSubscribeButtonProps {
   adminKey?: string;
   /** When true, show a neutral setup hint instead of hiding if the plan id is missing. */
   treasurerContext?: boolean;
+  /** Parent renders the section heading; skip duplicate hint copy. */
+  suppressHeadingHint?: boolean;
 }
 
 const PLAN_LOAD_TIMEOUT_MS = 20_000;
@@ -124,6 +126,7 @@ export function CrewSupporterPublicSection({ adminKey }: { adminKey?: string }) 
             adminKey={adminKey}
             planId={planId}
             treasurerContext={treasurerContext}
+            suppressHeadingHint
           />
         ) : null}
       </div>
@@ -143,6 +146,7 @@ function CrewSubscribeButtonInner({
   planId: planIdProp,
   adminKey,
   treasurerContext = Boolean(adminKey?.trim()),
+  suppressHeadingHint = false,
 }: CrewSubscribeButtonProps) {
   const { t, appLang, planId, planLoading, planLoadIssue, fetchError, timeoutMessage } =
     useCrewSupporterPlanId(planIdProp);
@@ -270,7 +274,7 @@ function CrewSubscribeButtonInner({
   if (!planId && !planLoadIssue && !fetchError && planLoading) {
     return (
       <div className="crew-subscribe" data-testid="crew-subscribe">
-        <p className="hint">{t("pledge.crewSubscribeHint")}</p>
+        {suppressHeadingHint ? null : <p className="hint">{t("pledge.crewSubscribeHint")}</p>}
         <p className="status">{t("pledge.crewSubscribeLoading")}</p>
       </div>
     );
@@ -278,7 +282,7 @@ function CrewSubscribeButtonInner({
 
   return (
     <div className="crew-subscribe" data-testid="crew-subscribe">
-      <p className="hint">{t("pledge.crewSubscribeHint")}</p>
+      {suppressHeadingHint ? null : <p className="hint">{t("pledge.crewSubscribeHint")}</p>}
       {!ready && !error && planId ? (
         <p className="status" data-testid="crew-subscribe-loading">
           {t("pledge.crewSubscribeLoading")}

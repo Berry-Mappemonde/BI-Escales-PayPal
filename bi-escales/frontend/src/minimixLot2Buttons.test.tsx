@@ -76,6 +76,7 @@ describe("minimix lot 2 removed controls", () => {
     const pledge: PublicPledge = {
       id: "p-1",
       status: "authorized",
+      intent: "AUTHORIZE",
       amount_eur: "20.00",
       currency: "EUR",
       description: "miles",
@@ -98,7 +99,12 @@ describe("minimix lot 2 removed controls", () => {
   it("hides scheduler planning buttons when Bryntum is off", () => {
     const { container } = render(
       <I18nextProvider i18n={i18n}>
-        <EscalesScheduler schedule={schedule} planningEnabled={false} />
+        <EscalesScheduler
+          schedule={schedule}
+          planningEnabled={false}
+          onSelectEscale={() => {}}
+          onAuthorized={() => {}}
+        />
       </I18nextProvider>,
     );
     expect(container.firstChild).toBeNull();
@@ -109,7 +115,12 @@ describe("minimix lot 2 removed controls", () => {
   it("shows scheduler leg pledge controls when Bryntum is on", () => {
     render(
       <I18nextProvider i18n={i18n}>
-        <EscalesScheduler schedule={schedule} planningEnabled onAuthorized={() => {}} />
+        <EscalesScheduler
+          schedule={schedule}
+          planningEnabled
+          onSelectEscale={() => {}}
+          onAuthorized={() => {}}
+        />
       </I18nextProvider>,
     );
     expect(screen.getByTestId("schedule-leg")).toBeInTheDocument();

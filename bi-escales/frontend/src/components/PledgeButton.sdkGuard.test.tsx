@@ -110,7 +110,10 @@ describe("PledgeButton with a broken PayPal SDK (stopover crash regression)", ()
     );
     expect(fetchPledgeMode).not.toHaveBeenCalled();
     expect(loadPayPalSdk).toHaveBeenCalledWith("sandbox-client-id", "en", "capture", true);
-    expect(createButtons.mock.calls[0][0]).toMatchObject({
+    const calls = vi.mocked(createButtons).mock.calls as unknown as Array<
+      [{ style?: { layout?: string; label?: string } }]
+    >;
+    expect(calls[0]?.[0]).toMatchObject({
       style: { layout: "vertical", label: "donate" },
     });
   });

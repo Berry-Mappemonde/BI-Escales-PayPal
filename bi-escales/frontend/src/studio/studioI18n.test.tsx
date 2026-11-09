@@ -27,8 +27,17 @@ function widgetTitle(language: (typeof LANGUAGES)[number], widgetId: string): st
   return state.pages[0]?.widgets[widgetId]?.format?.title?.text;
 }
 
+type StudioSource = {
+  name?: string;
+  fields?: Array<{
+    id: string;
+    name?: string;
+    createValueFormatter?: (value: unknown, params: unknown) => ((value: unknown) => string) | undefined;
+  }>;
+};
+
 function fieldFormatter(language: (typeof LANGUAGES)[number], fieldId: string) {
-  const source = pledgeStudioData([], language).sources[0];
+  const source = pledgeStudioData([], language).sources[0] as StudioSource | undefined;
   const field = source?.fields?.find((entry) => entry.id === fieldId);
   return field?.createValueFormatter?.(undefined, {} as never);
 }
@@ -53,7 +62,7 @@ describe("copies studio", () => {
     expect(widgetTitle(language, "status-chart")).toBe(copy.chartTitle);
     expect(widgetTitle(language, "pledge-grid")).toBe(copy.gridTitle);
 
-    const source = pledgeStudioData([], language).sources[0];
+    const source = pledgeStudioData([], language).sources[0] as StudioSource | undefined;
     expect(source?.name).toBe(copy.sourceName);
     expect(source?.fields?.map((field) => field.name)).toEqual([
       copy.colPledge,
@@ -79,7 +88,7 @@ describe("copies studio", () => {
     const widget = humanValidationWidget(language);
     expect(widget.label).toBe(copy.widgetLabel);
     expect(widget.ai.description).toBe(copy.widgetAiDescription);
-    const form = widget.form({ createDefaults: (value: unknown) => value } as never) as {
+    const form = widget.form({ createDefaults: (value: unknown) => value } as never) as unknown as {
       dataMappingItems: { key: string; label: string }[];
     };
     expect(form.dataMappingItems).toEqual([
@@ -104,8 +113,12 @@ describe("copies studio", () => {
       instructions: copy.delegateFallback,
     });
     expect(treasurerAgentProfile(language).name).toBe(copy.agentName);
-    expect(nextDataAgentAction(1, "pledges.amount_eur", language).summary).toContain(copy.dataAgentSummaryEmpty);
-    expect(nextDataAgentAction(1, "pledges.amount_eur", language).summary).toContain("pledges.amount_eur");
+    const dataAction = nextDataAgentAction(1, "pledges.amount_eur", language);
+    expect(dataAction.kind).toBe("complete");
+    if (dataAction.kind === "complete") {
+      expect(dataAction.summary).toContain(copy.dataAgentSummaryEmpty);
+      expect(dataAction.summary).toContain("pledges.amount_eur");
+    }
     expect(copy.agentReply).not.toBe(other.agentReply);
 
     await i18n.changeLanguage(language);
@@ -134,7 +147,7 @@ describe("jauge de validation humaine", () => {
               status: [{ id: "status" }],
               amount: [{ id: "amount_eur" }],
             },
-          } as AgWidgetParams)}
+          } as unknown as AgWidgetParams)}
         />
       </I18nextProvider>,
     );

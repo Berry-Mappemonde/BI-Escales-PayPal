@@ -280,21 +280,25 @@ def test_rotating_sessions_share_the_daily_ip_cap(monkeypatch):
 def test_xff_client_ip_parsing(monkeypatch):
     monkeypatch.setenv("ESCALES_TRUSTED_PROXY_HOPS", "1")
     assert trusted_proxy_hops() == 1
-    assert client_ip("203.0.113.55, 10.0.0.2", "127.0.0.1") == "203.0.113.55"
-    assert client_ip(" 203.0.113.55 , 10.0.0.2 ", "127.0.0.1") == "203.0.113.55"
+    assert client_ip("203.0.113.55, 10.0.0.2", "127.0.0.1") == "10.0.0.2"
+    assert client_ip(" 203.0.113.55 , 10.0.0.2 ", "127.0.0.1") == "10.0.0.2"
     assert client_ip("", "10.0.0.5") == "10.0.0.5"
     monkeypatch.setenv("ESCALES_TRUSTED_PROXY_HOPS", "0")
     assert client_ip("203.0.113.55, 10.0.0.2", "10.0.0.5") == "10.0.0.5"
 
 
-def test_xff_leftmost_ip_shares_rate_bucket(api, monkeypatch):
+def test_spoofed_leftmost_xff_cannot_bypass_per_ip_limit(api, monkeypatch):
+    """Leftmost XFF is forgeable; rate limit keys on the trusted rightmost hop."""
     monkeypatch.setenv("ESCALES_ENV", "production")
-    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "1")
-    first = _chat(api, FR, forwarded_for="203.0.113.77, 10.0.0.1")
-    assert first.status_code == 200
-    second = _chat(api, FR, forwarded_for="203.0.113.77, 198.51.100.9")
-    assert second.status_code == 429
-    assert "Réessayez plus tard" in second.json()["detail"]
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "10")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY", "100")
+    for n in range(10):
+        spoofed = f"198.51.100.{n}, 203.0.113.10"
+        response = _chat(api, FR, forwarded_for=spoofed)
+        assert response.status_code == 200, response.text
+    blocked = _chat(api, FR, forwarded_for="1.2.3.99, 203.0.113.10")
+    assert blocked.status_code == 429
+    assert "Réessayez plus tard" in blocked.json()["detail"]
 
 
 def test_rate_limit_without_xff_uses_socket_host(api, monkeypatch):

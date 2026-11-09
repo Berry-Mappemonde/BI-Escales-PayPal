@@ -56,17 +56,21 @@ class RateLimited(Exception):
 
 
 def client_ip(forwarded_for: str, host: str, trusted_hops: Optional[int] = None) -> str:
-    """Client IP behind proxies (e.g. Render).
+    """Client IP behind trusted proxies (e.g. Render).
 
-    When ``ESCALES_TRUSTED_PROXY_HOPS`` is non-zero (default 1), use the first
-    ``X-Forwarded-For`` entry (leftmost client). When zero, ignore the header and
-    use ``request.client.host``.
+    Uses ``parts[-trusted_hops]``: the leftmost ``X-Forwarded-For`` entries are
+    caller-controlled and spoofable; the edge proxy appends the real peer on the
+    right. ``ESCALES_TRUSTED_PROXY_HOPS`` (default 1) counts in from that edge;
+    raise it when another trusted hop is chained. When zero, ignore XFF and use
+    ``request.client.host``.
     """
     hops = trusted_proxy_hops() if trusted_hops is None else max(0, int(trusted_hops))
     parts = [part.strip() for part in (forwarded_for or "").split(",") if part.strip()]
     if hops == 0 or not parts:
         return (host or "").strip() or "unknown"
-    return parts[0]
+    if len(parts) >= hops:
+        return parts[-hops]
+    return (host or "").strip() or "unknown"
 
 
 def _retry_after_day(moment: dt.datetime) -> int:

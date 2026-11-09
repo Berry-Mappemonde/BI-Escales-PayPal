@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 PER_MINUTE_DEFAULT = 10
 PER_DAY_DEFAULT = 100
+PER_MINUTE_JUDGING_DEFAULT = 36
+PER_DAY_JUDGING_DEFAULT = 9000
+LLM_DAILY_CAP_JUDGING_DEFAULT = 9000
 _MINUTE = dt.timedelta(seconds=60)
 
 _hits: dict[str, list[dt.datetime]] = {}
@@ -39,6 +42,21 @@ def _positive(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
+def _positive_judging(name: str, default: int) -> int:
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning("%s invalid; using judging default %s", name, default)
+        return default
+    if value <= 0:
+        logger.warning("%s invalid; using judging default %s", name, default)
+        return default
+    return value
+
+
 def _configured_per_minute() -> int:
     return _positive("ESCALES_CAPTAIN_RATE_PER_MINUTE", PER_MINUTE_DEFAULT)
 
@@ -48,13 +66,21 @@ def _configured_per_day() -> int:
 
 
 def _configured_per_minute_judging() -> int:
-    return _positive(
-        "ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", PER_MINUTE_DEFAULT
+    return _positive_judging(
+        "ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", PER_MINUTE_JUDGING_DEFAULT
     )
 
 
 def _configured_per_day_judging() -> int:
-    return _positive("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", PER_DAY_DEFAULT)
+    return _positive_judging(
+        "ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", PER_DAY_JUDGING_DEFAULT
+    )
+
+
+def llm_daily_cap_judging() -> int:
+    return _positive_judging(
+        "ESCALES_LLM_DAILY_CAP_JUDGING", LLM_DAILY_CAP_JUDGING_DEFAULT
+    )
 
 
 _JUDGING_CACHE_TTL = dt.timedelta(seconds=60)

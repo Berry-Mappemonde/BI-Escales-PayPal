@@ -41,6 +41,13 @@ EN = "I'd like to sponsor 5 nautical miles near Brest"
 _NO_XFF = object()
 
 
+@pytest.fixture(autouse=True)
+def _reset_judging_rate_cache():
+    reset_judging_cache()
+    yield
+    reset_judging_cache()
+
+
 @pytest.fixture
 def api(monkeypatch):
     monkeypatch.setenv("ESCALES_ENABLED", "1")
@@ -368,6 +375,37 @@ def test_judging_window_inside_uses_judging_rate_limits(monkeypatch):
     assert judging_window_active() is True
 
 
+def test_judging_window_active_uses_nim_margin_defaults_when_unset(monkeypatch):
+    _set_judging_window(monkeypatch)
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", raising=False)
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", raising=False)
+    monkeypatch.delenv("ESCALES_LLM_DAILY_CAP_JUDGING", raising=False)
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "100")
+    reset_judging_cache()
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 36
+    assert per_day() == 9000
+    assert judging_window_active() is True
+    assert llm.llm_daily_cap() == 9000
+
+
+def test_judging_rate_env_invalid_falls_back_to_judging_defaults(monkeypatch, caplog):
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    _set_judging_window(monkeypatch)
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", "nope")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", "0")
+    reset_judging_cache()
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 36
+    assert per_day() == 9000
+    assert any(
+        "ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING invalid" in r.message
+        for r in caplog.records
+    )
+
+
 def test_judging_window_before_and_after_use_defaults(monkeypatch):
     _set_judging_window(monkeypatch)
     monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", "30")
@@ -467,12 +505,12 @@ def test_llm_daily_cap_falls_back_outside_judging_window(monkeypatch):
     assert llm.llm_daily_cap() == 100
 
 
-def test_llm_daily_cap_judging_unset_uses_base_cap(monkeypatch):
+def test_llm_daily_cap_judging_unset_uses_judging_default_not_base_cap(monkeypatch):
     monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "250")
     monkeypatch.delenv("ESCALES_LLM_DAILY_CAP_JUDGING", raising=False)
     _set_judging_window(monkeypatch)
     _patch_wall_clock(monkeypatch, _WALL_INSIDE)
-    assert llm.llm_daily_cap() == 250
+    assert llm.llm_daily_cap() == 9000
 
 
 def test_render_and_readme_document_the_production_gate():

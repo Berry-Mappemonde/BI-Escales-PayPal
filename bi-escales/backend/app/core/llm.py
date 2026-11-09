@@ -463,12 +463,10 @@ def _positive_env(name: str) -> Optional[int]:
 
 
 def llm_daily_cap() -> int:
-    from app.escales.rate_limit import judging_window_active
+    from app.escales.rate_limit import judging_window_active, llm_daily_cap_judging
 
     if judging_window_active():
-        judging = _positive_env("ESCALES_LLM_DAILY_CAP_JUDGING")
-        if judging is not None:
-            return judging
+        return llm_daily_cap_judging()
     base = _positive_env("ESCALES_LLM_DAILY_CAP")
     if base is not None:
         return base

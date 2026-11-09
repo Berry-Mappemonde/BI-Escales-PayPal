@@ -6,13 +6,20 @@ import i18n from "../i18n";
 import ExpeditionCartPanel from "./ExpeditionCartPanel";
 
 describe("ExpeditionCartPanel", () => {
-  it("shows a price or label on every cart row", async () => {
+  it("shows simulated label next to marina berth prices (FR)", async () => {
     vi.spyOn(escalesApi, "fetchExpeditionCart").mockResolvedValue({
-      gear_count: 1,
+      gear_count: 0,
       marina_count: 1,
       lines: [
-        { kind: "gear", id: "g1", description: "Gear A", amount_eur: "10.00", currency: "EUR" },
-        { kind: "marina", id: "m1", description: "Marina B", price_label: "prix indisponible" },
+        {
+          kind: "marina",
+          id: "m1",
+          description: "Marina B",
+          amount_eur: "30.00",
+          currency: "EUR",
+          simulated: true,
+          price_label: "prix simulé",
+        },
       ],
     });
     await i18n.changeLanguage("fr");
@@ -21,12 +28,56 @@ describe("ExpeditionCartPanel", () => {
         <ExpeditionCartPanel />
       </I18nextProvider>,
     );
-    const prices = await screen.findAllByTestId("expedition-cart-price");
-    expect(prices).toHaveLength(2);
-    expect(prices[0].textContent).toMatch(/10\.00 EUR/);
-    expect(prices[1].textContent).toMatch(/prix indisponible/);
+    const price = await screen.findByTestId("expedition-cart-price");
+    expect(price.textContent).toMatch(/30\.00 EUR/);
+    expect(price.textContent).toMatch(/prix simulé/);
+  });
+
+  it("shows simulated label next to marina berth prices (EN)", async () => {
+    vi.spyOn(escalesApi, "fetchExpeditionCart").mockResolvedValue({
+      gear_count: 0,
+      marina_count: 1,
+      lines: [
+        {
+          kind: "marina",
+          id: "m1",
+          description: "Marina B",
+          amount_eur: "30.00",
+          currency: "EUR",
+          simulated: true,
+          price_label: "simulated price",
+        },
+      ],
+    });
+    await i18n.changeLanguage("en");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ExpeditionCartPanel />
+      </I18nextProvider>,
+    );
+    const price = await screen.findByTestId("expedition-cart-price");
+    expect(price.textContent).toMatch(/30\.00 EUR/);
+    expect(price.textContent).toMatch(/simulated price/i);
+  });
+
+  it("shows cart.priceUnavailable when the API row has no amount", async () => {
+    vi.spyOn(escalesApi, "fetchExpeditionCart").mockResolvedValue({
+      gear_count: 1,
+      marina_count: 0,
+      lines: [
+        { kind: "gear", id: "g-missing", description: "Gear missing price", amount_eur: null, currency: "EUR" },
+      ],
+    });
+    await i18n.changeLanguage("fr");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ExpeditionCartPanel />
+      </I18nextProvider>,
+    );
+    expect(await screen.findByTestId("expedition-cart-price")).toHaveTextContent("prix indisponible");
+    await i18n.changeLanguage("en");
     await waitFor(() => {
-      expect(screen.getByTestId("expedition-cart-table")).toBeInTheDocument();
+      expect(screen.getByTestId("expedition-cart-price")).toHaveTextContent("price unavailable");
     });
   });
 });

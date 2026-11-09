@@ -6,7 +6,11 @@ function formatPrice(line, t) {
   const amount = String(line?.amount_eur || "").trim();
   if (amount) {
     const currency = String(line?.currency || "EUR").trim();
-    return `${amount} ${currency}`;
+    let text = `${amount} ${currency}`;
+    if (line?.simulated) {
+      text += ` (${t("pledge.simulatedPrice")})`;
+    }
+    return text;
   }
   const label = String(line?.price_label || "").trim();
   if (label) return label;

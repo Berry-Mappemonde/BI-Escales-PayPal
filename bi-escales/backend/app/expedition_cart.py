@@ -5,7 +5,7 @@ import asyncio
 from typing import Any, Optional
 
 from app.channel3_catalog import get_catalog_item, list_catalog_items
-from app.escales.captain import normalize_app_lang, simulated_unit
+from app.escales.captain import normalize_app_lang, simulated_price_label, simulated_unit
 from app.gear_projects_catalog import load_gear_seed_collection, lookup_project_fund_meta
 
 # Three sandbox gear projects + three C3-02 core catalogue lines (QA R3b-2).
@@ -15,6 +15,23 @@ _GEAR_SEED_IDS = (
     "gear-marine-binoculars",
 )
 _GEAR_CATALOG_PRODUCT_IDS = ("Gf8pNpL", "Mer1TUo", "pntIpmE")
+
+# EN display titles for sandbox gear seed rows (FR titles stay on seed `title`).
+_GEAR_SEED_TITLES_EN: dict[str, str] = {
+    "gear-dive-computer-expedition": "Expedition dive computer",
+    "gear-dry-bag-expedition": "Dry bags (expedition lot)",
+    "gear-marine-binoculars": "Marine binoculars",
+}
+
+
+def _gear_seed_display_title(project_id: str, props: dict[str, Any], lang: str) -> str:
+    """Match frontend `featureDisplayTitle` for sandbox gear seed projects."""
+    fallback = str(props.get("title") or props.get("channel3_product_name") or project_id).strip()
+    if normalize_app_lang(lang) == "en":
+        localized = _GEAR_SEED_TITLES_EN.get(project_id, "").strip()
+        if localized:
+            return localized
+    return fallback
 
 
 def _price_unavailable_label(lang: str) -> str:
@@ -29,30 +46,34 @@ def _line_from_amount(
     amount: Optional[str],
     currency: str,
     lang: str,
+    simulated: bool = False,
 ) -> dict[str, Any]:
     amount_token = str(amount or "").strip()
     if amount_token:
-        return {
+        row: dict[str, Any] = {
             "kind": kind,
             "id": row_id,
             "description": description,
             "amount_eur": amount_token,
             "currency": currency,
-            "price_label": None,
+            "simulated": bool(simulated),
+            "price_label": simulated_price_label(lang) if simulated else None,
         }
+        return row
     return {
         "kind": kind,
         "id": row_id,
         "description": description,
         "amount_eur": None,
         "currency": currency,
+        "simulated": False,
         "price_label": _price_unavailable_label(lang),
     }
 
 
 def _gear_seed_line(props: dict[str, Any], lang: str) -> dict[str, Any]:
     project_id = str(props.get("id") or "").strip()
-    title = str(props.get("title") or props.get("channel3_product_name") or project_id).strip()
+    title = _gear_seed_display_title(project_id, props, lang)
     meta = lookup_project_fund_meta(project_id) or {}
     amount = (
         str(meta.get("channel3_price") or meta.get("goal_eur") or props.get("goal_eur") or "").strip()
@@ -117,6 +138,7 @@ async def _marina_lines(lang: str) -> list[dict[str, Any]]:
                 amount=amount,
                 currency=currency,
                 lang=lang,
+                simulated=True,
             )
         )
     return lines

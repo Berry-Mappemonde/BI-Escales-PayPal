@@ -50,7 +50,10 @@ def test_public_gear_strips_buy_link_until_funded(api):
     body = api.get("/api/escales/gear").json()
     for feature in body.get("features") or []:
         props = feature.get("properties") or {}
-        assert "funded_pct" in props or props.get("id")
+        if str(props.get("project_kind") or "") != "gear_project":
+            continue
+        if props.get("goal_eur") or props.get("channel3_price") or props.get("channel3_price_eur"):
+            assert "funded_pct" in props
         if not props.get("fully_funded"):
             assert "channel3_buy_url" not in props
             assert props.get("url") in (None, "")

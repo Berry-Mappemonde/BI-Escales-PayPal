@@ -15,7 +15,7 @@ Copy the numbered steps below into Devpost’s private **Testing instructions** 
    - **Cabins:** captured at **leg departure**.
    - **Common fund** and **project donations:** captured **immediately**.
 
-   **Authorize vs Vault (checkout):** PayPal authorizations must not be opened more than **29 days** before the relevant arrival or departure. Near stops use Orders v2 **`AUTHORIZE`**; stops whose arrival is **more than 29 days away** (with Vault enabled) use **`VAULT`** and charge on arrival. On the public demo with the simulated clock pinned to departure day, Mayotte is beyond that window — confirm with `GET /api/escales/pledges/mode?milestone_id=dep-dzaoudzi-mayotte&kind=mile` (expect `VAULT` when Vault is on). The Captain’s rules-based cart text may still say **intent AUTHORIZE**; checkout follows `/pledges/mode`.
+   **Authorize vs Vault (checkout):** PayPal authorizations must not be opened more than **29 days** before the relevant arrival or departure. Near stops use Orders v2 **`AUTHORIZE`**; stops whose arrival is **more than 29 days away** (with Vault enabled) use **`VAULT`** and charge on arrival. On the public demo with the simulated clock pinned to departure day, **La Rochelle** (`dep-la-rochelle`) is near — confirm with `GET /api/escales/pledges/mode?milestone_id=dep-la-rochelle&kind=mile` (expect **`AUTHORIZE`**). **Mayotte** is beyond that window — confirm with `GET /api/escales/pledges/mode?milestone_id=dep-dzaoudzi-mayotte&kind=mile` (expect **`VAULT`** when Vault is on). The Captain’s rules-based cart text may still say **intent AUTHORIZE**; checkout follows `/pledges/mode`.
 
 3. **Treasurer:** Press **Demo treasurer** for a read-only view of the queue and the Captain’s review (no supporter names). To capture, void, settle, or refund, use the treasurer key supplied privately (HTTP header `x-admin-key`).
 
@@ -38,7 +38,7 @@ For **Card Fields** checkouts only (when `ESCALES_CARD_FIELDS_ENABLED` is on and
 | Check | Endpoint |
 | --- | --- |
 | Health | `GET /api/health` |
-| PayPal environment | `GET /api/escales/features` → `merchant.environment` = `sandbox` |
+| PayPal environment | `GET /api/escales/features` → `p2_eligibility.merchant.environment` = `sandbox` |
 | Simulated clock | `GET /api/escales/clock` |
 | Pledge mode preview | `GET /api/escales/pledges/mode?milestone_id=…&kind=mile` |
 | Common fund | `GET /api/escales/common-fund/fund` |

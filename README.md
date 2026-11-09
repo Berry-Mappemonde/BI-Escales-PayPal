@@ -16,9 +16,9 @@ PayPal **sandbox only** — no live money moves. The real expedition is planned 
 
 ### Five-step judge path
 
-1. **Near stop — AUTHORIZE:** On the map, pick a stop whose arrival is within PayPal’s ~29-day authorization window (e.g. Mayotte on the demo clock). Open the cart and pay with the yellow **PayPal** button; checkout uses Orders v2 **`intent=AUTHORIZE`** (hold until treasurer capture after Captain review).
+1. **Near stop — AUTHORIZE:** On the demo clock, **La Rochelle** (`dep-la-rochelle`) is within PayPal’s ~29-day authorization window. Open the cart and pay with the yellow **PayPal** button; checkout uses Orders v2 **`intent=AUTHORIZE`** (hold until treasurer capture after Captain review). Confirm with `GET /api/escales/pledges/mode?milestone_id=dep-la-rochelle&kind=mile` (expect `AUTHORIZE` on prod and test2).
 2. **Card Fields (when enabled):** On the same or another checkout, use **Card Fields** with PayPal’s sandbox Visa **4111 1111 1111 1111**, any future expiry, CVV **123**, instead of logging into a wallet.
-3. **Far stop — cabin VAULT:** Back a **cabin** on a leg whose departure is more than 29 days away (Vault enabled on the deployment). Checkout uses **Vault**; settlement follows leg **departure** rules.
+3. **Far stop — VAULT:** On the demo clock, **Mayotte** (`dep-dzaoudzi-mayotte`) is beyond that window — miles there use **Vault** when enabled (confirm with `GET /api/escales/pledges/mode?milestone_id=dep-dzaoudzi-mayotte&kind=mile`, expect `VAULT`). **Cabins** on a far leg use **Vault** too; settlement follows leg **departure** rules.
 4. **Treasurer:** Open **Demo treasurer** for a read-only queue and Captain reviews. Capture / void / settle need the treasurer key supplied privately (`x-admin-key`), or use demo treasurer where the host allows it in sandbox.
 5. **Refund / void:** From the treasurer view, **void** an authorization when a stop is cancelled, or exercise **refund** / release flows on an eligible sandbox capture — still sandbox-only, with human approval on the money path.
 

@@ -45,13 +45,23 @@ describe("TreasurerPanel demo stop moment", () => {
     expect(screen.queryByTestId("demo-stop-moment")).toBeNull();
   });
 
-  it("shows judge-moment controls in demo treasurer mode", () => {
+  it("keeps judge-moment buttons out of the keyless demo treasurer view", () => {
     render(
       <I18nextProvider i18n={i18n}>
-        <TreasurerPanel {...baseProps} demoMode needsKey={false} />
+        <TreasurerPanel {...baseProps} demoMode demoStopAvailable needsKey={false} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("demo-treasurer-banner")).toBeInTheDocument();
+    expect(screen.queryByTestId("demo-stop-moment")).toBeNull();
+  });
+
+  it("shows judge-moment controls to a key holder when the host allows the demo", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <TreasurerPanel {...baseProps} adminKey="tk" demoStopAvailable needsKey={false} />
       </I18nextProvider>,
     );
     expect(screen.getByTestId("demo-stop-moment")).toBeInTheDocument();
-    expect(screen.getByTestId("demo-stop-simulate-arrival")).toBeInTheDocument();
+    expect(screen.getByTestId("demo-stop-simulate-arrival")).toBeEnabled();
   });
 });

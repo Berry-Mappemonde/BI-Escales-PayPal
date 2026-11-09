@@ -38,25 +38,38 @@ describe("DemoStopMoment", () => {
     await i18n.changeLanguage("fr");
     const { rerender } = render(
       <I18nextProvider i18n={i18n}>
-        <DemoStopMoment onRefresh={refresh} />
+        <DemoStopMoment adminKey="tk" onRefresh={refresh} />
       </I18nextProvider>,
     );
     expect(screen.getByTestId("demo-stop-moment")).toBeInTheDocument();
     expect(screen.getByTestId("demo-stop-simulate-arrival")).toHaveTextContent(/arrivée du bateau/i);
     await user.click(screen.getByTestId("demo-stop-simulate-arrival"));
-    await waitFor(() => expect(demoSimulateArrival).toHaveBeenCalledWith("dep-la-rochelle"));
+    await waitFor(() => expect(demoSimulateArrival).toHaveBeenCalledWith("dep-la-rochelle", "tk"));
     expect(screen.getByTestId("demo-stop-settle-note")).toHaveTextContent("CAP-123");
     expect(refresh).toHaveBeenCalled();
 
     await i18n.changeLanguage("en");
     rerender(
       <I18nextProvider i18n={i18n}>
-        <DemoStopMoment onRefresh={refresh} />
+        <DemoStopMoment adminKey="tk" onRefresh={refresh} />
       </I18nextProvider>,
     );
     expect(screen.getByTestId("demo-stop-cancel")).toHaveTextContent(/Cancel stop/i);
     await user.click(screen.getByTestId("demo-stop-cancel"));
     await waitFor(() => expect(demoCancelStop).toHaveBeenCalled());
     expect(screen.getByTestId("demo-stop-settle-note")).toHaveTextContent("VOID-456");
+  });
+
+  it("disables the judge-moment buttons without a treasurer key", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <DemoStopMoment adminKey="" onRefresh={refresh} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("demo-stop-simulate-arrival")).toBeDisabled();
+    expect(screen.getByTestId("demo-stop-cancel")).toBeDisabled();
+    expect(screen.getByTestId("demo-stop-reset")).toBeDisabled();
+    expect(demoSimulateArrival).not.toHaveBeenCalled();
   });
 });

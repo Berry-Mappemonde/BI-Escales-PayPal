@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatSettleCaptureNote } from "./api/settleCaptureNote";
-import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchGearProjects, fetchHealthRetrying, fetchPublicCommonFund, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchGearProjects, fetchHealthRetrying, fetchPrices, fetchPublicCommonFund, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { emitCrewSubscribeReturn } from "./paypal/crewSubscribeReturnEvents";
 import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
 import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
@@ -225,6 +225,22 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchPrices(lang)
+      .then((prices) => {
+        if (!cancelled) {
+          setSchedule((prev) => (prev ? { ...prev, prices } : prev));
+        }
+      })
+      .catch(() => {
+        /* keep schedule-embedded catalogue when /prices fails */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lang]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 30000);
@@ -769,7 +785,9 @@ export default function App() {
               <path d="m19 8 8 14h-8V8Z" fill="currentColor" opacity=".6" />
               <path d="M4 25h24l-5 4H9l-5-4Z" fill="currentColor" />
             </svg>
-            <h1 aria-label={t("app.title")}>BI Escales <small>Pay Only If We Sail</small></h1>
+            <h1 aria-label={t("app.title")}>
+              BI Escales <small>{t("app.subtitle")}</small>
+            </h1>
           </div>
         </div>
         <div className="ng-tab-bar" role="tablist">

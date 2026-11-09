@@ -254,9 +254,11 @@ def test_n29_fr_pledge_intent_is_french():
         ),
     )
     intent = fr["pledge"]["intent"]
-    assert "AUTHORIZE" in intent
-    assert "sandbox PayPal" in intent
-    assert "Intent AUTHORIZE" in intent
+    assert intent.strip()
+    assert "Autorisation PayPal" in intent
+    assert "vous n’êtes pas débité" in intent
+    assert "bac à sable" in intent
+    assert "AUTHORIZE" not in intent
 
 
 def test_n30_public_fund_includes_refunded_eur():

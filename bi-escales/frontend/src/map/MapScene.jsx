@@ -27,7 +27,7 @@ import {
 import { worldCopyLineCoords } from "../../../../naviguide-escales/src/utils/geo.js";
 import { officialAirRouteStyles } from "../../../../naviguide-escales/src/utils/berryLegs.js";
 import { catamaranSvg } from "../../../../naviguide-escales/src/engine/catamaranIcon.js";
-import { drawingPinHtml } from "../../../../naviguide-escales/src/utils/waypointFlags.js";
+import { stopMarkerIconHtml, stopMarkerIconSize } from "./stopMarkerIcon.js";
 import { applyMarkerRotation } from "../../../../naviguide-escales/src/utils/markerRotation.js";
 import { mapTileUrlForTheme } from "./mapTileUrl.js";
 
@@ -157,15 +157,12 @@ export function MapScene({
     if (!map || !layers) return;
     const group = layers.update("stops", () => L.layerGroup().addTo(map), (layer) => layer.clearLayers());
     (stops || []).forEach((stop) => {
-      const srcs = stop.flags || [];
-      const html = srcs.length
-        ? `<div class="flag-stack">${srcs.map((src) => `<img src="${src}" alt="" style="height:22px;width:auto;display:block;box-sizing:border-box;border:1px solid var(--color-line);border-radius:var(--radius-chip);box-shadow:var(--shadow-marker)" />`).join("")}</div>`
-        : drawingPinHtml(0);
+      const { iconSize, iconAnchor } = stopMarkerIconSize(stop);
       const icon = L.divIcon({
         className: "flag-divicon",
-        html,
-        iconSize: srcs.length ? [22 * srcs.length, 24] : [14, 14],
-        iconAnchor: srcs.length ? [11 * srcs.length, 12] : [7, 7],
+        html: stopMarkerIconHtml(stop),
+        iconSize,
+        iconAnchor,
       });
       const marker = L.marker([stop.lat, stop.lon], { icon, pane: "markerPane" }).addTo(group);
       marker.bindTooltip(stop.name, { direction: "top" });

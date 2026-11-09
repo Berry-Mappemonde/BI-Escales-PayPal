@@ -122,8 +122,9 @@ export default function App() {
     () => (routeFc ? voyageFromRoute(routeFc, t0) : null),
     [routeFc, t0],
   );
+  const voyageClockReady = now !== null;
   const sample = useMemo(
-    () => (voyage ? sampleAt(voyage.clock, now) : null),
+    () => (voyage && now ? sampleAt(voyage.clock, now) : null),
     [voyage, now],
   );
   const cumNm = Number(sample?.sailNm ?? sample?.cumNm ?? 0);
@@ -870,8 +871,13 @@ export default function App() {
             <a href="/escales/wishlists">{t("wishlists.navLink")}</a>
           </p>
         ) : null}
-        <p className="ng-clock-line voyage-clock" data-testid="voyage-clock">
-          {countdownHours !== null ? (
+        <p
+          className="ng-clock-line voyage-clock"
+          data-testid="voyage-clock"
+          aria-busy={voyageClockReady ? undefined : true}
+          aria-label={voyageClockReady ? undefined : t("clock.pending")}
+        >
+          {voyageClockReady && countdownHours !== null ? (
             <span className="voyage-clock-countdown">
               {t("clock.waiting", {
                 days: Math.floor(countdownHours / 24),
@@ -879,9 +885,17 @@ export default function App() {
               })}
             </span>
           ) : null}
-          <span className="voyage-clock-date">{formatCivilDate(sample?.iso, lang)}</span>
+          <span className="voyage-clock-date">
+            {voyageClockReady ? formatCivilDate(sample?.iso, lang) : "—"}
+          </span>
           <span className="voyage-clock-distance">
-            {t("clock.sailed", { nm: sailedNm })} · {t("clock.simulated")}
+            {voyageClockReady ? (
+              <>
+                {t("clock.sailed", { nm: sailedNm })} · {t("clock.simulated")}
+              </>
+            ) : (
+              "—"
+            )}
           </span>
         </p>
         {!prod ? (

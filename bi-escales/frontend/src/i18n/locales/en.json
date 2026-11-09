@@ -43,6 +43,7 @@
   },
   "clock": {
     "waiting": "Departure in {{days}}d {{hours}}h",
+    "pending": "Voyage clock loading",
     "devT0": "Development departure (ISO)",
     "sailed": "{{nm}} nm sailed",
     "simulated": "Demo clock"

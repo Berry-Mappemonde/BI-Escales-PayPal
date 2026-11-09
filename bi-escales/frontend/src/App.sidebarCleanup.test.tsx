@@ -66,7 +66,7 @@ vi.mock("./voyage/loadVoyage.js", () => ({
     return null;
   }),
   sampleAt: vi.fn().mockReturnValue({ iso: "2026-11-12T08:00:00.000Z", sailNm: 0, lat: 46, lon: -1 }),
-  voyageFromRoute: vi.fn((fc) => ({
+  voyageFromRoute: vi.fn((_fc: unknown) => ({
     clock: {},
     segments: [],
     stops: [

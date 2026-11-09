@@ -1,4 +1,4 @@
-"""Optional live NIM call. Skipped unless NVIDIA_API_KEY is set. No secrets stored."""
+"""Optional live NIM call. Runs only when ESCALES_RUN_LIVE=1 and NVIDIA_API_KEY is set."""
 from __future__ import annotations
 
 import asyncio

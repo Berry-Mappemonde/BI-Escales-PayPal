@@ -103,6 +103,38 @@ def _append_refund_row(refunds: list[dict], row: dict) -> list[dict]:
     return [*refunds, row]
 
 
+def _refund_idempotency_key(pledge_id: str, refund_value: str) -> str:
+    """Stable PayPal-Request-Id for a given pledge and refund amount intent."""
+    key = f"refund-{pledge_id}-{refund_value}"
+    if len(key) > 108:
+        return key[:108]
+    return key
+
+
+def _refund_row_for_key(pledge: dict, key: str) -> Optional[dict]:
+    needle = str(key or "").strip()
+    if not needle:
+        return None
+    for row in _normalize_refunds(pledge):
+        if str(row.get("key") or "").strip() != needle:
+            continue
+        status = str(row.get("status") or "COMPLETED").upper()
+        if status in {"COMPLETED", "PENDING", "REFUNDED"}:
+            return row
+    return None
+
+
+async def _finish_idempotent_refund(pledge_id: str, pledge: dict) -> dict:
+    """Return pledge after a refund intent is already satisfied (webhook or prior API)."""
+    if pledge.get("pending_refund"):
+        pledge.pop("pending_refund", None)
+        pledge = await get_ledger().save_pledge(pledge)
+    fresh = await get_ledger().get_pledge(pledge_id)
+    if fresh is None:
+        raise PledgeNotFound(pledge_id)
+    return fresh
+
+
 def _is_transport_retry(exc: Exception) -> bool:
     if isinstance(exc, httpx.TimeoutException):
         return True
@@ -1843,19 +1875,22 @@ async def refund_pledge(
     from app.channel3_paypal import format_paypal_amount_value, normalize_project_pledge_amount
 
     current = str(pledge.get("status") or "")
-    if current not in ("captured", "partially_refunded"):
+    if current not in ("captured", "partially_refunded", "refunded"):
         raise IllegalTransition(current, "refunded")
     capture_id = str(pledge.get("capture_id") or "").strip()
     if not capture_id:
         raise ValueError("capture_id is required to refund")
     capture_total = Decimal(str(pledge.get("amount_eur") or "0"))
     already_refunded = refunded_amount_from_pledge(pledge)
+    remaining = capture_total - already_refunded
+    if current == "refunded" and remaining <= Decimal("0"):
+        return await _finish_idempotent_refund(pledge_id, pledge)
     pending = pledge.get("pending_refund")
     if isinstance(pending, dict) and str(pending.get("key") or "").strip():
         idempotency_key = str(pending["key"])
         refund_this = Decimal(str(pending.get("amount") or "0"))
         if refund_this <= Decimal("0"):
-            refund_this = capture_total - already_refunded
+            refund_this = remaining
     else:
         if amount_eur:
             if pledge_currency == "EUR":
@@ -1863,21 +1898,28 @@ async def refund_pledge(
             else:
                 refund_this = Decimal(normalize_project_pledge_amount(amount_eur, pledge_currency))
         else:
-            refund_this = capture_total - already_refunded
+            refund_this = remaining
         if refund_this <= Decimal("0"):
+            if already_refunded > Decimal("0") and remaining <= Decimal("0"):
+                return await _finish_idempotent_refund(pledge_id, pledge)
             raise ValueError("refund amount must be positive")
-        if already_refunded + refund_this > capture_total:
-            raise ValueError("refund exceeds captured amount")
-        refund_count = len(_normalize_refunds(pledge))
-        idempotency_key = f"refund-{pledge_id}-{refund_count + 1}"
+        refund_value = format_paypal_amount_value(f"{refund_this}", pledge_currency)
+        idempotency_key = _refund_idempotency_key(pledge_id, refund_value)
         pledge["pending_refund"] = {
             "key": idempotency_key,
-            "amount": format_paypal_amount_value(f"{refund_this}", pledge_currency),
+            "amount": refund_value,
         }
         pledge = await get_ledger().save_pledge(pledge)
-    if already_refunded + refund_this > capture_total:
-        raise ValueError("refund exceeds captured amount")
     refund_value = format_paypal_amount_value(f"{refund_this}", pledge_currency)
+    pledge = await require_pledge(pledge_id)
+    already_refunded = refunded_amount_from_pledge(pledge)
+    remaining = capture_total - already_refunded
+    if _refund_row_for_key(pledge, idempotency_key):
+        return await _finish_idempotent_refund(pledge_id, pledge)
+    if remaining <= Decimal("0") and already_refunded > Decimal("0"):
+        return await _finish_idempotent_refund(pledge_id, pledge)
+    if refund_this > remaining:
+        raise ValueError("refund exceeds remaining refundable amount")
     try:
         payload = client.refund_capture(
             capture_id,

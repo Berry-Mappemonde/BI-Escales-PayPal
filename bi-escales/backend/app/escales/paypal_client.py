@@ -165,20 +165,64 @@ def paypal_error_has_issue(exc: PayPalError, code: str) -> bool:
 _USABLE_AUTHORIZATION_STATUSES = frozenset({"CREATED", "PENDING"})
 
 
-def usable_authorization_from_order(order: dict) -> tuple[str, Optional[str]]:
-    """Authorization id from a GET order when authorize returned ORDER_ALREADY_AUTHORIZED."""
+def _decimal_amount_eq(wanted: str, got: Any) -> bool:
+    from decimal import Decimal, InvalidOperation
+
+    try:
+        return Decimal(str(wanted).strip()) == Decimal(str(got).strip())
+    except (InvalidOperation, ValueError):
+        return str(wanted).strip() == str(got).strip()
+
+
+def _first_usable_authorization(order: dict) -> tuple[dict, dict]:
     for unit in order.get("purchase_units") or []:
-        payments = (unit or {}).get("payments") or {}
+        if not isinstance(unit, dict):
+            continue
+        payments = unit.get("payments") or {}
         for auth in payments.get("authorizations") or []:
             if not isinstance(auth, dict):
                 continue
             status = str(auth.get("status") or "").upper()
             if status not in _USABLE_AUTHORIZATION_STATUSES:
                 continue
-            auth_id = auth.get("id")
-            if auth_id:
-                expiration = auth.get("expiration_time")
-                return str(auth_id), str(expiration) if expiration else None
+            if auth.get("id"):
+                return unit, auth
+    raise PayPalError(502, "authorization id missing")
+
+
+def adopted_authorization_mismatch(order: dict, pledge: dict) -> Optional[str]:
+    """Return a mismatch code when an adopted hold does not match the pledge."""
+    try:
+        unit, auth = _first_usable_authorization(order)
+    except PayPalError:
+        return "authorization"
+    pledge_id = str(pledge.get("_id") or "")[:127]
+    amount_eur = str(pledge.get("amount_eur") or "")
+    currency = str(pledge.get("currency") or "EUR").strip().upper()
+    auth_amount = auth.get("amount") if isinstance(auth.get("amount"), dict) else {}
+    if not _decimal_amount_eq(amount_eur, auth_amount.get("value")):
+        return "amount"
+    auth_currency = str(auth_amount.get("currency_code") or "").strip().upper()
+    if auth_currency != currency:
+        return "currency"
+    custom = str(unit.get("custom_id") or "").strip()
+    invoice = str(unit.get("invoice_id") or "").strip()
+    if custom and custom != pledge_id:
+        return "custom_id"
+    if invoice and invoice != pledge_id:
+        return "invoice_id"
+    if not custom and not invoice:
+        return "reference"
+    return None
+
+
+def usable_authorization_from_order(order: dict) -> tuple[str, Optional[str]]:
+    """Authorization id from a GET order when authorize returned ORDER_ALREADY_AUTHORIZED."""
+    _unit, auth = _first_usable_authorization(order)
+    auth_id = auth.get("id")
+    if auth_id:
+        expiration = auth.get("expiration_time")
+        return str(auth_id), str(expiration) if expiration else None
     raise PayPalError(502, "authorization id missing")
 
 

@@ -81,6 +81,41 @@ class RecoverSpy:
         return {"id": order_id, "status": self.order_status}
 
 
+def _already_auth_exc() -> PayPalError:
+    return PayPalError(
+        422,
+        {"name": "UNPROCESSABLE_ENTITY", "details": [{"issue": "ORDER_ALREADY_AUTHORIZED"}]},
+    )
+
+
+def _adopted_order_body(
+    pledge_id: str,
+    *,
+    amount: str = "20.00",
+    currency: str = "EUR",
+    custom_id: str | None = None,
+    invoice_id: str | None = None,
+    auth_id: str = "28L87826KG020904R",
+    auth_status: str = "CREATED",
+) -> dict:
+    ref = custom_id if custom_id is not None else pledge_id[:127]
+    invoice = invoice_id if invoice_id is not None else pledge_id[:127]
+    return {
+        "purchase_units": [{
+            "custom_id": ref,
+            "invoice_id": invoice,
+            "payments": {
+                "authorizations": [{
+                    "id": auth_id,
+                    "status": auth_status,
+                    "expiration_time": "2099-06-01T00:00:00Z",
+                    "amount": {"currency_code": currency, "value": amount},
+                }],
+            },
+        }],
+    }
+
+
 def _finance_authorized(pledge_id: str, entries: list[dict]) -> list[dict]:
     return [
         row for row in entries
@@ -88,37 +123,27 @@ def _finance_authorized(pledge_id: str, entries: list[dict]) -> list[dict]:
     ]
 
 
+def _authorize_call_count(spy: RecoverSpy) -> int:
+    return sum(1 for kind, _ in spy.calls if kind == "authorize")
+
+
 def test_order_already_authorized_recovers_pledge():
     async def body():
-        spy = RecoverSpy(
-            get_order_body={
-                "purchase_units": [{
-                    "payments": {
-                        "authorizations": [{
-                            "id": "28L87826KG020904R",
-                            "status": "CREATED",
-                            "expiration_time": "2099-06-01T00:00:00Z",
-                        }],
-                    },
-                }],
-            },
-        )
-        spy.authorize_raises = PayPalError(
-            422,
-            {"name": "UNPROCESSABLE_ENTITY", "details": [{"issue": "ORDER_ALREADY_AUTHORIZED"}]},
-        )
         created = await create_pledge(
             amount_eur="20.00",
             description="20 milles",
             milestone_id="dep-la-rochelle",
-            client=spy,
+            client=RecoverSpy(),
             client_key="recover-1",
         )
+        spy = RecoverSpy(get_order_body=_adopted_order_body(created["_id"], amount="20.00"))
+        spy.authorize_raises = _already_auth_exc()
         saved = await authorize_pledge(created["_id"], spy)
         assert saved["status"] == "authorized"
         assert saved["authorization_id"] == "28L87826KG020904R"
         entries = await list_finance_entries()
         assert len(_finance_authorized(created["_id"], entries)) == 1
+        assert _authorize_call_count(spy) == 1
         assert ("authorize", created["order_id"]) in spy.calls
         assert ("orders.get", created["order_id"]) in spy.calls
 
@@ -127,36 +152,30 @@ def test_order_already_authorized_recovers_pledge():
 
 def test_repeat_authorize_is_noop_without_duplicate_finance():
     async def body():
-        spy = RecoverSpy(
-            get_order_body={
-                "purchase_units": [{
-                    "payments": {
-                        "authorizations": [{
-                            "id": "AUTH-RECOVER-NOOP",
-                            "status": "PENDING",
-                            "expiration_time": "2099-06-01T00:00:00Z",
-                        }],
-                    },
-                }],
-            },
-        )
-        spy.authorize_raises = PayPalError(
-            422,
-            {"details": [{"issue": "ORDER_ALREADY_AUTHORIZED"}]},
-        )
         created = await create_pledge(
             amount_eur="15.00",
             description="miles",
             milestone_id="dep-la-rochelle",
-            client=spy,
+            client=RecoverSpy(),
             client_key="recover-2",
         )
+        spy = RecoverSpy(
+            get_order_body=_adopted_order_body(
+                created["_id"],
+                amount="15.00",
+                auth_id="AUTH-RECOVER-NOOP",
+                auth_status="PENDING",
+            ),
+        )
+        spy.authorize_raises = _already_auth_exc()
         first = await authorize_pledge(created["_id"], spy)
         calls_after_first = len(spy.calls)
+        auth_id = first["authorization_id"]
         second = await authorize_pledge(created["_id"], spy)
         assert second["status"] == "authorized"
-        assert second["authorization_id"] == first["authorization_id"]
+        assert second["authorization_id"] == auth_id == "AUTH-RECOVER-NOOP"
         assert len(spy.calls) == calls_after_first
+        assert _authorize_call_count(spy) == 1
         entries = await list_finance_entries()
         assert len(_finance_authorized(created["_id"], entries)) == 1
 
@@ -184,7 +203,7 @@ def test_other_422_issue_still_raises():
         assert stored is not None
         assert stored["status"] == "created"
         entries = await list_finance_entries()
-        assert _finance_authorized(created["_id"], entries) == []
+        assert len(_finance_authorized(created["_id"], entries)) == 0
 
     asyncio.run(body())
 
@@ -203,10 +222,7 @@ def test_order_already_authorized_without_usable_auth_still_raises():
                 }],
             },
         )
-        original = PayPalError(
-            422,
-            {"details": [{"issue": "ORDER_ALREADY_AUTHORIZED"}]},
-        )
+        original = _already_auth_exc()
         spy.authorize_raises = original
         created = await create_pledge(
             amount_eur="12.00",
@@ -217,9 +233,74 @@ def test_order_already_authorized_without_usable_auth_still_raises():
         )
         with pytest.raises(PayPalError) as caught:
             await authorize_pledge(created["_id"], spy)
-        assert caught.value is original or caught.value.status == 422
+        assert caught.value is original
+        assert caught.value.status == 422
         stored = await get_ledger().get_pledge(created["_id"])
         assert stored is not None
         assert stored["status"] == "created"
+        assert len(_finance_authorized(created["_id"], await list_finance_entries())) == 0
+
+    asyncio.run(body())
+
+
+@pytest.mark.parametrize(
+    "field_kwargs",
+    [
+        {"amount": "99.00"},
+        {"currency": "USD"},
+        {"custom_id": "wrong-custom"},
+        {"invoice_id": "wrong-invoice"},
+    ],
+    ids=["amount", "currency", "custom_id", "invoice_id"],
+)
+def test_adopted_authorization_mismatch_keeps_422(field_kwargs):
+    async def body():
+        created = await create_pledge(
+            amount_eur="20.00",
+            description="miles",
+            milestone_id="dep-la-rochelle",
+            client=RecoverSpy(),
+            client_key=f"recover-mismatch-{field_kwargs}",
+        )
+        body_overrides = {"amount": "20.00", **field_kwargs}
+        spy = RecoverSpy(get_order_body=_adopted_order_body(created["_id"], **body_overrides))
+        original = _already_auth_exc()
+        spy.authorize_raises = original
+        with pytest.raises(PayPalError) as caught:
+            await authorize_pledge(created["_id"], spy)
+        assert caught.value is original
+        assert caught.value.status == 422
+        stored = await get_ledger().get_pledge(created["_id"])
+        assert stored is not None
+        assert stored["status"] == "created"
+        assert stored.get("authorization_id") in (None, "")
+        assert len(_finance_authorized(created["_id"], await list_finance_entries())) == 0
+
+    asyncio.run(body())
+
+
+def test_concurrent_authorize_one_paypal_call_one_ledger_row():
+    async def body():
+        holder = RecoverSpy()
+        created = await create_pledge(
+            amount_eur="25.00",
+            description="miles",
+            milestone_id="dep-la-rochelle",
+            client=holder,
+            client_key="recover-concurrent",
+        )
+        spy = RecoverSpy()
+        first, second = await asyncio.gather(
+            authorize_pledge(created["_id"], spy),
+            authorize_pledge(created["_id"], spy),
+        )
+        auth_id = first["authorization_id"]
+        assert first["status"] == "authorized"
+        assert second["status"] == "authorized"
+        assert second["authorization_id"] == auth_id
+        assert auth_id == f"AUTH-{created['order_id']}"
+        assert _authorize_call_count(spy) == 1
+        entries = await list_finance_entries()
+        assert len(_finance_authorized(created["_id"], entries)) == 1
 
     asyncio.run(body())

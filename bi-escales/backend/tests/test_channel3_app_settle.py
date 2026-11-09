@@ -14,12 +14,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.channel3_catalog import project_id_for_product
 from app.channel3_funding import fund_snapshot_for_project
 from app.escales.ledger import fund_for_milestone, reset_ledger, to_public_fund
+from app.escales.ledger import get_ledger
 from app.escales.paypal_settlement import (
     apply_capture_settlement,
     apply_refund_settlement,
+    enrich_refund_row_settlement,
     parse_seller_receivable_breakdown,
+    recompute_received_net_eur,
 )
-from app.escales.pledges import authorize_pledge, create_pledge, refund_pledge
+from app.escales.pledges import (
+    authorize_pledge,
+    create_pledge,
+    reconcile_refund_on_pledge,
+    refund_pledge,
+    _normalize_refunds,
+)
 from app.escales.project_payouts import (
     project_captured_eur,
     project_payout_available_eur,
@@ -261,7 +270,13 @@ def test_projet_fund_includes_received_net_eur(monkeypatch):
 
 
 def test_refund_settlement_unit():
-    pledge = {"_id": "p", "currency": "USD", "received_net_eur": "8.00"}
+    pledge = {
+        "_id": "p",
+        "currency": "USD",
+        "capture_received_net_eur": "8.00",
+        "received_net_eur": "8.00",
+        "refunds": [],
+    }
     row = {"id": "R1", "amount": "4.00", "status": "COMPLETED", "at": "2026-11-12T00:00:00+00:00"}
     payload = {
         "seller_payable_breakdown": {
@@ -271,3 +286,108 @@ def test_refund_settlement_unit():
     pledge, row = apply_refund_settlement(pledge, payload, row)
     assert row["refund_net_eur"] == "3.50"
     assert pledge["received_net_eur"] == "4.50"
+
+
+def test_refund_reconcile_idempotent_usd_webhook_replay(monkeypatch):
+    monkeypatch.setenv("ESCALES_STORE", "memory")
+    reset_ledger()
+    project_id = "gear-c3-idem-usd"
+    payload = {
+        "seller_payable_breakdown": {
+            "net_amount": {"currency_code": "EUR", "value": "3.50"},
+        },
+    }
+
+    async def _run():
+        pledge = {
+            "_id": "pledge-idem-usd",
+            "kind": "project_pledge",
+            "target_id": project_id,
+            "currency": "USD",
+            "amount_eur": "9.99",
+            "status": "captured",
+            "capture_received_net_eur": "8.00",
+            "received_net_eur": "8.00",
+            "capture_settlement": {
+                "net_amount": {"currency": "EUR", "value": "8.00"},
+                "exchange_rate": {
+                    "source_currency": "USD",
+                    "target_currency": "EUR",
+                    "value": "0.8600",
+                },
+            },
+            "refunds": [],
+        }
+        await get_ledger().save_pledge(pledge)
+        for _ in range(3):
+            current = await get_ledger().get_pledge("pledge-idem-usd")
+            assert current is not None
+            await reconcile_refund_on_pledge(
+                current,
+                refund_id="REF-SAME",
+                amount_eur="4.00",
+                refund_payload=payload,
+            )
+        final = await get_ledger().get_pledge("pledge-idem-usd")
+        assert final["received_net_eur"] == "4.50"
+        assert len(_normalize_refunds(final)) == 1
+        assert await project_captured_eur(project_id) == Decimal("4.50")
+        assert await project_payout_available_eur(project_id) == Decimal("4.50")
+
+    asyncio.run(_run())
+
+
+def test_refund_reconcile_idempotent_eur_webhook_replay(monkeypatch):
+    monkeypatch.setenv("ESCALES_STORE", "memory")
+    reset_ledger()
+    project_id = "projet-idem-eur"
+
+    async def _run():
+        pledge = {
+            "_id": "pledge-idem-eur",
+            "kind": "project_pledge",
+            "target_id": project_id,
+            "currency": "EUR",
+            "amount_eur": "20.00",
+            "status": "captured",
+            "capture_received_net_eur": "20.00",
+            "received_net_eur": "20.00",
+            "refunds": [],
+        }
+        await get_ledger().save_pledge(pledge)
+        for _ in range(3):
+            current = await get_ledger().get_pledge("pledge-idem-eur")
+            assert current is not None
+            await reconcile_refund_on_pledge(
+                current,
+                refund_id="REF-EUR-SAME",
+                amount_eur="3.50",
+                status="COMPLETED",
+            )
+        final = await get_ledger().get_pledge("pledge-idem-eur")
+        assert final["received_net_eur"] == "16.50"
+        assert len(_normalize_refunds(final)) == 1
+        assert await project_captured_eur(project_id) == Decimal("16.50")
+
+    asyncio.run(_run())
+
+
+def test_refund_without_payable_uses_capture_rate_conservative():
+    pledge = {
+        "_id": "p2",
+        "currency": "USD",
+        "capture_received_net_eur": "8.00",
+        "capture_settlement": {
+            "exchange_rate": {
+                "source_currency": "USD",
+                "target_currency": "EUR",
+                "value": "0.8600",
+            },
+        },
+    }
+    row = {"id": "R2", "amount": "4.00", "status": "COMPLETED"}
+    enriched = enrich_refund_row_settlement(pledge, {}, row)
+    assert enriched["refund_net_eur"] == "3.44"
+    pledge["refunds"] = [enriched]
+    recompute_received_net_eur(pledge, pledge["refunds"])
+    assert pledge["received_net_eur"] == "4.56"

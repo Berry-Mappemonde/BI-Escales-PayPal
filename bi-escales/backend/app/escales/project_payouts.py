@@ -43,7 +43,7 @@ async def _payout_sent_for_proposal(payout_id: str) -> Optional[dict]:
 
 
 async def project_captured_eur(project_id: str) -> Decimal:
-    """Sum of captured project pledges for one BI project id."""
+    """Sum spendable EUR net per pledge (PayPal capture net after fees/FX, minus refund takebacks)."""
     pid = str(project_id or "").strip()
     total = Decimal("0.00")
     for row in await get_ledger().list_pledges():

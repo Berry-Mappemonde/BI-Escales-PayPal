@@ -44,6 +44,6 @@ PayPal sandbox captures in USD/GBP (and other native catalogue currencies) are *
 | `totals_by_currency` / `funded_pct` | Native currency only (catalogue goal and progress). No FX. |
 | `received_net_eur` (pledge + fund) | EUR net from PayPal `seller_receivable_breakdown.net_amount` after fees and PayPal’s exchange rate. |
 | Refunds | Stay in the pledge’s native currency on the refund API; EUR takeback from `seller_payable_breakdown` reduces `received_net_eur`. |
-| Project payouts | Bounded by summed `received_net_eur`, not by treating USD/GBP as EUR. |
+| Project payouts | Bounded by summed `received_net_eur` (capture EUR net after PayPal fees/FX, minus refund EUR takebacks), not by treating USD/GBP as EUR. |
 
 Settlement fields (`gross_amount`, `paypal_fee`, `net_amount`, `exchange_rate`, `receivable_amount` when present) are stored on the pledge and on `pledge_captured` finance lines. Missing breakdown on non-EUR captures logs a warning and leaves settlement fields null; EUR captures without breakdown keep the previous behaviour (amount minus fee when reported).

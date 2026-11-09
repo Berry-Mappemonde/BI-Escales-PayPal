@@ -171,12 +171,23 @@ async def reconcile_refund_on_pledge(
         "status": stored_status,
         "at": at or now_iso(),
     }
-    if isinstance(refund_payload, dict):
-        from .paypal_settlement import apply_refund_settlement
+    from .paypal_settlement import enrich_refund_row_settlement, recompute_received_net_eur
 
-        pledge, refund_row = apply_refund_settlement(pledge, refund_payload, refund_row)
-    refunds = _append_refund_row(_normalize_refunds(pledge), refund_row)
+    refund_row = enrich_refund_row_settlement(pledge, refund_payload, refund_row)
+    existing = _normalize_refunds(pledge)
+    refunds = _append_refund_row(existing, refund_row)
+    if refunds is existing and any(str(r.get("id") or "") == str(refund_id) for r in existing):
+        for index, row in enumerate(refunds):
+            if str(row.get("id") or "") != str(refund_id):
+                continue
+            merged = dict(row)
+            for field, value in refund_row.items():
+                if value not in (None, "") and merged.get(field) in (None, ""):
+                    merged[field] = value
+            refunds[index] = merged
+            break
     pledge["refunds"] = refunds
+    recompute_received_net_eur(pledge, refunds)
     total = refunded_amount_from_pledge(pledge)
     pledge["refunded_amount_eur"] = f"{total:.2f}"
     capture_total = Decimal(str(pledge.get("amount_eur") or "0"))

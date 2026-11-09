@@ -142,13 +142,15 @@ def apply_capture_settlement(pledge: dict, payload: dict) -> dict:
         net = settlement.get("net_amount")
         if isinstance(net, dict) and str(net.get("currency") or "").upper() == "EUR":
             parsed = _decimal_text(net["value"])
-            if parsed is not None:
-                pledge["received_net_eur"] = _format_eur(parsed)
+        if parsed is not None:
+            pledge["received_net_eur"] = _format_eur(parsed)
+            pledge["capture_received_net_eur"] = pledge["received_net_eur"]
         return pledge
     if pledge_ccy == "EUR":
         legacy = _eur_capture_without_breakdown(pledge, capture)
         if legacy is not None:
             pledge["received_net_eur"] = legacy
+            pledge["capture_received_net_eur"] = legacy
         return pledge
     logger.warning(
         "PayPal capture missing seller_receivable_breakdown for pledge %s (%s)",
@@ -159,31 +161,137 @@ def apply_capture_settlement(pledge: dict, payload: dict) -> dict:
     return pledge
 
 
-def apply_refund_settlement(pledge: dict, refund_payload: dict, refund_row: dict) -> tuple[dict, dict]:
-    """Attach EUR reversal to the refund row and reduce ``received_net_eur`` on the pledge."""
-    payable = parse_seller_payable_breakdown(refund_payload)
+def capture_net_eur_baseline(pledge: dict) -> Optional[Decimal]:
+    """Immutable EUR net at capture (before any refund)."""
+    frozen = pledge.get("capture_received_net_eur")
+    if frozen is not None and str(frozen).strip():
+        return _decimal_text(str(frozen))
+    settlement = pledge.get("capture_settlement")
+    if isinstance(settlement, dict):
+        net = settlement.get("net_amount")
+        if isinstance(net, dict) and str(net.get("currency") or "").upper() == "EUR":
+            return _decimal_text(str(net.get("value") or ""))
+    pledge_ccy = str(pledge.get("currency") or "EUR").strip().upper()
+    if pledge_ccy == "EUR":
+        gross = _decimal_text(str(pledge.get("amount_eur") or "0"))
+        if gross is not None:
+            return gross
+    return None
+
+
+def _capture_exchange_rate_to_eur(pledge: dict) -> Optional[Decimal]:
+    settlement = pledge.get("capture_settlement")
+    if not isinstance(settlement, dict):
+        return None
+    rate = settlement.get("exchange_rate")
+    if not isinstance(rate, dict):
+        return None
+    if str(rate.get("target_currency") or "").upper() != "EUR":
+        return None
+    return _decimal_text(str(rate.get("value") or ""))
+
+
+def estimate_refund_net_eur_conservative(pledge: dict, refund_row: dict) -> Optional[Decimal]:
+    """When PayPal omits payable breakdown: deduct at least capture-rate × refund native (never raises net)."""
+    pledge_ccy = str(pledge.get("currency") or "EUR").strip().upper()
+    if pledge_ccy == "EUR":
+        return _decimal_text(str(refund_row.get("amount") or "0"))
+    refund_native = _decimal_text(str(refund_row.get("amount") or "0"))
+    if refund_native is None or refund_native <= Decimal("0"):
+        return None
+    rate = _capture_exchange_rate_to_eur(pledge)
+    if rate is None or rate <= Decimal("0"):
+        return None
+    return (refund_native * rate).quantize(Decimal("0.01"))
+
+
+def enrich_refund_row_settlement(
+    pledge: dict,
+    refund_payload: Optional[dict],
+    refund_row: dict,
+) -> dict:
+    """Attach ``refund_net_eur`` on one refund row without mutating the pledge."""
+    payload = refund_payload if isinstance(refund_payload, dict) else {}
+    payable = parse_seller_payable_breakdown(payload)
     if payable:
-        refund_row = {**refund_row, "refund_net_eur": payable["value"]}
-        parsed = _decimal_text(payable["value"])
-        if parsed is not None and pledge.get("received_net_eur"):
-            current = _decimal_text(str(pledge["received_net_eur"]))
-            if current is not None:
-                pledge["received_net_eur"] = _format_eur(max(Decimal("0.00"), current - parsed))
-        return pledge, refund_row
+        return {**refund_row, "refund_net_eur": payable["value"]}
     pledge_ccy = str(pledge.get("currency") or "EUR").strip().upper()
     if pledge_ccy == "EUR":
         amount = _decimal_text(str(refund_row.get("amount") or "0"))
-        if amount is not None and pledge.get("received_net_eur"):
-            current = _decimal_text(str(pledge["received_net_eur"]))
-            if current is not None:
-                pledge["received_net_eur"] = _format_eur(max(Decimal("0.00"), current - amount))
-        return pledge, refund_row
+        if amount is not None:
+            return {**refund_row, "refund_net_eur": _format_eur(amount)}
+    estimated = estimate_refund_net_eur_conservative(pledge, refund_row)
+    if estimated is not None:
+        return {**refund_row, "refund_net_eur": _format_eur(estimated)}
     logger.warning(
         "PayPal refund missing seller_payable_breakdown for pledge %s (%s)",
         pledge.get("_id"),
         pledge_ccy,
     )
-    return pledge, refund_row
+    return refund_row
+
+
+def _deduped_refund_rows(refunds: list[dict]) -> list[dict]:
+    seen: set[str] = set()
+    rows: list[dict] = []
+    for row in refunds:
+        if not isinstance(row, dict):
+            continue
+        refund_id = str(row.get("id") or "").strip()
+        if not refund_id or refund_id in seen:
+            continue
+        status = str(row.get("status") or "COMPLETED").upper()
+        if status not in {"COMPLETED", "PENDING", "REFUNDED"}:
+            continue
+        seen.add(refund_id)
+        rows.append(row)
+    return rows
+
+
+def recompute_received_net_eur(pledge: dict, refunds: Optional[list[dict]] = None) -> None:
+    """``received_net_eur`` = capture EUR net minus unique refund EUR reversals (idempotent)."""
+    base = capture_net_eur_baseline(pledge)
+    if base is None:
+        return
+    rows = _deduped_refund_rows(refunds if refunds is not None else _pledge_refund_list(pledge))
+    total_reversal = Decimal("0.00")
+    for row in rows:
+        text = row.get("refund_net_eur")
+        if text is not None and str(text).strip():
+            parsed = _decimal_text(str(text))
+            if parsed is not None:
+                total_reversal += parsed
+                continue
+        pledge_ccy = str(pledge.get("currency") or "EUR").strip().upper()
+        if pledge_ccy == "EUR":
+            parsed = _decimal_text(str(row.get("amount") or "0"))
+            if parsed is not None:
+                total_reversal += parsed
+    remaining = max(Decimal("0.00"), base - total_reversal)
+    pledge["received_net_eur"] = _format_eur(remaining)
+
+
+def _pledge_refund_list(pledge: dict) -> list[dict]:
+    raw = pledge.get("refunds")
+    return list(raw) if isinstance(raw, list) else []
+
+
+def apply_refund_settlement(pledge: dict, refund_payload: dict, refund_row: dict) -> tuple[dict, dict]:
+    """Legacy helper: enrich row then recompute (use from ``reconcile_refund_on_pledge``)."""
+    row = enrich_refund_row_settlement(pledge, refund_payload, refund_row)
+    refunds = _append_refund_row_compat(_pledge_refund_list(pledge), row)
+    pledge["refunds"] = refunds
+    recompute_received_net_eur(pledge, refunds)
+    return pledge, row
+
+
+def _append_refund_row_compat(refunds: list[dict], row: dict) -> list[dict]:
+    refund_id = str(row.get("id") or "").strip()
+    if not refund_id:
+        return refunds
+    if any(str(existing.get("id") or "") == refund_id for existing in refunds):
+        return refunds
+    return [*refunds, row]
 
 
 def settlement_finance_fields(pledge: dict) -> dict[str, Any]:
@@ -234,7 +342,7 @@ def finance_entry_refund_net_eur(entry: dict) -> Decimal:
 
 
 def pledge_spendable_net_eur(pledge: dict) -> Decimal:
-    """EUR balance available for project payouts (after PayPal EUR takebacks)."""
+    """EUR balance for project payouts: capture net after PayPal fees/FX, minus refund EUR takebacks."""
     received = pledge.get("received_net_eur")
     if received is not None and str(received).strip():
         parsed = _decimal_text(str(received))

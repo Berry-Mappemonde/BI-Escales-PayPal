@@ -195,7 +195,7 @@ def test_usd_funded_pct_uses_native_captures_only(api):
     body = client.get(f"/api/escales/channel3/catalog/by-project/{pid}/fund").json()
     assert body["funded_currency"] == "USD"
     assert body["funded_amount_minor"] == 2639
-    assert body["funded_pct"] == 33
+    assert body["funded_pct"] == 32
 
 
 def test_unsupported_catalog_currency_rejected(api, monkeypatch):

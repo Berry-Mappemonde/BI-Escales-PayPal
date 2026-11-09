@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { computeMarkerOffsets } from "../../../../naviguide-escales/src/utils/markerOffsets.js";
 import { PRODUCTION_T0_ISO } from "../voyage/departureT0.js";
 import { dedupeStopsByMilestone } from "../voyage/stopsForMap.js";
-import { sampleAt, voyageFromRoute } from "../voyage/loadVoyage.js";
+import { voyageFromRoute } from "../voyage/loadVoyage.js";
 import {
   boatMarkerAnchorOffset,
   boatOverlapsStopFlag,
@@ -67,7 +67,7 @@ describe("stopMarkerLayout", () => {
     });
     const view = leafProjector(1280, 800, bounds);
 
-  const zoomLevels = [view.getZoom(), 12];
+    const zoomLevels = [view.getZoom(), 12];
     for (const zoom of zoomLevels) {
       view.setZoom(zoom);
       const project = view.project;

@@ -189,6 +189,7 @@ def _assert_fresh_app_import_skips_toolkit() -> None:
         "os.environ['MONGO_URL'] = 'mongodb://127.0.0.1:27017'\n"
         "os.environ['ESCALES_ENABLED'] = '1'\n"
         "os.environ.pop('ESCALES_TOOLKIT_ENABLED', None)\n"
+        "os.environ.pop('ESCALES_PAYPAL_SDK_ENABLED', None)\n"
         "import app.main\n"
         "import app.escales.captain\n"
         "import app.escales.paypal_client\n"
@@ -197,6 +198,8 @@ def _assert_fresh_app_import_skips_toolkit() -> None:
         "    name for name in sys.modules\n"
         "    if name == 'paypal_agent_toolkit'\n"
         "    or name.startswith('paypal_agent_toolkit.')\n"
+        "    or name == 'paypalserversdk'\n"
+        "    or name.startswith('paypalserversdk.')\n"
         "    or 'apimatic' in name.lower()\n"
         "]\n"
         "assert loaded == [], loaded\n"
@@ -205,6 +208,7 @@ def _assert_fresh_app_import_skips_toolkit() -> None:
     env["MONGO_URL"] = "mongodb://127.0.0.1:27017"
     env["ESCALES_ENABLED"] = "1"
     env.pop("ESCALES_TOOLKIT_ENABLED", None)
+    env.pop("ESCALES_PAYPAL_SDK_ENABLED", None)
     completed = subprocess.run(
         [sys.executable, "-c", script],
         cwd=str(BACKEND),
@@ -247,7 +251,7 @@ def test_core_has_no_sponsor_import():
     checked.extend(
         path
         for path in (BACKEND / "app" / "escales").glob("*.py")
-        if path.name != "toolkit_tools.py"
+        if path.name not in {"toolkit_tools.py", "paypal_sdk_gateway.py"}
     )
     for path in checked:
         text = path.read_text(encoding="utf-8").lower()
@@ -266,6 +270,11 @@ def test_core_has_no_sponsor_import():
     for line in toolkit.splitlines():
         stripped = line.strip()
         if stripped.startswith("import paypal_agent_toolkit") or stripped.startswith("from paypal_agent_toolkit"):
+            assert line[:1] in {" ", "\t"}
+    gateway = (BACKEND / "app" / "escales" / "paypal_sdk_gateway.py").read_text(encoding="utf-8")
+    for line in gateway.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("import paypalserversdk") or stripped.startswith("from paypalserversdk"):
             assert line[:1] in {" ", "\t"}
 
 

@@ -28,6 +28,7 @@ from app.escales.config import (
     kernel_evidence_enabled,
     limits_enabled,
     naviguide_bridge_enabled,
+    paypal_sdk_reads_enabled,
     toolkit_enabled,
     vault_enabled,
     vault_on_purchase_enabled,
@@ -48,6 +49,7 @@ ROOT = BACKEND.parent
 FLAG_GETTERS = {
     "ESCALES_ENABLED": escales_enabled,
     "ESCALES_TOOLKIT_ENABLED": toolkit_enabled,
+    "ESCALES_PAYPAL_SDK_ENABLED": paypal_sdk_reads_enabled,
     "ESCALES_NAVIGUIDE_ENABLED": naviguide_bridge_enabled,
     "ESCALES_ELASTIC_ENABLED": elastic_evidence_enabled,
     "ESCALES_KERNEL_ENABLED": kernel_evidence_enabled,

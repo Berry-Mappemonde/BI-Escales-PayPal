@@ -189,7 +189,7 @@
     "creating": "Creating pledge…",
     "authorizing": "Authorizing on server…",
     "authorized": "Pledge authorized",
-    "vaultHint": "Approve the saved payment method on PayPal, then confirm. Nothing is captured until we sail.",
+    "vaultHint": "Approve the saved payment method on PayPal, then confirm. Captured on arrival (voided if the stop is cancelled).",
     "vaultApprove": "Approve the payment method",
     "vaultConfirm": "I approved — save it",
     "vaulting": "Saving the payment method…",

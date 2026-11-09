@@ -23,8 +23,10 @@ const values = {
   target_id: "dep-la-rochelle",
 };
 
-const LEGACY_EN = /charged only if we sail|only if we sail/i;
-const LEGACY_FR = /si nous appareillons|si nous partons/i;
+const LEGACY_EN = /charged only if we sail|only if we sail|until we sail/i;
+const LEGACY_FR = /si nous appareillons|si nous partons|ne partons pas/i;
+
+const VAULT_ARRIVAL_KEYS = ["intentVault", "vaultSaved", "vaultHint"] as const;
 
 /** Mutation M7: vault / intent copy must describe arrival capture, not departure/sail. */
 describe("M7 vault arrival copy guard", () => {
@@ -33,18 +35,16 @@ describe("M7 vault arrival copy guard", () => {
     await i18n.changeLanguage("en");
   });
 
-  it("keeps locale bundles free of legacy sail / appareillons wording on vault keys", () => {
-    expect(en.pledge.intentVault).toMatch(/captured on arrival/i);
-    expect(en.pledge.vaultSaved).toMatch(/captured on arrival/i);
-    expect(en.pledge.intentVault).not.toMatch(LEGACY_EN);
-    expect(en.pledge.vaultSaved).not.toMatch(LEGACY_EN);
-
-    expect(fr.pledge.intentVault).toMatch(/arrivée du bateau/i);
-    expect(fr.pledge.vaultSaved).toMatch(/arrivée du bateau/i);
-    expect(fr.pledge.intentVault).toMatch(/escale est annulée/i);
-    expect(fr.pledge.vaultSaved).toMatch(/escale est annulée/i);
-    expect(fr.pledge.intentVault).not.toMatch(LEGACY_FR);
-    expect(fr.pledge.vaultSaved).not.toMatch(LEGACY_FR);
+  it("keeps locale bundles free of legacy sail / partons wording on vault keys", () => {
+    for (const key of VAULT_ARRIVAL_KEYS) {
+      const enLine = en.pledge[key];
+      const frLine = fr.pledge[key];
+      expect(enLine).toMatch(/captured on arrival/i);
+      expect(enLine).not.toMatch(LEGACY_EN);
+      expect(frLine).toMatch(/arrivée du bateau/i);
+      expect(frLine).toMatch(/escale est annulée/i);
+      expect(frLine).not.toMatch(LEGACY_FR);
+    }
   });
 
   it.each([

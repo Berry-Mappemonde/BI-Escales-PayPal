@@ -189,7 +189,7 @@
     "authorize": "J’ai approuvé — autoriser",
     "creating": "Création de la promesse…",
     "authorized": "Promesse autorisée",
-    "vaultHint": "Enregistrez le moyen de paiement sur PayPal, puis confirmez. Rien n’est encaissé tant que nous ne partons pas.",
+    "vaultHint": "Enregistrez le moyen de paiement sur PayPal, puis confirmez. Débité à l'arrivée du bateau (annulé si l'escale est annulée).",
     "vaultApprove": "Approuver le moyen de paiement",
     "vaultConfirm": "J’ai approuvé — enregistrer",
     "vaulting": "Enregistrement du moyen de paiement…",

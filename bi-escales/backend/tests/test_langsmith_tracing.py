@@ -199,7 +199,11 @@ def test_ask_text_run_is_named_after_the_hop(monkeypatch):
     renamed = {}
     monkeypatch.setattr(llm, "annotate_run", lambda name=None, metadata=None: renamed.update(name=name, meta=metadata))
     monkeypatch.setattr(llm, "has_llm", lambda: True)
-    monkeypatch.setattr(llm, "consume_llm_call", lambda *a, **k: True)
+
+    async def _allow_llm_call(*_a, **_k):
+        return True
+
+    monkeypatch.setattr(llm, "consume_llm_call", _allow_llm_call)
     monkeypatch.setattr(llm, "active_providers", lambda order=None: ["openrouter"])
 
     async def fake_openrouter(*_a, **_kw):

@@ -1019,3 +1019,49 @@ body.ng-naviguide-shell {
   color: var(--color-fg);
   border: 1px solid var(--color-line-strong);
 }
+
+/* Treasurer queue in the left sidebar: the 4-column table was ~300px wide, so every
+   column wrapped to one or two characters. Stack each pledge as a card instead.
+   Selectors out-rank treasurer-panel.css (.treasurer-panel .treasurer-panel-body .fallback-table td). */
+.ng-sidebar .treasurer-panel .treasurer-queue-table :is(table, tbody, tr, td) { display: block; }
+.ng-sidebar .treasurer-panel .treasurer-queue-table table { table-layout: auto; }
+.ng-sidebar .treasurer-panel .treasurer-queue-table thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ng-sidebar .treasurer-panel .treasurer-queue-table tbody tr {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "ref date"
+    "desc desc"
+    "act act";
+  gap: var(--space-1) var(--space-2);
+  padding-block: var(--space-3);
+  border-block-end: 1px solid var(--color-line);
+}
+.ng-sidebar .treasurer-panel .treasurer-queue-table .fallback-table td { padding: 0; border: 0; overflow-wrap: normal; }
+.ng-sidebar .treasurer-panel .treasurer-queue-table .fallback-table td:nth-child(1) { grid-area: ref; }
+.ng-sidebar .treasurer-panel .treasurer-queue-table .fallback-table td:nth-child(2) { grid-area: date; color: var(--color-fg-2); font-size: var(--text-meta); }
+.ng-sidebar .treasurer-panel .treasurer-queue-table .fallback-table td:nth-child(3) { grid-area: desc; overflow-wrap: anywhere; }
+.ng-sidebar .treasurer-panel .treasurer-queue-table .fallback-table td.queue-value {
+  grid-area: act;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: start;
+}
+.ng-sidebar .treasurer-panel .treasurer-queue-table .fallback-table td.queue-value > button { margin: 0 0 0 auto; white-space: nowrap; }
+.ng-sidebar .treasurer-panel .treasurer-queue-table .treasurer-confirmation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  flex-basis: 100%;
+}
+.ng-sidebar .treasurer-panel .treasurer-queue-table .treasurer-confirmation > p { flex-basis: 100%; margin: 0; }

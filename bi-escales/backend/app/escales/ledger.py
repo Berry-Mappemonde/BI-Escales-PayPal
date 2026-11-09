@@ -357,6 +357,19 @@ class MongoLedger:
         # ledger uninitialised and every route returning 500. mongomock accepted it.
         self._ready = True
 
+    @staticmethod
+    def _for_mongo(doc: dict) -> dict:
+        """Copy for a Mongo write, without a null ``client_key``.
+
+        The ``client_key`` index is unique and sparse: sparse only skips documents
+        where the field is absent, so two pledges stored with ``client_key: null``
+        collide (E11000) and the second pledge request returns 500.
+        """
+        out = copy.deepcopy(doc)
+        if not out.get("client_key"):
+            out.pop("client_key", None)
+        return out
+
     async def insert_pledge_once(self, doc: dict) -> dict:
         await self._ensure()
         key = doc.get("client_key")
@@ -366,7 +379,7 @@ class MongoLedger:
                 return pledge_defaults(existing)
         stored = pledge_defaults(doc)
         try:
-            await self._pledges.insert_one(copy.deepcopy(stored))
+            await self._pledges.insert_one(self._for_mongo(stored))
         except Exception as exc:
             if key and exc.__class__.__name__ == "DuplicateKeyError":
                 existing = await self._pledges.find_one({"client_key": key})
@@ -387,12 +400,12 @@ class MongoLedger:
             stored = merge_concurrent_pledge(pledge_defaults(current), incoming)
             if current is None:
                 stored["rev"] = 1
-                await self._pledges.replace_one({"_id": pledge_id}, copy.deepcopy(stored), upsert=True)
+                await self._pledges.replace_one({"_id": pledge_id}, self._for_mongo(stored), upsert=True)
                 return stored
             rev = current.get("rev")
             stored["rev"] = (rev or 0) + 1
             match = {"_id": pledge_id, "rev": rev} if rev is not None else {"_id": pledge_id, "rev": {"$exists": False}}
-            result = await self._pledges.replace_one(match, copy.deepcopy(stored))
+            result = await self._pledges.replace_one(match, self._for_mongo(stored))
             if result.matched_count:
                 return stored
         raise RuntimeError(f"pledge {pledge_id}: concurrent writes kept conflicting")

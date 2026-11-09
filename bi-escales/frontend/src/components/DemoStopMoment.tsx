@@ -99,6 +99,11 @@ export function DemoStopMoment({ adminKey, onRefresh }: DemoStopMomentProps) {
           {t("treasurer.demoStop.resetDemo")}
         </button>
       </div>
+      {busy ? (
+        <p className="hint" role="status" data-testid="demo-stop-working">
+          {t("treasurer.demoStop.working")}
+        </p>
+      ) : null}
       {settleNote ? (
         <p className="notice treasurer-settle-note" data-testid="demo-stop-settle-note">
           {settleNote.split("\n").map((line, index) => (

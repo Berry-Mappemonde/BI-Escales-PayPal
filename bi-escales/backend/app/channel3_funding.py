@@ -10,9 +10,6 @@ from app.channel3_paypal import (
     minor_to_major_display,
     paypal_currency_supported,
 )
-from app.gear_projects_catalog import funded_percent
-
-
 def _major_to_minor(amount: str, currency: str) -> int:
     return major_string_to_minor(amount, currency)
 
@@ -117,12 +114,14 @@ def enrich_item_funding(
         )
 
     funded_major = minor_to_major_display(funded_minor, native_ccy)
-    pct = (
-        funded_percent(funded_major, target_major, amount_currency=native_ccy, goal_currency=native_ccy)
-        if target_minor > 0 and supported
-        else None
-    )
-    fully_funded = pct is not None and pct >= 100
+    comparable = supported and fund_ccy == native_ccy and target_minor > 0
+    fully_funded = comparable and funded_minor >= target_minor
+    if not comparable:
+        pct = None
+    elif fully_funded:
+        pct = 100
+    else:
+        pct = (funded_minor * 100) // target_minor
 
     patch = {
         "target_amount_minor": target_minor,

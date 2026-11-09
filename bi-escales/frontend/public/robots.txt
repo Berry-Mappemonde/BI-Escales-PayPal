@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://escales.naviguide.fr/sitemap.xml

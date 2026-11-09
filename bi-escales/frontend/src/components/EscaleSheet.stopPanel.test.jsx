@@ -102,7 +102,7 @@ describe("stop panel", () => {
 
     it.each([
       ["2026-11-05T08:00:00+00:00", "upcoming", "Upcoming"],
-      ["2026-11-20T08:00:00+00:00", "en_route", "En route"],
+      ["2026-11-20T08:00:00+00:00", "en_route", "Underway"],
       ["2026-12-05T08:00:00+00:00", "arrived", "Arrived"],
     ])("at %s reads %s", async (now, status, label) => {
       vi.mocked(fetchClock).mockResolvedValue({ now });

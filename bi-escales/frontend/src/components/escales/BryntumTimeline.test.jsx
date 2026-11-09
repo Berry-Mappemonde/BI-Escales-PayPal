@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import i18n from "../../i18n";
 import BryntumTimeline from "./BryntumTimeline.jsx";
 
-vi.mock("@bryntum/scheduler", () => {
+vi.mock("@bryntum/scheduler-community", () => {
   throw new Error("not installed");
 });
 

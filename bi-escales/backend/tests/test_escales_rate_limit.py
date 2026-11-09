@@ -580,8 +580,8 @@ def test_development_does_not_cap_llm_usage(monkeypatch):
     monkeypatch.delenv("ESCALES_RATE_LIMIT_ENABLED", raising=False)
     monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "1")
     llm.reset_llm_budget()
-    assert llm.consume_llm_call() is True
-    assert llm.consume_llm_call() is True
+    assert asyncio.run(llm.consume_llm_call()) is True
+    assert asyncio.run(llm.consume_llm_call()) is True
     assert llm.llm_calls_today() == 0
     monkeypatch.setenv("ESCALES_LLM_ENABLED", "1")
     monkeypatch.setenv("NVIDIA_API_KEY", "test-nvidia-key")
@@ -615,9 +615,9 @@ def test_production_llm_cap_falls_back_to_the_rules(monkeypatch):
     monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "1")
     llm.reset_llm_budget()
     morning = dt.datetime(2026, 11, 4, 12, 0, tzinfo=dt.timezone.utc)
-    assert llm.consume_llm_call(morning) is True
-    assert llm.consume_llm_call(morning) is False
-    assert llm.consume_llm_call(morning + dt.timedelta(days=1)) is True
+    assert asyncio.run(llm.consume_llm_call(morning)) is True
+    assert asyncio.run(llm.consume_llm_call(morning)) is False
+    assert asyncio.run(llm.consume_llm_call(morning + dt.timedelta(days=1))) is True
     llm.reset_llm_budget()
     monkeypatch.setenv("ESCALES_LLM_ENABLED", "1")
     monkeypatch.setenv("NVIDIA_API_KEY", "test-nvidia-key")
@@ -652,6 +652,6 @@ def test_override_false_removes_the_llm_cap_in_production(monkeypatch):
     monkeypatch.setenv("ESCALES_RATE_LIMIT_ENABLED", "0")
     monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "1")
     llm.reset_llm_budget()
-    assert llm.consume_llm_call() is True
-    assert llm.consume_llm_call() is True
+    assert asyncio.run(llm.consume_llm_call()) is True
+    assert asyncio.run(llm.consume_llm_call()) is True
     assert llm.llm_calls_today() == 0

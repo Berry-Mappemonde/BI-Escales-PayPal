@@ -33,12 +33,16 @@ function useCrewSupporterPlanId(planIdProp?: string) {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    setPlanId((planIdProp || "").trim());
-  }, [planIdProp]);
-
-  useEffect(() => {
-    if (planId) return;
+    const forced = (planIdProp || "").trim();
+    if (forced) {
+      setPlanId(forced);
+      setPlanLoading(false);
+      setPlanLoadIssue(null);
+      setFetchError(null);
+      return;
+    }
     let cancelled = false;
+    setPlanId("");
     setPlanLoading(true);
     setPlanLoadIssue(null);
     setFetchError(null);
@@ -71,7 +75,7 @@ function useCrewSupporterPlanId(planIdProp?: string) {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [planId, appLang]);
+  }, [planIdProp, appLang]);
 
   return {
     t,

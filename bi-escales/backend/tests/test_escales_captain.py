@@ -16,6 +16,7 @@ from app.escales import captain
 from app.escales.captain import chat, review
 from app.escales.milestones import filter_numbers, record_evidence
 from app.escales.pledges import authorize_pledge, capture_pledge, create_pledge, get_ledger, require_pledge, reset_ledger
+from tests.schedule_clocks import near_mayotte_clock
 from app.escales.toolkit_tools import (
     ALLOWED_TOOLS,
     TOOLKIT_ORDER_ACTIONS,
@@ -30,7 +31,7 @@ from app.escales.toolkit_tools import (
 @pytest.fixture(autouse=True)
 def isolated(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     monkeypatch.delenv("ESCALES_TOOLKIT_ENABLED", raising=False)
     reset_ledger()
     import app.core.llm as llm
@@ -2576,7 +2577,7 @@ async def _captured_common_fund(spy, amount, key):
 def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
     import app.core.llm as llm
 
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
 
     def refuse_nim(*_args, **_kwargs):
         raise AssertionError("NIM must stay behind the optional flag")
@@ -2594,7 +2595,7 @@ def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
             client_key="qa-stop",
         )
         await authorize_pledge(stop["_id"], spy)
-        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
         await capture_pledge(stop["_id"], spy)
         from app.escales.ledger import fund_for_milestone
 

@@ -1,6 +1,7 @@
 {
   "app": {
     "title": "BI Escales — Pay Only If We Sail",
+    "subtitle": "Pay Only If We Sail",
     "tagline": "Stop pledges capture on boat arrival; cabins on leg departure; common fund at once.",
     "langFr": "Français",
     "langEn": "English",
@@ -162,15 +163,15 @@
     "returnPendingProject": "Approve on PayPal. Your project contribution is charged when you return.",
     "cancelled": "Approval cancelled. Nothing is authorized.",
     "intentVault": "Saved with PayPal · charged only if we sail",
-    "intent": "AUTHORIZE intent — PayPal sandbox",
-    "intentProject": "CAPTURE intent — your project contribution is collected immediately after approval (PayPal sandbox).",
+    "intent": "PayPal authorisation hold — you are not charged until we arrive (sandbox).",
+    "intentProject": "Immediate charge — your project contribution is collected after approval (PayPal sandbox).",
     "create": "Create the PayPal order",
     "approve": "Approve on the PayPal page",
     "authorize": "I approved — authorize",
     "creating": "Creating pledge…",
     "authorizing": "Authorizing on server…",
     "authorized": "Pledge authorized",
-    "vaultHint": "Vault: approve the saved payment method on PayPal, then confirm. Nothing is captured yet.",
+    "vaultHint": "Approve the saved payment method on PayPal, then confirm. Nothing is captured until we sail.",
     "vaultApprove": "Approve the payment method",
     "vaultConfirm": "I approved — save it",
     "vaulting": "Saving the payment method…",
@@ -178,11 +179,19 @@
     "vaultSaved": "Saved — charged only if we sail",
     "vaultFailed": "Could not save the payment method. Try again from the pledge button.",
     "vaultRedirect": "Redirecting to PayPal to save your payment method…",
-    "vaultRetry": "Vault setup cancelled. You can try again from the pledge button.",
-    "vaultCancelled": "Vault setup cancelled. Nothing was saved.",
+    "vaultRetry": "Payment method setup cancelled. You can try again from the pledge button.",
+    "vaultCancelled": "Payment method setup cancelled. Nothing was saved.",
     "venmoNote": "PayPal wallet or card (EUR). Venmo is not available — USD only.",
-    "cardFieldsHint": "Card (sandbox): vault setup or authorization depending on departure date.",
+    "cardFieldsHint": "Card (sandbox): saved payment method or authorisation hold, depending on departure date.",
     "cardPay": "Pay with card",
+    "cardConfirmAuthorizeTitle": "Card payment confirmed — pledge authorized",
+    "cardConfirmVaultTitle": "Card payment confirmed — payment method saved",
+    "cardConfirmRef": "Reference: {{ref}}",
+    "cardConfirmStopNext": "Charged only after the boat arrives at this stop and the treasurer approves.",
+    "cardConfirmCabinNext": "Charged only when this leg departs.",
+    "cardErrorInvalidExpiry": "Card expiry date is invalid. Check month and year.",
+    "cardErrorInvalidCvv": "Security code (CVV) is invalid.",
+    "cardErrorInvalidNumber": "Card number is invalid.",
     "walletPayHint": "Google Pay (Chrome) or Apple Pay (Safari), TEST sandbox EUR.",
     "error": "Pledge error",
     "crewSubscribeHint": "Support the crew monthly",
@@ -215,7 +224,7 @@
   "stopPanel": {
     "status": {
       "upcoming": "Upcoming",
-      "en_route": "En route",
+      "en_route": "Underway",
       "arrived": "Arrived",
       "cancelled": "Cancelled"
     },
@@ -463,7 +472,7 @@
     "statusRefunded": "Refunded",
     "statusCaptureFailed": "Capture failed",
     "statusChargeFailed": "Charge failed",
-    "statusTokenDeletePending": "Vault token deletion pending",
+    "statusTokenDeletePending": "Payment token deletion pending",
     "statusSettled": "Settled",
     "statusFailed": "Failed"
   },
@@ -512,5 +521,12 @@
       "clothingNeedsOptional": "Clothing catalogue lines require the optional toggle.",
       "addSubmit": "Add to list"
     }
+  },
+  "certificate": {
+    "heading": "Download my certificate",
+    "downloadPng": "PNG",
+    "downloadPdf": "PDF",
+    "preparing": "Preparing your certificate…",
+    "error": "Could not prepare the certificate. Try again in a moment."
   }
 }

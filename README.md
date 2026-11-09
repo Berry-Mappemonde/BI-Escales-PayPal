@@ -2,6 +2,8 @@
 
 PayPal AI Hackathon 2026 — Association Berry-Mappemonde.
 
+**Built with:** the [APIMatic Context Plugin for the PayPal Server SDK](bi-escales/docs/apimatic/README.md) (vendored Python agent skills). The running app does not call `paypalserversdk`.
+
 ## Judges — start here
 
 | Resource | Link |

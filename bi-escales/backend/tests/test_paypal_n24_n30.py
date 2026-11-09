@@ -28,6 +28,7 @@ from app.escales.paypal_subscriptions import (
 )
 from app.escales.pledges import authorize_pledge, capture_pledge, create_pledge, reset_ledger
 from app.routers.escales import router, set_paypal_client_factory, webhooks_router
+from tests.schedule_clocks import near_mayotte_clock
 from tests.test_escales_pledges import Spy
 from tests.test_escales_router import FakePayPal as RouterFakePayPal
 from tests.test_escales_webhooks import HEADERS
@@ -212,7 +213,7 @@ def test_n27_admin_reauthorize_uses_simulated_clock_for_honor_period(monkeypatch
 
 
 def test_n28_capture_before_arrival_hour_is_refused(monkeypatch):
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
 
     async def noop(_draft):
         return None
@@ -254,9 +255,11 @@ def test_n29_fr_pledge_intent_is_french():
         ),
     )
     intent = fr["pledge"]["intent"]
-    assert "AUTHORIZE" in intent
-    assert "sandbox PayPal" in intent
-    assert "Intent AUTHORIZE" in intent
+    assert intent.strip()
+    assert "Autorisation PayPal" in intent
+    assert "vous n’êtes pas débité" in intent
+    assert "bac à sable" in intent
+    assert "AUTHORIZE" not in intent
 
 
 def test_n30_public_fund_includes_refunded_eur():

@@ -19,7 +19,7 @@
     "react-i18next": "^16.2.0"
   },
   "optionalDependencies": {
-    "@bryntum/scheduler": "npm:@bryntum/scheduler-trial@7.3.8",
+    "@bryntum/scheduler-community": "8.0.0",
     "ag-grid-community": "^34.3.0",
     "ag-grid-react": "^34.3.0",
     "ag-studio": "3.0.0",

@@ -124,9 +124,18 @@ from app.escales.rate_limit import (
     hit as hit_captain_rate,
     limit_message,
 )
+from app.escales.certificates import (
+    ensure_certificate,
+    load_certificate,
+    payer_proof_matches,
+    public_certificate_links,
+    render_certificate_pdf,
+    render_certificate_png,
+)
 from app.escales.pledges import (
     IllegalTransition,
     PledgeNotFound,
+    RefundRequestKeyRequired,
     admin_reauthorize_pledge,
     authorize_pledge,
     capture_pledge,
@@ -176,6 +185,14 @@ class _WebhooksRoute(APIRoute):
 
 router = APIRouter(prefix="/api/escales", route_class=_EnabledRoute, tags=["escales"])
 webhooks_router = APIRouter(prefix="/api/escales", route_class=_WebhooksRoute, tags=["escales-webhooks"])
+
+
+class CertificateIn(BaseModel):
+    payer_proof: Optional[str] = Field(
+        None,
+        description="PayPal order id or vault setup token id from the buyer checkout response.",
+    )
+    display_name: Optional[str] = Field(None, max_length=120)
 
 
 class PledgeIn(BaseModel):
@@ -230,6 +247,8 @@ class SpendingIn(BaseModel):
 class RefundIn(BaseModel):
     amount_eur: Optional[str] = None
     now: Optional[str] = None
+    request_key: Optional[str] = None
+    paypal_refund_id: Optional[str] = None
 
 
 class CaptureIn(BaseModel):
@@ -464,6 +483,8 @@ def _paypal_client_error_detail(exc: PayPalError) -> str:
 
 
 def _money_http(exc: Exception, lang: Optional[str] = None) -> HTTPException:
+    if isinstance(exc, RefundRequestKeyRequired):
+        return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, ValueError):
         if str(exc) == "order not approved yet":
             if lang is not None:
@@ -787,6 +808,23 @@ async def post_void(pledge_id: str, request: Request):
     return await _public_pledge_with_fund(doc)
 
 
+def _resolve_refund_request_key(request: Request, body: RefundIn) -> Optional[str]:
+    """Per-refund idempotency token for ``refund_pledge`` (maps to PayPal-Request-Id).
+
+    ``Idempotency-Key`` header wins when present; otherwise ``request_key`` in the JSON body.
+    If both differ, the header value is used (not rejected).
+    """
+    header = (
+        request.headers.get("Idempotency-Key")
+        or request.headers.get("idempotency-key")
+        or ""
+    ).strip()
+    if header:
+        return header
+    field = (body.request_key or "").strip()
+    return field or None
+
+
 @router.post("/pledges/{pledge_id}/refund")
 async def post_refund(pledge_id: str, body: RefundIn, request: Request):
     _require_treasurer(request)
@@ -804,8 +842,10 @@ async def post_refund(pledge_id: str, body: RefundIn, request: Request):
             _paypal(),
             amount_eur=body.amount_eur,
             effective_at=effective_at,
+            request_key=_resolve_refund_request_key(request, body),
+            paypal_refund_id=(body.paypal_refund_id or "").strip() or None,
         )
-    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError, RefundRequestKeyRequired) as exc:
         raise _money_http(exc) from exc
     return await _public_pledge_with_fund(doc)
 
@@ -1222,6 +1262,68 @@ async def get_pledge(pledge_id: str, request: Request):
     full = await _public_pledge_with_fund(doc)
     full["fund"] = fund
     return full
+
+
+@router.post("/pledges/{pledge_id}/certificate")
+async def post_pledge_certificate(
+    pledge_id: str,
+    lang: Optional[str] = None,
+    body: CertificateIn = CertificateIn(),
+):
+    """Issue (once) a mile sponsorship certificate after a successful mile pledge."""
+    app_lang = resolve_app_language(lang)
+    try:
+        pledge = await require_pledge(pledge_id)
+    except PledgeNotFound as exc:
+        raise HTTPException(status_code=404, detail="Pledge not found") from exc
+    if not payer_proof_matches(pledge, body.payer_proof):
+        raise HTTPException(status_code=403, detail="Payer proof required")
+    try:
+        doc = await ensure_certificate(
+            pledge_id,
+            display_name=body.display_name,
+            lang=app_lang,
+        )
+    except PledgeNotFound as exc:
+        raise HTTPException(status_code=404, detail="Pledge not found") from exc
+    except ValueError as exc:
+        raise _as_http(exc) from exc
+    token = str(doc.get("token") or "")
+    return {
+        "token": token,
+        "mile_number": doc.get("mile_number"),
+        "mile_quantity": doc.get("mile_quantity"),
+        "issue_date": doc.get("issue_date"),
+        **public_certificate_links(token),
+    }
+
+
+@router.get("/certificates/{token}.png")
+async def get_certificate_png(token: str, lang: Optional[str] = None):
+    app_lang = resolve_app_language(lang)
+    doc = await load_certificate(token)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    body = render_certificate_png(doc, app_lang)
+    return Response(
+        content=body,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.get("/certificates/{token}.pdf")
+async def get_certificate_pdf(token: str, lang: Optional[str] = None):
+    app_lang = resolve_app_language(lang)
+    doc = await load_certificate(token)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    body = render_certificate_pdf(doc, app_lang)
+    return Response(
+        content=body,
+        media_type="application/pdf",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @router.get("/milestones/{milestone_id}/fund")

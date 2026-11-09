@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tests.review_helpers import approve_capture_review, propose_capture_review
+from tests.schedule_clocks import near_mayotte_clock
 
 from app.escales.audit import AUDIT_COLLECTION, list_entries
 from app.escales.pledges import reset_ledger
@@ -139,13 +140,13 @@ MAYOTTE_PLEDGE = {
     "milestone_id": "dep-mayotte",
     "description": "20 milles Mayotte",
 }
-NEAR_MAYOTTE_CLOCK = "2027-05-15T08:00:00Z"
+NEAR_MAYOTTE_CLOCK = near_mayotte_clock()
 
 
 def _ready_mayotte(client, key, monkeypatch, body=None):
     monkeypatch.setenv("ESCALES_CLOCK_NOW", NEAR_MAYOTTE_CLOCK)
     created, authorized = _ready(client, key, body or MAYOTTE_PLEDGE)
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", NEAR_MAYOTTE_CLOCK)
     return created, authorized
 
 
@@ -711,8 +712,11 @@ def test_forbidden_transition_returns_409(api):
     assert early_void.status_code == 409
     authorized = _authorize(client, pledge_id)
     assert authorized.status_code == 200
+    calls_after_first = len(fake.calls)
     again = _authorize(client, pledge_id)
-    assert again.status_code == 409
+    assert again.status_code == 200
+    assert again.json()["status"] == "authorized"
+    assert len(fake.calls) == calls_after_first
     _approve_capture(created.json()["milestone_id"])
     captured = client.post(f"/api/escales/pledges/{pledge_id}/capture", headers=ADMIN)
     assert captured.status_code == 200

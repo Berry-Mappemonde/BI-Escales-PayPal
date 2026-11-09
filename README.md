@@ -11,6 +11,10 @@ For milestone pledges, approval records the verdict, its proposal time, and the 
 
 Status: in development. PayPal **sandbox only**; no real money moves. Planned departure: 12 Nov 2026.
 
+**Capture rules:** Stop pledges (miles, nights, meals, care, berths) capture on boat **arrival** (void if the stop is cancelled). **Cabins** capture at leg **departure**. **Common fund** and **project donations** capture **immediately**. Authorizations are not opened more than **29 days** before the relevant date; farther horizons use PayPal **Vault** when `ESCALES_VAULT_ENABLED=1`. See `bi-escales/docs/TESTING_INSTRUCTIONS.md` for judge steps and sandbox buyer account name.
+
+**Simulated clock:** `ESCALES_CLOCK_NOW` / `ESCALES_CLOCK_START` pin the voyage timeline for demos and tests. Deployed judging hosts use departure **12 Nov 2026** with the clock at **2026-11-12T08:00:00Z** (`GET /api/escales/clock`).
+
 ## Void id
 
 PayPal's void of an authorization usually returns no id (HTTP 204). `void_id` is then the authorization id, `void_id_source` is `authorization`, and `void_note` says so. A vault release with no id uses the vault id the same way. When the void body contains an `id`, that value is stored and `void_id_source` is `paypal`, even if it is the same string as the authorization id. `voided_at` is the voyage clock (`ESCALES_CLOCK_NOW`, or real UTC when that variable is unset), not a second clock.
@@ -88,11 +92,9 @@ This is **separate** from the in-app Captain integration: `ESCALES_TOOLKIT_ENABL
 
 ## Quick start
 
-Get from a fresh clone to a running local demo in under 10 minutes.
+Get from a fresh clone to a running local demo in under 10 minutes. Versions match CI (`.github/workflows/ci.yml`): **Python 3.12** (`bi-escales/.python-version`) and **Node.js 22**. Python **3.13** is not supported today (`paypal-agent-toolkit` pulls dependencies that fail to install on 3.13).
 
 ### 1. Backend
-
-Requires Python 3.12 (see `.python-version`):
 
 ```bash
 cd bi-escales/backend
@@ -107,12 +109,16 @@ Copy the example environment file and configure local in-memory demo settings:
 cp ../.env.example .env
 ```
 
-In `.env`, set:
+In `.env`, set at minimum:
 - `ESCALES_ENABLED=1`
 - `ESCALES_STORE=memory`
+- `PAYPAL_ENV=sandbox`
 - `PAYPAL_CLIENT_ID=sandbox_placeholder`
 - `PAYPAL_CLIENT_SECRET=sandbox_placeholder`
 - `ESCALES_ADMIN_KEY=dev-secret`
+- `ESCALES_DEMO_TREASURER=1` (optional: **Demo treasurer** button without sharing `x-admin-key`; requires `PAYPAL_ENV=sandbox`)
+
+Replace PayPal placeholders with your own **sandbox** REST app credentials from the PayPal developer dashboard if you want real checkout during local testing.
 
 Start the backend API server on port 8000:
 
@@ -120,7 +126,13 @@ Start the backend API server on port 8000:
 python -m uvicorn app.main:app --reload --port 8000 --env-file .env
 ```
 
-Verify backend health at `http://127.0.0.1:8000/api/health`.
+Verify backend health at `http://127.0.0.1:8000/api/health`. Optional Captain smoke (rules provider, no LLM keys required):
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/api/escales/captain/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Where is the boat?","lang":"en"}' | head -c 400
+```
 
 ### 2. Frontend
 
@@ -128,9 +140,12 @@ In a separate terminal:
 
 ```bash
 cd bi-escales/frontend
+cp .env.example .env.local
 npm ci
 VITE_API_PROXY_TARGET=http://127.0.0.1:8000 npm run dev
 ```
+
+Set `VITE_PAYPAL_CLIENT_ID` in `.env.local` to the same sandbox **client id** as `PAYPAL_CLIENT_ID` (or leave `sandbox_placeholder` to load the shell without PayPal buttons approving orders).
 
 Open `http://localhost:5173` in your browser.
 

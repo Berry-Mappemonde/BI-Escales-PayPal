@@ -107,7 +107,14 @@ export function PayPalCardFieldsBlock({
               if (isVaultPledge(pledge) || !pledge.order_id) throw new Error("Payment mode changed; reopen checkout");
               return pledge.order_id;
             } };
-        const cardFields = CardFields(callbacks);
+        // The SDK calls onApprove/onError after confirm-payment-source; without them
+        // submit() rejects ("p is not a function") and authorize is never reached.
+        // Authorization/vault registration stays in onSubmit after submit() resolves.
+        const cardFields = CardFields({
+          ...callbacks,
+          onApprove: () => undefined,
+          onError: () => undefined,
+        });
         if (!cardFields.isEligible()) return;
         for (const [field, el] of [
           [cardFields.NumberField, numberHost],

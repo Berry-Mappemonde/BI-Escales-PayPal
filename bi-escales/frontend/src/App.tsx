@@ -681,6 +681,7 @@ export default function App() {
       open={treasurerOpen}
       onOpenChange={onTreasurerOpenChange}
       demoMode={demoTreasurer}
+      demoStopAvailable={demoTreasurerAvailable}
       adminKey={adminKey}
       onAdminKeyChange={setAdminKey}
       settleBusy={settleBusy}

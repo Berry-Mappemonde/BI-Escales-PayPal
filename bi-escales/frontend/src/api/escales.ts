@@ -466,25 +466,32 @@ export interface DemoStopMomentResponse {
   actions: DemoStopAction[];
 }
 
-async function postDemoStop(action: string, milestoneId: string): Promise<DemoStopMomentResponse> {
+async function postDemoStop(
+  action: string,
+  milestoneId: string,
+  adminKey: string,
+): Promise<DemoStopMomentResponse> {
   const res = await fetch(
     url(`/api/escales/demo/stops/${encodeURIComponent(milestoneId)}/${action}`),
-    { method: "POST", headers: { "Content-Type": "application/json" } },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-key": adminKey.trim() },
+    },
   );
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
 
-export function demoSimulateArrival(milestoneId: string): Promise<DemoStopMomentResponse> {
-  return postDemoStop("simulate-arrival", milestoneId);
+export function demoSimulateArrival(milestoneId: string, adminKey: string): Promise<DemoStopMomentResponse> {
+  return postDemoStop("simulate-arrival", milestoneId, adminKey);
 }
 
-export function demoCancelStop(milestoneId: string): Promise<DemoStopMomentResponse> {
-  return postDemoStop("cancel", milestoneId);
+export function demoCancelStop(milestoneId: string, adminKey: string): Promise<DemoStopMomentResponse> {
+  return postDemoStop("cancel", milestoneId, adminKey);
 }
 
-export function demoResetStop(milestoneId: string): Promise<DemoStopMomentResponse> {
-  return postDemoStop("reset", milestoneId);
+export function demoResetStop(milestoneId: string, adminKey: string): Promise<DemoStopMomentResponse> {
+  return postDemoStop("reset", milestoneId, adminKey);
 }
 
 export async function listMilestones(): Promise<Milestone[]> {

@@ -34,14 +34,17 @@ function formatNote(actions: DemoStopAction[], t: (key: string, opts?: Record<st
 }
 
 export interface DemoStopMomentProps {
+  /** Treasurer key: the judge-moment routes capture and void, so they need it. */
+  adminKey: string;
   onRefresh: () => void;
 }
 
-export function DemoStopMoment({ onRefresh }: DemoStopMomentProps) {
+export function DemoStopMoment({ adminKey, onRefresh }: DemoStopMomentProps) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [settleNote, setSettleNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const noKey = !adminKey.trim();
 
   const run = useCallback(
     async (call: () => Promise<DemoStopMomentResponse>) => {
@@ -74,24 +77,24 @@ export function DemoStopMoment({ onRefresh }: DemoStopMomentProps) {
         <button
           type="button"
           data-testid="demo-stop-simulate-arrival"
-          disabled={busy}
-          onClick={() => run(() => demoSimulateArrival(DEMO_STOP_ID))}
+          disabled={busy || noKey}
+          onClick={() => run(() => demoSimulateArrival(DEMO_STOP_ID, adminKey))}
         >
           {t("treasurer.demoStop.simulateArrival")}
         </button>
         <button
           type="button"
           data-testid="demo-stop-cancel"
-          disabled={busy}
-          onClick={() => run(() => demoCancelStop(DEMO_STOP_ID))}
+          disabled={busy || noKey}
+          onClick={() => run(() => demoCancelStop(DEMO_STOP_ID, adminKey))}
         >
           {t("treasurer.demoStop.cancelStop")}
         </button>
         <button
           type="button"
           data-testid="demo-stop-reset"
-          disabled={busy}
-          onClick={() => run(() => demoResetStop(DEMO_STOP_ID))}
+          disabled={busy || noKey}
+          onClick={() => run(() => demoResetStop(DEMO_STOP_ID, adminKey))}
         >
           {t("treasurer.demoStop.resetDemo")}
         </button>

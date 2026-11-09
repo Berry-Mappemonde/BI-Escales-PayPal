@@ -140,11 +140,21 @@ def apply_capture_settlement(pledge: dict, payload: dict) -> dict:
     if settlement:
         pledge["capture_settlement"] = settlement
         net = settlement.get("net_amount")
+        parsed = None
         if isinstance(net, dict) and str(net.get("currency") or "").upper() == "EUR":
-            parsed = _decimal_text(net["value"])
+            parsed = _decimal_text(str(net.get("value") or ""))
         if parsed is not None:
             pledge["received_net_eur"] = _format_eur(parsed)
             pledge["capture_received_net_eur"] = pledge["received_net_eur"]
+            return pledge
+        net_ccy = str(net.get("currency") or "unknown").upper() if isinstance(net, dict) else "unknown"
+        logger.warning(
+            "PayPal capture net_amount is not EUR for pledge %s (net_currency=%s)",
+            pledge.get("_id"),
+            net_ccy,
+        )
+        pledge.pop("received_net_eur", None)
+        pledge.pop("capture_received_net_eur", None)
         return pledge
     if pledge_ccy == "EUR":
         legacy = _eur_capture_without_breakdown(pledge, capture)

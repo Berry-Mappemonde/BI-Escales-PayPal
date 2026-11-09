@@ -16,7 +16,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app.core import llm
 from app.escales.config import limits_enabled
 from app.escales.pledges import reset_ledger
-from app.escales.rate_limit import RateLimited, captain_rate_key, hit, per_day, per_minute, reset
+from app.escales.rate_limit import (
+    RateLimited,
+    captain_rate_key,
+    client_ip,
+    hit,
+    per_day,
+    per_minute,
+    reset,
+    trusted_proxy_hops,
+)
 from app.escales.captain import chat
 from app.routers.escales import router, set_paypal_client_factory
 from test_llm_cascade import _openai, _transport
@@ -24,6 +33,8 @@ from test_llm_cascade import _openai, _transport
 ROOT = Path(__file__).resolve().parents[2]
 FR = "Je parraine 5 milles près de Brest"
 EN = "I'd like to sponsor 5 nautical miles near Brest"
+
+_NO_XFF = object()
 
 
 @pytest.fixture
@@ -47,8 +58,21 @@ def api(monkeypatch):
     llm.reset_llm_budget()
 
 
-def _chat(client, message, ip="203.0.113.10", accept_language="", lang=None, headers=None):
-    req_headers = {"x-forwarded-for": ip, **(headers or {})}
+def _chat(
+    client,
+    message,
+    ip="203.0.113.10",
+    accept_language="",
+    lang=None,
+    headers=None,
+    *,
+    forwarded_for=_NO_XFF,
+):
+    req_headers = dict(headers or {})
+    if forwarded_for is _NO_XFF:
+        req_headers.setdefault("x-forwarded-for", ip)
+    elif forwarded_for:
+        req_headers["x-forwarded-for"] = forwarded_for
     if accept_language:
         req_headers["accept-language"] = accept_language
     payload = {"message": message}
@@ -88,6 +112,17 @@ def test_limits_follow_production_unless_overridden(monkeypatch):
     assert llm.llm_daily_cap() == 100
 
 
+def test_env_invalid_rate_limits_fall_back_to_defaults(monkeypatch):
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "not-a-number")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY", "0")
+    assert per_minute() == 10
+    assert per_day() == 100
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "")
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_DAY", raising=False)
+    assert per_minute() == 10
+    assert per_day() == 100
+
+
 def test_development_does_not_limit_captain_routes(api, monkeypatch):
     monkeypatch.setenv("ESCALES_ENV", "development")
     monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "1")
@@ -121,19 +156,26 @@ def test_production_minute_cap_is_localized(api, monkeypatch):
     assert _review(api).status_code == 200
     blocked = _chat(api, FR, accept_language="en")
     assert blocked.status_code == 429
-    assert blocked.json()["detail"] == "Trop de requêtes. Le capitaine accepte 2 par minute."
+    assert blocked.json()["detail"] == (
+        "Trop de requêtes. Réessayez plus tard. Le capitaine accepte 2 par minute."
+    )
+    assert int(blocked.headers.get("retry-after", "0")) >= 1
     english = _review(api, ip="203.0.113.11", accept_language="en-GB,en;q=0.8", lang="en")
     assert english.status_code == 200
     assert _review(api, ip="203.0.113.11", accept_language="en-GB", lang="en").status_code == 200
     again = _review(api, ip="203.0.113.11", accept_language="en-GB,en;q=0.8", lang="en")
     assert again.status_code == 429
-    assert again.json()["detail"] == "Too many requests. The captain accepts 2 per minute."
+    assert again.json()["detail"] == (
+        "Too many requests. Try again later. The captain accepts 2 per minute."
+    )
     chat_en = _chat(api, EN, ip="203.0.113.12", lang="en")
     assert chat_en.status_code == 200
     assert _chat(api, EN, ip="203.0.113.12", lang="en").status_code == 200
     third = _chat(api, EN, ip="203.0.113.12", accept_language="fr", lang="en")
     assert third.status_code == 429
-    assert third.json()["detail"] == "Too many requests. The captain accepts 2 per minute."
+    assert third.json()["detail"] == (
+        "Too many requests. Try again later. The captain accepts 2 per minute."
+    )
 
 
 def test_production_day_cap_is_localized(api, monkeypatch):
@@ -144,7 +186,9 @@ def test_production_day_cap_is_localized(api, monkeypatch):
     assert _chat(api, FR, ip="203.0.113.20").status_code == 200
     blocked = _chat(api, FR, ip="203.0.113.20")
     assert blocked.status_code == 429
-    assert blocked.json()["detail"] == "Trop de requêtes. Le capitaine accepte 2 par jour."
+    assert blocked.json()["detail"] == (
+        "Trop de requêtes. Réessayez plus tard. Le capitaine accepte 2 par jour."
+    )
     other = _chat(api, EN, ip="198.51.100.4")
     assert other.status_code == 200
 
@@ -231,6 +275,39 @@ def test_rotating_sessions_share_the_daily_ip_cap(monkeypatch):
     assert caught.value.kind == "day"
     hit(captain_rate_key("198.51.100.8", "rot-99"), now=start + dt.timedelta(minutes=5))
     reset()
+
+
+def test_xff_client_ip_parsing(monkeypatch):
+    monkeypatch.setenv("ESCALES_TRUSTED_PROXY_HOPS", "1")
+    assert trusted_proxy_hops() == 1
+    assert client_ip("203.0.113.55, 10.0.0.2", "127.0.0.1") == "10.0.0.2"
+    assert client_ip(" 203.0.113.55 , 10.0.0.2 ", "127.0.0.1") == "10.0.0.2"
+    assert client_ip("", "10.0.0.5") == "10.0.0.5"
+    monkeypatch.setenv("ESCALES_TRUSTED_PROXY_HOPS", "0")
+    assert client_ip("203.0.113.55, 10.0.0.2", "10.0.0.5") == "10.0.0.5"
+
+
+def test_spoofed_leftmost_xff_cannot_bypass_per_ip_limit(api, monkeypatch):
+    """Leftmost XFF is forgeable; rate limit keys on the trusted rightmost hop."""
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "10")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY", "100")
+    for n in range(10):
+        spoofed = f"198.51.100.{n}, 203.0.113.10"
+        response = _chat(api, FR, forwarded_for=spoofed)
+        assert response.status_code == 200, response.text
+    blocked = _chat(api, FR, forwarded_for="1.2.3.99, 203.0.113.10")
+    assert blocked.status_code == 429
+    assert "Réessayez plus tard" in blocked.json()["detail"]
+
+
+def test_rate_limit_without_xff_uses_socket_host(api, monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "2")
+    for _ in range(2):
+        assert _chat(api, FR, forwarded_for=None).status_code == 200
+    blocked = _chat(api, FR, forwarded_for=None)
+    assert blocked.status_code == 429
 
 
 def test_captain_rate_key_composes_ip_and_session():

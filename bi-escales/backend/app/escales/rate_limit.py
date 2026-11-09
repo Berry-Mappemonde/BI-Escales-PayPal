@@ -48,14 +48,22 @@ def reset() -> None:
 
 
 class RateLimited(Exception):
-    def __init__(self, kind: str, limit: int) -> None:
+    def __init__(self, kind: str, limit: int, *, retry_after: int = 60) -> None:
         self.kind = kind
         self.limit = limit
+        self.retry_after = max(1, int(retry_after))
         super().__init__(kind)
 
 
 def client_ip(forwarded_for: str, host: str, trusted_hops: Optional[int] = None) -> str:
-    """Client IP behind proxies. ``trusted_hops`` defaults from ``ESCALES_TRUSTED_PROXY_HOPS`` (1)."""
+    """Client IP behind trusted proxies (e.g. Render).
+
+    Uses ``parts[-trusted_hops]``: the leftmost ``X-Forwarded-For`` entries are
+    caller-controlled and spoofable; the edge proxy appends the real peer on the
+    right. ``ESCALES_TRUSTED_PROXY_HOPS`` (default 1) counts in from that edge;
+    raise it when another trusted hop is chained. When zero, ignore XFF and use
+    ``request.client.host``.
+    """
     hops = trusted_proxy_hops() if trusted_hops is None else max(0, int(trusted_hops))
     parts = [part.strip() for part in (forwarded_for or "").split(",") if part.strip()]
     if hops == 0 or not parts:
@@ -63,6 +71,15 @@ def client_ip(forwarded_for: str, host: str, trusted_hops: Optional[int] = None)
     if len(parts) >= hops:
         return parts[-hops]
     return (host or "").strip() or "unknown"
+
+
+def _retry_after_day(moment: dt.datetime) -> int:
+    next_day = dt.datetime.combine(
+        moment.date() + dt.timedelta(days=1),
+        dt.time.min,
+        tzinfo=dt.timezone.utc,
+    )
+    return max(1, int((next_day - moment).total_seconds()))
 
 
 def trusted_proxy_hops() -> int:
@@ -109,11 +126,23 @@ def lang_for(accept_language: str, text: str = "") -> str:
 def limit_message(kind: str, lang: str, limit: int) -> str:
     if lang == "en":
         if kind == "minute":
-            return f"Too many requests. The captain accepts {limit} per minute."
-        return f"Too many requests. The captain accepts {limit} per day."
+            return (
+                f"Too many requests. Try again later. "
+                f"The captain accepts {limit} per minute."
+            )
+        return (
+            f"Too many requests. Try again later. "
+            f"The captain accepts {limit} per day."
+        )
     if kind == "minute":
-        return f"Trop de requêtes. Le capitaine accepte {limit} par minute."
-    return f"Trop de requêtes. Le capitaine accepte {limit} par jour."
+        return (
+            f"Trop de requêtes. Réessayez plus tard. "
+            f"Le capitaine accepte {limit} par minute."
+        )
+    return (
+        f"Trop de requêtes. Réessayez plus tard. "
+        f"Le capitaine accepte {limit} par jour."
+    )
 
 
 def hit(ip: str, now: Optional[dt.datetime] = None) -> None:
@@ -139,10 +168,12 @@ def hit(ip: str, now: Optional[dt.datetime] = None) -> None:
         recent = [stamp for stamp in today if moment - stamp < _MINUTE]
         if len(today) >= per_day():
             _hits.update(buckets)
-            raise RateLimited("day", per_day())
+            raise RateLimited("day", per_day(), retry_after=_retry_after_day(moment))
         if len(recent) >= per_minute():
             _hits.update(buckets)
-            raise RateLimited("minute", per_minute())
+            oldest = min(recent)
+            pause = max(1, int((_MINUTE - (moment - oldest)).total_seconds()) + 1)
+            raise RateLimited("minute", per_minute(), retry_after=pause)
     for key, today in buckets.items():
         today.append(moment)
         _hits[key] = today

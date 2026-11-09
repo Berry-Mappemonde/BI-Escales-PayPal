@@ -10,6 +10,7 @@ import os
 from typing import Any, Optional
 
 from pymongo import ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 from app.db import db, mongo_url
 
@@ -59,6 +60,64 @@ def _collection() -> Any:
     return db[collection_name()]
 
 
+def _under_cap_filter(day_key: str, cap: int) -> dict[str, Any]:
+    return {
+        "_id": day_key,
+        "$or": [{"count": {"$lt": cap}}, {"count": {"$exists": False}}],
+    }
+
+
+def _increment_update(day_key: str) -> dict[str, Any]:
+    return {
+        "$inc": {"count": 1},
+        "$setOnInsert": {"name": counter_name(), "day": day_key},
+    }
+
+
+async def _read_day_count(coll: Any, day_key: str, cap: int) -> int:
+    doc = await coll.find_one({"_id": day_key})
+    if not doc:
+        return 0
+    return int(doc.get("count") or cap)
+
+
+async def consume_one(day_key: str, cap: int) -> Optional[tuple[bool, int]]:
+    """Atomically reserve one call when under ``cap``. ``None`` means in-memory fallback."""
+    if not mongo_persistence_active():
+        return None
+    if cap <= 0:
+        return False, 0
+    coll = _collection()
+    filt = _under_cap_filter(day_key, cap)
+    update = _increment_update(day_key)
+    try:
+        try:
+            updated = await coll.find_one_and_update(
+                filt,
+                update,
+                upsert=True,
+                return_document=ReturnDocument.AFTER,
+            )
+        except DuplicateKeyError:
+            updated = await coll.find_one_and_update(
+                filt,
+                update,
+                upsert=False,
+                return_document=ReturnDocument.AFTER,
+            )
+            if updated is None:
+                count = await _read_day_count(coll, day_key, cap)
+                return False, count
+        if updated is None:
+            count = await _read_day_count(coll, day_key, cap)
+            return False, count
+        count = int(updated.get("count") or 0)
+        return True, count
+    except Exception as exc:
+        _warn_storage_once(exc)
+        return None
+
+
 async def read_count(day_key: str) -> Optional[int]:
     """Return persisted count for ``day_key``, or ``None`` when storage is bypassed."""
     if not mongo_persistence_active():
@@ -68,38 +127,6 @@ async def read_count(day_key: str) -> Optional[int]:
         if not doc:
             return 0
         return int(doc.get("count") or 0)
-    except Exception as exc:
-        _warn_storage_once(exc)
-        return None
-
-
-async def consume_one(day_key: str, cap: int) -> Optional[tuple[bool, int]]:
-    """Atomically reserve one call when under ``cap``. ``None`` means in-memory fallback."""
-    if not mongo_persistence_active():
-        return None
-    if cap <= 0:
-        return False, 0
-    try:
-        coll = _collection()
-        filt: dict[str, Any] = {
-            "_id": day_key,
-            "$or": [{"count": {"$lt": cap}}, {"count": {"$exists": False}}],
-        }
-        updated = await coll.find_one_and_update(
-            filt,
-            {
-                "$inc": {"count": 1},
-                "$setOnInsert": {"name": counter_name(), "day": day_key},
-            },
-            upsert=True,
-            return_document=ReturnDocument.AFTER,
-        )
-        if updated is None:
-            doc = await coll.find_one({"_id": day_key})
-            count = int((doc or {}).get("count") or cap)
-            return False, count
-        count = int(updated.get("count") or 0)
-        return True, count
     except Exception as exc:
         _warn_storage_once(exc)
         return None

@@ -11,8 +11,13 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from pymongo.errors import DuplicateKeyError
+
 from app.core import llm
 from app.core import llm_daily_counter_store as store
+
+DAY_A = "2026-11-09"
+DAY_B = "2026-11-10"
 
 
 @pytest.fixture
@@ -116,3 +121,128 @@ def test_mongo_error_falls_back_and_logs_once(caplog, monkeypatch):
     asyncio.run(body())
     warnings = [r for r in caplog.records if "in-memory fallback" in r.message]
     assert len(warnings) == 1
+
+
+def test_cap_exhausted_keeps_mongo_enabled_no_fallback(caplog, mongo_counter_db):
+    caplog.set_level(logging.WARNING, logger="escales.llm")
+    cap = 2
+
+    async def body():
+        allowed = []
+        for _ in range(5):
+            outcome = await store.consume_one(DAY_A, cap)
+            assert outcome is not None
+            ok, _count = outcome
+            allowed.append(ok)
+        assert allowed == [True, True, False, False, False]
+        assert await store.read_count(DAY_A) == cap
+        assert store.mongo_persistence_active()
+
+    asyncio.run(body())
+    doc = asyncio.run(_coll_find_one(mongo_counter_db, {"_id": DAY_A}))
+    assert doc["count"] == cap
+    assert not [r for r in caplog.records if "in-memory fallback" in r.message]
+
+
+def test_following_utc_day_is_a_separate_mongo_document(mongo_counter_db, monkeypatch):
+    cap = 2
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", str(cap))
+    moment_a = dt.datetime(2026, 11, 9, 18, 0, tzinfo=dt.timezone.utc)
+    moment_b = dt.datetime(2026, 11, 10, 1, 0, tzinfo=dt.timezone.utc)
+
+    async def body():
+        assert await llm.consume_llm_call(moment_a) is True
+        assert await llm.consume_llm_call(moment_a) is True
+        assert await llm.consume_llm_call(moment_a) is False
+        assert await llm.consume_llm_call(moment_b) is True
+        assert await store.read_count(DAY_A) == 2
+        assert await store.read_count(DAY_B) == 1
+
+    asyncio.run(body())
+    d1 = asyncio.run(_coll_find_one(mongo_counter_db, {"_id": DAY_A}))
+    d2 = asyncio.run(_coll_find_one(mongo_counter_db, {"_id": DAY_B}))
+    assert d1["count"] == 2
+    assert d2["count"] == 1
+
+
+def test_concurrent_cold_start_respects_cap_without_disabling_mongo(
+    caplog, mongo_counter_db, monkeypatch
+):
+    caplog.set_level(logging.WARNING, logger="escales.llm")
+    cap = 5
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", str(cap))
+    day = dt.datetime(2026, 11, 9, 8, 30, tzinfo=dt.timezone.utc)
+
+    async def body():
+        outcomes = await asyncio.gather(*(llm.consume_llm_call(day) for _ in range(20)))
+        assert sum(1 for ok in outcomes if ok) == cap
+        assert await store.read_count(DAY_A) == cap
+        assert store.mongo_persistence_active()
+
+    asyncio.run(body())
+    doc = asyncio.run(_coll_find_one(mongo_counter_db, {"_id": DAY_A}))
+    assert doc["count"] == cap
+    assert not [r for r in caplog.records if "in-memory fallback" in r.message]
+
+
+def test_duplicate_key_on_upsert_retries_without_fallback(caplog, mongo_counter_db, monkeypatch):
+    caplog.set_level(logging.WARNING, logger="escales.llm")
+    coll = mongo_counter_db
+    monkeypatch.setattr(store, "_collection", lambda: coll)
+    original = coll.find_one_and_update
+    seen: list[bool] = []
+
+    async def flaky(*args, **kwargs):
+        upsert = bool(kwargs.get("upsert"))
+        seen.append(upsert)
+        if upsert and len([u for u in seen if u]) == 1:
+            await coll.insert_one(
+                {"_id": DAY_A, "count": 1, "name": store.counter_name(), "day": DAY_A},
+            )
+            raise DuplicateKeyError("E11000 duplicate key error collection: llm_daily_counters index: _id_ dup key")
+        return await original(*args, **kwargs)
+
+    coll.find_one_and_update = flaky
+
+    async def body():
+        outcome = await store.consume_one(DAY_A, cap=2)
+        assert outcome is not None
+        allowed, count = outcome
+        assert allowed is True
+        assert count in {1, 2}
+        assert store.mongo_persistence_active()
+
+    asyncio.run(body())
+    assert seen == [True, False]
+    assert not [r for r in caplog.records if "in-memory fallback" in r.message]
+
+
+def test_duplicate_key_when_cap_full_denies_without_fallback(caplog, mongo_counter_db, monkeypatch):
+    caplog.set_level(logging.WARNING, logger="escales.llm")
+    coll = mongo_counter_db
+    monkeypatch.setattr(store, "_collection", lambda: coll)
+
+    async def seed():
+        await coll.insert_one({"_id": DAY_A, "count": 2, "name": store.counter_name(), "day": DAY_A})
+
+    asyncio.run(seed())
+    original = coll.find_one_and_update
+    seen: list[bool] = []
+
+    async def flaky(*args, **kwargs):
+        upsert = bool(kwargs.get("upsert"))
+        seen.append(upsert)
+        if upsert:
+            raise DuplicateKeyError("E11000 duplicate key error collection: llm_daily_counters index: _id_ dup key")
+        return await original(*args, **kwargs)
+
+    coll.find_one_and_update = flaky
+
+    async def body():
+        outcome = await store.consume_one(DAY_A, cap=2)
+        assert outcome == (False, 2)
+        assert store.mongo_persistence_active()
+
+    asyncio.run(body())
+    assert seen == [True, False]
+    assert not [r for r in caplog.records if "in-memory fallback" in r.message]

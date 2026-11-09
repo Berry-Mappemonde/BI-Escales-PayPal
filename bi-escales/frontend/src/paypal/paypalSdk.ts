@@ -204,7 +204,7 @@ export function buildV6Adapter(
               token = createSubscriptionOnServer().then((subscriptionId) => ({ subscriptionId }));
             } else if (vault) {
               token = Promise.resolve(config.createVaultSetupToken!())
-                .then((vaultSetupToken: string) => ({ vaultSetupToken }));
+                .then((setupToken: string) => ({ setupToken }));
             } else {
               token = Promise.resolve(config.createOrder?.())
                 .then((orderId: string) => ({ orderId }));
@@ -264,11 +264,10 @@ function loadConfigured(clientId: string, appLang: string | undefined, currency:
   const promise = waitForCore().then(async (core) => {
     const sdk = await core.createInstance({
       clientId: trimmed,
-      locale: paypalLocale(appLang),
+      locale: paypalLocale(appLang).replace("_", "-"),
       pageType: "checkout",
       components: [
         "paypal-payments",
-        "paypal-subscriptions",
         "card-fields",
         ...(walletPay ? ["googlepay-payments", "applepay-payments"] : []),
       ],

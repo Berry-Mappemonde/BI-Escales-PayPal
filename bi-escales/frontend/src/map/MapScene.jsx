@@ -193,9 +193,10 @@ export function MapScene({
           icon,
           pane: "markerPane",
           stopData: stop,
-        }).addTo(group);
-        marker.bindTooltip(stop.name, { direction: "top" });
+        });
         bindStopMarkerKeyboard(marker, stop, (target) => onSelectRef.current?.(target));
+        marker.addTo(group);
+        marker.bindTooltip(stop.name, { direction: "top" });
         marker.on("click", (event) => {
           L.DomEvent.stopPropagation(event);
           const target = event?.target?.options?.stopData || stop;

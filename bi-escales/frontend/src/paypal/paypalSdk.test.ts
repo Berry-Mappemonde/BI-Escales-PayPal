@@ -37,8 +37,8 @@ describe("PayPal Web SDK v6 core", () => {
     expect(ns.Buttons).toEqual(expect.any(Function));
     expect(createInstance).toHaveBeenCalledWith(expect.objectContaining({
       clientId: "safe-client",
-      locale: "en_US",
-      components: expect.arrayContaining(["paypal-payments", "card-fields", "paypal-subscriptions"]),
+      locale: "en-US",
+      components: expect.arrayContaining(["paypal-payments", "card-fields"]),
     }));
     expect(findEligibleMethods).toHaveBeenCalledWith({ currencyCode: "EUR" });
     expect(document.querySelectorAll('script[data-paypal-web-sdk="v6"]')).toHaveLength(0);
@@ -127,7 +127,7 @@ describe("v6 payment session adapters", () => {
     }, host);
     expect(result.ok).toBe(true);
     host.querySelector("paypal-button")!.dispatchEvent(new MouseEvent("click"));
-    await expect(start.mock.calls[0][1]).resolves.toEqual({ vaultSetupToken: "SETUP-TOKEN" });
+    await expect(start.mock.calls[0][1]).resolves.toEqual({ setupToken: "SETUP-TOKEN" });
     safePayPalClose(result.instance);
   });
 

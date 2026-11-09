@@ -28,7 +28,8 @@
   },
   "settings": {
     "heading": "Settings",
-    "lead": "Language, theme, treasurer tools, and sandbox operator controls."
+    "lead": "Language, theme, treasurer tools, and sandbox operator controls.",
+    "leadPanel": "Language, theme, and sandbox operator controls."
   },
   "gear": {
     "heading": "Expedition gear"
@@ -361,6 +362,8 @@
     "status": "Status",
     "amount": "Amount",
     "description": "Description",
+    "pledgeRef": "Pledge",
+    "createdAt": "Created",
     "milestoneFromStop": "Spending and fund use the selected stop milestone: {{id}}",
     "milestone": "Milestone",
     "actions": "Actions",

@@ -158,22 +158,36 @@ async def reconcile_refund_on_pledge(
     status: str = "COMPLETED",
     key: str = "",
     at: Optional[str] = None,
+    refund_payload: Optional[dict] = None,
 ) -> dict:
     """Merge one PayPal refund id into ``pledge["refunds"]`` (webhook or API)."""
     stored_status = str(status or "COMPLETED").upper()
     if stored_status == "REFUNDED":
         stored_status = "COMPLETED"
-    refunds = _append_refund_row(
-        _normalize_refunds(pledge),
-        {
-            "id": str(refund_id),
-            "amount": amount_eur,
-            "key": key,
-            "status": stored_status,
-            "at": at or now_iso(),
-        },
-    )
+    refund_row = {
+        "id": str(refund_id),
+        "amount": amount_eur,
+        "key": key,
+        "status": stored_status,
+        "at": at or now_iso(),
+    }
+    from .paypal_settlement import enrich_refund_row_settlement, recompute_received_net_eur
+
+    refund_row = enrich_refund_row_settlement(pledge, refund_payload, refund_row)
+    existing = _normalize_refunds(pledge)
+    refunds = _append_refund_row(existing, refund_row)
+    if refunds is existing and any(str(r.get("id") or "") == str(refund_id) for r in existing):
+        for index, row in enumerate(refunds):
+            if str(row.get("id") or "") != str(refund_id):
+                continue
+            merged = dict(row)
+            for field, value in refund_row.items():
+                if value not in (None, "") and merged.get(field) in (None, ""):
+                    merged[field] = value
+            refunds[index] = merged
+            break
     pledge["refunds"] = refunds
+    recompute_received_net_eur(pledge, refunds)
     total = refunded_amount_from_pledge(pledge)
     pledge["refunded_amount_eur"] = f"{total:.2f}"
     capture_total = Decimal(str(pledge.get("amount_eur") or "0"))
@@ -423,6 +437,8 @@ async def record_pledge_captured_once(pledge: dict, *, actor: str, client: Any =
     milestone_id = finance_milestone_id(pledge)
     await ensure_finance_milestone(pledge, milestone_id)
     at = str(pledge.get("captured_at") or "").strip() or now_iso()
+    from .paypal_settlement import settlement_finance_fields
+
     await record_finance(
         "pledge_captured",
         pledge_id=pledge_id,
@@ -434,6 +450,7 @@ async def record_pledge_captured_once(pledge: dict, *, actor: str, client: Any =
         at=at,
         capture_id=pledge.get("capture_id"),
         **_identity(pledge),
+        **settlement_finance_fields(pledge),
     )
     pledge = await apply_marina_berth_settlement(pledge, actor=actor, client=client)
     if pledge.get("platform_fee_eur") or pledge.get("marina_payout_batch_id") or pledge.get("marina_payout_status"):
@@ -1410,6 +1427,12 @@ async def _finish_capture(
                 not_before=str(pledge.get("authorized_at") or ""),
             )
         pledge["history"] = list(pledge.get("history") or []) + ["captured"]
+        from .paypal_settlement import apply_capture_settlement
+
+        pledge = apply_capture_settlement(
+            pledge,
+            payload if isinstance(payload, dict) else {},
+        )
         saved = await get_ledger().save_pledge(pledge)
         await record("capture", status="captured", **audit_fields)
         return await record_pledge_captured_once(saved, actor="treasurer", client=client)
@@ -1887,6 +1910,7 @@ async def refund_pledge(
             effective_at,
             not_before=str(pledge.get("captured_at") or ""),
         ),
+        refund_payload=payload,
     )
     saved["refunded_at"] = _money_event_timestamp(
         effective_at,
@@ -1909,6 +1933,14 @@ async def refund_pledge(
         refunded_amount_eur=saved.get("refunded_amount_eur"),
         **_identity(saved),
     )
+    refund_finance: dict = {}
+    refunds = _normalize_refunds(saved)
+    if refunds:
+        last = refunds[-1]
+        if last.get("refund_net_eur") is not None:
+            refund_finance["refund_net_eur"] = last.get("refund_net_eur")
+    if saved.get("received_net_eur") is not None:
+        refund_finance["received_net_eur"] = saved.get("received_net_eur")
     await record_finance(
         "pledge_refunded",
         pledge_id=saved["_id"],
@@ -1921,6 +1953,7 @@ async def refund_pledge(
         status=saved.get("status"),
         actor="treasurer",
         **_identity(saved),
+        **refund_finance,
     )
     return saved
 

@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run && node --test src/components/escales/advisoryLabel.test.js",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "i18next": "^25.6.0",
@@ -27,10 +28,14 @@
     "ag-studio-react": "3.0.0"
   },
   "devDependencies": {
+    "@paypal/paypal-js": "11.3.0",
+    "@playwright/test": "1.65.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
+    "@types/applepayjs": "14.0.9",
+    "@types/googlepay": "0.7.13",
     "@types/leaflet": "^1.9.20",
     "@types/node": "^22.20.5",
     "@types/react": "^19.2.2",

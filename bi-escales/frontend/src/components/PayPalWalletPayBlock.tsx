@@ -21,7 +21,7 @@ export interface PayPalWalletPayBlockProps {
   onAuthorized?: (pledge: import("../api/types").PublicPledge) => void;
 }
 
-/** Google Pay + Apple Pay (TEST sandbox, components=googlepay,applepay). */
+/** Google Pay TEST and Apple Pay sandbox through PayPal Web SDK v6 sessions. */
 export function PayPalWalletPayBlock({
   values,
   appLang,
@@ -37,16 +37,17 @@ export function PayPalWalletPayBlock({
   const valuesRef = useRef(values);
   valuesRef.current = values;
   const [walletVisible, setWalletVisible] = useState(false);
+  const [walletError, setWalletError] = useState(false);
 
   useEffect(() => {
+    setWalletVisible(false);
+    setWalletError(false);
     if (disabled || !sdkReady) return;
     const googleEl = googleHost.current;
     const appleEl = appleHost.current;
     if (!googleEl && !appleEl) return;
-  // Eligibility: Googlepay/Applepay may be absent (headless Chrome, non-Safari, no wallet).
-  // Wait for sdkReady so we do not miss a late SDK load (race vs Smart Buttons).
-  // PayPal SDK v5 Googlepay()/Applepay() return config helpers without `render`
-  // (they need Google/Apple's own pay.js): safePayPalRender treats that as "not shown", never a crash.
+    // Wallet-specific merchant and device eligibility is evaluated independently
+    // by the v6 adapter. An unavailable Apple wallet must not suppress Google Pay.
     const Googlepay = paypal?.Googlepay;
     const Applepay = paypal?.Applepay;
     if (typeof Googlepay !== "function" && typeof Applepay !== "function") return;
@@ -87,11 +88,14 @@ export function PayPalWalletPayBlock({
       void safePayPalRender(
         factory,
         {
+          amount: values.amount_eur,
+          currencyCode: "EUR",
           createOrder: async () => {
             const row = await makeOrder();
             pledgeId = row.pledgeId;
             return row.orderId;
           },
+          onError: () => { if (!closed) setWalletError(true); },
           onApprove: async () => {
             if (pledgeId) await onApprove(pledgeId);
           },
@@ -116,11 +120,12 @@ export function PayPalWalletPayBlock({
       safePayPalClose(googleButtons);
       safePayPalClose(appleButtons);
     };
-  }, [appLang, disabled, sdkReady, paypal, sdkIntent, onAuthorized, values.amount_eur, values.kind, values.milestone_id]);
+  }, [appLang, disabled, sdkReady, paypal, sdkIntent, onAuthorized, values.amount_eur, values.currency, values.quantity, values.kind, values.milestone_id]);
 
   return (
     <div className="paypal-wallet-pay" data-testid="paypal-wallet-pay">
       {walletVisible ? <p className="hint">{t("pledge.walletPayHint")}</p> : null}
+      {walletError ? <p role="alert">{t("pledge.walletPayError")}</p> : null}
       <div ref={googleHost} data-testid="paypal-google-pay" />
       <div ref={appleHost} data-testid="paypal-apple-pay" />
     </div>

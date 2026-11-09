@@ -120,7 +120,7 @@ async def treasurer_create_wishlist(request: Request, body: WishlistCreateIn):
     _require_treasurer(request)
     try:
         return await create_wishlist(title=body.title, slug=body.slug, items=body.items)
-    except WishlistError as exc:
+    except (WishlistError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -136,7 +136,7 @@ async def treasurer_add_wishlist_item(request: Request, wishlist_id: str, body: 
             target_amount_minor=body.target_amount_minor,
             allow_optional=body.allow_optional,
         )
-    except WishlistError as exc:
+    except (WishlistError, ValueError) as exc:
         code = 404 if "not found" in str(exc).lower() else 400
         raise HTTPException(status_code=code, detail=str(exc)) from exc
 

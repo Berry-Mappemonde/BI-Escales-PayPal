@@ -36,13 +36,19 @@ function parseEur(value: string | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Ledger pledges stay EUR in sandbox; skip other currencies so totals never mix FX. */
+function isEurPledge(p: PublicPledge): boolean {
+  const code = String(p.currency || "EUR").trim().toUpperCase();
+  return code === "EUR" || code === "EURO";
+}
+
 function isCapturedBerth(p: PublicPledge): boolean {
   return (p.kind || "") === "berth" && CAPTURED_STATUSES.has(p.status);
 }
 
 export function sumAmount(pledges: PublicPledge[], status: PublicPledge["status"]): number {
   return pledges
-    .filter((p) => p.status === status)
+    .filter((p) => p.status === status && isEurPledge(p))
     .reduce((acc, p) => acc + parseEur(p.amount_eur), 0);
 }
 
@@ -91,11 +97,12 @@ export function buildMarinaDashboardRows(pledges: PublicPledge[]): MarinaDashboa
   return [...byStop.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([marina_key, list]) => {
-      const gross = list.reduce((acc, row) => acc + parseEur(row.amount_eur), 0);
-      const refunds = list
+      const eurRows = list.filter((row) => isEurPledge(row));
+      const gross = eurRows.reduce((acc, row) => acc + parseEur(row.amount_eur), 0);
+      const refunds = eurRows
         .filter((row) => row.status === "refunded" || row.status === "partially_refunded")
         .reduce((acc, row) => acc + parseEur(row.amount_eur), 0);
-      const captured = list.filter((row) => isCapturedBerth(row));
+      const captured = eurRows.filter((row) => isCapturedBerth(row));
       const platform_fees_eur = captured.reduce(
         (acc, row) => acc + parseEur(row.platform_fee_eur),
         0,

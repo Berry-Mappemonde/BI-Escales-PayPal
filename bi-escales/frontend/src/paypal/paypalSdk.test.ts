@@ -65,7 +65,7 @@ function sdkScripts(): HTMLScriptElement[] {
 
 /** Simulate PayPal's SDK finishing: it attaches itself under its data-namespace. */
 function finishLoad(script: HTMLScriptElement, ns: Record<string, unknown>) {
-  (window as NsWindow)[script.getAttribute("data-namespace") || ""] = ns;
+  (window as unknown as NsWindow)[script.getAttribute("data-namespace") || ""] = ns;
   script.dispatchEvent(new Event("load"));
   script.onload?.(new Event("load"));
 }
@@ -73,7 +73,7 @@ function finishLoad(script: HTMLScriptElement, ns: Record<string, unknown>) {
 describe("namespaced PayPal SDK loading (stopover crash: duplicate paypal-buttons)", () => {
   afterEach(() => {
     for (const script of sdkScripts()) {
-      delete (window as NsWindow)[script.getAttribute("data-namespace") || ""];
+      delete (window as unknown as NsWindow)[script.getAttribute("data-namespace") || ""];
       script.remove();
     }
     delete window.paypal;

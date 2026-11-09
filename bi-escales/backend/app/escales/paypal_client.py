@@ -246,6 +246,7 @@ class PayPalClient:
         description: str,
         amount_eur: str,
         *,
+        currency_code: Optional[str] = None,
         payee_merchant_id: Optional[str] = None,
         platform_fee_eur: Optional[str] = None,
         platform_merchant_id: Optional[str] = None,
@@ -257,7 +258,10 @@ class PayPalClient:
             "custom_id": ref[:127],
             "invoice_id": ref[:127],
             "soft_descriptor": SOFT_DESCRIPTOR,
-            "amount": {"currency_code": self.cfg.currency, "value": amount_eur},
+            "amount": {
+                "currency_code": (currency_code or self.cfg.currency).strip().upper(),
+                "value": amount_eur,
+            },
         }
         if payee_merchant_id:
             unit["payee"] = {"merchant_id": payee_merchant_id}
@@ -268,7 +272,10 @@ class PayPalClient:
                 "disbursement_mode": "INSTANT",
                 "platform_fees": [
                     {
-                        "amount": {"currency_code": self.cfg.currency, "value": fee},
+                        "amount": {
+                            "currency_code": (currency_code or self.cfg.currency).strip().upper(),
+                            "value": fee,
+                        },
                         "payee": {"merchant_id": platform_id},
                     }
                 ],
@@ -376,6 +383,7 @@ class PayPalClient:
         return_url: Optional[str] = None,
         cancel_url: Optional[str] = None,
         checkout_locale: Optional[str] = None,
+        currency_code: Optional[str] = None,
     ) -> dict:
         """Classic CAPTURE order (immediate payment after buyer approval)."""
         back = (return_url or "").strip() or order_return_url()
@@ -389,7 +397,14 @@ class PayPalClient:
                     ),
                 },
             },
-            "purchase_units": [self._purchase_unit(reference_id, description, amount_eur)],
+            "purchase_units": [
+                self._purchase_unit(
+                    reference_id,
+                    description,
+                    amount_eur,
+                    currency_code=currency_code or self.cfg.currency,
+                )
+            ],
         }
         return self._req(
             "POST",
@@ -875,6 +890,7 @@ class PayPalClient:
         capture_id: str,
         *,
         amount_eur: Optional[str] = None,
+        currency_code: Optional[str] = None,
         idempotency_key: str,
     ) -> dict:
         """Refund a captured payment (full or partial).
@@ -883,7 +899,13 @@ class PayPalClient:
         """
         body: dict = {}
         if amount_eur:
-            body["amount"] = {"currency_code": self.cfg.currency, "value": amount_eur}
+            from app.channel3_paypal import format_paypal_amount_value
+
+            ccy = str(currency_code or self.cfg.currency).strip().upper()
+            body["amount"] = {
+                "currency_code": ccy,
+                "value": format_paypal_amount_value(amount_eur, ccy),
+            }
         return self._req(
             "POST",
             f"/v2/payments/captures/{capture_id}/refund",

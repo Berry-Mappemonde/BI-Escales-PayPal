@@ -54,7 +54,7 @@ def test_finance_collection_is_namespaced():
     assert "escales_webhooks" in COLLECTIONS
 
 
-def test_finance_tracks_pledge_lifecycle():
+def test_finance_tracks_pledge_lifecycle(monkeypatch):
     async def body():
         spy = Spy()
         created = await create_pledge(
@@ -73,9 +73,7 @@ def test_finance_tracks_pledge_lifecycle():
             client_key="fin-2",
         )
         await authorize_pledge(other["_id"], spy)
-        import os
-
-        os.environ["ESCALES_CLOCK_NOW"] = "2027-06-12T08:00:00Z"
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
         await capture_pledge(created["_id"], spy)
         await void_pledge(other["_id"], spy)
         entries = await list_finance_entries()

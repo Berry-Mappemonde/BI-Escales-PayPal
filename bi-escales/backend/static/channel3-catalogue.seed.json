@@ -1,0 +1,1348 @@
+{
+  "task": "C3-02b-MERGED",
+  "generated_at": "2026-11-09T04:55:00-05:00",
+  "timezone": "America/Toronto",
+  "crew_size": 6,
+  "crew_size_note": "Crew = 6 confirmed by Clément 2026-11-09 04:30 America/Toronto.",
+  "hard_rule": "Association never spends via Channel3; seed for in-kind funding only.",
+  "schema_note": "C3-02 core (9) + C3-02b offshore (43); clothing excluded; needs_confirmation hides from public catalogue.",
+  "dropped_from_c3_02": [
+    "6QGw0iy",
+    "AWIJckw",
+    "MKqaLZT",
+    "P6p8OYf",
+    "hwD0sF9",
+    "i3ZXWdQ"
+  ],
+  "dropped_from_c3_02_note": "Generic shackles, USCG Type I, 50N vest, Cruiser foam LJ, generic tether; clothing excluded.",
+  "item_count": 52,
+  "public_item_count_note": "Public catalogue excludes needs_confirmation items (2 liferafts pending capacity check).",
+  "currencies_present": [
+    "EUR",
+    "GBP",
+    "USD"
+  ],
+  "countries_present": [
+    "FR",
+    "GB",
+    "US"
+  ],
+  "from_c3_02_count": 9,
+  "from_c3_02b_count": 43,
+  "needs_confirmation_ids": [
+    "60BXA1O",
+    "k4nWRDl"
+  ],
+  "items": [
+    {
+      "channel3_product_id": "Gf8pNpL",
+      "name": "BlueBound 350 Handheld VHF Marine Radio",
+      "category": "crew_safety",
+      "why_needed": "Standard Horizon BlueSeas 350 handheld VHF — second handheld for cockpit/MOB.",
+      "quantity": 1,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 139.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/Gf8pNpL-jlW4-8GcCvU?o=01M4M89SQEA12RYB6H6G0Z177Q&aid=01M6ZS9TBQ02W0FF63500YE0J1",
+      "caution": "Confirm model features (DSC/GPS) on merchant page; title truncated in search.",
+      "raw_file": "../C3-02/raw/us-vhf-handheld.json",
+      "brands": [
+        "Cobra"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02"
+    },
+    {
+      "channel3_product_id": "Mer1TUo",
+      "name": "Coastal Alert and Locate Signal Kit",
+      "category": "crew_safety",
+      "why_needed": "Orion Coastal Alert and Locate Signal Kit — pyrotechnic coastal kit.",
+      "quantity": 1,
+      "merchant": "basspro.com",
+      "merchant_country": "US",
+      "price": 144.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/Mer1TUo-qzpY-8GcCvU?o=01M13F4GB7C280B2V4Q3PTCYX6&aid=01M6ZTSZNB08MJFZNMGXTETSQ3",
+      "caution": "CAUTION: pyrotechnics — shipping to France may be restricted; expiry; prefer local chandlery for pyro.",
+      "raw_file": "raw/us-ais-mob1.json",
+      "brands": [
+        "Orion"
+      ],
+      "max_commission_rate": 0.021,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "KgmyoXI",
+      "name": "Coastal Flare Alerter Plus Kit",
+      "category": "crew_safety",
+      "why_needed": "Coastal flare alerter kit for distress signalling (pyrotechnic/coastal kit).",
+      "quantity": 1,
+      "merchant": "cabelas.com",
+      "merchant_country": "US",
+      "price": 134.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/KgmyoXI-WPap-8GcCvU?o=01KVF9XGYBTFCM9QYRYJGX9TZK&aid=01M6ZS9WG2FM4BF578FZW1BRAR",
+      "caution": "CAUTION: pyrotechnic flares — shipping/import to France may be restricted or forbidden for private parcels; check DGAC/customs and expiry dates; prefer electronic flare if shipping to FR.",
+      "raw_file": "../C3-02/raw/us-flares.json",
+      "brands": [
+        "Orion Safety Products"
+      ],
+      "max_commission_rate": 0.028,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02"
+    },
+    {
+      "channel3_product_id": "xMQ5Si0",
+      "name": "Elite 190 Inflatable Life Vest",
+      "category": "crew_safety",
+      "why_needed": "Mustang Elite 190 inflatable life vest — higher-buoyancy offshore inflatable.",
+      "quantity": 6,
+      "merchant": "cabelas.com",
+      "merchant_country": "US",
+      "price": 324.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/xMQ5Si0-WPap-8GcCvU?o=01M14QS84HGA14Z4YF0593W9TS&aid=01M6ZTT7HB30A5G7DF7SCXKPYW",
+      "caution": "Confirm harness/crotch strap; pick MIT 150 or Elite 190 per crew.",
+      "raw_file": "raw/us-inflatable-150n.json",
+      "brands": [
+        "Mustang Survival"
+      ],
+      "max_commission_rate": 0.028,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "znyNibV",
+      "name": "Ergo Auto Inflatable PFD w/Harness",
+      "category": "crew_safety",
+      "why_needed": "First Watch Ergo auto inflatable PFD with harness — tether attachment points.",
+      "quantity": 6,
+      "merchant": "walmart.com",
+      "merchant_country": "US",
+      "price": 311.92,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/znyNibV-BsaX-8GcCvU?o=01M389WAKV9N3YBHXVH0FGH1GW&aid=01M6ZTT7HB30A5G7DF7SCXKPYW",
+      "caution": "Verify sailing-rated harness points and buoyancy class on page.",
+      "raw_file": "raw/us-inflatable-150n.json",
+      "brands": [
+        "First Watch"
+      ],
+      "max_commission_rate": 0.07,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "sSaJe7c",
+      "name": "FastFind 220 Personal Locator Beacon",
+      "category": "crew_safety",
+      "why_needed": "McMurdo FastFind 220 PLB — second-brand personal beacon (SmartFind S20 AIS MOB not found).",
+      "quantity": 2,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 394.25,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/sSaJe7c-jlW4-8GcCvU?o=01M231M42B76KV1T5YAEH1KJFA&aid=01M6ZTT1ZEEV8DFX9DJR0S1W8S",
+      "caution": "CAUTION: ANFR registration. McMurdo SmartFind S20 not on Channel3.",
+      "raw_file": "raw/us-ais-mob-beacon.json",
+      "brands": [
+        "MCMURDO"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "sHjuFqy",
+      "name": "Garmin InReach Mini 2 Satellite Communicator",
+      "category": "crew_safety",
+      "why_needed": "Garmin inReach Mini 2 — two-way SOS/text via Iridium.",
+      "quantity": 2,
+      "merchant": "johnlewis.com",
+      "merchant_country": "GB",
+      "price": 289.99,
+      "currency": "GBP",
+      "product_url": "https://buy.trychannel3.com/sHjuFqy-cGQJ-8GcCvU?o=01KGGBMTQYN5745FGE58NXK265&aid=01M6ZTV8MFP9EXC7K6264KH7ZM",
+      "caution": "CAUTION: Garmin satellite subscription required. Test before departure.",
+      "raw_file": "raw/gb-iridium.json",
+      "brands": [
+        "Garman"
+      ],
+      "max_commission_rate": 0.0,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "oXtjHJk",
+      "name": "Garmin inReach Mini 2 Satellite Communicator (Red) with Satellite Communicator Accessories Bundle",
+      "category": "crew_safety",
+      "why_needed": "Garmin inReach Mini 2 US bundle — USD listing.",
+      "quantity": 1,
+      "merchant": "newegg.com",
+      "merchant_country": "US",
+      "price": 365.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/oXtjHJk-LPzf-8GcCvU?o=01M4J037RJ77TP4XYXXG1HB0G2&aid=01M6ZTV3VACSXTWH5HVM6983KW",
+      "caution": "Subscription required; pick GB or US listing for count.",
+      "raw_file": "raw/us-iridium-go.json",
+      "brands": [
+        "Garmin",
+        "Kratos",
+        "Ubio Labs"
+      ],
+      "max_commission_rate": 0.007,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "hDKesVv",
+      "name": "GlobalFix V6 Emergency Position-Indicating Radio Beacon",
+      "category": "crew_safety",
+      "why_needed": "ACR GlobalFix V6 EPIRB — alternate vessel EPIRB brand.",
+      "quantity": 1,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 854.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/hDKesVv-jlW4-8GcCvU?o=01M33MXWQB2V0B0TKFZ4TCS539&aid=01M6ZTT1ZEEV8DFX9DJR0S1W8S",
+      "caution": "CAUTION: ANFR; avoid duplicate primary EPIRBs without a plan.",
+      "raw_file": "raw/us-ais-mob-beacon.json",
+      "brands": [
+        "ACR Electronics"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "K6gupx4",
+      "name": "HX210E VHF Radio (UK/EU)",
+      "category": "crew_safety",
+      "why_needed": "HX210E VHF (UK/EU listing) — EU-market handheld VHF.",
+      "quantity": 1,
+      "merchant": "mountainwarehouse.com",
+      "merchant_country": "GB",
+      "price": 114.0,
+      "currency": "GBP",
+      "product_url": "https://buy.trychannel3.com/K6gupx4-3n2Z-8GcCvU?o=01M2NVT4HTSJE3FAP2SJTTEZN3&aid=01M6ZTT3AEZ1ADS27B3W0DSQQ5",
+      "caution": "Confirm ATIS/EU channels; MMSI.",
+      "raw_file": "raw/gb-ais-mob.json",
+      "brands": [
+        "Standard Horizon"
+      ],
+      "max_commission_rate": 0.091,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "OS4mSt7",
+      "name": "Icom IC-M605 Fixed Mount 25W VHF w/ Color Display & AIS",
+      "category": "crew_safety",
+      "why_needed": "Icom IC-M605 fixed-mount 25 W VHF with AIS — ship station radio.",
+      "quantity": 1,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 1049.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/OS4mSt7-jlW4-8GcCvU?o=01M5XBEB4FFMK7ATJ7A7HMDVX7&aid=01M6ZTV1DPTR6Z9VKZR9EQRMJC",
+      "caution": "Installed; antenna/NMEA; not a handheld substitute.",
+      "raw_file": "raw/us-icom-vhf.json",
+      "brands": [
+        "Icom"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "wFihSJF",
+      "name": "Icom IC-M94D VHF Marine Radio w/ AIS & DSC",
+      "category": "crew_safety",
+      "why_needed": "Icom IC-M94D handheld VHF with AIS + DSC.",
+      "quantity": 2,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 399.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/wFihSJF-jlW4-8GcCvU?o=01M5XB429NHNGFDP3DEYER5AQT&aid=01M6ZTV1DPTR6Z9VKZR9EQRMJC",
+      "caution": "MMSI/ANFR; AIS receive for collision avoidance.",
+      "raw_file": "raw/us-icom-vhf.json",
+      "brands": [
+        "Icom"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "pntIpmE",
+      "name": "Icon 700 Headlamp",
+      "category": "crew_safety",
+      "why_needed": "Black Diamond Icon 700 headlamp — night watch / engine bay.",
+      "quantity": 6,
+      "merchant": "eu.blackdiamondequipment.com",
+      "merchant_country": "FR",
+      "price": 100.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/pntIpmE-ccSv-8GcCvU?o=01KZBGSTYX4WK3Y2MAR2YHBC0N&aid=01M6ZS9DEQW77DT3558ENFD4H0",
+      "caution": "Not marine-specific; check IP waterproof rating for cockpit rain.",
+      "raw_file": "../C3-02/raw/detail-fr-blackdiamond-icon-700.json",
+      "brands": [
+        "Black Diamond"
+      ],
+      "max_commission_rate": 0.05852,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02"
+    },
+    {
+      "channel3_product_id": "pC9ea0j",
+      "name": "Iridium GO! Satellite Based Hot Spot",
+      "category": "crew_safety",
+      "why_needed": "Iridium GO! satellite hotspot — email/weather/voice beyond cellular.",
+      "quantity": 1,
+      "merchant": "cabelas.com",
+      "merchant_country": "US",
+      "price": 875.0,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/pC9ea0j-WPap-8GcCvU?o=01KVDHD7RDVGVDCAFPTE5YV4D8&aid=01M6ZTV3VACSXTWH5HVM6983KW",
+      "caution": "CAUTION: airtime subscription EXTRA (~USD 50–150+/month typical).",
+      "raw_file": "raw/us-iridium-go.json",
+      "brands": [
+        "Iridium"
+      ],
+      "max_commission_rate": 0.028,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "HdjjRY8",
+      "name": "MIT 100 Convertible Automatic/Manual Inflatable PFD",
+      "category": "crew_safety",
+      "why_needed": "Mustang MIT 100 convertible inflatable PFD — coastal/near-offshore spare.",
+      "quantity": 2,
+      "merchant": "westmarine.com",
+      "merchant_country": "US",
+      "price": 184.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/HdjjRY8-ziE5-8GcCvU?o=01M4M4STD58XTJDMCVKV6G3S0A&aid=01M6ZVAG0V9E3H5891M9KXZ6M7",
+      "caution": "Lower buoyancy than 150/190 — spare/guest only if 150N+ required.",
+      "raw_file": "raw/wm-lifesling2.json",
+      "brands": [
+        "Mustang Survival"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "ZXnyhqR",
+      "name": "MIT 150 Convertible A/M Inflatable PFD",
+      "category": "crew_safety",
+      "why_needed": "Mustang MIT 150 Convertible inflatable PFD — offshore-capable inflatable (~150N class).",
+      "quantity": 6,
+      "merchant": "cabelas.com",
+      "merchant_country": "US",
+      "price": 199.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/ZXnyhqR-WPap-8GcCvU?o=01KVF92QP9KMNCTKT2AAE4054E&aid=01M6ZTT7HB30A5G7DF7SCXKPYW",
+      "caution": "Confirm ISO 12402-3 / Type V marks, crotch strap, size. Spinlock Deckvest not found.",
+      "raw_file": "raw/us-inflatable-150n.json",
+      "brands": [
+        "Mustang Survival"
+      ],
+      "max_commission_rate": 0.028,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "60BXA1O",
+      "name": "Offshore Voyager Life Raft",
+      "category": "crew_safety",
+      "why_needed": "Mustang Offshore Voyager life raft — offshore abandon-ship alternative.",
+      "quantity": 1,
+      "merchant": "westmarine.com",
+      "merchant_country": "US",
+      "price": 2457.63,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/60BXA1O-ziE5-8GcCvU?o=01KTYD14HCGMDGG8BMFMJR6Z6V&aid=01M6ZVAG0V9E3H5891M9KXZ6M7",
+      "caution": "CAUTION: confirm ≥6; servicing; compare with Viking before picking one.",
+      "raw_file": "raw/wm-lifesling2.json",
+      "brands": [
+        "Mustang Survival"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "needs_confirmation": true,
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "64tdtrd",
+      "name": "RapidDitch Express Abandon Ship Bag",
+      "category": "crew_safety",
+      "why_needed": "ACR RapidDitch Express abandon-ship bag — lighter grab bag.",
+      "quantity": 1,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 79.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/64tdtrd-jlW4-8GcCvU?o=01KC9W4Q4YYXYQZFE31BY1YT01&aid=01M6ZTTRH5RV94KQ275RRZR8NY",
+      "caution": "Smaller volume — check vs contents.",
+      "raw_file": "raw/us-grab-bag.json",
+      "brands": [
+        "ACR Electronics"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "TgHVqTW",
+      "name": "RapidDitch Marine Survival Bag",
+      "category": "crew_safety",
+      "why_needed": "ACR RapidDitch marine survival bag — abandon-ship grab bag.",
+      "quantity": 1,
+      "merchant": "scheels.com",
+      "merchant_country": "US",
+      "price": 187.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/TgHVqTW-98k8-8GcCvU?o=01KBPBS45C293JVEWXFF9CGR9X&aid=01M6ZTTRH5RV94KQ275RRZR8NY",
+      "caution": "Pre-pack EPIRB/VHF/water/meds/papers; contents not included.",
+      "raw_file": "raw/us-grab-bag.json",
+      "brands": [
+        "ACR"
+      ],
+      "max_commission_rate": 0.04,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "OYVJCbl",
+      "name": "ResQLink 425 Buoyant Personal Locator Beacon",
+      "category": "crew_safety",
+      "why_needed": "ACR ResQLink 425 buoyant PLB — personal 406 MHz beacon, spares/guests.",
+      "quantity": 2,
+      "merchant": "basspro.com",
+      "merchant_country": "US",
+      "price": 469.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/OYVJCbl-qzpY-8GcCvU?o=01M0VSWF3WHC2GX75KT6EVZWN1&aid=01M6ZTT1ZEEV8DFX9DJR0S1W8S",
+      "caution": "CAUTION: ANFR registration; buoyant; pair with AIS MOB1.",
+      "raw_file": "raw/us-ais-mob-beacon.json",
+      "brands": [
+        "ACR Electronics"
+      ],
+      "max_commission_rate": 0.021,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "zJpTONE",
+      "name": "ResQLink AIS PLB-450 Personal Locator Beacon",
+      "category": "crew_safety",
+      "why_needed": "ACR ResQLink AIS PLB-450 — PLB with AIS for local MOB + satellite alert.",
+      "quantity": 2,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 619.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/zJpTONE-jlW4-8GcCvU?o=01M3BB004N461DHY9NTWXDK0V7&aid=01M6ZTT1ZEEV8DFX9DJR0S1W8S",
+      "caution": "CAUTION: ANFR registration; AIS+PLB; buoyancy/battery expiry.",
+      "raw_file": "raw/us-ais-mob-beacon.json",
+      "brands": [
+        "ACR Electronics"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "QdhVSLg",
+      "name": "Rescue Throw Bag",
+      "category": "crew_safety",
+      "why_needed": "Airhead rescue throw bag — heaving line for MOB recovery.",
+      "quantity": 2,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 22.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/QdhVSLg-jlW4-8GcCvU?o=01KCA0RE89GPV8K6VBMEKSR4X5&aid=01M6ZTVBVQERRCEZ79RGT3K3WQ",
+      "caution": "Practice use. Full Lifesling2 system not on Channel3 (only replacement bag SKU 9eMkc25).",
+      "raw_file": "raw/us-throw-rope.json",
+      "brands": [
+        "Airhead"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "ElsTQdX",
+      "name": "RescueME EPIRB1",
+      "category": "crew_safety",
+      "why_needed": "Ocean Signal RescueME EPIRB1 — Category 2 manual vessel EPIRB.",
+      "quantity": 1,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 684.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/ElsTQdX-jlW4-8GcCvU?o=01KCBASHQST5NSPW54VZH7ATC1&aid=01M6ZTSZNB08MJFZNMGXTETSQ3",
+      "caution": "CAUTION: ANFR; Cat 2 manual vs Cat 1 auto — pick one primary.",
+      "raw_file": "raw/us-ais-mob1.json",
+      "brands": [
+        "Ocean Signal"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "UpJqTLl",
+      "name": "RescueME MOB1",
+      "category": "crew_safety",
+      "why_needed": "AIS MOB beacon (Ocean Signal RescueME MOB1): AIS+DSC MOB alert to nearby vessels — primary personal MOB locator on deck.",
+      "quantity": 6,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 384.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/UpJqTLl-jlW4-8GcCvU?o=01KTS9PW50VMPM2VE1XT1898WF&aid=01M6ZTSZNB08MJFZNMGXTETSQ3",
+      "caution": "Register AIS/DSC (France: ANFR). Test per manual; battery expiry; clip to lifejacket harness.",
+      "raw_file": "raw/us-ais-mob1.json",
+      "brands": [
+        "Ocean Signal"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "hkxJfs4",
+      "name": "RescueME PLB1",
+      "category": "crew_safety",
+      "why_needed": "Ocean Signal RescueME PLB1 — 406 MHz personal beacon for each crew / spare.",
+      "quantity": 6,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 399.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/hkxJfs4-jlW4-8GcCvU?o=01KCA5GHSTMC9E8T1B1MG9VWSQ&aid=01M6ZTSZNB08MJFZNMGXTETSQ3",
+      "caution": "CAUTION: ANFR registration (France); battery life; not a vessel EPIRB substitute.",
+      "raw_file": "raw/us-ais-mob1.json",
+      "brands": [
+        "Ocean Signal"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "3ZiHTua",
+      "name": "RescueMe EDF1 Electronic Distress Flare",
+      "category": "crew_safety",
+      "why_needed": "Ocean Signal RescueMe EDF1 electronic distress flare.",
+      "quantity": 2,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 169.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/3ZiHTua-jlW4-8GcCvU?o=01M22AQ8JSGMSV71F1ZY4ZY3Q8&aid=01M6ZTSZNB08MJFZNMGXTETSQ3",
+      "caution": "May not replace all pyro carriage rules — check flag state.",
+      "raw_file": "raw/us-ais-mob1.json",
+      "brands": [
+        "Ocean Signal"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "w5hPKfR",
+      "name": "SafeSea EPIRB3 Pro Category 1",
+      "category": "crew_safety",
+      "why_needed": "Ocean Signal SafeSea EPIRB3 Pro Category 1 — vessel EPIRB auto-deploy.",
+      "quantity": 1,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 1044.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/w5hPKfR-jlW4-8GcCvU?o=01M3GDWF8PM1KGE2E207C6PKGF&aid=01M6ZTT1ZEEV8DFX9DJR0S1W8S",
+      "caution": "CAUTION: vessel MMSI via ANFR; Cat 1 HRU; professional servicing.",
+      "raw_file": "raw/us-ais-mob-beacon.json",
+      "brands": [
+        "Ocean Signal"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "OR9IcSW",
+      "name": "Standard Horizon HX891 Handheld VHF Radio with Built-in GPS",
+      "category": "crew_safety",
+      "why_needed": "Standard Horizon HX891 handheld VHF with GPS.",
+      "quantity": 1,
+      "merchant": "bestbuy.com",
+      "merchant_country": "US",
+      "price": 279.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/OR9IcSW-p1PB-8GcCvU?o=01KYQGSZWTRD7N6NNDARA0H70K&aid=01M6ZTV0A6CET078X9DKDHVJKE",
+      "caution": "Prefer one HX891 variant; MMSI for DSC.",
+      "raw_file": "raw/us-vhf-dsc.json",
+      "brands": [
+        "Standard Horizon"
+      ],
+      "max_commission_rate": 0.005,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "gd0LkxN",
+      "name": "Standard Horizon HX891BT Floating 6W Handheld VHF/GPS/Bluetooth Marine Radio",
+      "category": "crew_safety",
+      "why_needed": "Standard Horizon HX891BT floating handheld VHF GPS/Bluetooth — DSC handheld.",
+      "quantity": 2,
+      "merchant": "bestbuy.com",
+      "merchant_country": "US",
+      "price": 279.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/gd0LkxN-p1PB-8GcCvU?o=01KXZD1JZF7H3Y3MVRNT2NZXK0&aid=01M6ZTV0A6CET078X9DKDHVJKE",
+      "caution": "Program MMSI (ANFR); floating; spare batteries.",
+      "raw_file": "raw/us-vhf-dsc.json",
+      "brands": [
+        "Standard Horizon"
+      ],
+      "max_commission_rate": 0.005,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "cXldDn2",
+      "name": "Starlink Standard Kit v4",
+      "category": "crew_safety",
+      "why_needed": "Starlink Standard Kit v4 — alternate merchant listing.",
+      "quantity": 1,
+      "merchant": "samsclub.com",
+      "merchant_country": "US",
+      "price": 1099.0,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/cXldDn2-dCgO-8GcCvU?o=01M6P0K9YY3M6BC0C9K9WAD364&aid=01M6ZTV5XWCP28JFVRWKYCD4TW",
+      "caution": "Same subscription caution; pick one Starlink SKU.",
+      "raw_file": "raw/us-starlink.json",
+      "brands": [
+        "Starlink",
+        "SpaceX"
+      ],
+      "max_commission_rate": 0.118,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "lAZTrEZ",
+      "name": "Starlink Standard Kit with Tripod Mount",
+      "category": "crew_safety",
+      "why_needed": "Starlink Standard Kit with tripod — high-bandwidth sat internet.",
+      "quantity": 1,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 761.25,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/lAZTrEZ-jlW4-8GcCvU?o=01M4M9P25JHPJHZR68SN44FMDJ&aid=01M6ZTV5XWCP28JFVRWKYCD4TW",
+      "caution": "CAUTION: Starlink Roam/Maritime subscription EXTRA (~USD 40–250+/month). Not GMDSS.",
+      "raw_file": "raw/us-starlink.json",
+      "brands": [
+        "Starlink"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "0b9xp6h",
+      "name": "Type H (MIT 70) Inflatable Life Jacket Rearming Kit, Manual/Automatic, 16 g.",
+      "category": "crew_safety",
+      "why_needed": "Mustang Type H MIT 70 rearming kit — spare cylinders/seals after drills.",
+      "quantity": 6,
+      "merchant": "westmarine.com",
+      "merchant_country": "US",
+      "price": 34.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/0b9xp6h-ziE5-8GcCvU?o=01M3N8974BQH98XQN76CMAYHVA&aid=01M6ZVAGZT93EYAZY5B2ZVT84B",
+      "caution": "Match kit to exact PFD model.",
+      "raw_file": "raw/wm-mit100.json",
+      "brands": [
+        "Mustang Survival"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "D1Imgm0",
+      "name": "Uniden Atlantis 155 Floating Handheld 2-way VHF Marine Radio",
+      "category": "crew_safety",
+      "why_needed": "Uniden Atlantis 155 floating handheld VHF — waterproof backup radio.",
+      "quantity": 2,
+      "merchant": "lowes.com",
+      "merchant_country": "US",
+      "price": 89.34,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/D1Imgm0-Qqxu-8GcCvU?o=01M6PVKD8QJEXXZ3M3WZZ7PEV0&aid=01M6ZS9TBQ02W0FF63500YE0J1",
+      "caution": "Handheld VHF; confirm ATIS/MMSI programming rules for FR/EU if used in European waters.",
+      "raw_file": "../C3-02/raw/us-vhf-handheld.json",
+      "brands": [
+        "Uniden",
+        "Tractor Supply"
+      ],
+      "max_commission_rate": 0.018,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02"
+    },
+    {
+      "channel3_product_id": "k4nWRDl",
+      "name": "Viking Rescyou Iso 9650-1 Isaf Life Raft",
+      "category": "crew_safety",
+      "why_needed": "Viking RescYou ISO 9650-1 ISAF life raft — ocean-certified raft; choose capacity ≥6.",
+      "quantity": 1,
+      "merchant": "westmarine.com",
+      "merchant_country": "US",
+      "price": 3845.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/k4nWRDl-ziE5-8GcCvU?o=01M47N47QV6674TT7P0YEP4Q2B&aid=01M6ZVAG0V9E3H5891M9KXZ6M7",
+      "caution": "CAUTION: confirm ≥6 persons; approved servicing; HRU/cradle often extra; bulky shipping to France.",
+      "raw_file": "raw/wm-lifesling2.json",
+      "brands": [
+        "Viking Liferafts"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "needs_confirmation": true,
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "xGDEPk3",
+      "name": "rescueME EPIRB3 Category 2",
+      "category": "crew_safety",
+      "why_needed": "Ocean Signal rescueME EPIRB3 Category 2 — current-gen EPIRB option.",
+      "quantity": 1,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 899.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/xGDEPk3-jlW4-8GcCvU?o=01M38VP27A3TXG2AHR9ED3TB82&aid=01M6ZTSZNB08MJFZNMGXTETSQ3",
+      "caution": "CAUTION: ANFR; RLS may need account.",
+      "raw_file": "raw/us-ais-mob1.json",
+      "brands": [
+        "Ocean Signal"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "ySwJYWZ",
+      "name": "10x50 S Binoculars",
+      "category": "accastillage",
+      "why_needed": "OM System 10×50 S binoculars — watchkeeping/pilotage (EUR native).",
+      "quantity": 1,
+      "merchant": "explore.omsystem.com",
+      "merchant_country": "FR",
+      "price": 119.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/ySwJYWZ-IlFo-8GcCvU?o=01M2DPDSPJZCS05TRCZS6Y5TW9&aid=01M6ZVABGHS8TD6GBB5ZC1EQJF",
+      "caution": "Boat-shared; floating strap not included.",
+      "raw_file": "raw/fr-jumelles.json",
+      "brands": [
+        "OM SYSTEM"
+      ],
+      "max_commission_rate": 0.0,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "wHaggZE",
+      "name": "8\" One Touch Aluminum Winch Powergrip",
+      "category": "accastillage",
+      "why_needed": "Aluminum one-touch winch handle — second station / spare.",
+      "quantity": 1,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 139.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/wHaggZE-jlW4-8GcCvU?o=01M362VA3WR2QQ277F88BX6MBS&aid=01M6ZS9GPK6GTACTQ5E23QCN8W",
+      "caution": "Confirm socket compatibility; higher price than plastic/locking models.",
+      "raw_file": "../C3-02/raw/us-winch-handle.json",
+      "brands": [
+        "Lewmar"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02"
+    },
+    {
+      "channel3_product_id": "Tmatq3P",
+      "name": "8\" Single Grip Winch Handle, Locking",
+      "category": "accastillage",
+      "why_needed": "8\" locking winch handle — primary winch work on deck.",
+      "quantity": 2,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 79.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/Tmatq3P-jlW4-8GcCvU?o=01M3JPHTFBW4F35HKJ3N2QP3D9&aid=01M6ZS9GPK6GTACTQ5E23QCN8W",
+      "caution": "Confirm 8-point socket fits the boat's winches.",
+      "raw_file": "../C3-02/raw/us-winch-handle.json",
+      "brands": [
+        "Lewmar"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02"
+    },
+    {
+      "channel3_product_id": "qnee5bD",
+      "name": "Aqua Hot Racor 10-Micron Spin-On Fuel Filter",
+      "category": "accastillage",
+      "why_needed": "Racor 10-micron spin-on fuel filter element.",
+      "quantity": 2,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 61.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/qnee5bD-jlW4-8GcCvU?o=01M3NBX6G9R3PF75YB9ZGEGTBH&aid=01M6ZTVKZSWZBRKS2QY5RPR8NB",
+      "caution": "Match Racor head; carry several.",
+      "raw_file": "raw/us-fuel-filter.json",
+      "brands": [
+        "Aqua Hot",
+        "Racor",
+        "Parker"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "fXU4aRw",
+      "name": "Automatic Bilge Pump 1000 GPH",
+      "category": "accastillage",
+      "why_needed": "Johnson Pump automatic bilge pump 1000 GPH.",
+      "quantity": 1,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 98.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/fXU4aRw-jlW4-8GcCvU?o=01M3610NVSGPYXM7SKSDWW9YQZ&aid=01M6ZTVP5N186R9GE3Z6T8ZV9S",
+      "caution": "Wire with float switch and high-water alarm.",
+      "raw_file": "raw/us-bilge-pump.json",
+      "brands": [
+        "Johnson Pump"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "2E0l990",
+      "name": "Boat Fender",
+      "category": "accastillage",
+      "why_needed": "Vinyl boat fender to protect hull at quays and raft-ups.",
+      "quantity": 6,
+      "merchant": "academy.com",
+      "merchant_country": "US",
+      "price": 19.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/2E0l990-DEoc-8GcCvU?o=01M1JKQ7CQ3PPYT4R2EDDV8WSW&aid=01M6ZS9K7W32KPV79ADKAQ9269",
+      "caution": "Size (diameter×length) not in title — check before ordering.",
+      "raw_file": "../C3-02/raw/us-fender.json",
+      "brands": [
+        "Marine Raider"
+      ],
+      "max_commission_rate": 0.014,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02"
+    },
+    {
+      "channel3_product_id": "rMnyMpm",
+      "name": "FOREGUY, 14' LOA, New England Ropes' Sta-Set, Green (1/4\")",
+      "category": "accastillage",
+      "why_needed": "New England Ropes Sta-Set foreguy 14' — spare low-stretch line (DIY jackline material only if properly terminated).",
+      "quantity": 2,
+      "merchant": "westmarine.com",
+      "merchant_country": "US",
+      "price": 74.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/rMnyMpm-ziE5-8GcCvU?o=01M510DG2ZJKY8E5SNR3RAAF03&aid=01M6ZVAJ3XX4MDHJB3PHCRQSXR",
+      "caution": "NOT a finished ISO jackline. Finished jacklines not found on Channel3.",
+      "raw_file": "raw/wm-sta-set.json",
+      "brands": [
+        "WEST MARINE",
+        "New England",
+        "Wichard"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "9zyqp3q",
+      "name": "Jumelles",
+      "category": "accastillage",
+      "why_needed": "Regatta binoculars (EUR) — budget watchkeeping spare.",
+      "quantity": 1,
+      "merchant": "regatta.com",
+      "merchant_country": "FR",
+      "price": 32.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/9zyqp3q-aTwc-8GcCvU?o=01M3QRBJVYX05YS8YQACXKCECG&aid=01M6ZVABGHS8TD6GBB5ZC1EQJF",
+      "caution": "Confirm magnification/waterproofing on page.",
+      "raw_file": "raw/fr-jumelles.json",
+      "brands": [
+        "Regatta"
+      ],
+      "max_commission_rate": 0.035,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "LCpw4lc",
+      "name": "Leica Ultravid 7x42 White Ocean",
+      "category": "accastillage",
+      "why_needed": "Leica Ultravid 7×42 White Ocean binoculars — premium marine optics for night watches (EUR).",
+      "quantity": 1,
+      "merchant": "leica-camera.com",
+      "merchant_country": "FR",
+      "price": 3850.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/LCpw4lc-ED36-8GcCvU?o=01M5VGQ1EBCN0RY79V18GGQQX9&aid=01M6ZVABGHS8TD6GBB5ZC1EQJF",
+      "caution": "Optional upgrade vs OM System; high price.",
+      "raw_file": "raw/fr-jumelles.json",
+      "brands": [
+        "Leica"
+      ],
+      "max_commission_rate": 0.007,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "QE0Vp6a",
+      "name": "Rule 500 gph Bilge Pump",
+      "category": "accastillage",
+      "why_needed": "Rule 500 GPH bilge pump — spare/secondary flooding control.",
+      "quantity": 2,
+      "merchant": "academy.com",
+      "merchant_country": "US",
+      "price": 39.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/QE0Vp6a-DEoc-8GcCvU?o=01M5ASE6VVZFZ1KZ2N9YBFHAFK&aid=01M6ZTVP5N186R9GE3Z6T8ZV9S",
+      "caution": "Confirm voltage/hose; carry float switch.",
+      "raw_file": "raw/us-bilge-pump.json",
+      "brands": [
+        "Rule"
+      ],
+      "max_commission_rate": 0.014,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "4uA6nx1",
+      "name": "Rule-Mate Bilge Pump",
+      "category": "accastillage",
+      "why_needed": "Rule-Mate automatic bilge pump.",
+      "quantity": 1,
+      "merchant": "academy.com",
+      "merchant_country": "US",
+      "price": 129.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/4uA6nx1-DEoc-8GcCvU?o=01M1FN3TGKF1THPZVNBMMAFR33&aid=01M6ZTVP5N186R9GE3Z6T8ZV9S",
+      "caution": "Confirm GPH; dual pumps recommended offshore.",
+      "raw_file": "raw/us-bilge-pump.json",
+      "brands": [
+        "Rule"
+      ],
+      "max_commission_rate": 0.014,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "VpLagq3",
+      "name": "Sierra Impeller Kit For Johnson Pump/Jabsco Pump",
+      "category": "accastillage",
+      "why_needed": "Sierra impeller kit for Johnson/Jabsco.",
+      "quantity": 2,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 30.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/VpLagq3-jlW4-8GcCvU?o=01M3JX26DZ4EC5K3RZG1WRJ41A&aid=01M6ZTVJVQDSYJZZ9E35N7CYTG",
+      "caution": "Confirm fitment.",
+      "raw_file": "raw/us-impeller.json",
+      "brands": [
+        "Sierra"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "LrnaflK",
+      "name": "Sta-Set Yacht Braid – Color-Coded, Per Foot",
+      "category": "accastillage",
+      "why_needed": "Sta-Set yacht braid per foot — buy length for spare sheets/jackline DIY webbing substitute only with correct terminations.",
+      "quantity": 30,
+      "merchant": "westmarine.com",
+      "merchant_country": "US",
+      "price": 1.67,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/LrnaflK-ziE5-8GcCvU?o=01M5R61EC3N037T7ADTM8XAR5D&aid=01M6ZVAJ3XX4MDHJB3PHCRQSXR",
+      "caution": "Quantity = feet to order as a starting coil (adjust to boat). Still not a finished jackline product.",
+      "raw_file": "raw/wm-sta-set.json",
+      "brands": [
+        "New England"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "TdOeaEb",
+      "name": "Tenacious Tape",
+      "category": "accastillage",
+      "why_needed": "Gear Aid Tenacious Tape — emergency sail/canvas repair.",
+      "quantity": 4,
+      "merchant": "cabelas.com",
+      "merchant_country": "US",
+      "price": 7.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/TdOeaEb-WPap-8GcCvU?o=01M0VKXYNCVZWXP3K42469Q9JH&aid=01M6ZTVN55608DSBDHMMJEVY91",
+      "caution": "Full sail-repair kit not found on Channel3.",
+      "raw_file": "raw/us-sail-repair.json",
+      "brands": [
+        "Gear Aid"
+      ],
+      "max_commission_rate": 0.028,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "JB9URra",
+      "name": "Twisted Nylon Dock Line",
+      "category": "accastillage",
+      "why_needed": "Twisted nylon dock/mooring line for alongside berths.",
+      "quantity": 4,
+      "merchant": "academy.com",
+      "merchant_country": "US",
+      "price": 31.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/JB9URra-DEoc-8GcCvU?o=01M16R9WCWPEVHJWZJH250CKZA&aid=01M6ZS9HVNN7C1007ZQ851Y6M0",
+      "caution": "Length/diameter not verified in Channel3 title alone — check product page for size.",
+      "raw_file": "../C3-02/raw/us-mooring-line.json",
+      "brands": [
+        "SeaSense"
+      ],
+      "max_commission_rate": 0.014,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02"
+    },
+    {
+      "channel3_product_id": "gqaQCsE",
+      "name": "Water Pump Impeller Kit",
+      "category": "accastillage",
+      "why_needed": "Johnson Pump impeller kit — engine raw-water cooling spare.",
+      "quantity": 2,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 62.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/gqaQCsE-jlW4-8GcCvU?o=01M38CS7T4VBHZRJ48DH4R7MHN&aid=01M6ZTVJVQDSYJZZ9E35N7CYTG",
+      "caution": "Match exact pump/engine.",
+      "raw_file": "raw/us-impeller.json",
+      "brands": [
+        "Johnson Pump"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02b"
+    },
+    {
+      "channel3_product_id": "zRl9jHd",
+      "name": "Waterproof Dry Bag 25L",
+      "category": "accastillage",
+      "why_needed": "Regatta 25 L waterproof dry bag — protect electronics and papers.",
+      "quantity": 6,
+      "merchant": "regatta.com",
+      "merchant_country": "FR",
+      "price": 20.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/zRl9jHd-aTwc-8GcCvU?o=01M2QN4CB7GPF3PGZZ20S9H4Z4&aid=01M6ZS9D1460X6WG4YFHH33CZT",
+      "caution": "Stowage, not deck hardware sensu stricto; useful boat kit.",
+      "raw_file": "../C3-02/raw/detail-fr-regatta-dry-bag-25l.json",
+      "brands": [
+        "Regatta"
+      ],
+      "max_commission_rate": 0.035,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      },
+      "source_catalogue": "C3-02"
+    }
+  ]
+}

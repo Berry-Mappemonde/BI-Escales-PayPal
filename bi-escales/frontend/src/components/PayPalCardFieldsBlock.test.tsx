@@ -1,8 +1,21 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import type { PublicPledge } from "../api/types";
 import { PayPalCardFieldsBlock } from "./PayPalCardFieldsBlock";
 import { authorizePledge, createPledge, fetchPledgeMode, registerVault } from "../api/escales";
 import "../i18n";
+
+function stubPledge(partial: Partial<PublicPledge> & Pick<PublicPledge, "id">): PublicPledge {
+  return {
+    status: "created",
+    intent: "AUTHORIZE",
+    currency: "EUR",
+    amount_eur: "5.00",
+    description: "5 miles",
+    milestone_id: "dep-mayotte",
+    ...partial,
+  };
+}
 vi.mock("../api/escales", () => ({createPledge: vi.fn(), fetchPledgeMode: vi.fn(), authorizePledge: vi.fn(), registerVault: vi.fn(), isVaultPledge: (p: {payment_mode?: string}) => p.payment_mode === "VAULT"}));
 const values = {amount_eur: "5.00", description: "5 miles", milestone_id: "dep-mayotte", kind: "mile"};
 beforeEach(() => {vi.clearAllMocks(); vi.mocked(fetchPledgeMode).mockResolvedValue({payment_mode:"AUTHORIZE"});});
@@ -16,9 +29,16 @@ function sdk(pending?: Promise<void>) {
 describe("Card Fields checkout", () => {
   it.each(["AUTHORIZE", "VAULT"])("passes only the %s callback and completes first submit", async (mode) => {
     vi.mocked(fetchPledgeMode).mockResolvedValue({payment_mode: mode as "AUTHORIZE" | "VAULT"});
-    const pledge = {id: "P", payment_mode: mode, order_id: "O", setup_token_id: "S"};
+    const pledge = stubPledge({
+      id: "P",
+      payment_mode: mode,
+      order_id: "O",
+      setup_token_id: "S",
+      intent: mode === "VAULT" ? "VAULT" : "AUTHORIZE",
+    });
     vi.mocked(createPledge).mockResolvedValue(pledge);
-    vi.mocked(authorizePledge).mockResolvedValue(pledge);vi.mocked(registerVault).mockResolvedValue(pledge);
+    vi.mocked(authorizePledge).mockResolvedValue(pledge);
+    vi.mocked(registerVault).mockResolvedValue(pledge);
     const s = sdk(); const onAuthorized = vi.fn();
     render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} onAuthorized={onAuthorized} />);
     await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
@@ -34,14 +54,16 @@ describe("Card Fields checkout", () => {
     else {expect(authorizePledge).toHaveBeenCalledWith("P");expect(registerVault).not.toHaveBeenCalled();}
   });
   it("closes all rendered fields on unmount", async () => {
-    vi.mocked(createPledge).mockResolvedValue({id: "P", order_id: "O"});const s=sdk();
+    vi.mocked(createPledge).mockResolvedValue(stubPledge({ id: "P", order_id: "O" }));
+    const s = sdk();
     const view=render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} />);
     await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());view.unmount();
     for (const f of s.fields) expect(f.close).toHaveBeenCalledTimes(1);
   });
   it("stops rendering subsequent fields when closed during rendering", async () => {
     let finish!: () => void;const pending=new Promise<void>(r => {finish=r;});
-    vi.mocked(createPledge).mockResolvedValue({id: "P", order_id: "O"});const s=sdk(pending);
+    vi.mocked(createPledge).mockResolvedValue(stubPledge({ id: "P", order_id: "O" }));
+    const s = sdk(pending);
     const view=render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} />);
     await waitFor(() => expect(s.fields[0].render).toHaveBeenCalled());view.unmount();await act(async () => finish());
     expect(s.fields[0].close).toHaveBeenCalledTimes(1);expect(s.fields[1].render).not.toHaveBeenCalled();expect(s.fields[2].render).not.toHaveBeenCalled();
@@ -53,8 +75,8 @@ describe("Card Fields checkout", () => {
     view.rerender(<PayPalCardFieldsBlock values={edited} appLang="en" paypal={s.paypal} />);
     await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
     expect(createPledge).not.toHaveBeenCalled();expect(s.CardFields).toHaveBeenCalledTimes(1);
-    vi.mocked(createPledge).mockResolvedValue({id:"P",order_id:"O"});
-    vi.mocked(authorizePledge).mockResolvedValue({id:"P"});
+    vi.mocked(createPledge).mockResolvedValue(stubPledge({ id: "P", order_id: "O" }));
+    vi.mocked(authorizePledge).mockResolvedValue(stubPledge({ id: "P", status: "authorized" }));
     fireEvent.click(screen.getByTestId("paypal-card-submit"));
     await waitFor(() => expect(authorizePledge).toHaveBeenCalledWith("P"));
     expect(createPledge).toHaveBeenCalledTimes(1);
@@ -68,8 +90,12 @@ describe("Card Fields checkout", () => {
   });
 
   it("reuses the client key after a failed creation without posting on edits", async () => {
-    vi.mocked(createPledge).mockRejectedValueOnce(new Error("Network unavailable")).mockResolvedValue({id:"P",order_id:"O"});
-    vi.mocked(authorizePledge).mockResolvedValue({id:"P"});const s=sdk();const done=vi.fn();
+    vi.mocked(createPledge)
+      .mockRejectedValueOnce(new Error("Network unavailable"))
+      .mockResolvedValue(stubPledge({ id: "P", order_id: "O" }));
+    vi.mocked(authorizePledge).mockResolvedValue(stubPledge({ id: "P", status: "authorized" }));
+    const s = sdk();
+    const done = vi.fn();
     render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} onAuthorized={done} />);
     await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
     fireEvent.click(screen.getByTestId("paypal-card-submit"));await screen.findByText(/Network unavailable/);
@@ -81,7 +107,7 @@ describe("Card Fields checkout", () => {
 });
 
 it("retries authorization without creating another pledge", async () => {
-  const pledge = { id: "P", order_id: "O" };
+  const pledge = stubPledge({ id: "P", order_id: "O", status: "authorized" });
   vi.mocked(createPledge).mockResolvedValue(pledge);
   vi.mocked(authorizePledge).mockRejectedValueOnce(new Error("Authorization unavailable")).mockResolvedValue(pledge);
   const s = sdk();
@@ -109,7 +135,7 @@ it("does not configure fields after closing during the mode lookup", async () =>
 });
 
 it("does not authorize a pledge returned after checkout closes", async () => {
-  let finish!: (pledge: { id: string; order_id: string }) => void;
+  let finish!: (pledge: PublicPledge) => void;
   vi.mocked(createPledge).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
   const s = sdk();
   const done = vi.fn();
@@ -117,7 +143,7 @@ it("does not authorize a pledge returned after checkout closes", async () => {
   await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
   fireEvent.click(screen.getByTestId("paypal-card-submit"));
   view.unmount();
-  await act(async () => { finish({ id: "P", order_id: "O" }); });
+  await act(async () => { finish(stubPledge({ id: "P", order_id: "O" })); });
   expect(createPledge).toHaveBeenCalledTimes(1);
   expect(authorizePledge).not.toHaveBeenCalled();
   expect(registerVault).not.toHaveBeenCalled();
@@ -126,8 +152,8 @@ it("does not authorize a pledge returned after checkout closes", async () => {
 });
 
 it("does not report an authorization completed after checkout closes", async () => {
-  let finish!: (pledge: { id: string }) => void;
-  vi.mocked(createPledge).mockResolvedValue({ id: "P", order_id: "O" });
+  let finish!: (pledge: PublicPledge) => void;
+  vi.mocked(createPledge).mockResolvedValue(stubPledge({ id: "P", order_id: "O" }));
   vi.mocked(authorizePledge).mockReturnValue(new Promise((resolve) => { finish = resolve; }));
   const s = sdk();
   const done = vi.fn();
@@ -136,6 +162,6 @@ it("does not report an authorization completed after checkout closes", async () 
   fireEvent.click(screen.getByTestId("paypal-card-submit"));
   await waitFor(() => expect(authorizePledge).toHaveBeenCalled());
   view.unmount();
-  await act(async () => { finish({ id: "P" }); });
+  await act(async () => { finish(stubPledge({ id: "P", status: "authorized" })); });
   expect(done).not.toHaveBeenCalled();
 });

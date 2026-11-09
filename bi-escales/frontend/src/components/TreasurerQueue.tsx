@@ -194,7 +194,7 @@ export function TreasurerQueue({
   return (
     <section className="panel treasurer-queue">
       <header className="queue-heading">
-        <h2>{t("treasurer.heading")}</h2>
+        <h3>{t("treasurer.heading")}</h3>
         <button type="button" onClick={onRefresh} disabled={loading}>
           {t("treasurer.refresh")}
         </button>

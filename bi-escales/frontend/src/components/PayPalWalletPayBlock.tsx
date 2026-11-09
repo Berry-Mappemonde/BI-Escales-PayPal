@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { authorizePledge, createPledge } from "../api/escales";
 import {
@@ -36,20 +36,22 @@ export function PayPalWalletPayBlock({
   const appleHost = useRef<HTMLDivElement | null>(null);
   const valuesRef = useRef(values);
   valuesRef.current = values;
+  const [walletVisible, setWalletVisible] = useState(false);
 
   useEffect(() => {
     if (disabled || !sdkReady) return;
     const googleEl = googleHost.current;
     const appleEl = appleHost.current;
     if (!googleEl && !appleEl) return;
-    // Eligibility: Googlepay/Applepay may be absent (headless Chrome, non-Safari, no wallet).
-    // Wait for sdkReady so we do not miss a late SDK load (race vs Smart Buttons).
-    // PayPal SDK v5 Googlepay()/Applepay() return config helpers without `render`
-    // (they need Google/Apple's own pay.js): safePayPalRender treats that as "not shown", never a crash.
+  // Eligibility: Googlepay/Applepay may be absent (headless Chrome, non-Safari, no wallet).
+  // Wait for sdkReady so we do not miss a late SDK load (race vs Smart Buttons).
+  // PayPal SDK v5 Googlepay()/Applepay() return config helpers without `render`
+  // (they need Google/Apple's own pay.js): safePayPalRender treats that as "not shown", never a crash.
     const Googlepay = paypal?.Googlepay;
     const Applepay = paypal?.Applepay;
     if (typeof Googlepay !== "function" && typeof Applepay !== "function") return;
     let closed = false;
+    setWalletVisible(false);
 
     const makeOrder = async () => {
       const v = valuesRef.current;
@@ -99,7 +101,10 @@ export function PayPalWalletPayBlock({
         if (flag === "googlePay") googleButtons = result.instance;
         else appleButtons = result.instance;
         if (closed) safePayPalClose(result.instance);
-        else if (result.ok) el.dataset[flag] = "1";
+        else if (result.ok) {
+          el.dataset[flag] = "1";
+          setWalletVisible(true);
+        }
       });
     };
 
@@ -115,7 +120,7 @@ export function PayPalWalletPayBlock({
 
   return (
     <div className="paypal-wallet-pay" data-testid="paypal-wallet-pay">
-      <p className="hint">{t("pledge.walletPayHint")}</p>
+      {walletVisible ? <p className="hint">{t("pledge.walletPayHint")}</p> : null}
       <div ref={googleHost} data-testid="paypal-google-pay" />
       <div ref={appleHost} data-testid="paypal-apple-pay" />
     </div>

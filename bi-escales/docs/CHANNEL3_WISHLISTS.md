@@ -2,6 +2,8 @@
 
 BI Escales uses Channel3 **read-only** (catalog search / product research). The association **never** purchases through Channel3.
 
+The Berry-Mappemonde expedition **crew is six people** (`crew_size: 6` in `backend/static/channel3-catalogue.seed.json`). Liferaft lines in `needs_confirmation` stay hidden until capacity is confirmed for that crew size.
+
 ## Feature flags
 
 | Variable | Default | Effect |
@@ -36,6 +38,15 @@ These seed items exist for research but are **hidden** from public catalogue and
 | `60BXA1O` | Mustang Offshore Voyager life raft | Capacity unknown on listing |
 
 Wishlist lines that reference a removed id or a `needs_confirmation` item appear on **published** lists with `catalog_available: false` and `unavailable_reason` (no HTTP 500).
+
+### Wishlist funding target fail-closed (PR #175)
+
+The public Channel3 **buy link** opens only when `funded_minor >= target_minor`. A treasurer typo (target below line cost) must not show the link early.
+
+| Layer | Behaviour |
+| --- | --- |
+| **Write time** (`channel3_wishlist_store.normalize_wishlist_item`) | Adding or creating a line with `target_amount_minor < unit_price × quantity` (same currency) returns **400** (`target_amount_minor must be at least unit price x quantity`). |
+| **Read time fail-closed** (`channel3_wishlists._fail_closed_target`) | Legacy or hand-edited lines with a sub-cost target are gated on **line cost** instead, so `channel3_buy_url` stays hidden until the item is really funded. |
 
 ## Public safety
 

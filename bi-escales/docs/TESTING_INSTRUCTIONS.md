@@ -10,18 +10,26 @@ Copy the numbered steps below into Devpost’s private **Testing instructions** 
 
 2. **Back a stop:** Click a flag on the map, choose a kind and quantity, then pay with PayPal using the **sandbox buyer account** below (and, when Card Fields are enabled on the deployment, the sandbox test card `4111 1111 1111 1111`, any future expiry, CVV `123`).
 
+   UI labels (English / French) for the checkout path:
+   - **Create the PayPal order** / **Créer l’ordre PayPal**
+   - **Approve on the PayPal page** (then return to the app)
+   - **I approved — authorize** / **J’ai approuvé — autoriser** (wallet stop pledges)
+   - **Pay with card** / **Payer par carte** (Card Fields when enabled)
+
    **Payment timing (code rules):**
    - **Stop pledges** (miles, nights, meals, care, berths): captured when the boat **arrives** at the stop; **void** if the stop is cancelled.
    - **Cabins:** captured at **leg departure**.
-   - **Common fund** and **project donations:** captured **immediately**.
+   - **Common fund** and **project donations:** captured **immediately** after PayPal approval (project copy: *Immediate charge — your project contribution is collected after approval*).
 
    **Authorize vs Vault (checkout):** PayPal authorizations must not be opened more than **29 days** before the relevant arrival or departure. Near stops use Orders v2 **`AUTHORIZE`**; stops whose arrival is **more than 29 days away** (with Vault enabled) use **`VAULT`** and charge on arrival. On the public demo with the simulated clock pinned to departure day, **La Rochelle** (`dep-la-rochelle`) is near — confirm with `GET /api/escales/pledges/mode?milestone_id=dep-la-rochelle&kind=mile` (expect **`AUTHORIZE`**). **Mayotte** is beyond that window — confirm with `GET /api/escales/pledges/mode?milestone_id=dep-dzaoudzi-mayotte&kind=mile` (expect **`VAULT`** when Vault is on). The Captain’s rules-based cart text may still say **intent AUTHORIZE**; checkout follows `/pledges/mode`.
 
-3. **Treasurer:** Press **Demo treasurer** for a read-only view of the queue and the Captain’s review (no supporter names). To capture, void, settle, or refund, use the treasurer key supplied privately (HTTP header `x-admin-key`).
+3. **Treasurer:** Press **Demo treasurer** (French UI: **Trésorier démo**) for a **read-only** view of the queue and the Captain’s review (no supporter names). Capture, void, and refund require the treasurer key supplied privately (HTTP header `x-admin-key`, GitHub #145). Judges on the public demo **do not** run **Run departure-day settle** or **Settle at this date** — those operator actions stay behind the treasurer key. If you have the key on a sandbox host, the **Judge moment — La Rochelle** panel uses **Simulate boat arrival**, **Cancel stop**, and **Reset demo** (French: **Simuler l’arrivée du bateau**, **Annuler l’escale**, **Réinitialiser la démo**).
 
-4. **Simulated clock:** The demo voyage clock is **pinned to 12 Nov 2026** — the PayPal AI Hackathon 2026 submission deadline and the **virtual departure date** for BI Escales on the public demo (not a calendar month in the future). Deployed services set the voyage clock to **12 Nov 2026 08:00 UTC** (`GET /api/escales/clock`) so arrival captures can be exercised during judging. Do not rely on wall-clock dates for capture eligibility.
+4. **Seeing a capture:** Until the association finalizes a judge-safe live capture demo on the public host, watch the treasurer capture flow in the [demo video (v7)](https://youtu.be/LszlcLdwzoQ).
 
-5. **Run locally (optional):** **Python 3.12** and **Node.js 22** (see repository CI). Follow [README Quick start](../../README.md#quick-start). Set your own PayPal sandbox credentials in `bi-escales/backend/.env` (`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`) and `VITE_PAYPAL_CLIENT_ID` in `bi-escales/frontend/.env.local`. Placeholders let the API and UI start, but PayPal checkout is rejected until real sandbox client ids are set. Set `ESCALES_DEMO_TREASURER=1` (with `PAYPAL_ENV=sandbox`) to enable the demo treasurer button locally.
+5. **Simulated clock:** The demo voyage clock is **pinned to 12 Nov 2026** — the PayPal AI Hackathon 2026 submission deadline and the **virtual departure date** for BI Escales on the public demo (not a calendar month in the future). Deployed services set the voyage clock to **12 Nov 2026 08:00 UTC** (`GET /api/escales/clock`) so arrival captures can be exercised during judging. Do not rely on wall-clock dates for capture eligibility.
+
+6. **Run locally (optional):** **Python 3.12** and **Node.js 22** (see repository CI). Follow [README Quick start](../../README.md#quick-start). Set your own PayPal sandbox credentials in `bi-escales/backend/.env` (`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`) and `VITE_PAYPAL_CLIENT_ID` in `bi-escales/frontend/.env.local`. Placeholders let the API and UI start, but PayPal checkout is rejected until real sandbox client ids are set. Set `ESCALES_DEMO_TREASURER=1` (with `PAYPAL_ENV=sandbox`) to enable the demo treasurer button locally.
 
 ## Judging-window rate limits (public demo)
 
@@ -40,10 +48,18 @@ Check live values on the deployment: `GET /api/escales/features` → `captain_ra
 Use this PayPal **sandbox personal** buyer (France, EUR):
 
 - **Email:** `berry-mappemonde-acheteur-fr@personal.example.com`
+- **Password:** `<private Devpost testing-instructions field — not in git>`
 
-The password is **not** stored in git. The hackathon owner provides it in Devpost’s private testing-instructions field (valid through the judging window).
+When PayPal opens, the login field may be **pre-filled with the sandbox seller (merchant) account** used by the app. Log out or clear it, then sign in with the **buyer** email above.
 
 For **Card Fields** checkouts only (when `ESCALES_CARD_FIELDS_ENABLED` is on and the frontend build exposes card fields), you may use PayPal’s sandbox Visa test card **4111 1111 1111 1111** with any future expiry and CVV **123**, instead of logging into the buyer wallet.
+
+## Optional credentials (operators only)
+
+| Credential | Placeholder |
+| --- | --- |
+| Treasurer key (`x-admin-key`) | `<private Devpost testing-instructions field — not in git>` |
+| PayPal REST client id / secret (local clone) | Your own sandbox app in the PayPal developer dashboard |
 
 ## Optional API smoke (no buyer login)
 

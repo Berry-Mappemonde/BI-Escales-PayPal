@@ -124,7 +124,9 @@ describe("L-2 sidebar split", () => {
     expect(within(sidebar).getByTestId("crew-supporter-public")).toBeInTheDocument();
     expect(within(sidebar).getByTestId("treasurer-panel")).toBeInTheDocument();
     expect(within(sidebar).getByTestId("theme-switch")).toBeInTheDocument();
-    expect(within(sidebar).getByRole("group", { name: "Language" })).toBeInTheDocument();
+    expect(within(sidebar).queryByRole("group", { name: "Language" })).toBeNull();
+    expect(within(pledgeRail).getByTestId("ng-settings-body")).toBeInTheDocument();
+    expect(within(pledgeRail).getByRole("group", { name: "Language" })).toBeInTheDocument();
     expect(within(pledgeRail).queryByTestId("treasurer-panel")).toBeNull();
 
     await user.click(screen.getByRole("tab", { name: /marinas/i }));

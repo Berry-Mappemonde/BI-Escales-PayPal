@@ -765,3 +765,43 @@ assert loaded == [], loaded
     env["ESCALES_PAYPAL_SDK_ENABLED"] = "1"
     completed = _subprocess(script, env)
     assert completed.returncode == 0, completed.stderr
+
+
+@pytest.mark.parametrize("sdk_enabled", [False, True])
+@pytest.mark.parametrize("operation", ["authorize", "capture", "void", "refund_full", "refund_partial", "capture_order"])
+def test_replayed_writes_keep_request_id_and_payload(
+    operation: str, sdk_enabled: bool, pins: _Ids, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller retry must preserve the request identity at the HTTP boundary."""
+    records: list[dict[str, Any]] = []
+    reset_client()
+    monkeypatch.setenv("ESCALES_PAYPAL_SDK_ENABLED", "1" if sdk_enabled else "0")
+    if sdk_enabled:
+        _install(records)
+    client = _httpx_client(records)
+    key = "replay-" + "x" * 140
+
+    def invoke() -> dict[str, Any]:
+        if operation == "authorize":
+            return client.authorize_order("ORDER-AUTH", pledge_id="stable-pledge")
+        if operation == "void":
+            return client.void_authorization("AUTH-VOID", pledge_id="stable-pledge")
+        if operation == "capture":
+            return client.capture_authorization("AUTH-1", idempotency_key=key)
+        if operation == "capture_order":
+            return client.capture_order("ORDER-CAP", idempotency_key=key)
+        return client.refund_capture(
+            "CAP-AUTH", idempotency_key=key,
+            amount_eur="5.00" if operation == "refund_partial" else None,
+        )
+
+    try:
+        assert invoke() == invoke()
+        calls = _operations(records)
+        assert len(calls) == 2
+        assert calls[0] == calls[1]
+        assert calls[0]["request_id"]
+        if operation not in {"authorize", "void"}:
+            assert calls[0]["request_id"] == key[:127]
+    finally:
+        reset_client()

@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.channel3_catalog import project_id_for_product
+from app.channel3_catalog import catalog_needs_confirmation, project_id_for_product
 from app.channel3_funding import fund_snapshot_for_project
 from app.escales.ledger import fund_for_milestone, reset_ledger, to_public_fund
 from app.escales.ledger import get_ledger
@@ -36,6 +36,44 @@ from app.escales.project_payouts import (
     propose_project_payout,
 )
 from tests.test_escales_pledges import Spy
+
+# Removed from production seed; public row for settle integration tests only.
+_HWD0SF9_PUBLIC_CATALOG = {
+    "channel3_product_id": "hwD0sF9",
+    "project_id": project_id_for_product("hwD0sF9"),
+    "price_currency": "USD",
+    "price_amount_minor": 999,
+    "unit_price_amount_minor": 999,
+    "catalog_default_target_amount_minor": 999,
+    "catalog_default_target_currency": "USD",
+    "catalog_status": None,
+}
+
+
+def _patch_catalog_lookup(monkeypatch, handler):
+    monkeypatch.setattr("app.channel3_catalog.lookup_catalog_by_project_id", handler)
+
+
+def _hwd0sf9_public_lookup(
+    project_id: str,
+    *,
+    public_only: bool = False,
+    include_needs_confirmation: bool = False,
+    **kwargs,
+):
+    token = str(project_id or "").strip().casefold()
+    if token != _HWD0SF9_PUBLIC_CATALOG["project_id"].casefold():
+        return None
+    row = _HWD0SF9_PUBLIC_CATALOG
+    if public_only or not include_needs_confirmation:
+        if catalog_needs_confirmation(row):
+            return None
+    return dict(row)
+
+
+@pytest.fixture
+def public_hwd0sf9_catalog(monkeypatch):
+    _patch_catalog_lookup(monkeypatch, _hwd0sf9_public_lookup)
 
 
 def _breakdown(ccy: str, gross: str, fee: str, net_eur: str, rate: str) -> dict:
@@ -110,7 +148,16 @@ def test_jpy_capture_net_eur(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     reset_ledger()
 
-    def _fake_lookup(project_id: str):
+    def _fake_lookup(
+        project_id: str,
+        *,
+        public_only: bool = False,
+        include_needs_confirmation: bool = False,
+        **kwargs,
+    ):
+        token = str(project_id or "").strip().casefold()
+        if token != "gear-c3-jpy1":
+            return None
         return {
             "channel3_product_id": "jpy1",
             "project_id": project_id,
@@ -119,9 +166,10 @@ def test_jpy_capture_net_eur(monkeypatch):
             "unit_price_amount_minor": 1200,
             "catalog_default_target_amount_minor": 1200,
             "catalog_default_target_currency": "JPY",
+            "catalog_status": None,
         }
 
-    monkeypatch.setattr("app.channel3_catalog.lookup_catalog_by_project_id", _fake_lookup)
+    _patch_catalog_lookup(monkeypatch, _fake_lookup)
     spy = SettlementSpy(
         capture_body={
             "seller_receivable_breakdown": _breakdown("JPY", "1200", "70", "7.20", "0.0060"),
@@ -153,7 +201,7 @@ def test_eur_capture_unchanged_without_full_breakdown():
     assert pledge.get("capture_settlement") is None
 
 
-def test_missing_breakdown_logs_warning(caplog, monkeypatch):
+def test_missing_breakdown_logs_warning(caplog, monkeypatch, public_hwd0sf9_catalog):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     reset_ledger()
     spy = SettlementSpy(capture_body={})
@@ -178,7 +226,7 @@ def test_missing_breakdown_logs_warning(caplog, monkeypatch):
     assert any("seller_receivable_breakdown" in r.message for r in caplog.records)
 
 
-def test_usd_refund_reversal_reduces_received_net_eur(monkeypatch):
+def test_usd_refund_reversal_reduces_received_net_eur(monkeypatch, public_hwd0sf9_catalog):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     reset_ledger()
     pid = project_id_for_product("hwD0sF9")
@@ -212,7 +260,7 @@ def test_usd_refund_reversal_reduces_received_net_eur(monkeypatch):
     asyncio.run(_run())
 
 
-def test_payout_bounded_by_received_net_eur(monkeypatch):
+def test_payout_bounded_by_received_net_eur(monkeypatch, public_hwd0sf9_catalog):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     reset_ledger()
     pid = project_id_for_product("hwD0sF9")
@@ -242,7 +290,7 @@ def test_payout_bounded_by_received_net_eur(monkeypatch):
     asyncio.run(_run())
 
 
-def test_projet_fund_includes_received_net_eur(monkeypatch):
+def test_projet_fund_includes_received_net_eur(monkeypatch, public_hwd0sf9_catalog):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     reset_ledger()
     pid = project_id_for_product("hwD0sF9")

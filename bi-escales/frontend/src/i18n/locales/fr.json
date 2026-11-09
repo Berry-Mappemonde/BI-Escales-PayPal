@@ -15,7 +15,9 @@
     "dismissNotice": "Fermer",
     "dismissNoticeAria": "Fermer",
     "toolsCollapse": "Masquer les outils",
-    "toolsExpand": "Afficher les réglages"
+    "toolsExpand": "Afficher les réglages",
+    "metaDescription": "BI Escales — soutenez l'expédition Berry-Mappemonde. Promesses escale encaissées à l'arrivée du bateau (annulées si l'escale est annulée) ; cabines au départ de l'étape ; fonds commun et dons projet immédiatement.",
+    "ogLocale": "fr_FR"
   },
   "common": {
     "showSecret": "Afficher",
@@ -28,10 +30,16 @@
   },
   "settings": {
     "heading": "Réglages",
-    "lead": "Langue, thème, outils trésorier et contrôles opérateur sandbox."
+    "lead": "Langue, thème, outils trésorier et contrôles opérateur sandbox.",
+    "leadPanel": "Langue, thème et contrôles opérateur bac à sable."
   },
   "gear": {
-    "heading": "Matériel d'expédition"
+    "heading": "Matériel d'expédition",
+    "seedTitles": {
+      "gear-dive-computer-expedition": "Ordinateur de plongée expedition",
+      "gear-dry-bag-expedition": "Sacs étanches (lot expédition)",
+      "gear-marine-binoculars": "Jumelles marines"
+    }
   },
   "clock": {
     "waiting": "Départ dans {{days}} j {{hours}} h",
@@ -98,6 +106,9 @@
     "legendVerified": "Fiche Google vérifiée (≤ 1 km, nom marina)",
     "legendDefault": "Marina — rouge sur la carte (lien recherche Maps)",
     "legendRejected": "Fiche Google rejetée — rouge sur la carte"
+  },
+  "map": {
+    "boatMarker": "Bateau / catamaran"
   },
   "fund": {
     "heading": "Caisse commune",
@@ -361,6 +372,8 @@
     "status": "Statut",
     "amount": "Montant",
     "description": "Description",
+    "pledgeRef": "Promesse",
+    "createdAt": "Créée le",
     "milestoneFromStop": "La caisse et les dépenses utilisent le jalon de l’escale sélectionnée : {{id}}",
     "milestone": "Jalon",
     "actions": "Actions",
@@ -508,6 +521,7 @@
       "slug": "Slug (URL)",
       "createSubmit": "Créer",
       "created": "Liste créée.",
+      "itemAdded": "Article ajouté à la liste.",
       "pickList": "Liste active",
       "pickListEmpty": "— Choisir —",
       "badgePublished": "Publiée",

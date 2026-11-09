@@ -9,6 +9,7 @@ import { escalesStudioTheme } from "../studio/escalesTheme";
 import { treasurerInitialState } from "../studio/initialReport";
 import { pledgeStudioData } from "../studio/pledgeData";
 import { AgStudioAiModule, createTreasurerHarness } from "../studio/treasurerAgent";
+import { agStudioLocaleText } from "../studio/agStudioLocale";
 import { escalesWidgets } from "../studio/widgets";
 import "../studio/studio.css";
 
@@ -28,6 +29,7 @@ export default function TreasurerStudio({
   const data = useMemo(() => pledgeStudioData(pledges, language), [pledges, language]);
   const initialState = useMemo(() => treasurerInitialState(language), [language]);
   const widgets = useMemo(() => (config: Parameters<typeof escalesWidgets>[0]) => escalesWidgets(config, language), [language]);
+  const localeText = useMemo(() => agStudioLocaleText(language), [language]);
   const licenseKey = agGridLicenseKey();
   const ai = useMemo(() => createTreasurerHarness(agStudioLlmEndpoint(), language), [language]);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -59,6 +61,7 @@ export default function TreasurerStudio({
             initialState={initialState}
             widgets={widgets}
             ai={ai}
+            localeText={localeText}
             mode="edit"
           />
         </AgStudioProvider>

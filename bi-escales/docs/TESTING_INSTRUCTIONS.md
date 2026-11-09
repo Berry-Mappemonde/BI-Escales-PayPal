@@ -19,9 +19,21 @@ Copy the numbered steps below into Devpost’s private **Testing instructions** 
 
 3. **Treasurer:** Press **Demo treasurer** for a read-only view of the queue and the Captain’s review (no supporter names). To capture, void, settle, or refund, use the treasurer key supplied privately (HTTP header `x-admin-key`).
 
-4. **Simulated clock:** The demo voyage **departs on 12 Nov 2026**. Deployed services pin the voyage clock to **12 Nov 2026 08:00 UTC** (`GET /api/escales/clock`) so arrival captures can be exercised during judging. Do not rely on wall-clock dates for capture eligibility.
+4. **Simulated clock:** The demo voyage clock is **pinned to 12 Nov 2026** — the PayPal AI Hackathon 2026 submission deadline and the **virtual departure date** for BI Escales on the public demo (not a calendar month in the future). Deployed services set the voyage clock to **12 Nov 2026 08:00 UTC** (`GET /api/escales/clock`) so arrival captures can be exercised during judging. Do not rely on wall-clock dates for capture eligibility.
 
 5. **Run locally (optional):** **Python 3.12** and **Node.js 22** (see repository CI). Follow [README Quick start](../../README.md#quick-start). Set your own PayPal sandbox credentials in `bi-escales/backend/.env` (`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`) and `VITE_PAYPAL_CLIENT_ID` in `bi-escales/frontend/.env.local`. Placeholders let the API and UI start, but PayPal checkout is rejected until real sandbox client ids are set. Set `ESCALES_DEMO_TREASURER=1` (with `PAYPAL_ENV=sandbox`) to enable the demo treasurer button locally.
+
+## Judging-window rate limits (public demo)
+
+While **real UTC wall-clock time** falls inside the configured judging window (`ESCALES_JUDGING_START` / `ESCALES_JUDGING_END` on production hosts), the API raises captain and LLM budgets so many judges can try the app without exhausting provider quotas. The simulated voyage clock does **not** control this window.
+
+| Limit | Value | Applies to |
+| --- | --- | --- |
+| Per minute | **36** requests | Shared bucket for `POST /api/escales/captain/chat` and captain review routes, per client IP |
+| Per day | **9000** requests | Same captain routes, per client IP (UTC calendar day) |
+| LLM daily cap | **9000** calls | Service-wide LLM budget per UTC day while the judging window is active |
+
+Check live values on the deployment: `GET /api/escales/features` → `captain_rate` (`per_minute`, `per_day`, `judging_window_active`). Outside the judging window, lower production defaults apply (typically 10/min and 100/day per IP for captain routes).
 
 ## Sandbox buyer account for judges
 

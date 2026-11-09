@@ -5,6 +5,7 @@ import i18n from "../i18n";
 import { MileCertificateDownload } from "./MileCertificateDownload";
 
 vi.mock("../api/escales", () => ({
+  mileCertificatePayerProof: (pledge: { order_id?: string | null }) => pledge.order_id ?? null,
   issueMileCertificate: vi.fn(() => Promise.resolve({
     token: "opaque-token",
     png: "/api/escales/certificates/opaque-token.png",
@@ -35,8 +36,10 @@ describe("MileCertificateDownload", () => {
             id: "p1",
             kind: "mile",
             status: "created",
+            intent: "AUTHORIZE",
             amount_eur: "1.00",
             currency: "EUR",
+            description: "1 mile",
             milestone_id: "dep-la-rochelle",
           }}
           contributor="Pat"
@@ -51,9 +54,12 @@ describe("MileCertificateDownload", () => {
       id: "p2",
       kind: "mile",
       status: "authorized",
+      intent: "AUTHORIZE",
       amount_eur: "2.00",
       currency: "EUR",
+      description: "2 miles",
       milestone_id: "dep-la-rochelle",
+      order_id: "ORDER-PROOF",
     });
     expect(await screen.findByTestId("mile-certificate-receipt")).toBeInTheDocument();
     expect(screen.getByTestId("mile-certificate-png")).toBeInTheDocument();

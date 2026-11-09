@@ -195,8 +195,19 @@ export type MileCertificateLinks = {
   pdf: string;
 };
 
+export function mileCertificatePayerProof(pledge: PublicPledge): string | null {
+  const vault = pledge.payment_mode === "VAULT" || pledge.intent === "VAULT";
+  if (vault) {
+    const setup = pledge.setup_token_id?.trim();
+    return setup || null;
+  }
+  const order = pledge.order_id?.trim();
+  return order || null;
+}
+
 export async function issueMileCertificate(
   pledgeId: string,
+  payerProof: string,
   displayName?: string,
   lang?: string,
 ): Promise<MileCertificateLinks> {
@@ -204,7 +215,10 @@ export async function issueMileCertificate(
   const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}/certificate${query}`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(displayName ? { display_name: displayName } : {}),
+    body: JSON.stringify({
+      payer_proof: payerProof,
+      ...(displayName ? { display_name: displayName } : {}),
+    }),
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();

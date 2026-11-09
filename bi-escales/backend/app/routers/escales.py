@@ -127,6 +127,7 @@ from app.escales.rate_limit import (
 from app.escales.certificates import (
     ensure_certificate,
     load_certificate,
+    payer_proof_matches,
     public_certificate_links,
     render_certificate_pdf,
     render_certificate_png,
@@ -186,6 +187,10 @@ webhooks_router = APIRouter(prefix="/api/escales", route_class=_WebhooksRoute, t
 
 
 class CertificateIn(BaseModel):
+    payer_proof: Optional[str] = Field(
+        None,
+        description="PayPal order id or vault setup token id from the buyer checkout response.",
+    )
     display_name: Optional[str] = Field(None, max_length=120)
 
 
@@ -1243,6 +1248,12 @@ async def post_pledge_certificate(
 ):
     """Issue (once) a mile sponsorship certificate after a successful mile pledge."""
     app_lang = resolve_app_language(lang)
+    try:
+        pledge = await require_pledge(pledge_id)
+    except PledgeNotFound as exc:
+        raise HTTPException(status_code=404, detail="Pledge not found") from exc
+    if not payer_proof_matches(pledge, body.payer_proof):
+        raise HTTPException(status_code=403, detail="Payer proof required")
     try:
         doc = await ensure_certificate(
             pledge_id,

@@ -4,6 +4,9 @@ from __future__ import annotations
 import asyncio
 import copy
 import datetime as dt
+import hashlib
+import hmac
+import inspect
 import io
 import json
 import logging
@@ -326,7 +329,7 @@ async def _captain_text(
         f"Supporter name: {display_name}. Mile number: {mile_number}. Port: {port}. "
         "Tone: warm, nautical, no payment amounts, no email, no PayPal."
     )
-    if not llm.has_llm() or not llm.consume_llm_call():
+    if not llm.has_llm() or not await _consume_llm_budget():
         return _CAPTAIN_FALLBACK.get(lang, _CAPTAIN_FALLBACK["en"])
     try:
         result = await asyncio.wait_for(
@@ -339,6 +342,40 @@ async def _captain_text(
     except Exception as exc:
         log.info("certificate captain text fallback (%s)", type(exc).__name__)
     return _CAPTAIN_FALLBACK.get(lang, _CAPTAIN_FALLBACK["en"])
+
+
+def payer_proof_expected(pledge: dict) -> Optional[str]:
+    """PayPal order id (AUTHORIZE) or setup token id (VAULT) held by the payer after checkout."""
+    mode = str(pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE").strip().upper()
+    if mode == "VAULT":
+        proof = str(pledge.get("setup_token_id") or "").strip()
+    else:
+        proof = str(pledge.get("order_id") or "").strip()
+    return proof or None
+
+
+def payer_proof_matches(pledge: dict, supplied: Optional[str]) -> bool:
+    expected = payer_proof_expected(pledge)
+    if not expected:
+        return False
+    provided = str(supplied or "").strip()
+    if not provided or len(provided) != len(expected):
+        return False
+    return hmac.compare_digest(provided, expected)
+
+
+def _log_token_ref(token: str) -> str:
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return digest[:6]
+
+
+async def _consume_llm_budget() -> bool:
+    from app.core import llm
+
+    result = llm.consume_llm_call()
+    if inspect.isawaitable(result):
+        result = await result
+    return bool(result)
 
 
 def _validate_mile_pledge(doc: dict) -> None:
@@ -391,7 +428,7 @@ async def ensure_certificate(
         "created_at": now_iso(),
     }
     stored = await get_certificate_store().insert_once(doc)
-    log.info("certificate issued token=%s", token)
+    log.info("certificate issued ref=%s", _log_token_ref(token))
     return stored
 
 

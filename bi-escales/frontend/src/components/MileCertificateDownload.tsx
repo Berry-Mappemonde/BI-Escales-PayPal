@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { PublicPledge } from "../api/types";
-import { issueMileCertificate, certificateAssetUrl } from "../api/escales";
+import { certificateAssetUrl, issueMileCertificate, mileCertificatePayerProof } from "../api/escales";
 
 const SUCCESS = new Set(["authorized", "vaulted", "captured"]);
 
@@ -30,7 +30,13 @@ export function MileCertificateDownload({ pledge, contributor }: Props) {
     if (!eligible || !pledge) return undefined;
     let cancelled = false;
     setBusy(true);
-    void issueMileCertificate(pledge.id, contributor?.trim() || undefined, lang)
+    const payerProof = mileCertificatePayerProof(pledge);
+    if (!payerProof) {
+      setError(t("certificate.error"));
+      setBusy(false);
+      return undefined;
+    }
+    void issueMileCertificate(pledge.id, payerProof, contributor?.trim() || undefined, lang)
       .then((body) => {
         if (!cancelled) setToken(body.token);
       })

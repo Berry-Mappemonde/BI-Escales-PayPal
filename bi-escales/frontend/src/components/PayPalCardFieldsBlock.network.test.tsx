@@ -75,5 +75,7 @@ it.each(["AUTHORIZE", "VAULT"])("posts no %s pledge until Pay, then posts once w
   expect(init.headers).toMatchObject({ "PayPal-Request-Id": expect.any(String) });
   expect(Object.keys(CardFields.mock.calls[0][0])).toEqual([
     mode === "VAULT" ? "createVaultSetupToken" : "createOrder",
+    "onApprove",
+    "onError",
   ]);
 });

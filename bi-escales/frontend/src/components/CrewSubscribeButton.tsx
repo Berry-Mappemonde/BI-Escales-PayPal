@@ -14,6 +14,8 @@ import { subscribeCrewSubscribeReturn } from "../paypal/crewSubscribeReturnEvent
 export interface CrewSubscribeButtonProps {
   planId?: string;
   adminKey?: string;
+  /** Parent renders the section heading; skip duplicate hint copy. */
+  suppressHeadingHint?: boolean;
 }
 
 const PLAN_LOAD_TIMEOUT_MS = 20_000;
@@ -26,7 +28,7 @@ export function CrewSubscribeButton(props: CrewSubscribeButtonProps) {
   );
 }
 
-function CrewSubscribeButtonInner({ planId: planIdProp, adminKey }: CrewSubscribeButtonProps) {
+function CrewSubscribeButtonInner({ planId: planIdProp, adminKey, suppressHeadingHint = false }: CrewSubscribeButtonProps) {
   const { t, i18n } = useTranslation();
   const appLang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const host = useRef<HTMLDivElement | null>(null);
@@ -167,7 +169,7 @@ function CrewSubscribeButtonInner({ planId: planIdProp, adminKey }: CrewSubscrib
   if (!planId && !error && planLoading) {
     return (
       <div className="crew-subscribe" data-testid="crew-subscribe">
-        <p className="hint">{t("pledge.crewSubscribeHint")}</p>
+        {suppressHeadingHint ? null : <p className="hint">{t("pledge.crewSubscribeHint")}</p>}
         <p className="status">{t("pledge.crewSubscribeLoading")}</p>
       </div>
     );
@@ -175,7 +177,7 @@ function CrewSubscribeButtonInner({ planId: planIdProp, adminKey }: CrewSubscrib
 
   return (
     <div className="crew-subscribe" data-testid="crew-subscribe">
-      <p className="hint">{t("pledge.crewSubscribeHint")}</p>
+      {suppressHeadingHint ? null : <p className="hint">{t("pledge.crewSubscribeHint")}</p>}
       {!ready && !error ? (
         <p className="status" data-testid="crew-subscribe-loading">
           {t("pledge.crewSubscribeLoading")}

@@ -173,7 +173,7 @@ def test_wishlist_quantity_zero_returns_400(api):
     res = api.post(
         f"/api/escales/treasurer/wishlists/{wid}/items",
         headers={"x-admin-key": ADMIN},
-        json={"channel3_product_id": "hwD0sF9", "quantity": 0},
+        json={"channel3_product_id": "QE0Vp6a", "quantity": 0},
     )
     assert res.status_code == 400
     negative = api.post(
@@ -188,11 +188,11 @@ def test_usd_refund_uses_pledge_currency(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     reset_ledger()
     spy = RefundTrackingSpy()
-    pid = project_id_for_product("hwD0sF9")
+    pid = project_id_for_product("QE0Vp6a")
 
     async def _run():
         doc = await create_pledge(
-            amount_eur="9.99",
+            amount_eur="39.99",
             description="USD gear",
             milestone_id="",
             kind="project_pledge",
@@ -208,7 +208,7 @@ def test_usd_refund_uses_pledge_currency(monkeypatch):
         assert spy.refund_calls[-1]["amount_eur"] == "4.00"
         snap = await fund_snapshot_for_project(pid)
         assert snap["currency"] == "USD"
-        assert snap["captured_eur"] == "5.99"
+        assert snap["captured_eur"] == "35.99"
 
     asyncio.run(_run())
 

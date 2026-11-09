@@ -48,4 +48,5 @@ jobs:
           cache-dependency-path: bi-escales/frontend/package-lock.json
       - run: npm ci
       - run: npm test
+      - run: npm run typecheck:test
       - run: npm run build

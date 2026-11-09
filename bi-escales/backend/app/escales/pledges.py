@@ -771,16 +771,22 @@ async def _create_pledge(
         await resolve_schedule_milestone(milestone_id)
     if pledge_kind == "project_pledge":
         pledge_currency = "EUR"
-        from app.channel3_catalog import lookup_catalog_by_project_id
-        from app.channel3_paypal import paypal_currency_supported
+        from app.channel3_catalog import catalog_needs_confirmation, lookup_catalog_by_project_id
+        from app.channel3_paypal import catalog_project_id, paypal_currency_supported
 
-        catalog = lookup_catalog_by_project_id(resolved_target)
+        catalog = lookup_catalog_by_project_id(
+            resolved_target,
+            public_only=catalog_project_id(resolved_target),
+        )
         if catalog is None:
             pending = lookup_catalog_by_project_id(
-                resolved_target, include_needs_confirmation=True
+                resolved_target,
+                include_needs_confirmation=True,
             )
-            if pending is not None:
+            if pending is not None and catalog_needs_confirmation(pending):
                 raise ValueError("catalog item needs confirmation and cannot be funded")
+        if catalog_project_id(resolved_target) and catalog is None:
+            raise ValueError("catalog item is not available for public funding")
         if catalog:
             from app.channel3_paypal import normalize_project_pledge_amount
 

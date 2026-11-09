@@ -303,7 +303,7 @@ def test_n31_french_price_label_on_suggested_pledge_and_create_response(api, mon
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["price_label"] == "prix simulé"
-    assert body["simulated_price"]["label"] == "prix simulé"
+    assert body["simulated_price"]["label"] == "prix fixe"
 
 
 def test_n32_refund_webhook_links_pledge_via_capture_id(api):

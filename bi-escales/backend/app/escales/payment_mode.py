@@ -63,3 +63,32 @@ async def resolve_pledge_mode(
             return "VAULT"
         raise
     return mode
+
+
+async def preview_payment_mode(milestone_id: str, kind: str = "mile") -> PaymentMode:
+    """Read-only preview: same resolution as ``GET /api/escales/pledges/mode``."""
+    from .ledger import get_ledger
+    from .naviguide_bridge import leg_departing_from, resolve_milestone
+    from .pledges import _kind, _resolve_target
+
+    milestone_id = milestone_id.strip()
+    pledge_kind = _kind(kind)
+    if pledge_kind == "project_pledge":
+        raise ValueError("project_pledge uses PayPal wallet checkout only")
+    canonical = (
+        "" if pledge_kind == "common_fund" and not milestone_id
+        else resolve_milestone(milestone_id)
+    )
+    if canonical is None:
+        if not await get_ledger().get_milestone(milestone_id):
+            raise ValueError("milestone_id must name a known stopover")
+        canonical = milestone_id
+    if pledge_kind == "cabin_leg" and not str(canonical).startswith("leg-"):
+        leg = leg_departing_from(canonical)
+        if leg:
+            canonical = str(leg["id"])
+    await _resolve_target(None, canonical, pledge_kind)
+    return await resolve_pledge_mode(
+        {"milestone_id": canonical, "kind": pledge_kind},
+        read_only=True,
+    )

@@ -49,10 +49,23 @@ MILE_EUR = Decimal("1.00")
 DINNER_EUR = Decimal("60.00")
 SIMULATED_PRICE_LABEL = "simulated price"
 SIMULATED_PRICE_LABEL_FR = "prix simulé"
+FIXED_PRICE_LABEL = "fixed price"
+FIXED_PRICE_LABEL_FR = "prix fixe"
+FREE_AMOUNT_LABEL = "free amount"
+FREE_AMOUNT_LABEL_FR = "montant libre"
+_FREE_AMOUNT_KINDS = frozenset({"project_pledge", "common_fund"})
 
 
 def simulated_price_label(lang: str) -> str:
     return SIMULATED_PRICE_LABEL_FR if normalize_app_lang(lang) == "fr" else SIMULATED_PRICE_LABEL
+
+
+def catalogue_price_label(kind: str, lang: str) -> str:
+    """Row label for GET /escales/prices: fixed unit vs donor-chosen amount."""
+    app_lang = normalize_app_lang(lang)
+    if kind in _FREE_AMOUNT_KINDS:
+        return FREE_AMOUNT_LABEL_FR if app_lang == "fr" else FREE_AMOUNT_LABEL
+    return FIXED_PRICE_LABEL_FR if app_lang == "fr" else FIXED_PRICE_LABEL
 _SIMULATED_EUR = {
     "mile": MILE_EUR,
     "berth": Decimal("30.00"),
@@ -305,6 +318,35 @@ def _public_rule(lang: str) -> str:
     )
 
 
+def payment_mode_wording(mode: str, lang: str) -> str:
+    """Plain checkout wording for AUTHORIZE vs VAULT (Captain + LLM context)."""
+    normalized = (mode or "AUTHORIZE").upper()
+    if lang == "en":
+        if normalized == "VAULT":
+            return (
+                "Your card is saved (vaulted) and charged when the boat arrives at the stop. "
+                "If the stop is cancelled, nothing is charged."
+            )
+        return (
+            "Your card is authorized now and charged when the boat arrives at the stop "
+            "(arrival within about 29 days). If the stop is cancelled, nothing is charged."
+        )
+    if normalized == "VAULT":
+        return (
+            "Votre carte est enregistrée (coffre PayPal) et débitée à l'arrivée du bateau à l'escale. "
+            "Si l'escale est annulée, rien n'est débité."
+        )
+    return (
+        "Votre carte est autorisée maintenant et débitée à l'arrivée du bateau à l'escale "
+        "(arrivée dans environ 29 jours). Si l'escale est annulée, rien n'est débité."
+    )
+
+
+def _pledge_mode_rule(mode: str, lang: str) -> str:
+    core = CAPTURE_RULES_EN if lang == "en" else CAPTURE_RULES_FR
+    return f"{core} {payment_mode_wording(mode, lang)}"
+
+
 def _capture_rule_core_in(text: str, lang: str) -> bool:
     core = CAPTURE_RULES_EN if lang == "en" else CAPTURE_RULES_FR
     return core.casefold() in (text or "").casefold()
@@ -433,39 +475,46 @@ def display_name(milestone_id: str) -> str:
 
 
 def simulated_unit(kind: str, lang: str = "en") -> dict:
-    """One catalogue line. The figure is indicative, never the charged amount.
+    """One catalogue line for GET /escales/prices.
 
-    ``project_pledge`` and ``common_fund`` have no unit price: the visitor's
-    amount stays as written. The other kinds show a simulated unit. A pledge
-    of that kind must be at least that unit.
+    ``project_pledge`` and ``common_fund`` are free amounts (no unit price).
+    Berth, night, meal, care, cabin leg, and mile carry fixed unit prices from
+    ``_SIMULATED_EUR`` (1 EUR per nautical mile for ``mile``).
     """
-    label = simulated_price_label(lang)
+    label = catalogue_price_label(kind, lang)
+    amount = _SIMULATED_EUR.get(kind)
+    free_amount = amount is None
     row = {
         "kind": kind,
         "currency": "EUR",
         "label": label,
         "simulated": True,
-        "indicative": True,
+        "indicative": free_amount,
+        "free_amount": free_amount,
     }
-    amount = _SIMULATED_EUR.get(kind)
-    if amount is None:
-        row["free_amount"] = True
-    else:
+    if amount is not None:
         row["amount_eur"] = f"{amount:.2f}"
-        row["free_amount"] = False
     return row
 
 
 def simulated_prices(lang: Optional[str] = None) -> dict:
-    """One row per pledge kind. Prices are indicative; the visitor's amount stays."""
+    """One row per pledge kind. Fixed units vs free-amount kinds for supporters."""
     app_lang = normalize_app_lang(lang)
     if app_lang == "fr":
-        note = "Les prix sont indicatifs. Le montant saisi par le visiteur est celui autorisé par PayPal."
+        note = (
+            "Tarifs fixes pour le poste (place), la nuit, le repas, le soin et la cabine ; "
+            "1 € par mille nautique. Seuls le fonds commun et les dons projet sont en montant "
+            "libre (montant choisi par le parrain)."
+        )
     else:
-        note = "Prices are indicative. The visitor's amount is what PayPal authorizes."
+        note = (
+            "Fixed prices for berth, night, meal, care, and cabin; 1 EUR per nautical mile. "
+            "Only the common fund and project donations are free amounts (amount chosen by "
+            "the supporter)."
+        )
     return {
         "simulated": True,
-        "indicative": True,
+        "indicative": False,
         "label": simulated_price_label(app_lang),
         "note": note,
         "currency": "EUR",
@@ -533,12 +582,15 @@ def _chat_system_en() -> str:
         "You are the Blue Intelligence Escales captain. Reply in English only. "
         "Repeat the computed pledge exactly: amount, currency, description, stopover and intent. "
         "Do not propose to take or release money. Do not create an order. Do not invent a price. "
-        "State only facts present in the JSON: the stopover, fund_label, and the computed pledge. "
+        "State only facts present in the JSON: the stopover, fund_label, payment_mode, "
+        "payment_mode_wording, and the computed pledge. "
+        "The JSON field payment_mode is AUTHORIZE or VAULT: state that mode exactly and never "
+        "claim AUTHORIZE when payment_mode is VAULT, or the reverse. "
+        "Use payment_mode_wording from the JSON for how checkout works. "
         "Name the fund exactly as given in the JSON (field fund_label); never call a stopover pledge the common fund. "
         "Do not invent a date. Do not write a date. The code appends the schedule dates. "
         "If a fact is absent, say you do not know. Do not describe the place. "
         f"{CAPTURE_RULES_EN} "
-        "A pledge is authorized as close to departure as possible. "
         "Do not send the reader to the treasurer for that rule. "
         "Do not mention association membership and do not write any URL. "
         "Write complete sentences and never stop mid-sentence. "
@@ -551,12 +603,15 @@ def _chat_system_fr() -> str:
         "Tu es le capitaine de Blue Intelligence Escales. Réponds uniquement en français. "
         "Répète la promesse calculée telle quelle : montant, devise, description et escale. "
         "Ne propose pas de prendre ou de libérer l'argent. Ne crée pas d'ordre. N'invente pas de prix. "
-        "Énonce seulement les faits présents dans le JSON : l'escale, fund_label, la caisse et la promesse calculée. "
+        "Énonce seulement les faits présents dans le JSON : l'escale, fund_label, payment_mode, "
+        "payment_mode_wording, la caisse et la promesse calculée. "
+        "Le champ payment_mode vaut AUTHORIZE ou VAULT : énonce ce mode tel quel et n'affirme jamais "
+        "AUTHORIZE quand payment_mode vaut VAULT, ni l'inverse. "
+        "Utilise payment_mode_wording du JSON pour expliquer le paiement. "
         "Nomme la caisse exactement comme dans le JSON (champ fund_label) ; n'appelle jamais une promesse d'escale le fonds commun. "
         "N'invente pas de date. N'écris aucune date. Le code ajoute les dates de l'escale. "
         "Si un fait manque, dis que tu ne sais pas. Ne décris pas le lieu. "
         f"{CAPTURE_RULES_FR} "
-        "Une promesse est autorisée au plus près du départ. "
         "N'envoie pas le lecteur vers le trésorier pour cette règle. "
         "Ne parle pas d'adhésion à l'association et n'écris aucune URL. "
         "Écris des phrases complètes et ne t'arrête jamais au milieu d'une phrase. "
@@ -882,7 +937,7 @@ _DISTANCE_TALK = re.compile(
     re.IGNORECASE,
 )
 _MODEL_PLEDGE_LINE = re.compile(r"promesse calculée|computed pledge", re.IGNORECASE)
-_STANDALONE_INTENT = re.compile(r"^intent\s*:?\s*authorize\.?$", re.IGNORECASE)
+_STANDALONE_INTENT = re.compile(r"^intent\s*:?\s*(?:authorize|vault)\.?$", re.IGNORECASE)
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -1047,23 +1102,27 @@ def _strip_signatures(text: str) -> str:
 
 
 def _pledge_line(suggested: dict, lang: str) -> str:
+    mode = str(suggested.get("payment_mode") or suggested.get("intent") or "AUTHORIZE")
     shown = format_amount(suggested.get("amount_eur"), lang)
-    exact = (
-        f"{suggested['description']} ({shown}), "
-        f"{display_name(str(suggested.get('milestone_id') or ''))}, {suggested['intent']}"
-    )
+    port = display_name(str(suggested.get("milestone_id") or ""))
     if lang == "en":
-        exact = (
-            f"{suggested['description']} ({shown}), "
-            f"{display_name(str(suggested.get('milestone_id') or ''))}, intent {suggested['intent']}"
-        )
+        exact = f"{suggested['description']} ({shown}), {port}, intent {mode}"
         return f"Computed pledge, no charge: {exact}."
+    exact = f"{suggested['description']} ({shown}), {port}, intention : {mode}"
     return f"Promesse calculée, sans débit : {exact}."
 
 
-def _authorize_equivalent(text: str) -> bool:
-    """AUTHORIZE, « autorisation », or « intention d'autorisation »."""
+def _payment_mode_equivalent(text: str, mode: str) -> bool:
+    """Wording matches the resolved payment mode (AUTHORIZE or VAULT)."""
     folded = (text or "").casefold().replace("’", "'")
+    normalized = (mode or "AUTHORIZE").upper()
+    if normalized == "VAULT":
+        return (
+            "vault" in folded
+            or "coffre" in folded
+            or "vaulted" in folded
+            or "enregistr" in folded
+        )
     if "authorize" in folded or "autorisation" in folded:
         return True
     return "intention d'autorisation" in folded
@@ -1133,7 +1192,8 @@ def _has_exact_pledge(text: str, suggested: dict) -> bool:
         return False
     if not _port_present(text or "", str(suggested.get("milestone_id") or "")):
         return False
-    return _authorize_equivalent(text or "")
+    mode = str(suggested.get("payment_mode") or suggested.get("intent") or "AUTHORIZE")
+    return _payment_mode_equivalent(text or "", mode)
 
 
 def _french_lightning_labels(text: str) -> str:
@@ -1562,13 +1622,20 @@ def _compose_chat_reply(
         prose = _drop_date_sentences(prose)
         if dates.casefold() not in (prose or "").casefold():
             required.append(dates)
-    rules = _public_rule(lang)
+    mode = str(suggested.get("payment_mode") or suggested.get("intent") or "AUTHORIZE")
+    rules = _pledge_mode_rule(mode, lang)
     combined = f"{prose} {' '.join(required)}"
     if not _capture_rule_core_in(combined, lang):
         required.append(rules)
     joined = " ".join(required)
-    if lang == "en" and not re.search(r"\bintent\s+authorize\b", f"{prose} {joined}", re.I):
+    if lang == "en" and mode == "AUTHORIZE" and not re.search(
+        r"\bintent\s+authorize\b", f"{prose} {joined}", re.I,
+    ):
         required.append("intent AUTHORIZE.")
+    elif lang == "en" and mode == "VAULT" and not re.search(
+        r"\bintent\s+vault\b", f"{prose} {joined}", re.I,
+    ):
+        required.append("intent VAULT.")
     required.append(_signature(lang))
     reply = _fit_words(prose, required)
     port = str(suggested.get("milestone_id") or "") if suggested else ""
@@ -3076,7 +3143,7 @@ async def _chat(
             "fund": fund,
         }
     if _is_cabin_price_question(text):
-        suggested = suggest_pledge(text, lang)
+        suggested = await apply_captain_payment_mode(suggest_pledge(text, lang))
         milestone = str((suggested or {}).get("milestone_id") or "")
         if not milestone.startswith("leg-"):
             if lang == "en":
@@ -3092,22 +3159,26 @@ async def _chat(
                 "rule_by_design": True,
             }
         reply = _compose_chat_reply("", suggested, lang, treasurer=False, ask_escale=False)
+        cart = await apply_cart_payment_modes(pledge_cart(text, lang, suggested))
         return {
             "reply": reply,
             "suggested_pledge": suggested,
-            "cart": pledge_cart(text, lang, suggested),
+            "cart": cart,
             "model_source": _rules_source(),
             "fund": None,
         }
     treasurer = _is_treasurer_question(text)
-    suggested = suggest_pledge(text, lang)
-    cart = pledge_cart(text, lang, suggested)
+    suggested = await apply_captain_payment_mode(suggest_pledge(text, lang))
+    cart = await apply_cart_payment_modes(pledge_cart(text, lang, suggested))
     ask_escale = suggested is None and not treasurer and not _is_status_question(text)
     allowed = {"message": text, "suggested": suggested}
     if suggested:
         mid = str(suggested.get("milestone_id") or "").strip()
         target = str(suggested.get("target_id") or "").strip()
         allowed["fund_label"] = _fund_place_label(mid or target, lang)
+        mode = str(suggested.get("payment_mode") or suggested.get("intent") or "AUTHORIZE")
+        allowed["payment_mode"] = mode
+        allowed["payment_mode_wording"] = payment_mode_wording(mode, lang)
     by_design = suggested is None
     if suggested is None:
         # Do not send this question to a model: the horizon rule stays in code.
@@ -3450,8 +3521,68 @@ def _schedule_stop(place: str) -> Optional[dict]:
     return None
 
 
+def _captain_pledge_kind(doc: dict) -> str:
+    kind = str(doc.get("kind") or doc.get("item") or "mile")
+    if kind == "dinner":
+        return "meal"
+    if kind == "mixed":
+        return str(doc.get("kind") or "mile")
+    return kind
+
+
+async def apply_captain_payment_mode(suggested: Optional[dict]) -> Optional[dict]:
+    """Attach ``payment_mode`` and ``intent`` from ``preview_payment_mode``."""
+    if not suggested:
+        return suggested
+    kind = _captain_pledge_kind(suggested)
+    if kind == "project_pledge":
+        return suggested
+    from .payment_mode import preview_payment_mode
+
+    try:
+        mode = await preview_payment_mode(str(suggested.get("milestone_id") or ""), kind)
+    except ValueError:
+        mode = str(suggested.get("intent") or "AUTHORIZE")
+    out = dict(suggested)
+    out["payment_mode"] = mode
+    out["intent"] = mode
+    return out
+
+
+async def apply_cart_payment_modes(cart: Optional[dict]) -> Optional[dict]:
+    """Resolve checkout mode on each cart line (same preview as the API)."""
+    if not cart:
+        return cart
+    from .payment_mode import preview_payment_mode
+
+    out = dict(cart)
+    resolved: list[dict] = []
+    for raw in out.get("lines") or []:
+        if not isinstance(raw, dict):
+            resolved.append(raw)
+            continue
+        line = dict(raw)
+        kind = _captain_pledge_kind(line)
+        if kind != "project_pledge":
+            mid = str(line.get("milestone_id") or "")
+            try:
+                mode = await preview_payment_mode(mid, kind)
+            except ValueError:
+                mode = str(line.get("intent") or "AUTHORIZE")
+            line["payment_mode"] = mode
+            line["intent"] = mode
+        resolved.append(line)
+    out["lines"] = resolved
+    top = str(out.get("payment_mode") or out.get("intent") or "AUTHORIZE")
+    if resolved:
+        top = str(resolved[0].get("payment_mode") or resolved[0].get("intent") or top)
+    out["payment_mode"] = top
+    out["intent"] = top
+    return out
+
+
 def pledge_cart(message: str, lang: str, suggested: Optional[dict]) -> Optional[dict]:
-    """Multi-line cart for the same AUTHORIZE total. No PayPal order.
+    """Multi-line cart for the computed pledge total. No PayPal order.
 
     ``eta`` is the schedule arrival. Dakar, Lorient and Pointe-à-Pitre are
     shown in local time. ``clock_start`` is the voyage clock. ``available``
@@ -3463,6 +3594,7 @@ def pledge_cart(message: str, lang: str, suggested: Optional[dict]) -> Optional[
 
     text = message or ""
     place = str(suggested.get("milestone_id") or "")
+    mode = str(suggested.get("payment_mode") or suggested.get("intent") or "AUTHORIZE")
     lines = _catalogue_lines(text, lang, place)
     had_named = _explicit_miles(text) > 0 or _explicit_dinners(text) > 0
     extras = [line for line in lines if line["kind"] not in {"mile", "meal"}]
@@ -3476,7 +3608,8 @@ def pledge_cart(message: str, lang: str, suggested: Optional[dict]) -> Optional[
         "description": suggested.get("description"),
         "milestone_id": place,
         "target_id": place,
-        "intent": "AUTHORIZE",
+        "intent": mode,
+        "payment_mode": mode,
         "clock_start": clock_start(),
         "eta": _local_eta(place, stop),
         "available": bool(stop and stop.get("flag")),

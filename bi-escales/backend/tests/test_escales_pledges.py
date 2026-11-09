@@ -279,7 +279,7 @@ def test_same_client_key_reuses_pledge_without_a_second_order():
     asyncio.run(body())
 
 
-def test_state_machine_and_forbidden_transitions():
+def test_state_machine_and_forbidden_transitions(monkeypatch):
     async def body():
         spy = Spy()
         created = await create_pledge(
@@ -304,9 +304,7 @@ def test_state_machine_and_forbidden_transitions():
         with pytest.raises(IllegalTransition):
             await authorize_pledge(created["_id"], spy)
 
-        import os
-
-        os.environ["ESCALES_CLOCK_NOW"] = "2027-06-12T08:00:00Z"
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
         captured = await capture_pledge(created["_id"], spy)
         assert captured["status"] == "captured"
         with pytest.raises(IllegalTransition):
@@ -599,7 +597,7 @@ def test_legacy_memory_row_reads_as_a_mile():
 
 @pytest.mark.live
 def test_live_sandbox_create_authorize_order():
-    """Optional sandbox create. Skipped unless PAYPAL_CLIENT_ID is set. Does not print secrets."""
+    """Optional sandbox create. Needs ESCALES_RUN_LIVE=1 and PayPal sandbox credentials."""
     if not os.environ.get("PAYPAL_CLIENT_ID"):
         pytest.skip("PAYPAL_CLIENT_ID is not set")
     if not os.environ.get("PAYPAL_CLIENT_SECRET"):
@@ -619,7 +617,7 @@ def test_live_sandbox_create_authorize_order():
     assert approve_link(order)
 
 
-def test_pending_capture_is_recorded_and_can_be_retried():
+def test_pending_capture_is_recorded_and_can_be_retried(monkeypatch):
     """PR #7 recorded PayPal's capture status. A PENDING hold stays pending."""
 
     class PendingSpy(Spy):
@@ -641,9 +639,7 @@ def test_pending_capture_is_recorded_and_can_be_retried():
             client_key="pending-cap",
         )
         await authorize_pledge(created["_id"], spy)
-        import os
-
-        os.environ["ESCALES_CLOCK_NOW"] = "2027-06-12T08:00:00Z"
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
         pending = await capture_pledge(created["_id"], spy)
         assert pending["status"] == "pending"
         assert pending["paypal_status"] == "PENDING"

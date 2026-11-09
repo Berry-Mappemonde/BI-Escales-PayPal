@@ -22,7 +22,15 @@
   },
   "tabs": {
     "voyage": "Carte du voyage",
-    "marinas": "Marinas"
+    "marinas": "Marinas",
+    "gear": "Matériel"
+  },
+  "settings": {
+    "heading": "Réglages",
+    "lead": "Langue, thème, outils trésorier et contrôles opérateur sandbox."
+  },
+  "gear": {
+    "heading": "Matériel d'expédition"
   },
   "clock": {
     "waiting": "Départ dans {{days}} j {{hours}} h",

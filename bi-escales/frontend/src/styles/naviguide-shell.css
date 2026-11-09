@@ -307,13 +307,61 @@ body.ng-naviguide-shell {
   box-sizing: border-box;
 }
 
+.ng-tools-panel > .ng-settings-body > .treasurer-panel,
 .ng-sidebar > .treasurer-panel {
-  padding: var(--space-3) var(--space-5) 0;
+  padding: var(--space-3) 0 0;
   margin-top: var(--space-3);
   border: 0;
   border-top: 1px solid var(--color-line);
   border-radius: 0;
   background: none;
+}
+
+.ng-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ng-settings-header {
+  margin: 0;
+}
+
+.ng-settings-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-panel-heading);
+  line-height: var(--text-panel-heading--line-height);
+  font-weight: 600;
+}
+
+.ng-settings-lead {
+  margin: 0;
+}
+
+.ng-settings-controls {
+  margin: 0;
+}
+
+.ng-settings-dev-t0 {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.ng-sidebar .ng-shell-header {
+  padding-inline: var(--space-5);
+}
+
+.ng-sidebar > .how-it-works,
+.ng-sidebar > [data-testid="escale-popup"],
+.ng-sidebar > .marinas-panel {
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--color-line);
+  padding-top: var(--space-3);
+}
+
+.ng-tools-panel .treasurer-panel .treasurer-panel-body > .stack-form > button[type="submit"],
+.ng-tools-panel .treasurer-panel .treasurer-panel-body > button {
+  align-self: end;
 }
 
 .ng-tools-panel .panel + .panel {
@@ -757,7 +805,8 @@ body.ng-naviguide-shell {
 .queue-value > button { display: block; margin-inline: auto 0; max-width: 100%; white-space: normal; }
 .treasurer-queue .captain-decision { background: var(--color-raised); border-block-start: 1px solid var(--color-line-strong); }
 .captain-chat .captain-draft { gap: var(--space-1); color: var(--color-fg-2); font-size: var(--text-meta); }
-.ng-sidebar .treasurer-panel .treasurer-queue { box-sizing: border-box; min-width: 0; max-width: 100%; padding-inline: var(--space-2); border: 0; background: transparent; }
+.ng-sidebar .treasurer-panel .treasurer-queue,
+.ng-tools-panel .treasurer-panel .treasurer-queue { box-sizing: border-box; min-width: 0; max-width: 100%; padding-inline: var(--space-2); border: 0; background: transparent; }
 .treasurer-queue .captain-section, .treasurer-queue .captain-card-head { padding: var(--space-3); gap: var(--space-1); }
 .treasurer-queue .captain-card { background: var(--color-panel); }
 
@@ -779,7 +828,8 @@ body.ng-naviguide-shell {
 .ng-sidebar > .crew-supporter-public,
 .ng-sidebar > [data-testid="public-common-fund"],
 .ng-sidebar > .captain-chat,
-.ng-sidebar > [data-testid="project-list"] {
+.ng-sidebar > [data-testid="project-list"],
+.ng-sidebar > [data-testid="gear-list"] {
   margin-top: var(--space-3);
   border-top: 1px solid var(--color-line);
   padding-top: var(--space-3);
@@ -841,7 +891,8 @@ body.ng-naviguide-shell {
 }
 
 .ng-sidebar .captain-chat,
-.ng-sidebar [data-testid="project-list"] {
+.ng-sidebar [data-testid="project-list"],
+.ng-sidebar [data-testid="gear-list"] {
   padding-inline: var(--space-5);
 }
 

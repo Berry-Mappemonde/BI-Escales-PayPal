@@ -3,7 +3,12 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from app.channel3_catalog import get_catalog_item, list_catalog_items
+from app.channel3_catalog import (
+    catalog_needs_confirmation,
+    get_catalog_item,
+    list_catalog_items,
+    load_catalog_seed,
+)
 from app.channel3_funding import enrich_item_funding, fund_snapshot_for_project
 from app.channel3_public import apply_buy_link_policy
 from app.channel3_wishlist_store import get_wishlist_store, new_wishlist_id, normalize_wishlist_item
@@ -28,9 +33,11 @@ async def create_wishlist(*, title: str, slug: str, items: Optional[list[dict]] 
     normalized_items: list[dict] = []
     for row in items or []:
         pid = str(row.get("channel3_product_id") or "").strip()
-        catalog = get_catalog_item(pid)
+        catalog = get_catalog_item(pid, include_needs_confirmation=True)
         if not catalog:
             raise WishlistError(f"unknown catalog item {pid}")
+        if catalog_needs_confirmation(catalog):
+            raise WishlistError(f"item {pid} is pending treasurer confirmation")
         if catalog.get("catalog_optional") and not row.get("allow_optional"):
             raise WishlistError(f"item {pid} is optional catalogue-only")
         normalized_items.append(normalize_wishlist_item(row, catalog))
@@ -44,6 +51,27 @@ async def create_wishlist(*, title: str, slug: str, items: Optional[list[dict]] 
         "updated_at": now_iso(),
     }
     return await store.save_wishlist(doc)
+
+
+def _line_catalog_available(channel3_product_id: str) -> bool:
+    catalog = get_catalog_item(channel3_product_id, include_needs_confirmation=True)
+    if not catalog:
+        return False
+    if catalog_needs_confirmation(catalog):
+        return False
+    return True
+
+
+def enrich_treasurer_wishlist(row: dict) -> dict[str, Any]:
+    out = dict(row)
+    items_out: list[dict] = []
+    for item in row.get("items") or []:
+        pid = str(item.get("channel3_product_id") or "").strip()
+        line = dict(item)
+        line["catalog_available"] = _line_catalog_available(pid)
+        items_out.append(line)
+    out["items"] = items_out
+    return out
 
 
 async def list_wishlists(*, published_only: bool = False) -> list[dict]:
@@ -62,6 +90,12 @@ async def get_wishlist(wishlist_id: str) -> dict:
 
 async def set_wishlist_published(wishlist_id: str, *, published: bool) -> dict:
     row = await get_wishlist(wishlist_id)
+    if published:
+        for item in row.get("items") or []:
+            pid = str(item.get("channel3_product_id") or "").strip()
+            catalog = get_catalog_item(pid, include_needs_confirmation=True)
+            if catalog and catalog_needs_confirmation(catalog):
+                raise WishlistError(f"wishlist item {pid} is pending confirmation")
     row["published"] = bool(published)
     row["updated_at"] = now_iso()
     return await get_wishlist_store().save_wishlist(row)
@@ -76,9 +110,11 @@ async def add_wishlist_item(
     allow_optional: bool = False,
 ) -> dict:
     row = await get_wishlist(wishlist_id)
-    catalog = get_catalog_item(channel3_product_id)
+    catalog = get_catalog_item(channel3_product_id, include_needs_confirmation=True)
     if not catalog:
         raise WishlistError("unknown catalog item")
+    if catalog_needs_confirmation(catalog):
+        raise WishlistError("item pending treasurer confirmation")
     if catalog.get("catalog_optional") and not allow_optional:
         raise WishlistError("crew_clothing items require allow_optional")
     item = normalize_wishlist_item(
@@ -139,11 +175,26 @@ async def _public_item_from_catalog(
     return apply_buy_link_policy(public, fully_funded=bool(enriched.get("fully_funded")), buy_url=buy_url)
 
 
+def _unavailable_wishlist_line(item: dict, *, reason: str) -> dict[str, Any]:
+    return {
+        "channel3_product_id": str(item.get("channel3_product_id") or "").strip() or None,
+        "project_id": item.get("project_id"),
+        "catalog_available": False,
+        "unavailable_reason": reason,
+        "quantity": int(item.get("quantity") or 1),
+    }
+
+
 async def public_wishlist_payload(row: dict) -> dict[str, Any]:
     items_out: list[dict] = []
     for item in row.get("items") or []:
-        catalog = get_catalog_item(str(item.get("channel3_product_id") or ""))
+        pid = str(item.get("channel3_product_id") or "")
+        catalog = get_catalog_item(pid)
         if not catalog:
+            items_out.append(_unavailable_wishlist_line(item, reason="removed_from_catalog"))
+            continue
+        if catalog_needs_confirmation(catalog):
+            items_out.append(_unavailable_wishlist_line(item, reason="needs_confirmation"))
             continue
         items_out.append(await _public_item_from_catalog(catalog, item))
     return {
@@ -158,7 +209,11 @@ async def public_wishlist_payload(row: dict) -> dict[str, Any]:
 
 async def public_catalog_payload() -> dict[str, Any]:
     items = []
-    for catalog in list_catalog_items():
+    for catalog in list_catalog_items(public_only=True):
         items.append(await _public_item_from_catalog(catalog))
-    seed = {"item_count": len(items), "items": items}
+    seed = {
+        "item_count": len(items),
+        "seed_item_count": int(load_catalog_seed().get("item_count") or 0),
+        "items": items,
+    }
     return seed

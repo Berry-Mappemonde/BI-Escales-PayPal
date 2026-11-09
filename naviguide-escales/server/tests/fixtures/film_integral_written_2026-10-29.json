@@ -109,42 +109,42 @@
    {
     "id": "leg-13",
     "tA": "2026-11-07T15:57:44Z",
-    "tB": "2026-12-31T04:25:31Z",
+    "tB": "2027-06-11T15:43:32.015Z",
     "fromName": "Nouméa (Nouvelle-Calédonie)",
     "toName": "Dzaoudzi (Mayotte)",
-    "text": "Le 10 novembre, Berry-Mappemonde quitte Nouméa (Nouvelle-Calédonie), cap à l'ouest pour la longue traversée vers Dzaoudzi (Mayotte). 9 152 milles, 48 jours de mer, à 8 nœuds de moyenne. Puis, la zone de la campagne océanographique MAYOBS33. Le 10 novembre, les eaux de Nouvelle-Calédonie. Puis, les eaux australiennes. Le 19 novembre, les eaux papouanes, puis les eaux indonésiennes. Puis, le bateau longe Dili. Le 24 novembre, le bateau longe Ende. Puis, le bateau longe Tanjung Benete. Le 4 décembre, les eaux indiennes. Puis, haute mer. Le 8 décembre, les alizés de nord-est s'installent : vents moyens de saison. Puis, les eaux sri-lankaises. Le 18 décembre, à l'équateur, les alizés de sud-est s'installent : vents moyens de saison. Puis, les eaux maldiviennes. Le 26 décembre, les eaux seychelloises. Le lendemain, le bateau longe Victoria. Puis, les eaux malgaches, puis celles des Terres australes et antarctiques françaises, puis celles de Mayotte. Arrivée à Dzaoudzi (Mayotte) le 31 décembre, amarré au port de Dzaoudzi (Mayotte)."
+    "text": "Le 10 novembre, Berry-Mappemonde quitte Nouméa (Nouvelle-Calédonie), cap à l'ouest pour la longue traversée vers Dzaoudzi (Mayotte). 9 152 milles, 48 jours de mer, à 8 nœuds de moyenne. Puis, la zone de la campagne océanographique MAYOBS33. Le 10 novembre, les eaux de Nouvelle-Calédonie. Puis, les eaux australiennes. Le 19 novembre, les eaux papouanes, puis les eaux indonésiennes. Puis, le bateau longe Dili. Le 24 novembre, le bateau longe Ende. Puis, le bateau longe Tanjung Benete. Le 4 décembre, les eaux indiennes. Puis, haute mer. Le 8 décembre, les alizés de nord-est s'installent : vents moyens de saison. Puis, les eaux sri-lankaises. Le 18 décembre, à l'équateur, les alizés de sud-est s'installent : vents moyens de saison. Puis, les eaux maldiviennes. Le 26 décembre, les eaux seychelloises. Le lendemain, le bateau longe Victoria. Puis, les eaux malgaches, puis celles des Terres australes et antarctiques françaises, puis celles de Mayotte. Arrivée à Dzaoudzi (Mayotte) le 11 juin, amarré au port de Dzaoudzi (Mayotte)."
    },
    {
     "id": "leg-14",
-    "tA": "2026-12-31T04:25:31Z",
-    "tB": "2027-01-21T11:19:02Z",
+    "tA": "2027-06-11T15:43:32.015Z",
+    "tB": "2027-06-19T06:35:44.317Z",
     "fromName": "Dzaoudzi (Mayotte)",
     "toName": "Tromelin (TAAF)",
-    "text": "Le 3 janvier, Berry-Mappemonde quitte Dzaoudzi (Mayotte) pour la longue traversée vers Tromelin (TAAF). 925 milles, une vingtaine de jours de mer. Puis, la zone de la campagne océanographique MAYOBS33. Le 3 janvier, les eaux de Mayotte. Le lendemain, la zone de la campagne océanographique MAYOBS30. Le 4 janvier, les eaux malgaches, puis celles des Terres australes et antarctiques françaises, puis les eaux seychelloises. Puis, le flotteur Argo 6903148. Arrivée à Tromelin (TAAF) le 21 janvier, amarré au port de Tromelin (TAAF)."
+    "text": "Le 14 juin, Berry-Mappemonde quitte Dzaoudzi (Mayotte) pour Tromelin (TAAF). 925 milles, une vingtaine de jours de mer. Arrivée à Tromelin (TAAF) le 19 juin, amarré au port de Tromelin (TAAF)."
    },
    {
     "id": "leg-15",
-    "tA": "2027-01-21T11:19:02Z",
-    "tB": "2027-01-27T07:32:22Z",
+    "tA": "2027-06-19T06:35:44.317Z",
+    "tB": "2027-06-24T03:20:51.040Z",
     "fromName": "Tromelin (TAAF)",
     "toName": "Saint-Gilles (La Réunion)",
-    "text": "Le 24 janvier, d'île en île, Berry-Mappemonde quitte Tromelin (TAAF), cap au sud pour Saint-Gilles (La Réunion). 322 milles, trois jours de mer, à 5 nœuds de moyenne. Puis, les eaux des Terres australes et antarctiques françaises. Le 26 janvier, les eaux de La Réunion. Puis, le bateau longe Saint-Denis. Le 26 janvier, à vingt-cinq milles, le projet Best Run. Le lendemain, à vingt-six milles, le projet Agence de Recherche pour la Biodiversité à La Réunion. Puis, à vingt-six milles, le projet Kosa - Sciences participatives citoyennes à La Réunion. Arrivée à Saint-Gilles (La Réunion) le 27 janvier, amarré au port de Saint-Gilles (La Réunion)."
+    "text": "Le 22 juin, Berry-Mappemonde quitte Tromelin (TAAF) pour Saint-Gilles (La Réunion). 322 milles, trois jours de mer. Arrivée à Saint-Gilles (La Réunion) le 24 juin, amarré au port de Saint-Gilles (La Réunion)."
    },
    {
     "id": "leg-16",
-    "tA": "2027-01-27T07:32:22Z",
-    "tB": "2027-02-21T14:02:26Z",
+    "tA": "2027-06-24T03:20:51.040Z",
+    "tB": "2027-07-03T16:04:24.999Z",
     "fromName": "Saint-Gilles (La Réunion)",
     "toName": "Europa (TAAF)",
-    "text": "Le 30 janvier, Berry-Mappemonde quitte Saint-Gilles (La Réunion) pour la longue traversée vers Europa (TAAF). 1 457 milles, une vingtaine de jours de mer. Le lendemain, les eaux mauriciennes. Le 1er février, les eaux de La Réunion. Le lendemain, haute mer. Le 3 février, les eaux malgaches. Puis, le flotteur Argo 7902126. Le 20 février, les alizés de sud-est s'installent : vents moyens de saison. Le lendemain, les eaux des Terres australes et antarctiques françaises. Puis, à dix-neuf milles, le projet Les Iles Éparses, sentinelles de l'évolution de l'océan (ISEO). Arrivée à Europa (TAAF) le 21 février, amarré au port d’Europa (TAAF)."
+    "text": "Le 27 juin, Berry-Mappemonde quitte Saint-Gilles (La Réunion) pour Europa (TAAF). 1 457 milles, une vingtaine de jours de mer. Arrivée à Europa (TAAF) le 3 juillet, amarré au port d’Europa (TAAF)."
    },
    {
     "id": "leg-17",
-    "tA": "2027-02-21T14:02:26Z",
-    "tB": "2027-06-30T22:50:43Z",
+    "tA": "2027-07-06T16:04:24.999Z",
+    "tB": "2027-08-27T04:23:32.501Z",
     "fromName": "Europa (TAAF)",
     "toName": "La Rochelle",
-    "text": "Le 24 février, pour la dernière étape, Berry-Mappemonde quitte Europa (TAAF) pour La Rochelle. 8 393 milles, 126 jours de mer. Puis, les eaux des Terres australes et antarctiques françaises. Le 25 février, les eaux malgaches. Puis, haute mer. Le 5 mars, les eaux sud-africaines. Puis, à 28 milles, le projet Cresta Coastal Network. Le 25 mars, à 24 milles, le projet Causality. Puis, à 24 milles, le projet ID-shot Southern Right Whales. Le 9 avril, les alizés de sud-est s'installent : vents moyens de saison. Puis, à 23 milles, le projet High Seas: New Hope Beyond National Boundaries. Le 20 avril, le bateau longe Jamestown. Puis, les alizés de nord-est s'installent : vents moyens de saison. Le 3 mai, le flotteur Argo 4903967. Puis, les eaux capverdiennes. Le 16 mai, les eaux disputées du Sahara occidental. Puis, les eaux des Canaries. Puis, les eaux françaises. Arrivée à La Rochelle le 30 juin, amarré à Port de Saint-Martin-de-Ré. Aujourd’hui, le bateau est à La Rochelle."
+    "text": "Le 9 juillet, pour la dernière étape, Berry-Mappemonde quitte Europa (TAAF) pour La Rochelle. 8 393 milles, 52 jours de mer. Puis, les eaux des Terres australes et antarctiques françaises. Puis, haute mer. Puis, à vingt-trois milles, le projet High Seas: New Hope Beyond National Boundaries. Puis, les eaux françaises. Arrivée à La Rochelle le 27 août, amarré à Port de Saint-Martin-de-Ré. Aujourd’hui, le bateau est à La Rochelle."
    }
   ]
  },
@@ -257,42 +257,42 @@
    {
     "id": "leg-13",
     "tA": "2026-11-07T15:57:44Z",
-    "tB": "2026-12-31T04:25:31Z",
+    "tB": "2027-06-11T15:43:32.015Z",
     "fromName": "Nouméa (Nouvelle-Calédonie)",
     "toName": "Dzaoudzi (Mayotte)",
-    "text": "On November 10, Berry-Mappemonde leaves Nouméa (New Caledonia), heading west for the long crossing to Dzaoudzi (Mayotte). 9,152 miles, 48 days at sea, at 8 knots average. Then, the MAYOBS33 oceanographic campaign area. On November 10, New Caledonian waters. Then, Australian waters. On November 19, Papuan waters, then Indonesian waters. Then, the boat passes Dili. On November 24, the boat passes Ende. Then, the boat passes Tanjung Benete. On December 4, Indian Ocean waters. Then, high seas. On December 8, north-east trade winds settle in: seasonal average winds. Then, Sri Lankan waters. On December 18, at the equator, south-east trade winds settle in: seasonal average winds. Then, Maldivian waters. On December 26, Seychellois waters. The next day, the boat passes Victoria. Then, Malagasy waters, then those of the French Southern and Antarctic Lands, then those of Mayotte. Arrival at Dzaoudzi (Mayotte) on December 31, moored at Dzaoudzi (Mayotte) port."
+    "text": "On November 10, Berry-Mappemonde leaves Nouméa (New Caledonia), heading west for the long crossing to Dzaoudzi (Mayotte). 9,152 miles, 48 days at sea, at 8 knots average. Then, the MAYOBS33 oceanographic campaign area. On November 10, New Caledonian waters. Then, Australian waters. On November 19, Papuan waters, then Indonesian waters. Then, the boat passes Dili. On November 24, the boat passes Ende. Then, the boat passes Tanjung Benete. On December 4, Indian Ocean waters. Then, high seas. On December 8, north-east trade winds settle in: seasonal average winds. Then, Sri Lankan waters. On December 18, at the equator, south-east trade winds settle in: seasonal average winds. Then, Maldivian waters. On December 26, Seychellois waters. The next day, the boat passes Victoria. Then, Malagasy waters, then those of the French Southern and Antarctic Lands, then those of Mayotte. Arrival at Dzaoudzi (Mayotte) on June 11, moored at Dzaoudzi (Mayotte) port."
    },
    {
     "id": "leg-14",
-    "tA": "2026-12-31T04:25:31Z",
-    "tB": "2027-01-21T11:19:02Z",
+    "tA": "2027-06-11T15:43:32.015Z",
+    "tB": "2027-06-19T06:35:44.317Z",
     "fromName": "Dzaoudzi (Mayotte)",
     "toName": "Tromelin (TAAF)",
-    "text": "On January 3, Berry-Mappemonde leaves Dzaoudzi (Mayotte) for the long crossing to Tromelin (TAAF). 925 miles, about twenty days at sea. Then, the area of the oceanographic campaign MAYOBS33. On January 3, Mayotte waters. The next day, the area of the oceanographic campaign MAYOBS30. On January 4, Malagasy waters, then those of the French Southern and Antarctic Lands, then Seychellois waters. Then, the Argo float 6903148. Arrival at Tromelin (TAAF) on January 21, moored at Tromelin (TAAF) port."
+    "text": "On June 14, Berry-Mappemonde leaves Dzaoudzi (Mayotte) for Tromelin (TAAF). 925 miles, about twenty days at sea. Arrival at Tromelin (TAAF) on June 19, moored at Tromelin (TAAF) port."
    },
    {
     "id": "leg-15",
-    "tA": "2027-01-21T11:19:02Z",
-    "tB": "2027-01-27T07:32:22Z",
+    "tA": "2027-06-19T06:35:44.317Z",
+    "tB": "2027-06-24T03:20:51.040Z",
     "fromName": "Tromelin (TAAF)",
     "toName": "Saint-Gilles (La Réunion)",
-    "text": "On January 24, from island to island, Berry-Mappemonde leaves Tromelin (TAAF), steering south for Saint-Gilles (La Réunion). 322 miles, three days at sea, at an average of 5 knots. Then, the waters of the French Southern and Antarctic Lands. On January 26, the waters of La Réunion. Then, the boat sails past Saint-Denis. On January 26, at twenty-five miles, the project Best Run. The next day, at twenty-six miles, the project Agence de Recherche pour la Biodiversité à La Réunion. Then, at twenty-six miles, the project Kosa - Sciences participatives citoyennes à La Réunion. Arrival at Saint-Gilles (La Réunion) on January 27, moored at the port of Saint-Gilles (La Réunion)."
+    "text": "On June 22, Berry-Mappemonde leaves Tromelin (TAAF) for Saint-Gilles (La Réunion). 322 miles, three days at sea. Arrival at Saint-Gilles (La Réunion) on June 24, moored at Saint-Gilles (La Réunion) port."
    },
    {
     "id": "leg-16",
-    "tA": "2027-01-27T07:32:22Z",
-    "tB": "2027-02-21T14:02:26Z",
+    "tA": "2027-06-24T03:20:51.040Z",
+    "tB": "2027-07-03T16:04:24.999Z",
     "fromName": "Saint-Gilles (La Réunion)",
     "toName": "Europa (TAAF)",
-    "text": "On January 30, Berry-Mappemonde leaves Saint-Gilles (La Réunion) for the long crossing to Europa (TAAF). 1,457 miles, about twenty days at sea. The next day, Mauritian waters. February 1, waters of La Réunion. The next day, high sea. February 3, Malagasy waters. Then, Argo float 7902126. February 20, south-easterly trade winds set in: seasonal average winds. The next day, waters of the French Southern and Antarctic Lands. Then, at nineteen miles, the project Les Iles Éparses, sentinelles de l'évolution de l'océan (ISEO). Arrival at Europa (TAAF) on February 21, moored at the port of Europa (TAAF)."
+    "text": "On June 27, Berry-Mappemonde leaves Saint-Gilles (La Réunion) for Europa (TAAF). 1,457 miles, about twenty days at sea. Arrival at Europa (TAAF) on July 3, moored at Europa (TAAF) port."
    },
    {
     "id": "leg-17",
-    "tA": "2027-02-21T14:02:26Z",
-    "tB": "2027-06-30T22:50:43Z",
+    "tA": "2027-07-06T16:04:24.999Z",
+    "tB": "2027-08-27T04:23:32.501Z",
     "fromName": "Europa (TAAF)",
     "toName": "La Rochelle",
-    "text": "On February 24, for the last leg, Berry-Mappemonde leaves Europa (TAAF) for La Rochelle. 8,393 miles, 126 days at sea. Then, waters of the French Southern and Antarctic Lands. On February 25, Malagasy waters. Then, high sea. On March 5, South African waters. Then, at 28 miles, the Cresta Coastal Network project. On March 25, at 24 miles, the Causality project. Then, at 24 miles, the ID-shot Southern Right Whales project. On April 9, south-east trade winds set in: seasonal average winds. Then, at 23 miles, the High Seas: New Hope Beyond National Boundaries project. On April 20, the boat sails past Jamestown. Then, north-east trade winds set in: seasonal average winds. On May 3, Argo float 4903967. Then, Cape Verde waters. On May 16, disputed waters of Western Sahara. Then, Canary waters. Then, French waters. Arrival in La Rochelle on June 30, moored at Port de Saint-Martin-de-Ré. Today, the boat is in La Rochelle."
+    "text": "On July 9, for the last leg, Berry-Mappemonde leaves Europa (TAAF) for La Rochelle. 8,393 miles, 52 days at sea. Then, waters of the French Southern and Antarctic Lands. Then, high sea. Then, at twenty-three miles, the High Seas: New Hope Beyond National Boundaries project. Then, French waters. Arrival in La Rochelle on August 27, moored at Port de Saint-Martin-de-Ré. Today, the boat is in La Rochelle."
    }
   ]
  }

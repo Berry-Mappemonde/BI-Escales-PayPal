@@ -27,7 +27,7 @@ Copy the numbered steps below into Devpost’s private **Testing instructions** 
 
 Use this PayPal **sandbox personal** buyer (France, EUR):
 
-- **Email:** `bi-escales-acheteur-fr@personal.example.com`
+- **Email:** `berry-mappemonde-acheteur-fr@personal.example.com`
 
 The password is **not** stored in git. The hackathon owner provides it in Devpost’s private testing-instructions field (valid through the judging window).
 

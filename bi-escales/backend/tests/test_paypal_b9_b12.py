@@ -199,7 +199,7 @@ def test_b11_reconcile_matches_on_capture_id():
 
 def test_b12_stop_mile_pledge_settles_on_arrival(monkeypatch):
     """Stop-level miles: captured on boat arrival at the stop (7488f15); void if cancelled."""
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00+00:00")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-01T08:00:00+00:00")
     monkeypatch.setenv("ESCALES_VAULT_ENABLED", "0")
     spy = CaptureSpy()
 

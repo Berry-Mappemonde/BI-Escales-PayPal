@@ -241,7 +241,7 @@ class AuthorizeSpy(CaptureOrderSpy):
 
 def test_eur_stop_pledge_stays_eur(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
     reset_ledger()
     spy = AuthorizeSpy()
 

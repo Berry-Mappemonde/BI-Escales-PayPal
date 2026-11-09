@@ -212,7 +212,7 @@ def test_n27_admin_reauthorize_uses_simulated_clock_for_honor_period(monkeypatch
 
 
 def test_n28_capture_before_arrival_hour_is_refused(monkeypatch):
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
 
     async def noop(_draft):
         return None

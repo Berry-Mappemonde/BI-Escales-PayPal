@@ -595,7 +595,7 @@ SIM_CLOCK = {
     "t0": "2027-04-25T08:00:00Z",
     "marks": [
         {"name": "La Rochelle", "nm": 0, "filmNm": 122, "iso": "2027-04-25T08:00:00Z", "holdHours": 72, "lat": 46.15, "lon": -1.16},
-        {"name": "Ajaccio (Corse)", "nm": 1820, "filmNm": 1942, "iso": "2027-05-04T12:00:00Z", "holdHours": 72, "lat": 41.9, "lon": 8.7},
+        {"name": "Ajaccio (Corse)", "nm": 1820, "filmNm": 1942, "iso": "2027-06-04T12:00:00Z", "holdHours": 72, "lat": 41.9, "lon": 8.7},
         {"name": "Fort-de-France (Martinique)", "nm": 6973, "filmNm": 7095, "iso": "2027-06-02T08:00:00Z", "holdHours": 72, "lat": 14.6, "lon": -61.0},
     ],
 }
@@ -643,7 +643,7 @@ def test_official_dated_stops_pins_first_rochelle_not_return():
     """La Rochelle départ (filmNm 122) ne doit pas hériter de l'iso du retour."""
     marks = [
         {"name": "Saint-Maur (Berry, Indre)", "nm": 0, "filmNm": 0, "iso": None},
-        {"name": "La Rochelle", "nm": 122, "filmNm": 122, "iso": "2027-05-10T02:40:39Z", "holdHours": 72},
+        {"name": "La Rochelle", "nm": 122, "filmNm": 122, "iso": "2027-06-10T02:40:39Z", "holdHours": 72},
         {"name": "Ajaccio (Corse)", "nm": 1942, "filmNm": 1942, "iso": "2026-05-30T13:56:06Z", "holdHours": 72},
         {"name": "Fort-de-France (Martinique)", "nm": 7095, "filmNm": 7095, "iso": "2026-07-10T23:11:45Z", "holdHours": 72},
     ]
@@ -5800,7 +5800,7 @@ def test_reread_refuses_a_later_stop_announced_on_the_wrong_leg():
 
 
 def test_scrambled_clock_keeps_mata_utu_before_dzaoudzi():
-    """L'horloge recolle Mata-Utu en mai 2027 : la route réelle le garde avant Dzaoudzi.
+    """L'horloge recolle Mata-Utu loin en 2027 : la route réelle le garde avant Dzaoudzi.
 
     Sans la date du sommet au mille d'itinéraire, le chapitre dit
     « cap sur Dzaoudzi : 12 124 milles » et la liste à venir commence par Dzaoudzi.
@@ -5817,9 +5817,9 @@ def test_scrambled_clock_keeps_mata_utu_before_dzaoudzi():
         ],
         "marks": [
             {"name": "Mata-Utu (Wallis-et-Futuna)", "tHours": 8454, "filmNm": 38364,
-             "iso": "2027-05-02T14:00:00Z", "lat": 28.1, "lon": -16.1},
+             "iso": "2027-06-02T14:00:00Z", "lat": 28.1, "lon": -16.1},
             {"name": "Nouméa (Nouvelle-Calédonie)", "tHours": 9020, "filmNm": 39295,
-             "iso": "2027-05-26T04:00:00Z", "lat": 42.9, "lon": -9.7},
+             "iso": "2027-06-26T04:00:00Z", "lat": 42.9, "lon": -9.7},
         ],
     }
     marks = [
@@ -5839,7 +5839,7 @@ def test_scrambled_clock_keeps_mata_utu_before_dzaoudzi():
     assert names.index("Nouméa (Nouvelle-Calédonie)") < names.index("Dzaoudzi (Mayotte)")
     mata = next(s for s in stops if "Mata-Utu" in s["name"])
     assert mata["iso"].startswith("2026-")
-    assert not mata["iso"].startswith("2027-05")
+    assert not mata["iso"].startswith("2027-06")
     review = {
         "legs": [
             {"from": "Cayenne", "to": "Papeete", "legNm": 8000},

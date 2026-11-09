@@ -26,11 +26,11 @@ from tests.review_helpers import approve_capture_review
 from app.routers.escales import router, set_paypal_client_factory
 
 ADMIN = {"x-admin-key": "vault-admin"}
-FAR_ARRIVAL = "2027-05-15T08:00:00+00:00"
+FAR_ARRIVAL = "2027-07-01T08:00:00+00:00"
 
 
 def _clock_on_departure_day(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-16T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-07-02T08:00:00Z")
 
 
 def _clock_far_future_for_vault_create(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -110,7 +110,7 @@ def memory_ledger(monkeypatch):
 async def _seed_far_milestone(
     milestone_id: str = "dep-long-haul",
     *,
-    departure_iso: str = "2027-05-15T08:00:00+00:00",
+    departure_iso: str = "2027-07-01T08:00:00+00:00",
 ):
     await get_ledger().ensure_milestone(
         milestone_id,
@@ -276,7 +276,7 @@ def test_http_vault_requires_admin_to_capture(api, monkeypatch):
     assert vaulted.json()["status"] == "vaulted"
     denied = client.post(f"/api/escales/pledges/{pledge_id}/capture")
     assert denied.status_code == 401
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-16T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-07-02T08:00:00Z")
     asyncio.run(approve_capture_review(body["milestone_id"]))
     ok = client.post(f"/api/escales/pledges/{pledge_id}/capture", headers=ADMIN)
     assert ok.status_code == 200
@@ -451,7 +451,7 @@ def test_departure_clock_retries_vault_token_delete(monkeypatch):
 
 
 def test_vault_capture_captured_at_uses_simulated_clock(monkeypatch):
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-16T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-07-02T08:00:00Z")
 
     async def body():
         _clock_far_future_for_vault_create(monkeypatch)
@@ -467,7 +467,7 @@ def test_vault_capture_captured_at_uses_simulated_clock(monkeypatch):
         await register_vault_pledge(created["_id"], client)
         _clock_on_departure_day(monkeypatch)
         captured = await capture_pledge(created["_id"], client)
-        assert captured["captured_at"] == "2027-05-16T08:00:00+00:00"
+        assert captured["captured_at"] == "2027-07-02T08:00:00+00:00"
 
     asyncio.run(body())
 

@@ -482,7 +482,7 @@
   {
    "id": "leg-17",
    "tA": "2027-02-21T14:02:26Z",
-   "tB": "2027-05-31T22:50:43Z",
+   "tB": "2027-06-30T22:50:43Z",
    "text": "Le 24 février, départ vers La Rochelle : 8 393 milles, 96 jours de mer. Le lendemain, le bateau passe près de l'aire marine protégée Pointe d'Arçay, à trois milles. Arrivée à La Rochelle le 31 mai, à Port de Saint-Denis d'Oléron. Aujourd’hui, le bateau est à La Rochelle.",
    "anchors": [
     {
@@ -492,31 +492,31 @@
     },
     {
      "charIdx": 75,
-     "t": "2027-05-23T00:00:00Z",
+     "t": "2027-06-23T00:00:00Z",
      "place": "Zone économique exclusive française (Terres australes et antarctiques françaises)",
      "kind": "zee-enter"
     },
     {
      "charIdx": 162,
-     "t": "2027-05-23T00:00:00Z",
+     "t": "2027-06-23T00:00:00Z",
      "place": "High Seas: New Hope Beyond National Boundaries",
      "kind": "project"
     },
     {
      "charIdx": 271,
-     "t": "2027-05-31T00:00:00Z",
+     "t": "2027-06-30T00:00:00Z",
      "place": "Pointe d'Arçay",
      "kind": "alert-on"
     },
     {
      "charIdx": 358,
-     "t": "2027-05-31T00:00:00Z",
+     "t": "2027-06-30T00:00:00Z",
      "place": "La Rochelle",
      "kind": "escale"
     },
     {
      "charIdx": 380,
-     "t": "2027-05-31T22:50:43Z"
+     "t": "2027-06-30T22:50:43Z"
     }
    ],
    "fromName": "Europa (TAAF)",

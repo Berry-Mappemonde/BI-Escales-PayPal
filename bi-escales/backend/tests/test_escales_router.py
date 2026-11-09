@@ -139,7 +139,7 @@ MAYOTTE_PLEDGE = {
     "milestone_id": "dep-mayotte",
     "description": "20 milles Mayotte",
 }
-NEAR_MAYOTTE_CLOCK = "2027-05-15T08:00:00Z"
+NEAR_MAYOTTE_CLOCK = "2027-06-12T08:00:00Z"
 
 
 def _ready_mayotte(client, key, monkeypatch, body=None):

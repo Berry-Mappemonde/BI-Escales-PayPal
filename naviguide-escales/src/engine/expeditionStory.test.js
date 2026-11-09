@@ -296,7 +296,7 @@ describe("expeditionStory — script du film", () => {
     const simClock = { t0: "2027-04-25T08:00:00Z" };
     const simMarks = [
       { name: "La Rochelle", nm: 0, filmNm: 122, iso: "2027-04-25T08:00:00Z", holdHours: 72 },
-      { name: "Ajaccio (Corse)", nm: 1820, filmNm: 1942, iso: "2027-05-04T12:00:00Z", holdHours: 72 },
+      { name: "Ajaccio (Corse)", nm: 1820, filmNm: 1942, iso: "2027-06-04T12:00:00Z", holdHours: 72 },
       { name: "Fort-de-France (Martinique)", nm: 6973, filmNm: 7095, iso: "2027-06-02T08:00:00Z", holdHours: 72 },
     ];
     const live = { filmNm: 19400, sailNm: 19260, seaHours: 94 * 24, iso: "2026-09-19T02:00:00Z", status: "live", vehicle: "main" };
@@ -323,7 +323,7 @@ describe("expeditionStory — script du film", () => {
       clock: { t0: "2027-04-25T08:00:00Z" },
       marks: [
         { name: "La Rochelle", nm: 0, filmNm: 122, iso: "2027-04-25T08:00:00Z", holdHours: 72, lat: 46.15, lon: -1.16 },
-        { name: "Ajaccio (Corse)", nm: 1820, filmNm: 1942, iso: "2027-05-04T12:00:00Z", holdHours: 72, lat: 41.9, lon: 8.7 },
+        { name: "Ajaccio (Corse)", nm: 1820, filmNm: 1942, iso: "2027-06-04T12:00:00Z", holdHours: 72, lat: 41.9, lon: 8.7 },
       ],
       live: { filmNm: 19400, sailNm: 19260, iso: "2026-09-19T02:00:00Z", status: "live" },
       now: Date.parse("2026-09-19T02:00:00Z"),

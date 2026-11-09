@@ -155,7 +155,7 @@ def test_n9_settle_and_payment_mode_resolve_stops_without_milestone_sync(monkeyp
         assert doc is not None
         assert doc["meta"]["capture_on"] == "arrival"
 
-        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00+00:00")
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-01T08:00:00+00:00")
         monkeypatch.setenv("ESCALES_VAULT_ENABLED", "0")
         created = await create_pledge(
             amount_eur="5.00",

@@ -118,7 +118,7 @@ def test_mock_response_header_is_sent(monkeypatch):
 
 
 def test_reauthorize_after_honor_period(monkeypatch):
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
 
     async def run():
         spy = AuditSpy()
@@ -143,7 +143,7 @@ def test_reauthorize_after_honor_period(monkeypatch):
 
 
 def test_refund_captured_pledge(monkeypatch):
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
 
     async def run():
         spy = AuditSpy()
@@ -238,7 +238,7 @@ def test_treasurer_chat_exposes_readonly_paypal_tools():
 
 
 def test_admin_refund_route(api, monkeypatch):
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
     spy = AuditSpy()
     set_paypal_client_factory(lambda: spy)
     created = api.post(

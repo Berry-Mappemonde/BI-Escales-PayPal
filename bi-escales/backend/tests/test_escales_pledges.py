@@ -31,7 +31,8 @@ from app.escales.pledges import (
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    # Within 29 days of Mayotte arrival so AUTHORIZE mile pledges succeed (schedule ~2027-06-11).
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-01T08:00:00Z")
     reset_ledger()
     yield
     reset_ledger()
@@ -455,6 +456,8 @@ def test_cabin_leg_authorizes_and_waits_for_departure(monkeypatch):
     from app.escales.naviguide_bridge import sync_leg_shells
 
     monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+    # Far Mayotte leg departure still beyond the vault horizon; autouse is nearer arrival.
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-04-15T08:00:00Z")
     monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
     leg = "leg-la-rochelle-to-ajaccio-corse"
 

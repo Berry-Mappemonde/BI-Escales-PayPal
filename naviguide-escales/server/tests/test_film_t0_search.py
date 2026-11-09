@@ -120,9 +120,9 @@ def test_return_call_is_kept_and_a_scrambled_clock_date_is_not(search):
         {"name": "Mata-Utu (Wallis-et-Futuna)", "iso": "2026-10-15T08:00:24Z"},
     ]
     clock = [
-        {"name": "La Rochelle", "iso": "2027-05-31T08:28:10Z", "filmNm": 39585.8},
+        {"name": "La Rochelle", "iso": "2027-06-30T08:28:10Z", "filmNm": 39585.8},
         {"name": "Halifax (Nouvelle-Écosse)", "iso": "2026-08-25T16:00:15Z", "filmNm": 9774.2},
-        {"name": "Mata-Utu (Wallis-et-Futuna)", "iso": "2027-05-02T14:29:32Z", "filmNm": 38364.2},
+        {"name": "Mata-Utu (Wallis-et-Futuna)", "iso": "2027-06-02T14:29:32Z", "filmNm": 38364.2},
     ]
     route = [
         {"name": "La Rochelle", "filmNm": 122.3},
@@ -137,10 +137,10 @@ def test_return_call_is_kept_and_a_scrambled_clock_date_is_not(search):
 
     rows = search.merge_clock_visits(base, clock, route, same)
     isos = {(row["name"].split("(")[0].strip(), row["iso"]) for row in rows}
-    assert ("La Rochelle", "2027-05-31T08:28:10Z") in isos
+    assert ("La Rochelle", "2027-06-30T08:28:10Z") in isos
     assert ("Halifax", "2026-08-25T16:00:15Z") in isos
     assert ("Mata-Utu", "2026-10-15T08:00:24Z") in isos
-    assert ("Mata-Utu", "2027-05-02T14:29:32Z") not in isos
+    assert ("Mata-Utu", "2027-06-02T14:29:32Z") not in isos
 
 
 def test_official_departure_constant_is_untouched():

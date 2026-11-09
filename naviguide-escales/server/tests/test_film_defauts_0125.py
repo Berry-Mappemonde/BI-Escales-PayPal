@@ -201,11 +201,11 @@ def test_edit_condensed_chapter_no_duplicate_arrival():
 
 def test_final_arrival_has_no_stopover_before_today():
     """Fin d'intégral : « Escale de 3 jours. Aujourd'hui, le bateau est à La Rochelle »."""
-    stop = {"name": "La Rochelle", "iso": "2027-05-31T12:00:00Z", "holdHours": 72}
+    stop = {"name": "La Rochelle", "iso": "2027-06-30T12:00:00Z", "holdHours": 72}
     mid = fs._arrival_sentence(stop, "fr", chapter_i=1)
     fin = fs._arrival_sentence(stop, "fr", chapter_i=1, final=True)
     assert "escale" in mid.casefold(), mid  # l'escale intermédiaire garde sa durée
-    assert fin.startswith("Arrivée à La Rochelle le 31 mai")
+    assert fin.startswith("Arrivée à La Rochelle le 30 juin")
     assert "escale" not in fin.casefold() and "trois jours" not in fin, fin
     fin_en = fs._arrival_sentence(stop, "en", chapter_i=1, final=True)
     assert "stopover" not in fin_en and "three days" not in fin_en, fin_en
@@ -242,4 +242,4 @@ def test_en_dates_one_form_without_ordinals():
     assert fs.en_month_first("On July 30th, departure. Arrival on August 15th.") == (
         "On July 30, departure. Arrival on August 15."
     )
-    assert fs.en_month_first("On 4 June and on 21st May 2027.") == "On June 4 and on May 21, 2027."
+    assert fs.en_month_first("On 4 July and on 21st June 2027.") == "On July 4 and on June 21, 2027."

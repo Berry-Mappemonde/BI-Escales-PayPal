@@ -103,7 +103,7 @@ def test_admin_reauthorize_calls_paypal(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
     monkeypatch.delenv("ESCALES_ENV", raising=False)
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
     reset_ledger()
     spy = Spy()
     set_paypal_client_factory(lambda: spy)

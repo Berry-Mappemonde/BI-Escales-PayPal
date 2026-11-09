@@ -3,16 +3,37 @@
 The process keeps one ``PaypalServersdkClient``. ``paypalserversdk`` is imported
 inside :func:`build_sandbox_client`, and only when ``ESCALES_PAYPAL_SDK_ENABLED``
 is truthy and ``PAYPAL_ENV`` is ``sandbox``.
+
+``PayPalClient._sdk_reads`` calls :func:`paypal_sdk_reads_enabled` in this
+module. A false result keeps the httpx client. Build refusal logs one warning
+and does not raise. Connection errors and timeouts from a read become
+``PayPalError`` with status 502.
 """
 
 from __future__ import annotations
 
 import importlib
+import logging
 import os
 import threading
 from typing import Any, NoReturn
 
-from .config import SANDBOX_BASE, paypal_sdk_reads_enabled
+from .config import SANDBOX_BASE, paypal_sdk_reads_enabled as _flag_enabled
+
+log = logging.getLogger("escales.paypal.sdk")
+
+_FALLBACK_LOG = "PayPal SDK read gateway unavailable; using the httpx client"
+_TRANSPORT_BODY = "PayPal SDK transport failure"
+_TRANSPORT_TYPES = frozenset({
+    ("requests.exceptions", "ConnectionError"),
+    ("requests.exceptions", "Timeout"),
+    ("urllib3.exceptions", "MaxRetryError"),
+    ("urllib3.exceptions", "NewConnectionError"),
+    ("urllib3.exceptions", "ProtocolError"),
+    ("urllib3.exceptions", "TimeoutError"),
+    ("builtins", "ConnectionError"),
+    ("builtins", "TimeoutError"),
+})
 
 _TIMEOUT_SECONDS = 30
 _MAX_RETRIES = 0
@@ -21,12 +42,18 @@ _CLIENT: Any = None
 _CLIENT_LOCK = threading.Lock()
 _API_EXCEPTION: Any = None
 _API_HELPER: Any = None
+_FALLBACK_REASONS: set[str] = set()
 
 
 def reset_client() -> None:
-    """Drop the cached client. Tests use this between cases."""
+    """Drop the cached client and the one-shot fallback log.
+
+    Tests use this between cases.
+    """
     global _CLIENT
-    _CLIENT = None
+    with _CLIENT_LOCK:
+        _CLIENT = None
+        _FALLBACK_REASONS.clear()
 
 
 def install_client(sdk: Any) -> None:
@@ -49,7 +76,7 @@ def build_sandbox_client(
     http_call_back: Any = None,
 ) -> Any:
     """Build a sandbox client. Does not replace the cached client."""
-    if not paypal_sdk_reads_enabled():
+    if not _flag_enabled():
         raise RuntimeError("PayPal SDK reads are disabled")
     _require_sandbox()
     client_id = os.environ.get("PAYPAL_CLIENT_ID") or ""
@@ -102,6 +129,44 @@ def client() -> Any:
         return _CLIENT
 
 
+def paypal_sdk_reads_enabled() -> bool:
+    """Selector for ``PayPalClient._sdk_reads``.
+
+    False keeps the httpx path. ``_sdk_reads`` lives in ``paypal_client`` and
+    is not modified here: a false result is how a refused build falls back.
+    Each distinct reason is logged once per process.
+    """
+    reason = _httpx_fallback_reason()
+    if reason is None:
+        return True
+    _log_fallback_once(reason)
+    return False
+
+
+def _env_is_sandbox() -> bool:
+    return (os.environ.get("PAYPAL_ENV") or "").strip().lower() == "sandbox"
+
+
+def _httpx_fallback_reason() -> str | None:
+    if not _flag_enabled():
+        return "ESCALES_PAYPAL_SDK_ENABLED is off"
+    if not _env_is_sandbox():
+        return "PAYPAL_ENV is not sandbox"
+    try:
+        client()
+    except RuntimeError as exc:
+        return str(exc)
+    return None
+
+
+def _log_fallback_once(reason: str) -> None:
+    with _CLIENT_LOCK:
+        if reason in _FALLBACK_REASONS:
+            return
+        _FALLBACK_REASONS.add(reason)
+    log.warning("%s (%s)", _FALLBACK_LOG, reason)
+
+
 def _raise_paypal_error(status: int, body: Any) -> NoReturn:
     """Raise the existing ``PayPalError`` without a static import cycle."""
     module = importlib.import_module("app.escales.paypal_client")
@@ -134,6 +199,34 @@ def _body_dict(body: Any) -> dict[str, Any]:
     return {str(key): value for key, value in raw.items()}
 
 
+def _type_is_transport(cls: type[BaseException]) -> bool:
+    for base in cls.mro():
+        if (base.__module__, base.__name__) in _TRANSPORT_TYPES:
+            return True
+    return False
+
+
+def _is_transport_error(exc: BaseException) -> bool:
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if _type_is_transport(type(current)):
+            return True
+        cause = current.__cause__
+        current = cause if isinstance(cause, BaseException) else None
+    return False
+
+
+def _reraise_transport_error(exc: BaseException) -> None:
+    if not _is_transport_error(exc):
+        return
+    try:
+        _raise_paypal_error(502, f"{_TRANSPORT_BODY}: {type(exc).__name__}")
+    except Exception as mapped:
+        raise mapped from exc
+
+
 def _execute(controller_name: str, operation: str, *args: Any) -> dict[str, Any]:
     sdk = client()
     controller = getattr(sdk, controller_name)
@@ -142,6 +235,7 @@ def _execute(controller_name: str, operation: str, *args: Any) -> dict[str, Any]
         result = operation_fn(*args)
     except Exception as exc:
         _reraise_api_error(exc)
+        _reraise_transport_error(exc)
         raise
     return _body_dict(getattr(result, "body", None))
 

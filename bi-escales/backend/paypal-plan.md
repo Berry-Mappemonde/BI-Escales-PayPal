@@ -137,3 +137,15 @@ Every call below is `HttpMethodEnum.GET` on `Server.DEFAULT`.
 - A typed error body that is not a JSON object leaves the unboxed attributes unset. `PayPalError` is built from `response_code` and `response.text`, not from those attributes, so the mapping still works. `str(exception)` on a typed error is not logged.
 
 `PayPalError` keeps logging only `name`, `debug_id`, and `details` when the body is a PayPal error object. Tokens, secrets, and raw bodies are not written by the gateway.
+
+## APIM-2b hardening
+
+`PayPalClient._sdk_reads` calls `paypal_sdk_reads_enabled` in `paypal_sdk_gateway` before any read. That function returns false, so the read stays on the httpx client, when:
+
+- `ESCALES_PAYPAL_SDK_ENABLED` is off (the default).
+- `PAYPAL_ENV` is not `sandbox`.
+- `build_sandbox_client` raises `RuntimeError` (non-sandbox host, missing credentials, or another build refusal).
+
+Each distinct reason writes one warning on logger `escales.paypal.sdk` (`PayPal SDK read gateway unavailable; using the httpx client`) and does not raise. A later read with the same reason does not log again until `reset_client`. Direct calls to `build_sandbox_client` still raise. The gateway never passes `Environment.PRODUCTION`.
+
+Connection errors and timeouts from a read (`requests` `ConnectionError` and `Timeout`, including connect and read timeouts, plus urllib3 connection and timeout errors, including when chained as `__cause__`) become `PayPalError` with status 502. That replaces the bullet above that said those failures propagate. `ApiException` mapping is unchanged. These seven operations remain GETs. The flag default stays off.

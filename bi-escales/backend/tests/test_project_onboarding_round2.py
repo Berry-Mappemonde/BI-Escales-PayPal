@@ -120,11 +120,14 @@ def test_forged_merchant_query_does_not_onboard(monkeypatch):
     class PayPalNoOnboard:
         def _req(self, method, path, json=None, **kwargs):
             if "merchant-integrations" in path:
-                return {
-                    "merchant_integrations": [
-                        {"payments_receivable": False, "primary_email_confirmed": False}
-                    ]
-                }
+                if "tracking_id=" in path:
+                    return {"merchant_id": "MERCH-NO", "tracking_id": pid, "links": []}
+                if "/merchant-integrations/" in path:
+                    return {
+                        "merchant_id": "MERCH-NO",
+                        "payments_receivable": False,
+                        "primary_email_confirmed": False,
+                    }
             return {}
 
     async def _run():

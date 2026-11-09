@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import uuid
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
@@ -49,6 +50,8 @@ from app.project_onboarding.store import (
     save_project,
     save_referral,
 )
+
+log = logging.getLogger("escales.project_onboarding.service")
 
 
 def _paypal() -> PayPalClient:
@@ -179,8 +182,34 @@ async def create_donation_order(
         "checkout_locale": paypal_checkout_locale(lang),
     }
     saved = await save_donation(doc)
-    await ensure_onboarding_link(project_id, lang=lang, client=client)
-    return saved
+    return await _attach_onboarding_link(saved, project_id, lang=lang, client=client)
+
+
+async def _attach_onboarding_link(
+    payload: dict,
+    project_id: str,
+    *,
+    lang: str = "fr",
+    client: Optional[PayPalClient] = None,
+) -> dict:
+    try:
+        referral = await ensure_onboarding_link(project_id, lang=lang, client=client)
+        payload["onboarding_link"] = {
+            "available": bool(referral.get("action_url")),
+            "action_url": referral.get("action_url"),
+        }
+    except PayPalError as exc:
+        log.warning(
+            "partner referral unavailable http_status=%s project_id=%s",
+            exc.status,
+            project_id,
+        )
+        payload["onboarding_link"] = {
+            "available": False,
+            "reason": "partner_referrals_unavailable",
+            "http_status": exc.status,
+        }
+    return payload
 
 
 async def finalize_donation_capture(
@@ -213,8 +242,13 @@ async def finalize_donation_capture(
         donation["status"] = ONBOARDING_REQUIRED_STATUS
         donation["capture_error_status"] = exc.status
     project_id = str(donation.get("project_id") or "")
-    await ensure_onboarding_link(project_id, lang=str(donation.get("checkout_locale") or "fr"), client=client)
-    return await save_donation(donation)
+    saved = await save_donation(donation)
+    return await _attach_onboarding_link(
+        saved,
+        project_id,
+        lang=str(donation.get("checkout_locale") or "fr"),
+        client=client,
+    )
 
 
 async def ensure_onboarding_link(
@@ -279,21 +313,22 @@ async def email_preview(project_id: str, *, lang: str = "fr", donation_id: str =
     elif donations:
         donation = donations[-1]
     amount = str((donation or {}).get("amount_eur") or "10.00")
-    deadline = str((donation or {}).get("deadline_at") or _deadline_from(now_iso()))
+    status = str((donation or {}).get("status") or "")
+    deadline = (donation or {}).get("deadline_at") if status == ONBOARDING_HELD_STATUS else None
     referral = await get_referral(project_id)
     if referral and referral.get("partner_referral_id"):
         referral = await refresh_action_url(project_id)
     else:
         referral = await ensure_onboarding_link(project_id, lang=lang)
     loc = _localized(project, lang)
-    foundation = str(project.get("foundation_title") or "Fondation Fictive des Océans")
     rendered = render_onboarding_email(
         lang=lang,
         amount_eur=amount,
-        foundation_name=foundation,
+        foundation_name=loc["foundation_title"],
         project_title=loc["title"],
         action_url=str(referral.get("action_url") or ""),
-        deadline_iso=deadline,
+        donation_status=status,
+        deadline_iso=str(deadline) if deadline else None,
     )
     return {**rendered, "action_url": referral.get("action_url")}
 
@@ -339,13 +374,17 @@ async def handle_onboarding_return(
         }
     client = client or _paypal()
     referrals = RawHttpPartnerReferralsClient(client)
-    integrations = referrals.merchant_integrations(partner_id=partner_id, tracking_id=project_id)
-    items = integrations.get("merchant_integrations") or integrations.get("items") or []
-    if isinstance(items, list) and items:
-        row = items[0] if isinstance(items[0], dict) else {}
-        receivable = bool(row.get("payments_receivable"))
-        email_confirmed = bool(row.get("primary_email_confirmed"))
-        merchant_verified = str(row.get("merchant_id") or row.get("merchant_id_in_paypal") or "").strip() or None
+    tracking = referrals.merchant_integrations_by_tracking(partner_id=partner_id, tracking_id=project_id)
+    integrations = tracking
+    merchant_id = str(tracking.get("merchant_id") or "").strip()
+    if merchant_id:
+        seller = referrals.merchant_integration_seller_status(partner_id=partner_id, merchant_id=merchant_id)
+        integrations = {"tracking": tracking, "seller": seller}
+        receivable = bool(seller.get("payments_receivable"))
+        email_confirmed = bool(seller.get("primary_email_confirmed"))
+        merchant_verified = merchant_id
+    else:
+        merchant_verified = None
     if receivable and email_confirmed:
         project["onboarding_status"] = ONBOARDED_STATUS
         project["onboarded_at"] = now_iso()

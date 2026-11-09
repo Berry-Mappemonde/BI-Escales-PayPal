@@ -81,17 +81,24 @@ async def get_project(project_id: str) -> Optional[dict]:
 
 async def list_donations(project_id: str) -> list[dict]:
     pid = str(project_id or "").strip()
-    out: list[dict] = []
-    with _lock:
-        for row in _bucket("donations").values():
-            if str(row.get("project_id") or "") == pid:
-                out.append(copy.deepcopy(row))
     if _mongo_wanted():
         coll = await _collection()
+        out: list[dict] = []
         cursor = coll.find({"kind": "donation", "project_id": pid})
         async for row in cursor:
             doc = {k: v for k, v in row.items() if k != "kind"}
-            out.append(doc)
+            out.append(copy.deepcopy(doc))
+            did = str(doc.get("_id") or "")
+            if did:
+                with _lock:
+                    _bucket("donations")[did] = copy.deepcopy(doc)
+        return sorted(out, key=lambda r: str(r.get("created_at") or ""))
+    with _lock:
+        out = [
+            copy.deepcopy(row)
+            for row in _bucket("donations").values()
+            if str(row.get("project_id") or "") == pid
+        ]
     return sorted(out, key=lambda r: str(r.get("created_at") or ""))
 
 

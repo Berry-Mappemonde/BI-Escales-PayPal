@@ -23,7 +23,16 @@ from app.routers import project_onboarding as onboarding_router
 
 
 class MockPayPal:
-    def __init__(self, *, capture_status: int = 201, capture_body: dict | None = None, fail_capture: bool = False):
+    def __init__(
+        self,
+        *,
+        capture_status: int = 201,
+        capture_body: dict | None = None,
+        fail_capture: bool = False,
+        fail_referral_status: int = 0,
+        seller_receivable: bool = True,
+        seller_email_confirmed: bool = True,
+    ):
         self.cfg = EscalesConfig(client_id="cid", client_secret="secret", base_url=SANDBOX_BASE, env="sandbox")
         self.capture_status = capture_status
         self.capture_body = capture_body or {
@@ -31,6 +40,9 @@ class MockPayPal:
             "purchase_units": [{"payments": {"captures": [{"id": "CAP-MOCK", "status": "COMPLETED"}]}}],
         }
         self.fail_capture = fail_capture
+        self.fail_referral_status = fail_referral_status
+        self.seller_receivable = seller_receivable
+        self.seller_email_confirmed = seller_email_confirmed
         self.orders: list[dict] = []
         self.referrals: list[dict] = []
 
@@ -57,6 +69,8 @@ class MockPayPal:
                 return response
             return httpx.Response(self.capture_status, json=self.capture_body)
         if method == "POST" and path == "/v2/customer/partner-referrals":
+            if self.fail_referral_status:
+                return httpx.Response(self.fail_referral_status, text='{"name":"NOT_AUTHORIZED"}')
             self.referrals.append(kwargs.get("json"))
             return httpx.Response(
                 201,
@@ -77,10 +91,24 @@ class MockPayPal:
                 },
             )
         if "merchant-integrations" in path:
-            return httpx.Response(
-                200,
-                json={"merchant_integrations": [{"payments_receivable": True, "primary_email_confirmed": True}]},
-            )
+            if "tracking_id=" in path:
+                return httpx.Response(
+                    200,
+                    json={
+                        "merchant_id": "MERCH-MOCK",
+                        "tracking_id": "projet-demo-recif-vivant",
+                        "links": [],
+                    },
+                )
+            if "/merchant-integrations/" in path:
+                return httpx.Response(
+                    200,
+                    json={
+                        "merchant_id": "MERCH-MOCK",
+                        "payments_receivable": self.seller_receivable,
+                        "primary_email_confirmed": self.seller_email_confirmed,
+                    },
+                )
         raise AssertionError(f"unexpected {method} {path}")
 
     def _req(self, method, path, json=None, idempotency_key=None, content=None, **kwargs):

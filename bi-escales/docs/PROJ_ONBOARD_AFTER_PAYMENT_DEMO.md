@@ -21,3 +21,5 @@ Evidence screenshots for criterion C9 are captured on test2 by the tester under 
 - Contact email on test2 only: env `ESCALES_DEMO_PROJECT_CONTACT_EMAIL` (placeholder in docs: `<CLEMENT_EMAIL>`).
 - Tests use `project@example.com` only.
 - Toggle **Onboard After Payment** on app `APP-9RY91696GH803810X` remains **BLOCKED_ON_CLEMENT**; the C4 fallback path must pass without it.
+- **Partner Referrals** (`POST /v2/customer/partner-referrals`) needs a sandbox **platform** app whose REST credentials (`PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` on test2) include the **Partner Referrals** permission. Without it, PayPal may return **403**; donations still succeed (order saved) but `onboarding_link.available` is `false` until permission is granted or a link is created another way.
+- Onboarding return uses PayPal **merchant-integrations** (tracking lookup, then seller status). Set `PAYPAL_PARTNER_MERCHANT_ID` on test2; query-string `merchantId` is **not** trusted for marking a project onboarded.

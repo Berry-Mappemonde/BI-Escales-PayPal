@@ -71,7 +71,8 @@ class RawHttpPartnerReferralsClient:
             raise PayPalError(400, "partner_referral_id required")
         return self._client._req("GET", f"/v2/customer/partner-referrals/{token}")
 
-    def merchant_integrations(self, *, partner_id: str, tracking_id: str) -> dict:
+    def merchant_integrations_by_tracking(self, *, partner_id: str, tracking_id: str) -> dict:
+        """GET …/merchant-integrations?tracking_id= → merchant_id, tracking_id, links."""
         pid = str(partner_id or "").strip()
         if not pid:
             raise PayPalError(400, "partner_id required")
@@ -79,6 +80,21 @@ class RawHttpPartnerReferralsClient:
 
         tid = quote(str(tracking_id or ""), safe="")
         path = f"/v1/customer/partners/{pid}/merchant-integrations?tracking_id={tid}"
+        return self._client._req("GET", path)
+
+    def merchant_integrations(self, *, partner_id: str, tracking_id: str) -> dict:
+        """Backward-compatible alias for tracking lookup."""
+        return self.merchant_integrations_by_tracking(partner_id=partner_id, tracking_id=tracking_id)
+
+    def merchant_integration_seller_status(self, *, partner_id: str, merchant_id: str) -> dict:
+        """GET …/merchant-integrations/{merchant_id} → payments_receivable, primary_email_confirmed."""
+        pid = str(partner_id or "").strip()
+        mid = str(merchant_id or "").strip()
+        if not pid or not mid:
+            raise PayPalError(400, "partner_id and merchant_id required")
+        from urllib.parse import quote
+
+        path = f"/v1/customer/partners/{pid}/merchant-integrations/{quote(mid, safe='')}"
         return self._client._req("GET", path)
 
 

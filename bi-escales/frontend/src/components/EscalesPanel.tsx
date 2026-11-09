@@ -12,6 +12,7 @@ export interface EscalesPanelProps {
   onMilestoneId?: (id: string) => void;
   onSuggested?: (pledge: CaptainChatResponse["suggested_pledge"]) => void;
   onAuthorized?: (pledge: PublicPledge) => void;
+  onLocateBoat?: () => void;
 }
 
 export function EscalesPanel({
@@ -20,6 +21,7 @@ export function EscalesPanel({
   onMilestoneId,
   onSuggested,
   onAuthorized,
+  onLocateBoat,
 }: EscalesPanelProps) {
   const { t, i18n } = useTranslation();
   const lang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
@@ -116,7 +118,17 @@ export function EscalesPanel({
         <ul className="captain-prompts" aria-label={t("escales.exampleQuestions")}>
           <li><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2a6 6 0 1 0 0 12 6 6 0 1 0 0-12Zm0 3v3l2 1" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" /></svg>{t("escales.whenCharged")}</li>
           <li><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13 7a5 5 0 1 1-5-4H4m0 0 2-2M4 3l2 2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" /></svg>{t("escales.cancelledStop")}</li>
-          <li><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 11h12l-2 3H4zM8 2v8M8 3l4 5H8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" /></svg>{t("escales.whereIsBoat")}</li>
+          <li>
+            <button
+              type="button"
+              className="captain-prompt-chip"
+              data-testid="captain-locate-boat"
+              onClick={() => onLocateBoat?.()}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 11h12l-2 3H4zM8 2v8M8 3l4 5H8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              {t("escales.whereIsBoat")}
+            </button>
+          </li>
         </ul>
       ) : null}
       <form className="stack-form" onSubmit={onChat}>

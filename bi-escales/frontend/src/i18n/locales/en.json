@@ -99,6 +99,9 @@
     "legendDefault": "Marina — red on the map (Maps search link)",
     "legendRejected": "Rejected Google place — red on the map"
   },
+  "map": {
+    "boatMarker": "Boat / catamaran"
+  },
   "fund": {
     "heading": "Common fund",
     "figures": "balance {{balance}} {{currency}} (income {{income}}, spending {{spending}})",

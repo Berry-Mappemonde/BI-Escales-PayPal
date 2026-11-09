@@ -99,6 +99,9 @@
     "legendDefault": "Marina — rouge sur la carte (lien recherche Maps)",
     "legendRejected": "Fiche Google rejetée — rouge sur la carte"
   },
+  "map": {
+    "boatMarker": "Bateau / catamaran"
+  },
   "fund": {
     "heading": "Caisse commune",
     "figures": "solde {{balance}} {{currency}} (recettes {{income}}, dépenses {{spending}})",

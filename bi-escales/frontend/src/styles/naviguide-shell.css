@@ -788,6 +788,21 @@ body.ng-naviguide-shell {
 .captain-chat .stack-form button { align-self: end; justify-self: end; }
 .captain-prompts { display: flex; gap: var(--space-1); flex-wrap: wrap; margin: var(--space-3) 0 0; padding: 0; list-style: none; }
 .captain-prompts li { border: 1px solid var(--color-line-strong); padding: var(--space-1) var(--space-2); border-radius: var(--radius-tray); color: var(--color-fg-2); font-size: var(--text-meta); }
+.captain-prompts button.captain-prompt-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
 .captain-thinking { color: var(--color-fg-2); animation: captain-appear var(--duration-base) var(--ease-out); }
 @keyframes captain-appear { from { opacity: 0; } to { opacity: 1; } }
 

@@ -20,6 +20,7 @@ import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { useTheme } from "./hooks/useTheme";
 import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
+import { resolveBoatStop } from "./voyage/boatStop.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
 import { isNarrowScreen } from "./utils/narrowScreen";
@@ -354,6 +355,15 @@ export default function App() {
       setFlyTo({ lat: next.lat, lon: next.lon, ts: Date.now() });
     }
   };
+
+  const locateBoat = useCallback(() => {
+    const target = resolveBoatStop(voyage?.stops, sample);
+    if (!target) return;
+    chooseStop(target);
+    if (sample && Number.isFinite(sample.lat) && Number.isFinite(sample.lon)) {
+      setFlyTo({ lat: sample.lat, lon: sample.lon, ts: Date.now() });
+    }
+  }, [voyage?.stops, sample]);
 
   const onSchedulePick = (event: { milestoneId?: string; lat?: number; lon?: number; name?: string }) => {
     if (!event?.milestoneId) return;
@@ -738,6 +748,7 @@ export default function App() {
           flyTo={flyTo}
           theme={theme}
           onSelectStop={chooseStop}
+          onSelectBoat={locateBoat}
           onFlyTo={onFlyTo}
           contributor={contributor}
           onPledgeAuthorized={onAuthorized}
@@ -828,6 +839,7 @@ export default function App() {
               onMilestoneId={setMilestoneId}
               onSuggested={onSuggested}
               onAuthorized={onAuthorized}
+              onLocateBoat={locateBoat}
             />
             <CrewSupporterPublicSection adminKey={adminKey.trim() || undefined} />
             {publicCommonFund ? (

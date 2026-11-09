@@ -16,6 +16,8 @@
     "dismissNoticeAria": "Dismiss",
     "toolsCollapse": "Hide tools",
     "toolsExpand": "Show settings",
+    "stopPanelSheetCollapse": "Hide stop panel",
+    "stopPanelSheetExpand": "Back a stop",
     "metaDescription": "BI Escales — support the Berry-Mappemonde expedition. Stop pledges capture on boat arrival (voided if the stop is cancelled); cabins on leg departure; common fund and project gifts at once.",
     "ogLocale": "en_US"
   },

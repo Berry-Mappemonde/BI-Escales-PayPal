@@ -23,7 +23,7 @@ import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscale
 import { resolveBoatStop } from "./voyage/boatStop.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
-import { isNarrowScreen } from "./utils/narrowScreen";
+import { isMobileToolsSheet, isNarrowScreen } from "./utils/narrowScreen";
 import { formatCivilDate } from "./voyage/voyageClock.js";
 import { escaleArrivalIso, logbookEntriesForStop } from "./voyage/journalDisplay.js";
 import {
@@ -686,6 +686,16 @@ export default function App() {
     return { ...projects, features: [] };
   }, [projects, tab]);
 
+  const mobileToolsSheet = isMobileToolsSheet();
+  const toolsPanelToggleLabel = mobileToolsSheet
+    ? toolsOpen
+      ? t("app.stopPanelSheetCollapse")
+      : t("app.stopPanelSheetExpand")
+    : toolsOpen
+      ? t("app.toolsCollapse")
+      : t("app.toolsExpand");
+  const toggleToolsPanel = useCallback(() => setToolsOpen((open) => !open), []);
+
   const treasurerPanel = (
     <TreasurerPanel
       open={treasurerOpen}
@@ -774,8 +784,8 @@ export default function App() {
           className={`ng-tools-toggle ng-tools-toggle--right${toolsOpen ? " is-open" : ""}`}
           data-testid="ng-tools-toggle"
           aria-expanded={toolsOpen}
-          aria-label={toolsOpen ? t("app.toolsCollapse") : t("app.toolsExpand")}
-          onClick={() => setToolsOpen((open) => !open)}
+          aria-label={toolsPanelToggleLabel}
+          onClick={toggleToolsPanel}
         >
           {toolsOpen ? "▶" : "⚙"}
         </button>
@@ -929,6 +939,19 @@ export default function App() {
         data-testid="ng-tools-panel"
         aria-hidden={!toolsOpen}
       >
+        {mobileToolsSheet ? (
+          <button
+            type="button"
+            className="ng-tools-sheet-handle"
+            data-testid="ng-tools-sheet-handle"
+            aria-expanded={toolsOpen}
+            aria-label={toolsPanelToggleLabel}
+            onClick={toggleToolsPanel}
+          >
+            <span className="ng-tools-sheet-handle-bar" aria-hidden="true" />
+            <span className="ng-tools-sheet-handle-label">{toolsPanelToggleLabel}</span>
+          </button>
+        ) : null}
         <ShellSettingsPanel prod={prod} devT0={devT0} t0={t0} onDevT0Change={setDevT0}>
           {stop ? (
             <EscalePopup

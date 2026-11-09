@@ -161,8 +161,13 @@ body.ng-naviguide-shell {
 }
 
 .ng-tools-panel.ng-collapsed {
-  transform: translateX(100%);
   pointer-events: none;
+}
+
+@media (min-width: 901px) {
+  .ng-tools-panel.ng-collapsed {
+    transform: translateX(100%);
+  }
 }
 
 /* Focus lands here when a stop opens on a phone. The browser default ring is amber. */
@@ -261,20 +266,77 @@ body.ng-naviguide-shell {
 @media (max-width: 900px) {
   .ng-tools-panel {
     top: auto;
-    height: 45vh;
+    height: min(45vh, 22rem);
+    max-height: 55vh;
     width: 100%;
     left: 0;
     right: 0;
     bottom: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0 var(--space-3) var(--space-3);
     border-left: none;
     border-top: 1px solid var(--shell-border);
+    border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+    box-shadow: 0 -6px 28px color-mix(in srgb, var(--color-fg) 14%, transparent);
+  }
+
+  .ng-tools-panel.ng-collapsed {
+    transform: translateY(100%);
+  }
+
+  .ng-tools-panel .ng-settings-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .ng-tools-sheet-handle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    flex: none;
+    width: calc(100% + 2 * var(--space-3));
+    margin: 0 calc(-1 * var(--space-3)) var(--space-2);
+    padding: var(--space-2) var(--space-3) var(--space-1);
+    border: 0;
+    border-bottom: 1px solid var(--color-line);
+    background: var(--color-panel);
+    color: var(--color-fg-2);
+    font-size: var(--text-meta);
+    line-height: var(--text-meta--line-height);
+    cursor: pointer;
+  }
+
+  .ng-tools-sheet-handle-bar {
+    width: 2.75rem;
+    height: 0.28rem;
+    border-radius: 999px;
+    background: var(--color-fg-3);
+  }
+
+  .ng-tools-sheet-handle-label {
+    font-weight: 500;
+    color: var(--color-fg);
+  }
+
+  .ng-map-layer > .ng-tools-toggle--right {
+    bottom: calc(min(45vh, 22rem) + var(--space-2));
+    top: auto;
+  }
+
+  .ng-shell:has(> .ng-tools-panel.ng-collapsed) > .ng-map-layer > .ng-tools-toggle--right {
+    bottom: var(--space-2);
   }
 
   .ng-sidebar.ng-collapsed {
     transform: translateX(-100%);
   }
+}
 
-
+.ng-tools-sheet-handle {
+  display: none;
 }
 
 .treasurer-panel-toggle {

@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 from .app_i18n import normalize_app_lang
 from .ledger import _euros, get_ledger, list_finance_entries, record_finance, update_finance_entry
-from .pledges import refunded_amount_from_pledge
+from .paypal_settlement import pledge_spendable_net_eur
 from .paypal_client import PayPalError, _paypal_api_error_fields
 
 
@@ -43,7 +43,7 @@ async def _payout_sent_for_proposal(payout_id: str) -> Optional[dict]:
 
 
 async def project_captured_eur(project_id: str) -> Decimal:
-    """Sum of captured project pledges for one BI project id."""
+    """Sum spendable EUR net per pledge (PayPal capture net after fees/FX, minus refund takebacks)."""
     pid = str(project_id or "").strip()
     total = Decimal("0.00")
     for row in await get_ledger().list_pledges():
@@ -53,7 +53,7 @@ async def project_captured_eur(project_id: str) -> Decimal:
             continue
         if str(row.get("status") or "") not in ("captured", "partially_refunded"):
             continue
-        total += _euros(row.get("amount_eur")) - refunded_amount_from_pledge(row)
+        total += pledge_spendable_net_eur(row)
     return total
 
 

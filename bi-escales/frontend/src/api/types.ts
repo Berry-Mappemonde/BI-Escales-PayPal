@@ -134,6 +134,70 @@ export interface FeatureFlags {
   clock_pinned?: boolean;
   crew_supporter_plan_id?: string | null;
   demo_treasurer?: boolean;
+  channel3?: boolean;
+  wishlists?: boolean;
+}
+
+/** Public Channel3 catalogue / wishlist line (GET catalog, wishlists). */
+export interface Channel3CatalogItem {
+  channel3_product_id: string;
+  project_id: string;
+  name: string;
+  category?: string;
+  catalog_optional?: boolean;
+  core_catalogue?: boolean;
+  quantity_needed?: number;
+  /** Wishlist line quantity (C3-APP); absent on bare catalogue rows until contract ships on #133. */
+  quantity?: number;
+  unit_price_amount_minor?: number;
+  unit_price_currency?: string;
+  unit_price_display?: string;
+  merchant?: string;
+  merchant_country?: string;
+  image_url?: string | null;
+  caution?: string | null;
+  price_amount_minor?: number;
+  price_currency?: string;
+  price_display?: string;
+  target_amount_minor?: number;
+  target_currency?: string;
+  target_display?: string;
+  funded_amount_minor?: number;
+  funded_currency?: string;
+  funded_display?: string;
+  funded_pct?: number | null;
+  fully_funded?: boolean;
+  paypal_currency_supported?: boolean;
+  catalog_default_target_amount_minor?: number;
+  catalog_default_target_currency?: string;
+  channel3_buy_url?: string;
+  channel3_buy_disclosure?: string;
+}
+
+export interface PublicWishlist {
+  wishlist_id: string;
+  slug?: string;
+  title: string;
+  published?: boolean;
+  updated_at?: string;
+  items: Channel3CatalogItem[];
+}
+
+export interface TreasurerWishlistItem {
+  channel3_product_id: string;
+  project_id?: string;
+  quantity?: number;
+  target_amount_minor?: number;
+  target_currency?: string;
+}
+
+export interface TreasurerWishlistDoc {
+  _id: string;
+  slug?: string;
+  title: string;
+  published?: boolean;
+  updated_at?: string;
+  items?: TreasurerWishlistItem[];
 }
 
 export interface TreasurerAccessOptions {

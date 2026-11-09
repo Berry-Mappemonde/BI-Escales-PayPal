@@ -9,6 +9,9 @@ import type {
   PublicProjectDonationTotal,
   ClockSettleResponse,
   TreasurerAccessOptions,
+  Channel3CatalogItem,
+  PublicWishlist,
+  TreasurerWishlistDoc,
 } from "./types";
 import { captainSessionHeaders } from "./escalesSession";
 
@@ -103,15 +106,15 @@ async function parseError(res: Response): Promise<string> {
   return res.statusText || `HTTP ${res.status}`;
 }
 
-export async function fetchHealth(): Promise<{ status: string }> {
+async function fetchHealth(): Promise<{ status: string }> {
   const res = await fetch(url("/api/health"));
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
 
 /** A cold Render start often answers 502 before the process is up. */
-export const HEALTH_ATTEMPTS = 6;
-export const HEALTH_WAIT_MS = 3000;
+const HEALTH_ATTEMPTS = 6;
+const HEALTH_WAIT_MS = 3000;
 
 export type HealthBanner = "ok" | "wait" | "down";
 
@@ -226,12 +229,6 @@ export async function fetchFeatures(): Promise<FeatureFlags> {
 export function isVaultPledge(pledge: PublicPledge): boolean {
   if (pledge.payment_mode === "VAULT" || pledge.intent === "VAULT") return true;
   return Boolean(pledge.setup_token_id && !pledge.order_id);
-}
-
-export async function getPledge(pledgeId: string): Promise<PublicPledge> {
-  const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}`));
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json();
 }
 
 export async function settleClock(adminKey: string, now?: string): Promise<ClockSettleResponse> {
@@ -397,21 +394,46 @@ export async function fetchPublicCommonFund(): Promise<FundView | null> {
   }
 }
 
-export async function listMilestones(): Promise<Milestone[]> {
-  const res = await fetch(url("/api/escales/milestones"));
+export interface DemoStopAction {
+  pledge_id: string;
+  action: string;
+  status?: string;
+  capture_id?: string;
+  void_id?: string;
+  detail?: string;
+}
+
+export interface DemoStopMomentResponse {
+  milestone_id: string;
+  now?: string;
+  demo_cancelled?: boolean;
+  captain_review_approved_at?: string;
+  actions: DemoStopAction[];
+}
+
+async function postDemoStop(action: string, milestoneId: string): Promise<DemoStopMomentResponse> {
+  const res = await fetch(
+    url(`/api/escales/demo/stops/${encodeURIComponent(milestoneId)}/${action}`),
+    { method: "POST", headers: { "Content-Type": "application/json" } },
+  );
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
 
-export async function postEvidence(
-  milestoneId: string,
-  body: { met?: boolean; facts?: Record<string, unknown> },
-): Promise<Record<string, unknown>> {
-  const res = await fetch(url(`/api/escales/milestones/${encodeURIComponent(milestoneId)}/evidence`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+export function demoSimulateArrival(milestoneId: string): Promise<DemoStopMomentResponse> {
+  return postDemoStop("simulate-arrival", milestoneId);
+}
+
+export function demoCancelStop(milestoneId: string): Promise<DemoStopMomentResponse> {
+  return postDemoStop("cancel", milestoneId);
+}
+
+export function demoResetStop(milestoneId: string): Promise<DemoStopMomentResponse> {
+  return postDemoStop("reset", milestoneId);
+}
+
+export async function listMilestones(): Promise<Milestone[]> {
+  const res = await fetch(url("/api/escales/milestones"));
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
@@ -522,36 +544,6 @@ export async function fetchCrewSupporterPlan(lang?: string): Promise<{ plan_id: 
   return res.json();
 }
 
-export async function createCrewSubscriptionCheckout(body?: {
-  return_url?: string;
-  cancel_url?: string;
-  clientRequestId?: string;
-  lang?: string;
-}): Promise<{
-  plan_id: string;
-  subscription_id?: string;
-  approve_link?: string | null;
-  product_id?: string;
-  status?: string;
-}> {
-  const defaults = typeof window !== "undefined" ? crewSubscriptionPageUrls() : { return_url: "", cancel_url: "" };
-  const payload = {
-    return_url: body?.return_url ?? defaults.return_url,
-    cancel_url: body?.cancel_url ?? defaults.cancel_url,
-    lang: body?.lang,
-  };
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const clientRequestId = body?.clientRequestId?.trim() || crypto.randomUUID();
-  headers["paypal-request-id"] = clientRequestId;
-  const res = await fetch(url("/api/escales/paypal/subscriptions/create"), {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json();
-}
-
 export async function approveCrewSubscription(body: {
   subscription_id: string;
   plan_id: string;
@@ -573,6 +565,90 @@ export async function recordSubscription(
     method: "POST",
     headers: { ...treasurerHeaders(adminKey), "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+/** GET /channel3/catalog — public seed catalogue + funding fields. */
+export async function fetchChannel3Catalog(): Promise<{ item_count: number; items: Channel3CatalogItem[] }> {
+  const res = await fetch(url("/api/escales/channel3/catalog"));
+  if (!res.ok) throw new Error(await parseError(res));
+  const body = (await res.json()) as { item_count?: number; items?: Channel3CatalogItem[] };
+  return {
+    item_count: Number(body.item_count) || 0,
+    items: Array.isArray(body.items) ? body.items : [],
+  };
+}
+
+/** GET /wishlists — published wishlists only. */
+export async function fetchPublicWishlists(): Promise<{ wishlists: PublicWishlist[] }> {
+  const res = await fetch(url("/api/escales/wishlists"));
+  if (!res.ok) throw new Error(await parseError(res));
+  const body = (await res.json()) as { wishlists?: PublicWishlist[] };
+  return { wishlists: Array.isArray(body.wishlists) ? body.wishlists : [] };
+}
+
+export async function fetchTreasurerWishlists(adminKey: string): Promise<{ wishlists: TreasurerWishlistDoc[] }> {
+  const res = await fetch(url("/api/escales/treasurer/wishlists"), {
+    headers: treasurerHeaders(adminKey),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  const body = (await res.json()) as { wishlists?: TreasurerWishlistDoc[] };
+  return { wishlists: Array.isArray(body.wishlists) ? body.wishlists : [] };
+}
+
+export async function createTreasurerWishlist(
+  adminKey: string,
+  body: { title: string; slug: string; items?: Array<{ channel3_product_id: string; quantity?: number; target_amount_minor?: number | null; allow_optional?: boolean }> },
+): Promise<TreasurerWishlistDoc> {
+  const res = await fetch(url("/api/escales/treasurer/wishlists"), {
+    method: "POST",
+    headers: { ...treasurerHeaders(adminKey), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function addTreasurerWishlistItem(
+  adminKey: string,
+  wishlistId: string,
+  body: { channel3_product_id: string; quantity?: number; target_amount_minor?: number | null; allow_optional?: boolean },
+): Promise<TreasurerWishlistDoc> {
+  const res = await fetch(url(`/api/escales/treasurer/wishlists/${encodeURIComponent(wishlistId)}/items`), {
+    method: "POST",
+    headers: { ...treasurerHeaders(adminKey), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function removeTreasurerWishlistItem(
+  adminKey: string,
+  wishlistId: string,
+  channel3ProductId: string,
+): Promise<TreasurerWishlistDoc> {
+  const res = await fetch(
+    url(
+      `/api/escales/treasurer/wishlists/${encodeURIComponent(wishlistId)}/items/${encodeURIComponent(channel3ProductId)}`,
+    ),
+    { method: "DELETE", headers: treasurerHeaders(adminKey) },
+  );
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+export async function publishTreasurerWishlist(
+  adminKey: string,
+  wishlistId: string,
+  published: boolean,
+): Promise<TreasurerWishlistDoc> {
+  const res = await fetch(url(`/api/escales/treasurer/wishlists/${encodeURIComponent(wishlistId)}/publish`), {
+    method: "POST",
+    headers: { ...treasurerHeaders(adminKey), "Content-Type": "application/json" },
+    body: JSON.stringify({ published }),
   });
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();

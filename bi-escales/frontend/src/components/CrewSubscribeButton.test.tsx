@@ -3,7 +3,7 @@ import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../i18n";
 import { fetchCrewSupporterPlan } from "../api/escales";
-import { CrewSubscribeButton } from "./CrewSubscribeButton";
+import { CrewSubscribeButton, CrewSupporterPublicSection } from "./CrewSubscribeButton";
 import { loadPayPalSubscriptionSdk } from "../paypal/paypalSdk";
 
 vi.mock("../api/escales", async (importOriginal) => {
@@ -89,7 +89,7 @@ describe("CrewSubscribeButton", () => {
 
     render(
       <I18nextProvider i18n={i18n}>
-        <CrewSubscribeButton />
+        <CrewSupporterPublicSection adminKey="sandbox-admin" />
       </I18nextProvider>,
     );
 
@@ -108,6 +108,56 @@ describe("CrewSubscribeButton", () => {
     await waitFor(() => expect(buttonsFactory).toHaveBeenCalled());
     expect(screen.getByTestId("crew-subscribe-host")).toBeInTheDocument();
     expect(screen.queryByTestId("crew-subscribe-error")).toBeNull();
+  });
+
+  it("hides the crew block for visitors when the plan id is missing", async () => {
+    vi.mocked(fetchCrewSupporterPlan).mockResolvedValue({ plan_id: null });
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CrewSupporterPublicSection />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(fetchCrewSupporterPlan).toHaveBeenCalled();
+    });
+    expect(screen.queryByTestId("crew-supporter-public")).toBeNull();
+    expect(screen.queryByText(/Ask the treasurer/i)).toBeNull();
+    expect(document.querySelector(".notice.error")).toBeNull();
+  });
+
+  it("hides the crew button for visitors when the plan id is missing", async () => {
+    vi.mocked(fetchCrewSupporterPlan).mockResolvedValue({ plan_id: null });
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CrewSubscribeButton />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(fetchCrewSupporterPlan).toHaveBeenCalled();
+    });
+    expect(screen.queryByTestId("crew-subscribe")).toBeNull();
+    expect(document.querySelector(".notice.error")).toBeNull();
+  });
+
+  it("shows a neutral treasurer hint when the plan id is missing and admin key is set", async () => {
+    await i18n.changeLanguage("en");
+    vi.mocked(fetchCrewSupporterPlan).mockResolvedValue({ plan_id: null });
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CrewSupporterPublicSection adminKey="sandbox-admin" />
+      </I18nextProvider>,
+    );
+
+    const hint = await screen.findByTestId("crew-subscribe-treasurer-hint");
+    expect(hint).toHaveClass("hint");
+    expect(hint).not.toHaveClass("error");
+    expect(hint.textContent).toMatch(/Ensure Crew supporter plan \(sandbox\)/i);
+    expect(document.querySelector(".notice.error")).toBeNull();
   });
 
   it("does not read window.paypal (a stopover SDK there cannot break the Crew button)", async () => {

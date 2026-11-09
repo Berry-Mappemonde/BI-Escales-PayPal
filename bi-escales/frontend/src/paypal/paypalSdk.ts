@@ -52,6 +52,7 @@ export function paypalSdkUrl(
   appLang?: string,
   intent: SdkIntent = "authorize",
   walletPay = false,
+  currency = "EUR",
 ): string {
   const components = walletPay
     ? "buttons,card-fields,messages,applepay,googlepay"
@@ -59,7 +60,7 @@ export function paypalSdkUrl(
   const params = sdkParams(clientId, paypalLocale(appLang), {
     components,
     intent,
-    currency: "EUR",
+    currency: String(currency || "EUR").trim().toUpperCase() || "EUR",
     vault: "true",
     "disable-funding": "venmo",
     "enable-funding": "paylater",
@@ -205,10 +206,11 @@ export function loadPayPalSdk(
   appLang?: string,
   intent: SdkIntent = "authorize",
   walletPay = false,
+  currency = "EUR",
 ): Promise<PayPalNamespace> {
   const trimmed = clientId.trim();
   if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
-  return loadNamespacedSdk(paypalSdkUrl(trimmed, appLang, intent, walletPay));
+  return loadNamespacedSdk(paypalSdkUrl(trimmed, appLang, intent, walletPay, currency));
 }
 
 export function loadPayPalWalletPaySdk(

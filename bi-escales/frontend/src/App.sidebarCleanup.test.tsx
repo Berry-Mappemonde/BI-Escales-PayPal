@@ -24,6 +24,7 @@ vi.mock("./api/escales", async (importOriginal) => {
     fetchFeatures: vi.fn().mockResolvedValue({ clock_pinned: false }),
     fetchGearProjects: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),
     fetchFund: vi.fn().mockResolvedValue({}),
+    fetchCrewSupporterPlan: vi.fn().mockResolvedValue({ plan_id: "PLAN-TEST" }),
   };
 });
 
@@ -66,7 +67,7 @@ vi.mock("./voyage/loadVoyage.js", () => ({
     return null;
   }),
   sampleAt: vi.fn().mockReturnValue({ iso: "2026-11-12T08:00:00.000Z", sailNm: 0, lat: 46, lon: -1 }),
-  voyageFromRoute: vi.fn((fc) => ({
+  voyageFromRoute: vi.fn((_fc: unknown) => ({
     clock: {},
     segments: [],
     stops: [
@@ -81,7 +82,14 @@ vi.mock("./components/EscalePopup.jsx", () => ({ EscalePopup: () => null }));
 vi.mock("./components/EscalesPanel", () => ({ EscalesPanel: () => <div data-testid="captain-panel" /> }));
 vi.mock("./components/MarinasPanel.jsx", () => ({ default: () => <div data-testid="marinas-panel" /> }));
 vi.mock("./components/stop/HowItWorks.jsx", () => ({ HowItWorks: () => <div data-testid="how-it-works" /> }));
-vi.mock("./components/CrewSubscribeButton", () => ({ CrewSubscribeButton: () => <span data-testid="crew-button" /> }));
+vi.mock("./components/CrewSubscribeButton", () => ({
+  CrewSubscribeButton: () => <span data-testid="crew-button" />,
+  CrewSupporterPublicSection: () => (
+    <section className="crew-supporter-public" data-testid="crew-supporter-public">
+      <span data-testid="crew-button" />
+    </section>
+  ),
+}));
 vi.mock("./marinas/escaleFiche.js", () => ({
   loadEscaleFiche: vi.fn(),
   loadEscaleMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),

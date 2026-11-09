@@ -11,7 +11,7 @@ import MarinasPanel from "./components/MarinasPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
 import { TreasurerPanel } from "./components/TreasurerPanel";
 import { ShellSettingsPanel } from "./components/ShellSettingsPanel";
-import { CrewSubscribeButton } from "./components/CrewSubscribeButton";
+import { CrewSupporterPublicSection } from "./components/CrewSubscribeButton";
 import { HowItWorks } from "./components/stop/HowItWorks.jsx";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
 import { ToastContainer } from "./components/Toast";
@@ -108,6 +108,7 @@ export default function App() {
   });
   const [treasurerOpen, setTreasurerOpen] = useState(false);
   const [bryntumEnabled, setBryntumEnabled] = useState(false);
+  const [wishlistsEnabled, setWishlistsEnabled] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
 
   const prod = Boolean(import.meta.env.PROD);
@@ -196,6 +197,7 @@ export default function App() {
       .then((flags) => {
         if (cancelled) return;
         setBryntumEnabled(Boolean(flags.bryntum));
+        setWishlistsEnabled(Boolean(flags.wishlists));
         setClockPinned(Boolean(flags.clock_pinned));
         setDemoTreasurerAvailable(Boolean(flags.demo_treasurer));
       })
@@ -781,6 +783,11 @@ export default function App() {
             {t("tabs.gear")}
           </button>
         </div>
+        {wishlistsEnabled ? (
+          <p className="wishlists-nav" data-testid="wishlists-nav-link">
+            <a href="/escales/wishlists">{t("wishlists.navLink")}</a>
+          </p>
+        ) : null}
         <p className="ng-clock-line voyage-clock" data-testid="voyage-clock">
           {countdownHours !== null ? (
             <span className="voyage-clock-countdown">
@@ -804,15 +811,7 @@ export default function App() {
               onSuggested={onSuggested}
               onAuthorized={onAuthorized}
             />
-            <section className="crew-supporter-public" data-testid="crew-supporter-public">
-              <div className="crew-supporter-heading">
-                <h2>{t("pledge.crewSubscribeHint")}</h2>
-                <small className="crew-sandbox-note">{t("pledge.crewSubscribeSandbox")}</small>
-              </div>
-              <div className="crew-paypal-frame">
-                <CrewSubscribeButton adminKey={adminKey.trim() || undefined} suppressHeadingHint />
-              </div>
-            </section>
+            <CrewSupporterPublicSection adminKey={adminKey.trim() || undefined} />
             {publicCommonFund ? (
               <p className="hint public-common-fund" data-testid="public-common-fund">
                 {t("fund.publicCommon", {

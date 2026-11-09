@@ -7,6 +7,8 @@ import { TreasurerWebhookPanel } from "./TreasurerWebhookPanel";
 import { TreasurerQueue } from "./TreasurerQueue";
 import { TreasurerGrid } from "./TreasurerGrid";
 import { TreasurerStudioSection } from "./TreasurerStudioSection";
+import { DemoStopMoment } from "./DemoStopMoment";
+import { TreasurerWishlistsPanel } from "../wishlists/TreasurerWishlistsPanel";
 import "./treasurer-panel.css";
 
 function OpenFundTotals({
@@ -124,9 +126,12 @@ export function TreasurerPanel({
       {open ? (
         <div className="treasurer-panel-body" id="treasurer-panel-body" data-testid="treasurer-panel-body">
           {demoMode ? (
+            <>
             <p className="notice demo-treasurer-banner" data-testid="demo-treasurer-banner">
               {t("treasurer.demoBanner")}
             </p>
+            <DemoStopMoment onRefresh={onRefreshQueue} />
+            </>
           ) : (
             <>
           <p className="hint">{t("treasurer.adminKeyHint")}</p>
@@ -199,6 +204,7 @@ export function TreasurerPanel({
           />
           {!demoMode ? (
             <>
+          <TreasurerWishlistsPanel adminKey={adminKey} />
           <TreasurerPayPalPanel adminKey={adminKey} />
           <TreasurerWebhookPanel adminKey={adminKey} />
           <TreasurerGrid

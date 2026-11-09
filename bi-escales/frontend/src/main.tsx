@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App";
+import Root from "./Root";
 import { RootErrorBoundary } from "./components/RootErrorBoundary";
 import "./i18n";
 
@@ -12,7 +12,7 @@ if (!rootEl) {
   createRoot(rootEl).render(
     <StrictMode>
       <RootErrorBoundary>
-        <App />
+        <Root />
       </RootErrorBoundary>
     </StrictMode>,
   );

@@ -237,6 +237,27 @@ class MemoryLedger:
         with self._lock:
             return [copy.deepcopy(doc) for doc in self._milestones.values()]
 
+    async def set_demo_cancelled(self, milestone_id: str, cancelled: bool) -> dict:
+        with self._lock:
+            doc = self._milestones.get(milestone_id)
+            if doc is None:
+                doc = {
+                    "_id": milestone_id,
+                    "evidence": [],
+                    "proposal": None,
+                    "meta": {},
+                    "updated_at": now_iso(),
+                }
+            meta = dict(doc.get("meta") or {})
+            if cancelled:
+                meta["demo_cancelled"] = True
+            else:
+                meta.pop("demo_cancelled", None)
+            doc["meta"] = meta
+            doc["updated_at"] = now_iso()
+            self._milestones[milestone_id] = doc
+            return copy.deepcopy(doc)
+
     async def set_proposal(self, milestone_id: str, proposal: dict) -> dict:
         with self._lock:
             doc = self._milestones.get(milestone_id)
@@ -454,6 +475,25 @@ class MongoLedger:
         await self._ensure()
         cursor = self._milestones.find({})
         return [doc async for doc in cursor]
+
+    async def set_demo_cancelled(self, milestone_id: str, cancelled: bool) -> dict:
+        await self._ensure()
+        existing = await self._milestones.find_one({"_id": milestone_id})
+        meta = dict((existing or {}).get("meta") or {})
+        if cancelled:
+            meta["demo_cancelled"] = True
+        else:
+            meta.pop("demo_cancelled", None)
+        await self._milestones.update_one(
+            {"_id": milestone_id},
+            {
+                "$set": {"meta": meta, "updated_at": now_iso()},
+                "$setOnInsert": {"evidence": [], "proposal": None},
+            },
+            upsert=True,
+        )
+        doc = await self._milestones.find_one({"_id": milestone_id})
+        return doc or {"_id": milestone_id, "meta": meta, "evidence": [], "proposal": None}
 
     async def set_proposal(self, milestone_id: str, proposal: dict) -> dict:
         await self._ensure()
@@ -681,6 +721,8 @@ def to_public_fund(fund: dict) -> dict:
     }
     if isinstance(fund.get("totals_by_currency"), dict):
         out["totals_by_currency"] = fund["totals_by_currency"]
+    if fund.get("received_net_eur") is not None:
+        out["received_net_eur"] = str(fund.get("received_net_eur"))
     return out
 
 
@@ -900,6 +942,15 @@ async def _assemble_fund(milestone_id: str, entries: list[dict]) -> dict:
     payout_total = eur.get("payouts", Decimal("0.00"))
     eur_outflow = spending_total + refund_total + payout_total
     balance = income_total - eur_outflow
+    from .paypal_settlement import finance_entry_received_net_eur, finance_entry_refund_net_eur
+
+    received_net_eur = Decimal("0.00")
+    for entry in income:
+        received_net_eur += finance_entry_received_net_eur(entry)
+    for entry in refunds:
+        received_net_eur -= finance_entry_refund_net_eur(entry)
+    if received_net_eur < Decimal("0.00"):
+        received_net_eur = Decimal("0.00")
     return {
         "milestone_id": milestone_id,
         "currency": "EUR",
@@ -915,6 +966,7 @@ async def _assemble_fund(milestone_id: str, entries: list[dict]) -> dict:
         "captured_eur": _euros_text(income_total),
         "authorized_eur": "0.00",
         "totals_by_currency": totals_by_currency,
+        "received_net_eur": _euros_text(received_net_eur),
         "donation_count": len(income),
     }
 

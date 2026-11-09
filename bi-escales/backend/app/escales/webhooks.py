@@ -333,6 +333,10 @@ async def _apply_event(event: dict) -> dict:
             if target == "captured" and not str(pledge.get("captured_at") or "").strip():
                 pledge["captured_at"] = simulated_now().replace(microsecond=0).isoformat()
             pledge["history"] = list(pledge.get("history") or []) + [target]
+            if target == "captured":
+                from .paypal_settlement import apply_capture_settlement
+
+                pledge = apply_capture_settlement(pledge, resource if isinstance(resource, dict) else {})
             pledge = await get_ledger().save_pledge(pledge)
             if target == "captured":
                 from .pledges import record_pledge_captured_once
@@ -370,6 +374,7 @@ async def _apply_event(event: dict) -> dict:
                 refund_id=refund_id,
                 amount_eur=amount_eur,
                 status=status,
+                refund_payload=resource if isinstance(resource, dict) else None,
             )
         pledge["history"] = list(pledge.get("history") or []) + ["webhook_refunded"]
         pledge = await get_ledger().save_pledge(pledge)

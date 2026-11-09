@@ -51,7 +51,10 @@ vi.mock("./components/EscalePopup.jsx", () => ({ EscalePopup: () => null }));
 vi.mock("./components/EscalesPanel", () => ({ EscalesPanel: () => null }));
 vi.mock("./components/MarinasPanel.jsx", () => ({ default: () => null }));
 vi.mock("./components/ProjectList.jsx", () => ({ default: () => null }));
-vi.mock("./components/CrewSubscribeButton", () => ({ CrewSubscribeButton: () => null }));
+vi.mock("./components/CrewSubscribeButton", () => ({
+  CrewSubscribeButton: () => null,
+  CrewSupporterPublicSection: () => null,
+}));
 vi.mock("./marinas/escaleFiche.js", () => ({
   loadEscaleFiche: vi.fn(),
   loadEscaleMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),

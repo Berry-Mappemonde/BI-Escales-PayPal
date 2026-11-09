@@ -49,10 +49,23 @@ MILE_EUR = Decimal("1.00")
 DINNER_EUR = Decimal("60.00")
 SIMULATED_PRICE_LABEL = "simulated price"
 SIMULATED_PRICE_LABEL_FR = "prix simulé"
+FIXED_PRICE_LABEL = "fixed price"
+FIXED_PRICE_LABEL_FR = "prix fixe"
+FREE_AMOUNT_LABEL = "free amount"
+FREE_AMOUNT_LABEL_FR = "montant libre"
+_FREE_AMOUNT_KINDS = frozenset({"project_pledge", "common_fund"})
 
 
 def simulated_price_label(lang: str) -> str:
     return SIMULATED_PRICE_LABEL_FR if normalize_app_lang(lang) == "fr" else SIMULATED_PRICE_LABEL
+
+
+def catalogue_price_label(kind: str, lang: str) -> str:
+    """Row label for GET /escales/prices: fixed unit vs donor-chosen amount."""
+    app_lang = normalize_app_lang(lang)
+    if kind in _FREE_AMOUNT_KINDS:
+        return FREE_AMOUNT_LABEL_FR if app_lang == "fr" else FREE_AMOUNT_LABEL
+    return FIXED_PRICE_LABEL_FR if app_lang == "fr" else FIXED_PRICE_LABEL
 _SIMULATED_EUR = {
     "mile": MILE_EUR,
     "berth": Decimal("30.00"),
@@ -462,39 +475,46 @@ def display_name(milestone_id: str) -> str:
 
 
 def simulated_unit(kind: str, lang: str = "en") -> dict:
-    """One catalogue line. The figure is indicative, never the charged amount.
+    """One catalogue line for GET /escales/prices.
 
-    ``project_pledge`` and ``common_fund`` have no unit price: the visitor's
-    amount stays as written. The other kinds show a simulated unit. A pledge
-    of that kind must be at least that unit.
+    ``project_pledge`` and ``common_fund`` are free amounts (no unit price).
+    Berth, night, meal, care, cabin leg, and mile carry fixed unit prices from
+    ``_SIMULATED_EUR`` (1 EUR per nautical mile for ``mile``).
     """
-    label = simulated_price_label(lang)
+    label = catalogue_price_label(kind, lang)
+    amount = _SIMULATED_EUR.get(kind)
+    free_amount = amount is None
     row = {
         "kind": kind,
         "currency": "EUR",
         "label": label,
         "simulated": True,
-        "indicative": True,
+        "indicative": free_amount,
+        "free_amount": free_amount,
     }
-    amount = _SIMULATED_EUR.get(kind)
-    if amount is None:
-        row["free_amount"] = True
-    else:
+    if amount is not None:
         row["amount_eur"] = f"{amount:.2f}"
-        row["free_amount"] = False
     return row
 
 
 def simulated_prices(lang: Optional[str] = None) -> dict:
-    """One row per pledge kind. Prices are indicative; the visitor's amount stays."""
+    """One row per pledge kind. Fixed units vs free-amount kinds for supporters."""
     app_lang = normalize_app_lang(lang)
     if app_lang == "fr":
-        note = "Les prix sont indicatifs. Le montant saisi par le visiteur est celui autorisé par PayPal."
+        note = (
+            "Tarifs fixes pour le poste (place), la nuit, le repas, le soin et la cabine ; "
+            "1 € par mille nautique. Seuls le fonds commun et les dons projet sont en montant "
+            "libre (montant choisi par le parrain)."
+        )
     else:
-        note = "Prices are indicative. The visitor's amount is what PayPal authorizes."
+        note = (
+            "Fixed prices for berth, night, meal, care, and cabin; 1 EUR per nautical mile. "
+            "Only the common fund and project donations are free amounts (amount chosen by "
+            "the supporter)."
+        )
     return {
         "simulated": True,
-        "indicative": True,
+        "indicative": False,
         "label": simulated_price_label(app_lang),
         "note": note,
         "currency": "EUR",

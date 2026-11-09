@@ -40,7 +40,12 @@ async def create_wishlist(*, title: str, slug: str, items: Optional[list[dict]] 
             raise WishlistError(f"item {pid} is pending treasurer confirmation")
         if catalog.get("catalog_optional") and not row.get("allow_optional"):
             raise WishlistError(f"item {pid} is optional catalogue-only")
-        normalized_items.append(normalize_wishlist_item(row, catalog))
+        try:
+            normalized_items.append(normalize_wishlist_item(row, catalog))
+        except WishlistError:
+            raise
+        except ValueError as exc:
+            raise WishlistError(str(exc)) from exc
     doc = {
         "_id": new_wishlist_id(),
         "title": title_clean,
@@ -143,6 +148,32 @@ async def remove_wishlist_item(wishlist_id: str, channel3_product_id: str) -> di
     return await get_wishlist_store().save_wishlist(row)
 
 
+def _fail_closed_target(
+    catalog: dict[str, Any],
+    wishlist_item: dict,
+    target_minor: int,
+    line_qty: int,
+) -> int:
+    """Never gate the buy link on a target below unit price x quantity.
+
+    Lines saved before the write-time check (or edited by hand) may hold a
+    typo'd target; the public payload then uses the line cost instead, so the
+    buy link stays hidden until the item is really paid (HamidZ11 #149).
+    """
+    unit = int(
+        wishlist_item.get("unit_price_amount_minor")
+        or catalog.get("unit_price_amount_minor")
+        or catalog.get("price_amount_minor")
+        or 0
+    )
+    line_cost = unit * max(1, line_qty)
+    line_ccy = str(wishlist_item.get("target_currency") or catalog.get("price_currency") or "EUR").upper()
+    catalog_ccy = str(catalog.get("price_currency") or line_ccy).upper()
+    if line_cost > 0 and line_ccy == catalog_ccy and target_minor < line_cost:
+        return line_cost
+    return target_minor
+
+
 async def _public_item_from_catalog(
     catalog: dict[str, Any],
     wishlist_item: Optional[dict] = None,
@@ -155,6 +186,7 @@ async def _public_item_from_catalog(
         target_minor = int(wishlist_item.get("target_amount_minor") or 0)
         target_ccy = wishlist_item.get("target_currency")
         line_qty = int(wishlist_item.get("quantity") or 1)
+        target_minor = _fail_closed_target(catalog, wishlist_item, target_minor, line_qty)
     enriched = enrich_item_funding(
         catalog,
         fund,

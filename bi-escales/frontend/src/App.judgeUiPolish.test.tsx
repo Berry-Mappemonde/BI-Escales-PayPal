@@ -76,10 +76,11 @@ describe("JUDGE-UI-POLISH", () => {
       now: "2026-11-12T08:00:00.000Z",
     });
     vi.spyOn(escalesApi, "fetchPublicCommonFund").mockResolvedValue({
-      balance_eur: 0,
+      milestone_id: "common",
+      balance_eur: "0.00",
       currency: "EUR",
-      income_eur: 0,
-      spending_eur: 0,
+      income_eur: "0.00",
+      spending_eur: "0.00",
     });
     vi.spyOn(escalesApi, "fetchGearProjects").mockResolvedValue({ type: "FeatureCollection", features: [] });
     vi.spyOn(escalesApi, "fetchSchedule").mockResolvedValue({ export: { escales: [] } });

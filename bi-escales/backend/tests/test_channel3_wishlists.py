@@ -162,11 +162,11 @@ def test_wishlist_explicit_target_preserved(api):
     add = api.post(
         f"/api/escales/treasurer/wishlists/{wid}/items",
         headers=_treasurer_headers(),
-        json={"channel3_product_id": "QE0Vp6a", "quantity": 2, "target_amount_minor": 1500},
+        json={"channel3_product_id": "QE0Vp6a", "quantity": 2, "target_amount_minor": 9000},
     )
     assert add.status_code == 200
     line = add.json()["items"][0]
-    assert line["target_amount_minor"] == 1500
+    assert line["target_amount_minor"] == 9000
     assert line["quantity"] == 2
 
 
@@ -268,3 +268,82 @@ def test_flags_off_returns_404(api, monkeypatch):
     monkeypatch.setenv("ESCALES_WISHLISTS_ENABLED", "")
     res = api.get("/api/escales/channel3/catalog")
     assert res.status_code == 404
+
+
+def _first_eur_item(api):
+    items = api.get("/api/escales/channel3/catalog").json()["items"]
+    eur = [i for i in items if i["price_currency"] == "EUR" and int(i.get("unit_price_amount_minor") or i.get("price_amount_minor") or 0) > 100]
+    assert eur
+    return eur[0]
+
+
+def test_wishlist_target_below_line_cost_is_refused(api):
+    """HamidZ11 #149: a typo'd target (100 on a 300 item) must not open the buy link after 1."""
+    item = _first_eur_item(api)
+    wid = api.post(
+        "/api/escales/treasurer/wishlists",
+        headers=_treasurer_headers(),
+        json={"title": "Typo", "slug": "typo-target", "items": []},
+    ).json()["_id"]
+    bad = api.post(
+        f"/api/escales/treasurer/wishlists/{wid}/items",
+        headers=_treasurer_headers(),
+        json={"channel3_product_id": item["channel3_product_id"], "quantity": 1, "target_amount_minor": 100},
+    )
+    assert bad.status_code == 400
+    bad_create = api.post(
+        "/api/escales/treasurer/wishlists",
+        headers=_treasurer_headers(),
+        json={
+            "title": "Typo2",
+            "slug": "typo-target-2",
+            "items": [{"channel3_product_id": item["channel3_product_id"], "quantity": 1, "target_amount_minor": 100}],
+        },
+    )
+    assert bad_create.status_code == 400
+
+
+def test_legacy_typo_target_keeps_buy_link_hidden(api):
+    """Fail closed at read time for lines stored before the write-time check."""
+    from app.channel3_wishlist_store import get_wishlist_store
+
+    item = _first_eur_item(api)
+    pid = item["project_id"]
+    unit = int(item.get("unit_price_amount_minor") or item.get("price_amount_minor"))
+    wid = api.post(
+        "/api/escales/treasurer/wishlists",
+        headers=_treasurer_headers(),
+        json={"title": "Legacy", "slug": "legacy-typo", "items": []},
+    ).json()["_id"]
+
+    async def _corrupt_and_fund():
+        store = get_wishlist_store()
+        row = await store.get_wishlist(wid)
+        row["items"] = [{
+            "channel3_product_id": item["channel3_product_id"],
+            "project_id": pid,
+            "quantity": 1,
+            "unit_price_amount_minor": unit,
+            "target_amount_minor": 100,
+            "target_currency": "EUR",
+        }]
+        await store.save_wishlist(row)
+        await record_finance(
+            "pledge_captured",
+            amount_eur="1.00",
+            milestone_id="projet",
+            target_id=pid,
+            pledge_kind="project_pledge",
+        )
+
+    asyncio.run(_corrupt_and_fund())
+    assert api.post(
+        f"/api/escales/treasurer/wishlists/{wid}/publish",
+        headers=_treasurer_headers(),
+        json={"published": True},
+    ).status_code == 200
+    public = api.get(f"/api/escales/wishlists/{wid}").json()
+    line = public["items"][0]
+    assert line["target_amount_minor"] == unit
+    assert line["fully_funded"] is False
+    assert not line.get("channel3_buy_url")

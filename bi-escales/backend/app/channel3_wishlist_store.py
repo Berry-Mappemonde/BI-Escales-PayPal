@@ -103,10 +103,16 @@ def normalize_wishlist_item(item: dict[str, Any], catalog: dict[str, Any]) -> di
     if qty < 1:
         raise ValueError("quantity must be at least 1")
     currency = str(item.get("target_currency") or catalog.get("price_currency") or "EUR").upper()
+    line_cost = unit * qty
     if item.get("target_amount_minor") is not None:
         minor = int(item["target_amount_minor"])
+        catalog_ccy = str(catalog.get("price_currency") or currency).upper()
+        # Fail closed (HamidZ11 #149): the buy link opens at 100% of the target,
+        # so a target below the line cost would show it before the item is paid.
+        if line_cost > 0 and catalog_ccy == currency and minor < line_cost:
+            raise ValueError("target_amount_minor must be at least unit price x quantity")
     else:
-        minor = unit * qty
+        minor = line_cost
     return {
         "channel3_product_id": catalog["channel3_product_id"],
         "project_id": catalog["project_id"],

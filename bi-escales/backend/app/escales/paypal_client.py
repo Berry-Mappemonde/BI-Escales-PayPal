@@ -652,13 +652,35 @@ class PayPalClient:
             idempotency_key=paypal_request_id(ref, "reauthorize"),
         )
 
+    def _sdk_reads(self, method: str, *args: Any, **kwargs: Any) -> Optional[dict]:
+        """Delegate one read when the Server SDK flag is on. ``None`` keeps httpx."""
+        from .paypal_sdk_gateway import paypal_sdk_reads_enabled
+
+        if not paypal_sdk_reads_enabled():
+            return None
+        from . import paypal_sdk_gateway
+
+        result = getattr(paypal_sdk_gateway, method)(*args, **kwargs)
+        if not isinstance(result, dict):
+            raise PayPalError(502, "PayPal SDK response was not an object")
+        return result
+
     def get_order(self, order_id: str) -> dict:
+        delegated = self._sdk_reads("get_order", order_id)
+        if delegated is not None:
+            return delegated
         return self._req("GET", f"/v2/checkout/orders/{order_id}")
 
     def get_authorization(self, authorization_id: str) -> dict:
+        delegated = self._sdk_reads("get_authorized_payment", authorization_id)
+        if delegated is not None:
+            return delegated
         return self._req("GET", f"/v2/payments/authorizations/{authorization_id}")
 
     def get_setup_token(self, setup_token_id: str) -> dict:
+        delegated = self._sdk_reads("get_setup_token", setup_token_id)
+        if delegated is not None:
+            return delegated
         return self._req("GET", f"/v3/vault/setup-tokens/{setup_token_id}")
 
     def create_setup_token(
@@ -905,10 +927,21 @@ class PayPalClient:
 
     def list_billing_plans(self, *, product_id: str, page_size: int = 20) -> dict:
         pid = str(product_id or "").strip()
+        delegated = self._sdk_reads(
+            "list_billing_plans", product_id=pid, page_size=page_size,
+        )
+        if delegated is not None:
+            return delegated
         return self._req(
             "GET",
             f"/v1/billing/plans?product_id={pid}&page_size={page_size}&total_required=true",
         )
+
+    def get_billing_plan(self, plan_id: str) -> dict:
+        delegated = self._sdk_reads("get_billing_plan", plan_id)
+        if delegated is not None:
+            return delegated
+        return self._req("GET", f"/v1/billing/plans/{plan_id}")
 
     def create_billing_plan(
         self,
@@ -940,6 +973,9 @@ class PayPalClient:
         return self._req("POST", "/v1/billing/plans", body, idempotency_key=idempotency_key)
 
     def get_subscription(self, subscription_id: str) -> dict:
+        delegated = self._sdk_reads("get_subscription", subscription_id)
+        if delegated is not None:
+            return delegated
         return self._req("GET", f"/v1/billing/subscriptions/{subscription_id}")
 
     def create_billing_subscription(
@@ -1047,6 +1083,11 @@ class PayPalClient:
         from .paypal_txn_search import clamp_transaction_search_range
 
         start_date, end_date = clamp_transaction_search_range(start_date, end_date)
+        delegated = self._sdk_reads(
+            "search_transactions", start_date=start_date, end_date=end_date,
+        )
+        if delegated is not None:
+            return delegated
         query = urlencode({
             "start_date": start_date,
             "end_date": end_date,

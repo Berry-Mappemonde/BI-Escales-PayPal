@@ -118,6 +118,7 @@ from app.escales.app_i18n import (
 )
 from app.escales.rate_limit import (
     RateLimited,
+    captain_rate_feature,
     captain_rate_key,
     client_ip,
     hit as hit_captain_rate,
@@ -613,6 +614,7 @@ async def get_features():
         "crew_supporter_plan_id": crew_plan_id,
         "demo_treasurer": demo_treasurer_enabled(),
         "fastlane": False,
+        "captain_rate": captain_rate_feature(),
     }
 
 
@@ -683,28 +685,9 @@ async def post_schedule_sync():
 @router.get("/pledges/mode")
 async def get_pledge_mode(milestone_id: str, kind: str = "mile"):
     """Read-only card checkout preview: no PayPal calls or ledger writes."""
-    from app.escales.pledges import _kind, _resolve_target
-    from app.escales.naviguide_bridge import resolve_milestone, leg_departing_from
-    from app.escales.payment_mode import resolve_pledge_mode
+    from app.escales.payment_mode import preview_payment_mode
     try:
-        milestone_id = milestone_id.strip()
-        pledge_kind = _kind(kind)
-        if pledge_kind == "project_pledge":
-            raise ValueError("project_pledge uses PayPal wallet checkout only")
-        canonical = (
-            "" if pledge_kind == "common_fund" and not milestone_id
-            else resolve_milestone(milestone_id)
-        )
-        if canonical is None:
-            if not await get_ledger().get_milestone(milestone_id):
-                raise ValueError("milestone_id must name a known stopover")
-            canonical = milestone_id
-        if pledge_kind == "cabin_leg" and not canonical.startswith("leg-"):
-            leg = leg_departing_from(canonical)
-            if leg:
-                canonical = str(leg["id"])
-        await _resolve_target(None, canonical, pledge_kind)
-        mode = await resolve_pledge_mode({"milestone_id": canonical, "kind": pledge_kind}, read_only=True)
+        mode = await preview_payment_mode(milestone_id, kind)
         return {"payment_mode": mode}
     except ValueError as exc:
         raise _as_http(exc) from exc
@@ -1092,10 +1075,16 @@ async def get_public_project_fund(project_id: str):
     """
     from app.channel3_catalog import lookup_catalog_by_project_id
     from app.channel3_funding import enrich_item_funding, fund_snapshot_for_project
+    from app.channel3_paypal import catalog_project_id
     from app.channel3_public import apply_buy_link_policy
 
+    if catalog_project_id(project_id):
+        catalog = lookup_catalog_by_project_id(project_id, public_only=True)
+        if not catalog:
+            raise HTTPException(status_code=404, detail="Project fund not found")
+    else:
+        catalog = lookup_catalog_by_project_id(project_id)
     meta = lookup_project_fund_meta(project_id)
-    catalog = lookup_catalog_by_project_id(project_id)
     try:
         if catalog:
             fund = await fund_snapshot_for_project(project_id)
@@ -1298,6 +1287,7 @@ def _enforce_captain_rate(
         raise HTTPException(
             status_code=429,
             detail=limit_message(exc.kind, app_lang, exc.limit),
+            headers={"Retry-After": str(exc.retry_after)},
         ) from exc
 
 

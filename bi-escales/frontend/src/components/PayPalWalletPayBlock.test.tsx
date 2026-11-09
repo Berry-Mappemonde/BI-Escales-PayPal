@@ -23,6 +23,15 @@ describe("PayPalWalletPayBlock", () => {
     expect(screen.getByTestId("paypal-apple-pay")).toBeInTheDocument();
   });
 
+  it("masque l'indication portefeuille tant qu'aucun bouton n'est rendu", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <PayPalWalletPayBlock values={values} appLang="fr" sdkIntent="authorize" sdkReady={false} />
+      </I18nextProvider>,
+    );
+    expect(screen.queryByText(/Google Pay/i)).toBeNull();
+  });
+
   it("n'appelle pas Googlepay/Applepay tant que le SDK n'est pas prêt", () => {
     const googlepay = vi.fn(() => ({ render: vi.fn(async () => undefined) }));
     const applepay = vi.fn(() => ({ render: vi.fn(async () => undefined) }));

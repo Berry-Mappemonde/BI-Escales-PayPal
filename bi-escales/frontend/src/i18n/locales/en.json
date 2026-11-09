@@ -22,7 +22,15 @@
   },
   "tabs": {
     "voyage": "Voyage map",
-    "marinas": "Marinas"
+    "marinas": "Marinas",
+    "gear": "Gear"
+  },
+  "settings": {
+    "heading": "Settings",
+    "lead": "Language, theme, treasurer tools, and sandbox operator controls."
+  },
+  "gear": {
+    "heading": "Expedition gear"
   },
   "clock": {
     "waiting": "Departure in {{days}}d {{hours}}h",

@@ -144,7 +144,7 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
   if (!key) {
     return (
       <section className="panel treasurer-wishlists" data-testid="treasurer-wishlists-panel">
-        <h2>{t("wishlists.treasurer.heading")}</h2>
+        <h3>{t("wishlists.treasurer.heading")}</h3>
         <p className="hint">{t("wishlists.treasurer.needKey")}</p>
       </section>
     );
@@ -154,7 +154,7 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
 
   return (
     <section className="panel treasurer-wishlists" data-testid="treasurer-wishlists-panel">
-      <h2>{t("wishlists.treasurer.heading")}</h2>
+      <h3>{t("wishlists.treasurer.heading")}</h3>
       {error ? <p className="notice error">{error}</p> : null}
       {notice ? <p className="notice">{notice}</p> : null}
       <form className="stack-form" onSubmit={onCreate}>

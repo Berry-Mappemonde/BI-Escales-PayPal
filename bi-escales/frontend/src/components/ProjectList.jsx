@@ -87,8 +87,12 @@ function ProjectPledgeForm({ project, contributor, onAuthorized }) {
   );
 }
 
+const isGearFeature = (feature) =>
+  String(feature?.properties?.project_kind || "") === "gear_project";
+
 export default function ProjectList({
   projects,
+  featureScope = "projects",
   searchQuery: searchQueryProp = undefined,
   onSearchQueryChange = undefined,
   selectedProjectId,
@@ -102,18 +106,24 @@ export default function ProjectList({
   const query = searchQueryProp ?? localQuery;
   const setQuery = onSearchQueryChange ?? setLocalQuery;
 
+  const scopedFeatures = useMemo(() => {
+    const all = projects?.features || [];
+    if (featureScope === "gear") return all.filter(isGearFeature);
+    return all.filter((row) => !isGearFeature(row));
+  }, [projects, featureScope]);
+
   const filtered = useMemo(
-    () => filterProjectFeatures(projects?.features || [], {
+    () => filterProjectFeatures(scopedFeatures, {
       funderFilter: "All",
       categoryFilter: "All",
       searchQuery: query,
     }),
-    [projects, query],
+    [scopedFeatures, query],
   );
 
   const features = useMemo(
-    () => visibleProjectFeatures(projects?.features || [], filtered, selectedProjectId, LIST_CAP),
-    [projects, filtered, selectedProjectId],
+    () => visibleProjectFeatures(scopedFeatures, filtered, selectedProjectId, LIST_CAP),
+    [scopedFeatures, filtered, selectedProjectId],
   );
   const disclosure = useRef(null);
   useEffect(() => {
@@ -123,13 +133,16 @@ export default function ProjectList({
   const truncated = filtered.length > LIST_CAP;
   const formatCount = (count) => new Intl.NumberFormat(i18n.language || "fr").format(count);
 
+  const listTestId = featureScope === "gear" ? "gear-list" : "project-list";
+  const headingKey = featureScope === "gear" ? "gear.heading" : "projects.heading";
+
   return (
-    <details ref={disclosure} className="panel project-disclosure" data-testid="project-list">
+    <details ref={disclosure} className="panel project-disclosure" data-testid={listTestId}>
       <summary className="project-summary">
-        <h2>{t("projects.heading")}</h2>
+        <h2>{t(headingKey)}</h2>
         <span aria-hidden="true">·</span>
         <span className="project-list-total" data-testid="project-list-count">
-          {formatCount(projects?.features?.length || 0)}
+          {formatCount(scopedFeatures.length)}
         </span>
         <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true"><path d="m5 6 3 3 3-3" stroke="currentColor" strokeWidth="1.5" /></svg>
       </summary>

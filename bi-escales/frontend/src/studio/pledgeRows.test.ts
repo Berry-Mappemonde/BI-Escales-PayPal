@@ -97,7 +97,15 @@ describe("nextTreasurerAction", () => {
 describe("nextDataAgentAction", () => {
   it("lit le schéma puis clôt la délégation", () => {
     expect(nextDataAgentAction(0, "").kind).toBe("view-schema");
-    expect(nextDataAgentAction(1, "pledges.amount_eur", "en").summary).toContain("Human validation");
-    expect(nextDataAgentAction(1, "pledges.amount_eur", "fr").summary).toContain("validation humaine");
+    const enAction = nextDataAgentAction(1, "pledges.amount_eur", "en");
+    const frAction = nextDataAgentAction(1, "pledges.amount_eur", "fr");
+    expect(enAction.kind).toBe("complete");
+    expect(frAction.kind).toBe("complete");
+    if (enAction.kind === "complete") {
+      expect(enAction.summary).toContain("Human validation");
+    }
+    if (frAction.kind === "complete") {
+      expect(frAction.summary).toContain("validation humaine");
+    }
   });
 });

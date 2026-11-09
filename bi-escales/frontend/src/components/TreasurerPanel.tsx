@@ -182,7 +182,7 @@ export function TreasurerPanel({
             </div>
           ) : null}
           <section className="panel" data-testid="treasurer-open-funds">
-            <h2>{t("fund.openHeading")}</h2>
+            <h3>{t("fund.openHeading")}</h3>
             <OpenFundTotals title={t("fund.projectTotals")} fund={projectFund} testId="project-fund-totals" />
             <OpenFundTotals title={t("fund.boatTotals")} fund={boatFund} testId="common-fund-totals" />
           </section>
@@ -214,7 +214,7 @@ export function TreasurerPanel({
           />
           <TreasurerStudioSection pledges={pledges} />
           <form className="stack-form" onSubmit={onSpendSubmit}>
-            <h2>{t("fund.heading")}</h2>
+            <h3>{t("fund.heading")}</h3>
             <label>
               {t("fund.spendAmount")}
               <input value={spendAmount} onChange={(event) => onSpendAmountChange(event.target.value)} />

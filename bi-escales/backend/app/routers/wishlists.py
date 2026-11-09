@@ -13,6 +13,7 @@ from app.channel3_wishlists import (
     WishlistError,
     add_wishlist_item,
     create_wishlist,
+    enrich_treasurer_wishlist,
     get_wishlist,
     list_wishlists,
     public_catalog_payload,
@@ -62,7 +63,7 @@ async def get_channel3_catalog():
 @router.get("/channel3/catalog/{channel3_product_id}")
 async def get_channel3_catalog_item(channel3_product_id: str):
     _require_flags()
-    catalog = get_catalog_item(channel3_product_id)
+    catalog = get_catalog_item(channel3_product_id, public_only=True)
     if not catalog:
         raise HTTPException(status_code=404, detail="catalog item not found")
     fund = await fund_snapshot_for_project(catalog["project_id"])
@@ -76,7 +77,7 @@ async def get_channel3_catalog_item(channel3_product_id: str):
 async def get_channel3_item_fund(project_id: str):
     """Public fund totals for one catalogue ``project_id`` (PayPal ``target_id``)."""
     _require_flags()
-    catalog = lookup_catalog_by_project_id(project_id)
+    catalog = lookup_catalog_by_project_id(project_id, public_only=True)
     if not catalog:
         raise HTTPException(status_code=404, detail="catalog item not found")
     fund = await fund_snapshot_for_project(project_id)
@@ -110,7 +111,7 @@ async def treasurer_list_wishlists(request: Request):
     _require_flags()
     _require_treasurer(request)
     rows = await list_wishlists(published_only=False)
-    return {"wishlists": rows}
+    return {"wishlists": [enrich_treasurer_wishlist(row) for row in rows]}
 
 
 @router.post("/treasurer/wishlists")

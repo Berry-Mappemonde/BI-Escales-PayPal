@@ -10,6 +10,7 @@ import { EscalePopup } from "./components/EscalePopup.jsx";
 import MarinasPanel from "./components/MarinasPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
 import { TreasurerPanel } from "./components/TreasurerPanel";
+import { ShellSettingsPanel } from "./components/ShellSettingsPanel";
 import { CrewSubscribeButton } from "./components/CrewSubscribeButton";
 import { HowItWorks } from "./components/stop/HowItWorks.jsx";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
@@ -17,7 +18,6 @@ import { ToastContainer } from "./components/Toast";
 import type { ToastItem } from "./components/Toast";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { useTheme } from "./hooks/useTheme";
-import { setLanguage } from "./i18n";
 import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
@@ -33,7 +33,7 @@ import {
 import "./styles/app.css";
 import "./styles/naviguide-shell.css";
 
-type TabId = "voyage" | "marinas";
+type TabId = "voyage" | "marinas" | "gear";
 
 type VoyageStop = {
   name: string;
@@ -44,6 +44,12 @@ type VoyageStop = {
 };
 
 type FlyTarget = { lat: number; lon: number; ts: number };
+
+/** Matches GET /milestones/{id}/fund treasurer gate (aggregate project + per-project ids). */
+function milestoneFundRequiresAdminKey(milestoneId: string): boolean {
+  const token = milestoneId.trim().toLowerCase();
+  return token === "project" || token === "projet" || token.startsWith("projet-");
+}
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -94,7 +100,7 @@ export default function App() {
   const [crewSubscribeNote, setCrewSubscribeNote] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [toolsOpen, setToolsOpen] = useState(true);
-  const toolsPanelRef = useRef<HTMLElement>(null);
+  const sidebarPanelRef = useRef<HTMLElement>(null);
   const [panelFocusRequest, setPanelFocusRequest] = useState(0);
   const [allMarinas, setAllMarinas] = useState<{ type: string; features?: unknown[] }>({
     type: "FeatureCollection",
@@ -267,7 +273,10 @@ export default function App() {
   }, [stop]);
 
   useEffect(() => {
-    if (hash === "#tresorier") setTreasurerOpen(true);
+    if (hash === "#tresorier") {
+      setTreasurerOpen(true);
+      setToolsOpen(true);
+    }
   }, [hash]);
 
   const onTreasurerOpenChange = useCallback((open: boolean) => {
@@ -287,8 +296,13 @@ export default function App() {
       if (!treasurerOpen) setFund(null);
       return undefined;
     }
+    const key = adminKey.trim();
+    if (milestoneFundRequiresAdminKey(milestoneId) && !key) {
+      setFund(null);
+      return undefined;
+    }
     let cancelled = false;
-    void fetchFund(milestoneId, adminKey)
+    void fetchFund(milestoneId, key || undefined)
       .then((row) => {
         if (!cancelled) setFund(row);
       })
@@ -308,15 +322,16 @@ export default function App() {
 
   // After the render, because the panel may only just have reopened.
   useEffect(() => {
-    if (panelFocusRequest) toolsPanelRef.current?.focus({ preventScroll: true });
+    if (panelFocusRequest) sidebarPanelRef.current?.focus({ preventScroll: true });
   }, [panelFocusRequest]);
 
   const chooseStop = (next: VoyageStop) => {
     setStop(next);
     setMilestoneId(next.milestoneId);
+    if (tab !== "voyage") setTab("voyage");
     if (isNarrowScreen()) {
-      setSidebarOpen(false);
-      setToolsOpen(true);
+      setToolsOpen(false);
+      setSidebarOpen(true);
       setPanelFocusRequest((count) => count + 1);
     }
     if (Number.isFinite(next.lat) && Number.isFinite(next.lon)) {
@@ -361,13 +376,16 @@ export default function App() {
   useEffect(() => {
     if (!treasurerOpen || demoTreasurer) return undefined;
     let cancelled = false;
-    void fetchFund("project", adminKey)
-      .then((row) => {
-        if (!cancelled) setProjectFund(row);
-      })
-      .catch(() => {
-        if (!cancelled) setProjectFund(null);
-      });
+    const key = adminKey.trim();
+    if (key) {
+      void fetchFund("project", key)
+        .then((row) => {
+          if (!cancelled) setProjectFund(row);
+        })
+        .catch(() => {
+          if (!cancelled) setProjectFund(null);
+        });
+    }
     void fetchPublicCommonFund()
       .then((row) => {
         if (!cancelled) setBoatFund(row);
@@ -629,6 +647,67 @@ export default function App() {
     return items;
   }, [healthOk, crewSubscribeNote, paypalNote, t]);
 
+  const mapProjects = useMemo(() => {
+    const all = Array.isArray(projects?.features) ? projects.features : [];
+    const isGear = (row: unknown) =>
+      String((row as { properties?: { project_kind?: string } })?.properties?.project_kind || "") === "gear_project";
+    if (tab === "gear") {
+      return { ...projects, features: all.filter((row) => isGear(row)) };
+    }
+    if (tab === "voyage") {
+      return { ...projects, features: all.filter((row) => !isGear(row)) };
+    }
+    return { ...projects, features: [] };
+  }, [projects, tab]);
+
+  const treasurerPanel = (
+    <TreasurerPanel
+      open={treasurerOpen}
+      onOpenChange={onTreasurerOpenChange}
+      demoMode={demoTreasurer}
+      adminKey={adminKey}
+      onAdminKeyChange={setAdminKey}
+      settleBusy={settleBusy}
+      settleNote={settleNote}
+      onSettle={() => void onSettle()}
+      clockPinned={clockPinned}
+      settleAt={settleAt}
+      onSettleAtChange={setSettleAt}
+      onSettleAt={() => void onSettleAt()}
+      milestoneId={milestoneId}
+      onMilestoneIdChange={setMilestoneId}
+      projectFund={projectFund}
+      boatFund={boatFund}
+      pledges={pledges}
+      loading={loading}
+      error={error}
+      needsKey={needsKey}
+      onRefreshQueue={() => void refresh()}
+      onPledgeUpdated={updatePledge}
+      spendAmount={spendAmount}
+      onSpendAmountChange={setSpendAmount}
+      spendNote={spendNote}
+      onSpendNoteChange={setSpendNote}
+      spendError={spendError}
+      fund={fund}
+      onSpendSubmit={(event) => {
+        event.preventDefault();
+        void onSpend();
+      }}
+    >
+      {demoTreasurerAvailable ? (
+        <button
+          type="button"
+          className="secondary demo-treasurer-entry"
+          data-testid="demo-treasurer-button"
+          onClick={() => startDemoTreasurer()}
+        >
+          {t("treasurer.demoButton")}
+        </button>
+      ) : null}
+    </TreasurerPanel>
+  );
+
   return (
     <div className="ng-shell" data-testid="ng-shell">
       <div className="ng-map-layer">
@@ -636,10 +715,10 @@ export default function App() {
           segments={voyage?.segments || []}
           stops={voyage?.stops || []}
           boat={sample && Number.isFinite(sample.lat) ? { lat: sample.lat, lon: sample.lon, bearing: sample.bearing } : null}
-          projects={projects}
+          projects={mapProjects}
           marinas={marinaFeatures}
-          showProjects={tab === "voyage"}
-          showMarinas
+          showProjects={tab === "voyage" || tab === "gear"}
+          showMarinas={tab === "marinas"}
           flyTo={flyTo}
           theme={theme}
           onSelectStop={chooseStop}
@@ -678,6 +757,8 @@ export default function App() {
 
 
       <aside
+        ref={sidebarPanelRef}
+        tabIndex={-1}
         className={`ng-sidebar panel${sidebarOpen ? "" : " ng-collapsed"}`}
         data-testid="ng-sidebar"
       >
@@ -690,53 +771,6 @@ export default function App() {
             </svg>
             <h1 aria-label={t("app.title")}>BI Escales <small>Pay Only If We Sail</small></h1>
           </div>
-          <div className="ng-controls">
-            <div className="lang-switch" role="group" aria-label={t("app.language")}>
-              <button
-                type="button"
-                className={i18n.language === "fr" ? "active" : ""}
-                aria-label={t("app.langFr")}
-                aria-pressed={i18n.language === "fr"}
-                onClick={() => setLanguage("fr")}
-              >
-                FR
-              </button>
-              <button
-                type="button"
-                className={i18n.language === "en" ? "active" : ""}
-                aria-label={t("app.langEn")}
-                aria-pressed={i18n.language === "en"}
-                onClick={() => setLanguage("en")}
-              >
-                EN
-              </button>
-            </div>
-            <div className="theme-switch" data-testid="theme-switch">
-              <button
-                type="button"
-                data-testid="theme-toggle"
-                aria-label={theme === "light" ? t("app.themeDark") : t("app.themeLight")}
-                aria-pressed={theme === "light"}
-                onClick={() => toggleTheme()}
-              >
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  {theme === "light" ? (
-                    <path
-                      d="M20.2 15.1A8.4 8.4 0 0 1 8.9 3.8 8.5 8.5 0 1 0 20.2 15.1Z"
-                      stroke="currentColor"
-                      strokeWidth="1.7"
-                      strokeLinejoin="round"
-                    />
-                  ) : (
-                    <>
-                      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.7" />
-                      <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                    </>
-                  )}
-                </svg>
-              </button>
-            </div>
-          </div>
         </div>
         <div className="ng-tab-bar" role="tablist">
           <button type="button" role="tab" aria-selected={tab === "voyage"} className={tab === "voyage" ? "active" : ""} onClick={() => setTab("voyage")}>
@@ -744,6 +778,9 @@ export default function App() {
           </button>
           <button type="button" role="tab" aria-selected={tab === "marinas"} className={tab === "marinas" ? "active" : ""} onClick={() => setTab("marinas")}>
             {t("tabs.marinas")}
+          </button>
+          <button type="button" role="tab" aria-selected={tab === "gear"} className={tab === "gear" ? "active" : ""} onClick={() => setTab("gear")}>
+            {t("tabs.gear")}
           </button>
         </div>
         {wishlistsEnabled ? (
@@ -765,51 +802,39 @@ export default function App() {
             {t("clock.sailed", { nm: sailedNm })} · {t("clock.simulated")}
           </span>
         </p>
-        {!prod ? (
-          <label className="dev-t0">
-            {t("clock.devT0")}
-            <input
-              type="text"
-              value={devT0 || t0}
-              onChange={(event) => setDevT0(event.target.value)}
-              aria-label={t("clock.devT0")}
-            />
-          </label>
-        ) : null}
-        {tab === "voyage" ? (
-          <EscalesPanel
-            milestoneId={milestoneId}
-            adminKey={adminKey.trim() || undefined}
-            onMilestoneId={setMilestoneId}
-            onSuggested={onSuggested}
-            onAuthorized={onAuthorized}
-          />
-        ) : null}
-        <section className="crew-supporter-public" data-testid="crew-supporter-public">
-          <div className="crew-supporter-heading">
-            <h2>{t("pledge.crewSubscribeHint")}</h2>
-            <small className="crew-sandbox-note">{t("pledge.crewSubscribeSandbox")}</small>
-          </div>
-          <div className="crew-paypal-frame">
-            <CrewSubscribeButton adminKey={adminKey.trim() || undefined} />
-          </div>
-        </section>
-        {publicCommonFund ? (
-          <p className="hint public-common-fund" data-testid="public-common-fund">
-            {t("fund.publicCommon", {
-              balance: Number.isFinite(Number(publicCommonFund.balance_eur))
-                ? new Intl.NumberFormat(lang, {
-                    style: "currency",
-                    currency: publicCommonFund.currency,
-                  }).format(Number(publicCommonFund.balance_eur))
-                : `${publicCommonFund.balance_eur} ${publicCommonFund.currency}`,
-            })}
-          </p>
-        ) : null}
         {tab === "voyage" ? (
           <>
+            <EscalesPanel
+              milestoneId={milestoneId}
+              adminKey={adminKey.trim() || undefined}
+              onMilestoneId={setMilestoneId}
+              onSuggested={onSuggested}
+              onAuthorized={onAuthorized}
+            />
+            <section className="crew-supporter-public" data-testid="crew-supporter-public">
+              <div className="crew-supporter-heading">
+                <h2>{t("pledge.crewSubscribeHint")}</h2>
+                <small className="crew-sandbox-note">{t("pledge.crewSubscribeSandbox")}</small>
+              </div>
+              <div className="crew-paypal-frame">
+                <CrewSubscribeButton adminKey={adminKey.trim() || undefined} suppressHeadingHint />
+              </div>
+            </section>
+            {publicCommonFund ? (
+              <p className="hint public-common-fund" data-testid="public-common-fund">
+                {t("fund.publicCommon", {
+                  balance: Number.isFinite(Number(publicCommonFund.balance_eur))
+                    ? new Intl.NumberFormat(lang, {
+                        style: "currency",
+                        currency: publicCommonFund.currency,
+                      }).format(Number(publicCommonFund.balance_eur))
+                    : `${publicCommonFund.balance_eur} ${publicCommonFund.currency}`,
+                })}
+              </p>
+            ) : null}
             <ProjectList
               projects={projects}
+              featureScope="projects"
               selectedProjectId={selectedProjectId}
               onSelectProject={setSelectedProjectId}
               contributor={contributor}
@@ -824,101 +849,35 @@ export default function App() {
                 onAuthorized={onAuthorized}
               />
             ) : null}
+            {stop ? (
+              <EscalePopup
+                stop={stop}
+                fiche={fiche}
+                loading={ficheLoading}
+                error={ficheError}
+                onClose={() => setStop(null)}
+                arrivalIso={sheetArrivalIso}
+                logbookEntries={sheetLogbook}
+                priceCatalog={schedule?.prices}
+                schedule={schedule}
+                pledge={{
+                  amount,
+                  milestoneId,
+                  contributor,
+                  kind,
+                  onAmount: setAmount,
+                  onMilestoneId: setMilestoneId,
+                  onContributor: setContributor,
+                  onKind,
+                }}
+                onPledgeAuthorized={onAuthorized}
+              />
+            ) : (
+              <HowItWorks />
+            )}
           </>
-        ) : (
-          <div className="panel">
-            <h2>{t("marinas.pick")}</h2>
-            <ul className="stop-picks">
-              {(voyage?.stops || []).map((item: VoyageStop, index: number) => (
-                <li key={`${item.milestoneId}-${index}`}>
-                  <button type="button" onClick={() => chooseStop(item)}>{item.name}</button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <TreasurerPanel
-          open={treasurerOpen}
-          onOpenChange={onTreasurerOpenChange}
-          demoMode={demoTreasurer}
-          adminKey={adminKey}
-          onAdminKeyChange={setAdminKey}
-          settleBusy={settleBusy}
-          settleNote={settleNote}
-          onSettle={() => void onSettle()}
-          clockPinned={clockPinned}
-          settleAt={settleAt}
-          onSettleAtChange={setSettleAt}
-          onSettleAt={() => void onSettleAt()}
-          milestoneId={milestoneId}
-          onMilestoneIdChange={setMilestoneId}
-          projectFund={projectFund}
-          boatFund={boatFund}
-          pledges={pledges}
-          loading={loading}
-          error={error}
-          needsKey={needsKey}
-          onRefreshQueue={() => void refresh()}
-          onPledgeUpdated={updatePledge}
-          spendAmount={spendAmount}
-          onSpendAmountChange={setSpendAmount}
-          spendNote={spendNote}
-          onSpendNoteChange={setSpendNote}
-          spendError={spendError}
-          fund={fund}
-          onSpendSubmit={(event) => {
-            event.preventDefault();
-            void onSpend();
-          }}
-        >
-          {demoTreasurerAvailable ? (
-            <button
-              type="button"
-              className="secondary demo-treasurer-entry"
-              data-testid="demo-treasurer-button"
-              onClick={() => startDemoTreasurer()}
-            >
-              {t("treasurer.demoButton")}
-            </button>
-          ) : null}
-        </TreasurerPanel>
-      </aside>
-
-      <aside
-        ref={toolsPanelRef}
-        tabIndex={-1}
-        className={`ng-tools-panel${toolsOpen ? "" : " ng-collapsed"}`}
-        data-testid="ng-tools-panel"
-        aria-hidden={!toolsOpen}
-      >
-        {tab === "voyage" ? (
-          stop ? (
-            <EscalePopup
-              stop={stop}
-              fiche={fiche}
-              loading={ficheLoading}
-              error={ficheError}
-              onClose={() => setStop(null)}
-              arrivalIso={sheetArrivalIso}
-              logbookEntries={sheetLogbook}
-              priceCatalog={schedule?.prices}
-              schedule={schedule}
-              pledge={{
-                amount,
-                milestoneId,
-                contributor,
-                kind,
-                onAmount: setAmount,
-                onMilestoneId: setMilestoneId,
-                onContributor: setContributor,
-                onKind,
-              }}
-              onPledgeAuthorized={onAuthorized}
-            />
-          ) : (
-            <HowItWorks />
-          )
-        ) : (
+        ) : null}
+        {tab === "marinas" ? (
           <MarinasPanel
             marinas={marinaFeatures}
             onFlyTo={onFlyTo}
@@ -926,7 +885,35 @@ export default function App() {
             contributor={contributor}
             onAuthorized={onAuthorized}
           />
-        )}
+        ) : null}
+        {tab === "gear" ? (
+          <ProjectList
+            projects={projects}
+            featureScope="gear"
+            selectedProjectId={selectedProjectId}
+            onSelectProject={setSelectedProjectId}
+            contributor={contributor}
+            onFlyTo={onFlyTo}
+            onAuthorized={onAuthorized}
+          />
+        ) : null}
+      </aside>
+
+      <aside
+        className={`ng-tools-panel ng-settings-panel${toolsOpen ? "" : " ng-collapsed"}`}
+        data-testid="ng-tools-panel"
+        aria-hidden={!toolsOpen}
+      >
+        <ShellSettingsPanel
+          prod={prod}
+          devT0={devT0}
+          t0={t0}
+          onDevT0Change={setDevT0}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        >
+          {treasurerPanel}
+        </ShellSettingsPanel>
       </aside>
     </div>
   );

@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import "../i18n";
 import {
   fixtureCatalogEur,
@@ -8,18 +8,23 @@ import {
   fixtureCatalogUnsupported,
   fixtureCatalogUsd,
 } from "./fixtures";
+import type { PledgeFormValues } from "../components/PledgeButton";
 import { WishlistItemCard } from "./WishlistItemCard";
 
-let capturedPledgeValues: Record<string, unknown> | null = null;
+let capturedPledgeValues: PledgeFormValues | null = null;
 
 vi.mock("../components/PledgeButton", () => ({
-  PledgeButton: ({ values }: { values: Record<string, unknown> }) => {
+  PledgeButton: ({ values }: { values: PledgeFormValues }) => {
     capturedPledgeValues = values;
     return <div data-testid="pledge-button" data-currency={String(values.currency || "")} />;
   },
 }));
 
 describe("WishlistItemCard", () => {
+  beforeEach(() => {
+    capturedPledgeValues = null;
+  });
+
   it("renders funding bar when funded_pct is set", () => {
     render(<WishlistItemCard item={fixtureCatalogEur} />);
     expect(screen.getByTestId("wishlist-funding-bar")).toBeInTheDocument();
@@ -88,7 +93,6 @@ describe("WishlistItemCard", () => {
   });
 
   it("forwards order currency to pledge SDK props only", () => {
-    capturedPledgeValues = null;
     render(<WishlistItemCard item={{ ...fixtureCatalogUsd, target_currency: "USD" }} />);
     expect(capturedPledgeValues?.currency).toBe("USD");
     expect(capturedPledgeValues?.amount_eur).toBe("1.00");

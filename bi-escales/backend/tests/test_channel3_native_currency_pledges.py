@@ -83,13 +83,13 @@ def test_jpy_paypal_value_has_no_decimals():
 
 def test_usd_catalog_pledge_creates_usd_order(api):
     client, spy = api
-    pid = project_id_for_product("hwD0sF9")
+    pid = project_id_for_product("QE0Vp6a")
     res = client.post(
         "/api/escales/pledges",
         json={
-            "amount_eur": "9.99",
+            "amount_eur": "39.99",
             "currency": "EUR",
-            "description": "Shackle",
+            "description": "Bilge pump",
             "milestone_id": "",
             "kind": "project_pledge",
             "target_id": pid,
@@ -98,18 +98,18 @@ def test_usd_catalog_pledge_creates_usd_order(api):
     assert res.status_code == 200
     order = spy.orders[-1]
     assert order["currency_code"] == "USD"
-    assert order["amount_eur"] == "9.99"
+    assert order["amount_eur"] == "39.99"
     assert res.json()["currency"] == "USD"
 
 
 def test_gbp_catalog_pledge_order_payload(api):
     client, spy = api
-    pid = project_id_for_product("6QGw0iy")
+    pid = project_id_for_product("K6gupx4")
     res = client.post(
         "/api/escales/pledges",
         json={
-            "amount_eur": "24.99",
-            "description": "Life vest",
+            "amount_eur": "114.00",
+            "description": "HX210E VHF",
             "milestone_id": "",
             "kind": "project_pledge",
             "target_id": pid,
@@ -117,7 +117,7 @@ def test_gbp_catalog_pledge_order_payload(api):
     )
     assert res.status_code == 200
     assert spy.orders[-1]["currency_code"] == "GBP"
-    assert spy.orders[-1]["amount_eur"] == "24.99"
+    assert spy.orders[-1]["amount_eur"] == "114.00"
 
 
 def test_eur_catalog_pledge_order_payload(api):
@@ -141,7 +141,7 @@ def test_eur_catalog_pledge_order_payload(api):
 def test_jpy_catalog_pledge_whole_units(api, monkeypatch):
     client, spy = api
 
-    def _fake_lookup(project_id: str):
+    def _fake_lookup(project_id: str, **kwargs):
         return {
             "channel3_product_id": "jpy1",
             "project_id": project_id,
@@ -171,12 +171,12 @@ def test_jpy_catalog_pledge_whole_units(api, monkeypatch):
 
 def test_usd_funded_pct_uses_native_captures_only(api):
     client, _ = api
-    pid = project_id_for_product("hwD0sF9")
+    pid = project_id_for_product("QE0Vp6a")
 
     async def _seed():
         await record_finance(
             "pledge_captured",
-            amount_eur="19.98",
+            amount_eur="26.39",
             currency="USD",
             milestone_id="projet",
             target_id=pid,
@@ -194,14 +194,14 @@ def test_usd_funded_pct_uses_native_captures_only(api):
     asyncio.run(_seed())
     body = client.get(f"/api/escales/channel3/catalog/by-project/{pid}/fund").json()
     assert body["funded_currency"] == "USD"
-    assert body["funded_amount_minor"] == 1998
-    assert body["funded_pct"] == 33
+    assert body["funded_amount_minor"] == 2639
+    assert body["funded_pct"] == 32
 
 
 def test_unsupported_catalog_currency_rejected(api, monkeypatch):
     client, spy = api
 
-    def _fake_lookup(project_id: str):
+    def _fake_lookup(project_id: str, **kwargs):
         return {
             "channel3_product_id": "bad",
             "project_id": project_id,

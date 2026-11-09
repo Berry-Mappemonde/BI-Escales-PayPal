@@ -306,8 +306,11 @@ def test_state_machine_and_forbidden_transitions(monkeypatch):
         assert authorized["status"] == "authorized"
         assert authorized["authorization_id"] == "AUTH-ORDER1"
         assert authorized["authorization_expires_at"] == "2099-01-01T00:00:00Z"
-        with pytest.raises(IllegalTransition):
-            await authorize_pledge(created["_id"], spy)
+        calls_after_first_auth = len(spy.calls)
+        repeat = await authorize_pledge(created["_id"], spy)
+        assert repeat["status"] == "authorized"
+        assert repeat["authorization_id"] == "AUTH-ORDER1"
+        assert len(spy.calls) == calls_after_first_auth
 
         monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
         captured = await capture_pledge(created["_id"], spy)

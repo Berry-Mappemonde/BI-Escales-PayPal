@@ -51,8 +51,10 @@ from .paypal_client import (
     PayPalError,
     approve_link,
     authorization_from,
+    paypal_error_has_issue,
     read_capture_result,
     setup_token_approve_link,
+    usable_authorization_from_order,
     vault_id_from_order,
     vault_id_from_token,
     vault_source_from_token,
@@ -1333,23 +1335,20 @@ async def _capture_order_pledge(pledge_id: str, client: Any, pledge: dict) -> di
     )
 
 
-async def authorize_pledge(pledge_id: str, client: Any) -> dict:
-    pledge = await require_pledge(pledge_id)
-    mode = str(pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE")
-    if mode == "CAPTURE":
-        return await _capture_order_pledge(pledge_id, client, pledge)
-    _require_status(pledge, "created", "authorized")
-    order_id = str(pledge.get("order_id") or "")
-    if not _buyer_approved(client, order_id):
-        raise ValueError("order not approved yet")
-    from .departure_clock import refuse_cancelled_departure
-
-    await refuse_cancelled_departure(pledge)
-    order = client.authorize_order(order_id, pledge_id=pledge_id)
-    auth_id, expiration = authorization_from(order)
+async def _finish_pledge_authorization(
+    pledge: dict,
+    order: dict,
+    client: Any,
+    *,
+    auth_id: Optional[str] = None,
+    expiration: Optional[str] = None,
+) -> dict:
+    if not auth_id:
+        auth_id, expiration = authorization_from(order)
     if pledge.get("vault_on_purchase"):
         vault_id = vault_id_from_order(order if isinstance(order, dict) else {})
         if not vault_id:
+            order_id = str(pledge.get("order_id") or "")
             try:
                 refreshed = client.get_order(order_id) or {}
             except Exception:
@@ -1375,6 +1374,42 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
         **_identity(saved),
     )
     return saved
+
+
+async def authorize_pledge(pledge_id: str, client: Any) -> dict:
+    pledge = await require_pledge(pledge_id)
+    mode = str(pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE")
+    if mode == "CAPTURE":
+        return await _capture_order_pledge(pledge_id, client, pledge)
+    if str(pledge.get("status") or "") == "authorized":
+        existing = str(pledge.get("authorization_id") or "").strip()
+        if existing:
+            return pledge
+    _require_status(pledge, "created", "authorized")
+    order_id = str(pledge.get("order_id") or "")
+    if not _buyer_approved(client, order_id):
+        raise ValueError("order not approved yet")
+    from .departure_clock import refuse_cancelled_departure
+
+    await refuse_cancelled_departure(pledge)
+    try:
+        order = client.authorize_order(order_id, pledge_id=pledge_id)
+    except PayPalError as exc:
+        if not paypal_error_has_issue(exc, "ORDER_ALREADY_AUTHORIZED"):
+            raise
+        refreshed = client.get_order(order_id) or {}
+        try:
+            auth_id, expiration = usable_authorization_from_order(refreshed)
+        except PayPalError:
+            raise exc from None
+        return await _finish_pledge_authorization(
+            pledge,
+            refreshed,
+            client,
+            auth_id=auth_id,
+            expiration=expiration,
+        )
+    return await _finish_pledge_authorization(pledge, order, client)
 
 
 def _money_event_timestamp(

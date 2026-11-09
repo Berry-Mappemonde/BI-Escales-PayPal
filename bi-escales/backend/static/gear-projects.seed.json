@@ -9,7 +9,6 @@
         "id": "gear-dive-computer-expedition",
         "title": "Ordinateur de plongée expedition",
         "funder": "Channel3",
-        "url": "https://trychannel3.com/",
         "category_group": "Gear",
         "location": "Réunion",
         "description": "Matériel expédition — financement collectif sandbox EUR.",
@@ -17,7 +16,6 @@
         "goal_eur": "450.00",
         "channel3_price_eur": "450.00",
         "channel3_image_url": "https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=640",
-        "channel3_buy_url": "https://trychannel3.com/",
         "channel3_product_name": "Suunto D5"
       }
     },
@@ -28,7 +26,6 @@
         "id": "gear-dry-bag-expedition",
         "title": "Sacs étanches (lot expédition)",
         "funder": "Channel3",
-        "url": "https://trychannel3.com/",
         "category_group": "Gear",
         "location": "Océan Indien",
         "description": "Protection du matériel embarqué — objectif sandbox.",
@@ -36,8 +33,8 @@
         "goal_eur": "120.00",
         "channel3_price_eur": "120.00",
         "channel3_image_url": "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=640",
-        "channel3_buy_url": "https://trychannel3.com/",
-        "channel3_product_name": "Dry bag 40L"
+        "channel3_product_name": "Dry bag 40L",
+        "channel3_product_id": "zRl9jHd"
       }
     },
     {
@@ -47,7 +44,6 @@
         "id": "gear-marine-binoculars",
         "title": "Jumelles marines",
         "funder": "Channel3",
-        "url": "https://trychannel3.com/",
         "category_group": "Gear",
         "location": "Madagascar",
         "description": "Observation côtière et sécurité — financement Gear sandbox.",
@@ -55,8 +51,8 @@
         "goal_eur": "280.00",
         "channel3_price_eur": "280.00",
         "channel3_image_url": "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=640",
-        "channel3_buy_url": "https://trychannel3.com/",
-        "channel3_product_name": "Marine binoculars 7x50"
+        "channel3_product_name": "Marine binoculars 7x50",
+        "channel3_product_id": "ySwJYWZ"
       }
     }
   ]

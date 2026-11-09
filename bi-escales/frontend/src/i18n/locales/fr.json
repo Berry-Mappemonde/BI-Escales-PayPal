@@ -39,7 +39,15 @@
       "gear-dive-computer-expedition": "Ordinateur de plongée expedition",
       "gear-dry-bag-expedition": "Sacs étanches (lot expédition)",
       "gear-marine-binoculars": "Jumelles marines"
-    }
+    },
+    "fundedPctInline": "{{pct}} % financés"
+  },
+  "cart": {
+    "heading": "Panier",
+    "loading": "Chargement du panier…",
+    "item": "Article",
+    "price": "Prix",
+    "priceUnavailable": "prix indisponible"
   },
   "clock": {
     "waiting": "Départ dans {{days}} j {{hours}} h",

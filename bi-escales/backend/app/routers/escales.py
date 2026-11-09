@@ -1149,6 +1149,14 @@ async def get_public_gear_list():
     return await sanitize_public_gear_collection(payload)
 
 
+@router.get("/expedition/cart")
+async def get_expedition_cart(lang: Optional[str] = None):
+    """Expedition cart price table: six gear lines and every voyage marina (QA R3b-2)."""
+    from app.expedition_cart import build_expedition_cart
+
+    return await build_expedition_cart(lang)
+
+
 @router.get("/projects/{project_id}/fund")
 async def get_public_project_fund(project_id: str):
     """Public crowdfunding totals for one BI project (``target_id`` slug).

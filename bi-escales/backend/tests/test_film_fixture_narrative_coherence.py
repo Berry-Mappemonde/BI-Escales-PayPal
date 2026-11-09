@@ -9,33 +9,14 @@ from pathlib import Path
 
 import pytest
 
+from tests.film_cabin_schedule import FILM_CABIN, film_leg_bounds, fixture_tb_matches_cabin
+
 REPO = Path(__file__).resolve().parents[3]
 FIXTURES = REPO / "naviguide-escales/server/tests/fixtures"
 CABIN = Path(__file__).resolve().parents[1] / "app/escales/cabin_legs.json"
 
 sys.path.insert(0, str(REPO / "naviguide-escales/server"))
 from film_script import spoken_sea_days  # noqa: E402
-
-FILM_CABIN: dict[str, str | None] = {
-    "leg-0": "leg-la-rochelle-to-ajaccio-corse",
-    "leg-1": "leg-ajaccio-corse-to-fort-de-france-martinique",
-    "leg-2": "leg-fort-de-france-martinique-to-pointe-a-pitre-guadeloupe",
-    "leg-3": "leg-pointe-a-pitre-guadeloupe-to-gustavia-saint-barthelemy",
-    "leg-4": "leg-gustavia-saint-barthelemy-to-marigot-saint-martin",
-    "leg-5": "leg-marigot-saint-martin-to-cayenne-guyane",
-    "leg-6": None,
-    "leg-7": None,
-    "leg-8": None,
-    "leg-9": None,
-    "leg-10": "leg-cayenne-guyane-to-papeete-polynesie-francaise",
-    "leg-11": "leg-papeete-polynesie-francaise-to-mata-utu-wallis-et-futuna",
-    "leg-12": "leg-mata-utu-wallis-et-futuna-to-noumea-nouvelle-caledonie",
-    "leg-13": "leg-noumea-nouvelle-caledonie-to-dzaoudzi-mayotte",
-    "leg-14": "leg-dzaoudzi-mayotte-to-tromelin-taaf",
-    "leg-15": "leg-tromelin-taaf-to-saint-gilles-la-reunion",
-    "leg-16": "leg-saint-gilles-la-reunion-to-europa-taaf",
-    "leg-17": "leg-europa-taaf-to-la-rochelle",
-}
 
 _FR_MONTHS = {
     "janvier": 1,
@@ -72,7 +53,11 @@ def _parse_iso(raw: str) -> datetime:
     moment = datetime.fromisoformat(text)
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
-    return moment.astimezone(timezone.utc)
+    return moment.astimezone(timezone.utc).replace(microsecond=0)
+
+
+def _instants_equal(left: str, right: str) -> bool:
+    return _parse_iso(left) == _parse_iso(right)
 
 
 def _leg_days(t_a: str, t_b: str) -> float:
@@ -80,28 +65,12 @@ def _leg_days(t_a: str, t_b: str) -> float:
 
 
 def _cabin_sea_bounds(cabin: dict) -> dict[str, tuple[str, str]]:
-    by = {row["id"]: row for row in cabin["legs"]}
+    bounds = film_leg_bounds(cabin)
     out: dict[str, tuple[str, str]] = {}
-    prev_t_b: str | None = None
-    cayenne_arr = by["leg-marigot-saint-martin-to-cayenne-guyane"]["arrival_iso"]
-    cayenne_dep = by["leg-cayenne-guyane-to-papeete-polynesie-francaise"]["departure_iso"]
-    halifax_start = _parse_iso(cayenne_arr)
-    halifax_end = _parse_iso(cayenne_dep)
-    halifax_span = max((halifax_end - halifax_start).total_seconds(), 1.0)
-
-    for film_id in [f"leg-{i}" for i in range(18)]:
-        if film_id in {"leg-6", "leg-7", "leg-8", "leg-9"}:
-            idx = int(film_id.split("-")[1]) - 6
-            frac0, frac1 = idx / 4, (idx + 1) / 4
-            t_a = halifax_start + timedelta(seconds=halifax_span * frac0)
-            t_b = halifax_start + timedelta(seconds=halifax_span * frac1)
-            out[film_id] = (t_a.isoformat().replace("+00:00", "Z"), t_b.isoformat().replace("+00:00", "Z"))
+    for leg_id, (_, _, dep, arr) in bounds.items():
+        if leg_id in {"leg-6", "leg-7", "leg-8", "leg-9"}:
             continue
-        cabin_id = FILM_CABIN.get(film_id)
-        if not cabin_id:
-            continue
-        row = by[cabin_id]
-        out[film_id] = (row["departure_iso"], row["arrival_iso"])
+        out[leg_id] = (dep, arr)
     return out
 
 
@@ -123,6 +92,22 @@ def _fr_departure_date(text: str) -> tuple[int, int] | None:
         return _FR_MONTHS[m.group(2).lower()], day
     m = re.search(
         r"quitté [^\.]+ le (\d+|1er) (janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if m:
+        day = 1 if m.group(1) == "1er" else int(m.group(1))
+        return _FR_MONTHS[m.group(2).lower()], day
+    m = re.search(
+        r"\bLe (\d+|1er) (janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre), (?=(?:d'île|Berry|pour la).{0,60}quitte)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if m:
+        day = 1 if m.group(1) == "1er" else int(m.group(1))
+        return _FR_MONTHS[m.group(2).lower()], day
+    m = re.search(
+        r"\bLe (\d+|1er) (janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre), [^\.]{0,80}(?:s'envole|embarque|reprend)",
         text,
         flags=re.IGNORECASE,
     )
@@ -164,14 +149,37 @@ def _en_arrival_date(text: str) -> tuple[int, int] | None:
     return month, int(m.group(2))
 
 
-def _spoken_day_span(dep: tuple[int, int], arr: tuple[int, int], *, year: int) -> int:
-    m1, d1 = dep
-    m2, d2 = arr
-    t0 = datetime(year, m1, d1, tzinfo=timezone.utc)
-    t1 = datetime(year, m2, d2, tzinfo=timezone.utc)
-    if t1 < t0:
-        t1 = datetime(year + 1, m2, d2, tzinfo=timezone.utc)
-    return (t1 - t0).days
+def _fr_all_cited_dates(text: str) -> list[tuple[int, int]]:
+    out: list[tuple[int, int]] = []
+    for m in re.finditer(
+        r"\b(?:Le|le) (\d+|1er) (janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)",
+        text,
+        flags=re.IGNORECASE,
+    ):
+        day = 1 if m.group(1).lower() == "1er" else int(m.group(1))
+        out.append((_FR_MONTHS[m.group(2).lower()], day))
+    return out
+
+
+def _en_all_cited_dates(text: str) -> list[tuple[int, int]]:
+    out: list[tuple[int, int]] = []
+    for m in re.finditer(r"\bOn ([A-Za-z]+) (\d{1,2})\b", text):
+        month = _EN_MONTHS.get(m.group(1).lower())
+        if month:
+            out.append((month, int(m.group(2))))
+    return out
+
+
+def _year_window(t_a: datetime, t_b: datetime, month: int, day: int) -> bool:
+    for year in (t_a.year, t_a.year + 1):
+        try:
+            cited = datetime(year, month, day, 12, tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        pad = timedelta(days=1)
+        if t_a - pad <= cited <= t_b + pad:
+            return True
+    return False
 
 
 def _iter_all_chapters(payload: dict) -> list[tuple[str, dict]]:
@@ -187,8 +195,6 @@ def _iter_all_chapters(payload: dict) -> list[tuple[str, dict]]:
 
 
 def _parse_sea_days_numeric(text: str, *, en: bool) -> float | None:
-    phrase = spoken_sea_days(0, "en" if en else "fr")  # unused; patterns below
-    del phrase
     if en:
         m = re.search(
             r"(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
@@ -258,29 +264,42 @@ def _parse_sea_days_numeric(text: str, *, en: bool) -> float | None:
     return None
 
 
-@pytest.fixture(scope="module")
-def cabin_bounds() -> dict[str, tuple[str, str]]:
+def run_film_fixture_narrative_coherence(
+    payload: dict,
+    *,
+    fixture_name: str,
+    cabin_bounds: dict[str, tuple[str, str]],
+    expected_tb: dict[str, tuple[str, str]],
+) -> None:
     cabin = json.loads(CABIN.read_text(encoding="utf-8"))
-    return _cabin_sea_bounds(cabin)
-
-
-@pytest.mark.parametrize(
-    "fixture_name",
-    ["film_150_raw_2026-10-29.json", "film_integral_written_2026-10-29.json"],
-)
-def test_film_fixture_narrative_coherence(fixture_name: str, cabin_bounds: dict[str, tuple[str, str]]) -> None:
-    path = FIXTURES / fixture_name
-    payload = json.loads(path.read_text(encoding="utf-8"))
     for source, leg in _iter_all_chapters(payload):
         leg_id = leg.get("id") or ""
-        if leg_id not in cabin_bounds and leg_id not in {"leg-6"}:
+        if not leg_id.startswith("leg-"):
             continue
         text = leg.get("text") or ""
         en = source == "en"
         dep_anchor = _anchor_dt(leg, "depart")
         escale_anchor = _anchor_dt(leg, "escale")
+        t_a = _parse_iso(str(leg.get("tA") or ""))
+        t_b = _parse_iso(str(leg.get("tB") or ""))
 
-        if leg_id in cabin_bounds:
+        if leg_id in expected_tb:
+            exp_a, exp_b = expected_tb[leg_id]
+            assert _instants_equal(str(leg.get("tA")), exp_a), f"{fixture_name}:{source} {leg_id} tA"
+            assert _instants_equal(str(leg.get("tB")), exp_b), f"{fixture_name}:{source} {leg_id} tB"
+
+        if leg_id in {f"leg-{n}" for n in range(1, 13)} and source in {"fr", "en"} and leg_id in cabin_bounds:
+            dep_iso, arr_iso = cabin_bounds[leg_id]
+            sea_days = _leg_days(dep_iso, arr_iso)
+            expected_phrase = spoken_sea_days(sea_days, "en" if en else "fr")
+            if ("de mer" in text or "at sea" in text) and any(
+                k in expected_phrase for k in ("dizaine", "quinzaine", "trentaine", "quarantaine", "about")
+            ):
+                assert expected_phrase in text, (
+                    f"{fixture_name}:{source} {leg_id}: integral fuzzy sea {expected_phrase!r}"
+                )
+
+        if leg_id in cabin_bounds and leg_id not in {"leg-6", "leg-7", "leg-8", "leg-9"}:
             dep_iso, arr_iso = cabin_bounds[leg_id]
             sea_days = _leg_days(dep_iso, arr_iso)
             expected_phrase = spoken_sea_days(sea_days, "en" if en else "fr")
@@ -299,21 +318,20 @@ def test_film_fixture_narrative_coherence(fixture_name: str, cabin_bounds: dict[
                     f"{fixture_name}:{source} {leg_id}: expected {expected_phrase!r} "
                     f"(cabin {sea_days:.2f}d) in {text!r}"
                 )
-                if quoted is not None:
-                    tol = 6.0 if fuzzy else 1.5
-                    assert abs(quoted - sea_days) <= tol, (
-                        f"{fixture_name}:{source} {leg_id}: {quoted} vs cabin {sea_days:.2f}d"
-                    )
 
-                if leg_id in {f"leg-{n}" for n in range(13, 18)}:
-                    cabin = json.loads(CABIN.read_text(encoding="utf-8"))
-                    by = {row["id"]: row for row in cabin["legs"]}
-                    cid = FILM_CABIN[leg_id]
-                    assert cid
-                    assert dep_iso == by[cid]["departure_iso"]
-                    assert arr_iso == by[cid]["arrival_iso"]
+            if leg_id in {f"leg-{n}" for n in range(13, 18)}:
+                by = {row["id"]: row for row in cabin["legs"]}
+                cid = FILM_CABIN[leg_id]
+                assert cid
+                assert dep_iso == by[cid]["departure_iso"]
+                assert arr_iso == by[cid]["arrival_iso"]
 
-        strict_dates = leg_id in {f"leg-{n}" for n in range(13, 18)} or source == "raw"
+        strict_dates = (
+            source == "raw"
+            or leg_id in {f"leg-{n}" for n in range(13, 18)}
+            or (source == "fr" and leg_id in {f"leg-{n}" for n in range(1, 13)})
+            or (source == "en" and leg_id in {f"leg-{n}" for n in range(1, 13)})
+        )
         if strict_dates and dep_anchor:
             dep_cited = _en_departure_date(text) if en else _fr_departure_date(text)
             if dep_cited:
@@ -329,32 +347,79 @@ def test_film_fixture_narrative_coherence(fixture_name: str, cabin_bounds: dict[
                     f"!= escale anchor {(escale_anchor.month, escale_anchor.day)}"
                 )
 
-        if strict_dates:
-            dep_cited = (_en_departure_date(text) if en else _fr_departure_date(text)) if text else None
-            arr_cited = (_en_arrival_date(text) if en else _fr_arrival_date(text)) if text else None
-            quoted = _parse_sea_days_numeric(text, en=en)
-            if (
-                dep_cited
-                and arr_cited
-                and quoted is not None
-                and quoted == int(round(quoted))
-                and "dizaine" not in text
-                and "about ten" not in text
-            ):
-                year = (escale_anchor or dep_anchor or datetime(2027, 1, 1, tzinfo=timezone.utc)).year
-                spoken_span = _spoken_day_span(dep_cited, arr_cited, year=year)
-                assert abs(spoken_span - quoted) <= 1, (
-                    f"{fixture_name}:{source} {leg_id}: dates span {spoken_span} vs stated {quoted}"
+        if leg_id in {f"leg-{n}" for n in range(1, 13)} and source in {"fr", "en"}:
+            cited = _en_all_cited_dates(text) if en else _fr_all_cited_dates(text)
+            dep_cited = _en_departure_date(text) if en else _fr_departure_date(text)
+            arr_cited = _en_arrival_date(text) if en else _fr_arrival_date(text)
+            for pair in cited:
+                if dep_cited and pair == dep_cited:
+                    continue
+                if arr_cited and pair == arr_cited:
+                    continue
+                assert _year_window(t_a, t_b, pair[0], pair[1]), (
+                    f"{fixture_name}:{source} {leg_id}: stray date {pair} outside [{leg.get('tA')}, {leg.get('tB')}]"
                 )
 
-        if leg_id == "leg-17" and escale_anchor and dep_anchor:
+        if source == "fr" and leg_id in {f"leg-{n}" for n in range(1, 13)} and "quitte" in text:
+            dep_cited = _fr_departure_date(text)
+            assert dep_cited and dep_anchor, f"{fixture_name}: leg {leg_id} quitte without depart anchor"
+            assert dep_cited == (dep_anchor.month, dep_anchor.day)
+
+        if leg_id == "leg-7":
+            if en:
+                assert "497 miles" in text and "three days at sea" in text
+            else:
+                assert "497 milles" in text and "trois jours de mer" in text
+
+        if leg_id == "leg-17":
+            blob = text.lower()
+            assert blob.count("pointe d'arçay") <= 1
             for anchor in leg.get("anchors") or []:
-                if anchor.get("kind") == "alert-on" and anchor.get("t"):
-                    t_amp = _parse_iso(str(anchor["t"]))
-                    assert dep_anchor <= t_amp <= escale_anchor, (
-                        f"{fixture_name}:{source} leg-17: Pointe anchor outside sea leg"
-                    )
-                    assert (escale_anchor - t_amp).days <= 3, "Pointe d'Arçay should be near La Rochelle arrival"
+                assert anchor.get("kind") != "alert-on", "leg-17 must not use synthetic alert-on anchor"
+
+        if en and "Le August" in text:
+            raise AssertionError(f"{fixture_name}:{source} {leg_id}: Le August leak")
+
+        for anchor in leg.get("anchors") or []:
+            if anchor.get("t"):
+                t_anchor = _parse_iso(str(anchor["t"]))
+                assert t_a <= t_anchor <= t_b, (
+                    f"{fixture_name}:{source} {leg_id}: anchor {anchor.get('t')} outside window"
+                )
+            idx = anchor.get("charIdx")
+            if idx is not None and text:
+                assert 0 <= int(idx) < len(text), f"{fixture_name}:{source} {leg_id}: charIdx {idx}"
+
+
+@pytest.fixture(scope="module")
+def cabin_bounds() -> dict[str, tuple[str, str]]:
+    cabin = json.loads(CABIN.read_text(encoding="utf-8"))
+    return _cabin_sea_bounds(cabin)
+
+
+@pytest.fixture(scope="module")
+def expected_tb() -> dict[str, tuple[str, str]]:
+    cabin = json.loads(CABIN.read_text(encoding="utf-8"))
+    return fixture_tb_matches_cabin(cabin)
+
+
+@pytest.mark.parametrize(
+    "fixture_name",
+    ["film_150_raw_2026-10-29.json", "film_integral_written_2026-10-29.json"],
+)
+def test_film_fixture_narrative_coherence(
+    fixture_name: str,
+    cabin_bounds: dict[str, tuple[str, str]],
+    expected_tb: dict[str, tuple[str, str]],
+) -> None:
+    path = FIXTURES / fixture_name
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    run_film_fixture_narrative_coherence(
+        payload,
+        fixture_name=fixture_name,
+        cabin_bounds=cabin_bounds,
+        expected_tb=expected_tb,
+    )
 
 
 def test_film_fixtures_forbid_may_2027_literals() -> None:

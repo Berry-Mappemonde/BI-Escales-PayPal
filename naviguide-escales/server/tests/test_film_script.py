@@ -598,10 +598,18 @@ SIM_CLOCK = {
     "t0": _SIM_T0,
     "marks": [
         {"name": "La Rochelle", "nm": 0, "filmNm": 122, "iso": _SIM_T0, "holdHours": 72, "lat": 46.15, "lon": -1.16},
-        {"name": "Ajaccio (Corse)", "nm": 1820, "filmNm": 1942, "iso": iso_after_days(205, hour=12), "holdHours": 72, "lat": 41.9, "lon": 8.7},
+        {"name": "Ajaccio (Corse)", "nm": 1820, "filmNm": 1942, "iso": iso_after_days(174, hour=12), "holdHours": 72, "lat": 41.9, "lon": 8.7},
         {"name": "Fort-de-France (Martinique)", "nm": 6973, "filmNm": 7095, "iso": iso_after_days(203), "holdHours": 72, "lat": 14.6, "lon": -61.0},
     ],
 }
+
+
+def test_sim_clock_marks_increase_in_nm_and_iso():
+    marks = SIM_CLOCK["marks"]
+    for index in range(1, len(marks)):
+        prev, row = marks[index - 1], marks[index]
+        assert row["nm"] > prev["nm"]
+        assert row["iso"] > prev["iso"]
 
 
 def _script_blob(plan: dict) -> str:

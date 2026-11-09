@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.channel3_funding import enrich_item_funding, fund_snapshot_for_project
+from app.channel3_public import apply_buy_link_policy
 from app.escales.ledger import fund_for_milestone, record_finance, reset_ledger, to_public_fund
 from app.channel3_catalog import project_id_for_product
 from app.escales.ledger import reset_ledger
@@ -62,6 +63,77 @@ def test_jpy_funded_pct_uses_whole_minor_units():
     assert enriched["funded_pct"] == 50
     assert enriched["fully_funded"] is False
     assert enriched.get("buy_link") in (None, "")
+
+
+def test_usd_buy_link_hidden_until_minor_units_cover_target():
+    buy = "https://buy.trychannel3.com/usd-target"
+    item = {
+        "price_currency": "USD",
+        "catalog_default_target_amount_minor": 1_000_000,
+        "catalog_default_target_currency": "USD",
+        "channel3_buy_url": buy,
+    }
+    almost = enrich_item_funding(item, {"currency": "USD", "captured_eur": "9999.00"})
+    assert almost["funded_pct"] == 99
+    assert almost["fully_funded"] is False
+    hidden = apply_buy_link_policy(dict(almost), fully_funded=almost["fully_funded"], buy_url=buy)
+    assert "channel3_buy_url" not in hidden
+
+    half = enrich_item_funding(item, {"currency": "USD", "captured_eur": "9950.00"})
+    assert half["funded_pct"] == 99
+    assert half["fully_funded"] is False
+
+    full = enrich_item_funding(item, {"currency": "USD", "captured_eur": "10000.00"})
+    assert full["funded_pct"] == 100
+    assert full["fully_funded"] is True
+    shown = apply_buy_link_policy(dict(full), fully_funded=full["fully_funded"], buy_url=buy)
+    assert shown["channel3_buy_url"] == buy
+
+
+def test_jpy_buy_link_uses_whole_minor_units():
+    buy = "https://buy.trychannel3.com/jpy-target"
+    item = {
+        "price_currency": "JPY",
+        "catalog_default_target_amount_minor": 10000,
+        "catalog_default_target_currency": "JPY",
+    }
+    almost = enrich_item_funding(item, {"currency": "JPY", "captured_eur": "9999"})
+    assert almost["funded_amount_minor"] == 9999
+    assert almost["funded_pct"] == 99
+    assert almost["fully_funded"] is False
+    hidden = apply_buy_link_policy(dict(almost), fully_funded=almost["fully_funded"], buy_url=buy)
+    assert "channel3_buy_url" not in hidden
+    full = enrich_item_funding(item, {"currency": "JPY", "captured_eur": "10000"})
+    assert full["funded_pct"] == 100
+    assert full["fully_funded"] is True
+    shown = apply_buy_link_policy(dict(full), fully_funded=full["fully_funded"], buy_url=buy)
+    assert shown["channel3_buy_url"] == buy
+
+
+def test_gear_gate_hides_buy_link_below_exact_cover(monkeypatch):
+    from app.gear_projects_catalog import sanitize_public_gear_collection
+
+    async def _fund(_project_id: str):
+        return {"currency": "USD", "captured_eur": "9999.00", "amount_eur": "9999.00"}
+
+    monkeypatch.setattr("app.channel3_funding.fund_snapshot_for_project", _fund)
+    payload = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {
+                    "id": "gear-usd-almost",
+                    "channel3_price": "10000.00",
+                    "channel3_currency": "USD",
+                    "channel3_buy_url": "https://buy.trychannel3.com/gear-almost",
+                },
+            }
+        ],
+    }
+    out = asyncio.run(sanitize_public_gear_collection(payload))
+    props = out["features"][0]["properties"]
+    assert "channel3_buy_url" not in props
 
 
 def test_projet_fund_splits_eur_and_usd(api):

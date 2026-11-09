@@ -5,8 +5,6 @@ import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
 import i18n from "../i18n";
-import * as escalesApi from "../api/escales";
-import * as voyageApi from "../voyage/loadVoyage";
 
 const AXE_RULES = ["button-name", "link-name", "label-content-name-mismatch"] as const;
 

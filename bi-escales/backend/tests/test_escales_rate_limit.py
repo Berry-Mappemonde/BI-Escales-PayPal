@@ -16,14 +16,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app.core import llm
 from app.escales.config import limits_enabled
 from app.escales.pledges import reset_ledger
+from app.escales import rate_limit as rate_limit_module
 from app.escales.rate_limit import (
     RateLimited,
+    captain_rate_feature,
     captain_rate_key,
     client_ip,
     hit,
+    judging_window_active,
     per_day,
     per_minute,
     reset,
+    reset_judging_cache,
     trusted_proxy_hops,
 )
 from app.escales.captain import chat
@@ -35,6 +39,13 @@ FR = "Je parraine 5 milles près de Brest"
 EN = "I'd like to sponsor 5 nautical miles near Brest"
 
 _NO_XFF = object()
+
+
+@pytest.fixture(autouse=True)
+def _reset_judging_rate_cache():
+    reset_judging_cache()
+    yield
+    reset_judging_cache()
 
 
 @pytest.fixture
@@ -106,9 +117,15 @@ def test_limits_follow_production_unless_overridden(monkeypatch):
     assert limits_enabled() is True
     monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", raising=False)
     monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_DAY", raising=False)
+    monkeypatch.delenv("ESCALES_JUDGING_START", raising=False)
+    monkeypatch.delenv("ESCALES_JUDGING_END", raising=False)
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", raising=False)
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", raising=False)
     monkeypatch.delenv("ESCALES_LLM_DAILY_CAP", raising=False)
+    reset_judging_cache()
     assert per_minute() == 10
     assert per_day() == 100
+    assert judging_window_active() is False
     assert llm.llm_daily_cap() == 100
 
 
@@ -313,6 +330,187 @@ def test_rate_limit_without_xff_uses_socket_host(api, monkeypatch):
 def test_captain_rate_key_composes_ip_and_session():
     assert captain_rate_key("1.2.3.4", "") == "1.2.3.4"
     assert captain_rate_key("1.2.3.4", "uuid") == "1.2.3.4|uuid"
+
+
+_JUDGING_START = "2026-11-30T22:00:00Z"
+_JUDGING_END = "2026-12-16T05:00:00Z"
+_WALL_INSIDE = dt.datetime(2026, 12, 1, 12, 0, tzinfo=dt.timezone.utc)
+_WALL_BEFORE = dt.datetime(2026, 11, 1, 12, 0, tzinfo=dt.timezone.utc)
+_WALL_AFTER = dt.datetime(2027, 1, 1, 12, 0, tzinfo=dt.timezone.utc)
+
+
+def _patch_wall_clock(monkeypatch, moment: dt.datetime) -> None:
+    monkeypatch.setattr(rate_limit_module, "_wall_now", lambda: moment)
+    reset_judging_cache()
+
+
+def _set_judging_window(monkeypatch, *, start=_JUDGING_START, end=_JUDGING_END) -> None:
+    monkeypatch.setenv("ESCALES_JUDGING_START", start)
+    monkeypatch.setenv("ESCALES_JUDGING_END", end)
+    reset_judging_cache()
+
+
+def test_judging_window_unset_uses_default_captain_limits(monkeypatch):
+    monkeypatch.delenv("ESCALES_JUDGING_START", raising=False)
+    monkeypatch.delenv("ESCALES_JUDGING_END", raising=False)
+    reset_judging_cache()
+    assert per_minute() == 10
+    assert per_day() == 100
+    assert judging_window_active() is False
+    assert captain_rate_feature() == {
+        "per_minute": 10,
+        "per_day": 100,
+        "judging_window_active": False,
+    }
+
+
+def test_judging_window_inside_uses_judging_rate_limits(monkeypatch):
+    _set_judging_window(monkeypatch)
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", "30")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", "1000")
+    reset_judging_cache()
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 30
+    assert per_day() == 1000
+    assert judging_window_active() is True
+
+
+def test_judging_window_active_uses_nim_margin_defaults_when_unset(monkeypatch):
+    _set_judging_window(monkeypatch)
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", raising=False)
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", raising=False)
+    monkeypatch.delenv("ESCALES_LLM_DAILY_CAP_JUDGING", raising=False)
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "100")
+    reset_judging_cache()
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 36
+    assert per_day() == 9000
+    assert judging_window_active() is True
+    assert llm.llm_daily_cap() == 9000
+
+
+def test_judging_rate_env_invalid_falls_back_to_judging_defaults(monkeypatch, caplog):
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    _set_judging_window(monkeypatch)
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", "nope")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", "0")
+    reset_judging_cache()
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 36
+    assert per_day() == 9000
+    assert any(
+        "ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING invalid" in r.message
+        for r in caplog.records
+    )
+
+
+def test_judging_window_before_and_after_use_defaults(monkeypatch):
+    _set_judging_window(monkeypatch)
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", "30")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", "1000")
+    _patch_wall_clock(monkeypatch, _WALL_BEFORE)
+    assert per_minute() == 10
+    assert per_day() == 100
+    assert judging_window_active() is False
+    _patch_wall_clock(monkeypatch, _WALL_AFTER)
+    assert per_minute() == 10
+    assert per_day() == 100
+    assert judging_window_active() is False
+
+
+def test_judging_window_invalid_bounds_log_once_and_use_defaults(monkeypatch, caplog):
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    _set_judging_window(monkeypatch, start="not-iso", end=_JUDGING_END)
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 10
+    assert judging_window_active() is False
+    assert any("judging window disabled" in record.message for record in caplog.records)
+    per_minute()
+    assert (
+        len([r for r in caplog.records if "judging window disabled" in r.message]) == 1
+    )
+
+    caplog.clear()
+    reset_judging_cache()
+    _set_judging_window(monkeypatch, start=_JUDGING_END, end=_JUDGING_START)
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 10
+    assert judging_window_active() is False
+    assert any("judging window disabled" in record.message for record in caplog.records)
+
+
+def test_judging_window_uses_wall_clock_not_simulated_voyage(monkeypatch):
+    _set_judging_window(monkeypatch)
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", "30")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-12T08:00:00Z")
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 30
+    assert judging_window_active() is True
+
+
+def test_judging_minute_cap_keeps_localized_429(api, monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    _set_judging_window(monkeypatch)
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", "2")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", "100")
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert _chat(api, FR).status_code == 200
+    assert _review(api).status_code == 200
+    blocked = _chat(api, FR, accept_language="en")
+    assert blocked.status_code == 429
+    assert blocked.json()["detail"] == (
+        "Trop de requêtes. Réessayez plus tard. Le capitaine accepte 2 par minute."
+    )
+    assert int(blocked.headers.get("retry-after", "0")) >= 1
+    english = _review(api, ip="203.0.113.71", accept_language="en-GB", lang="en")
+    assert english.status_code == 200
+    assert _review(api, ip="203.0.113.71", accept_language="en-GB", lang="en").status_code == 200
+    again = _chat(api, EN, ip="203.0.113.71", lang="en")
+    assert again.status_code == 429
+    assert again.json()["detail"] == (
+        "Too many requests. Try again later. The captain accepts 2 per minute."
+    )
+
+
+def test_features_exposes_captain_rate(api, monkeypatch):
+    monkeypatch.delenv("ESCALES_JUDGING_START", raising=False)
+    monkeypatch.delenv("ESCALES_JUDGING_END", raising=False)
+    reset_judging_cache()
+    body = api.get("/api/escales/features").json()
+    assert body["captain_rate"] == {
+        "per_minute": 10,
+        "per_day": 100,
+        "judging_window_active": False,
+    }
+
+
+def test_llm_daily_cap_judging_when_window_active(monkeypatch):
+    monkeypatch.delenv("ESCALES_LLM_DAILY_CAP", raising=False)
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "100")
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP_JUDGING", "5000")
+    _set_judging_window(monkeypatch)
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert llm.llm_daily_cap() == 5000
+
+
+def test_llm_daily_cap_falls_back_outside_judging_window(monkeypatch):
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "100")
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP_JUDGING", "5000")
+    _set_judging_window(monkeypatch)
+    _patch_wall_clock(monkeypatch, _WALL_BEFORE)
+    assert llm.llm_daily_cap() == 100
+
+
+def test_llm_daily_cap_judging_unset_uses_judging_default_not_base_cap(monkeypatch):
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "250")
+    monkeypatch.delenv("ESCALES_LLM_DAILY_CAP_JUDGING", raising=False)
+    _set_judging_window(monkeypatch)
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert llm.llm_daily_cap() == 9000
 
 
 def test_render_and_readme_document_the_production_gate():

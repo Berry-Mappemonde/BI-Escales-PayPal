@@ -118,6 +118,7 @@ from app.escales.app_i18n import (
 )
 from app.escales.rate_limit import (
     RateLimited,
+    captain_rate_feature,
     captain_rate_key,
     client_ip,
     hit as hit_captain_rate,
@@ -613,6 +614,7 @@ async def get_features():
         "crew_supporter_plan_id": crew_plan_id,
         "demo_treasurer": demo_treasurer_enabled(),
         "fastlane": False,
+        "captain_rate": captain_rate_feature(),
     }
 
 

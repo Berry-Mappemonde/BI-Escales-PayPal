@@ -40,7 +40,7 @@ Wishlist lines that reference a removed id or a `needs_confirmation` item appear
 ## Public safety
 
 - Items whose seed `catalog_status` or `review_status` is `needs_confirmation` are omitted from the public catalogue and wishlists, and `POST /pledges` returns 422.
-- `channel3_buy_url` is omitted until an item is **fully funded** in its native currency.
+- `channel3_buy_url` is omitted until funded minor units cover the target (`funded_minor >= target_minor` in the item currency, whole units for JPY/HUF/TWD). `funded_pct` is floored and is 100 only at that point.
 - When shown, responses include `channel3_buy_disclosure` (referral commission notice).
 - No checkout/purchase/order calls to Channel3 are permitted in code (guard in `channel3_client.py`).
 

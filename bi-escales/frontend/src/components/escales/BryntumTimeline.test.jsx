@@ -6,7 +6,7 @@ import BryntumTimeline, {
   TIMELINE_LOCALE_SYNC_MAX_ATTEMPTS,
   TIMELINE_LOCALE_SYNC_RETRY_MS,
   bryntumLocaleForLanguage,
-  refreshTimelineTimeAxis,
+  rebuildTimelineTimeAxisHeaders,
   resolveSchedulerWidget,
   runTimelineLocaleSyncWithRetries,
   syncTimelineLocale,
@@ -55,13 +55,25 @@ describe("resolveSchedulerWidget", () => {
 describe("syncTimelineLocale time axis", () => {
   it("applies locale and rebuilds axis headers for FR, EN, then FR", async () => {
     const applyLocale = vi.fn(() => Promise.resolve());
-    const refreshTimeAxis = vi.fn();
+    const refreshHeader = vi.fn();
+    const tvmUpdate = vi.fn();
     const host = document.createElement("div");
     host.innerHTML = '<div class="b-scheduler"></div>';
     const widget = {
       columns: { first: { text: "" } },
       localeManager: { applyLocale },
-      refreshTimeAxis,
+      isPainted: true,
+      isHorizontal: true,
+      infiniteScroll: false,
+      timeAxisSubGrid: { scrollable: { element: { getBoundingClientRect: () => ({ width: 100 }) } } },
+      timeAxisViewModel: { update: tvmUpdate },
+      timeAxisColumn: { refreshHeader },
+      currentOrientation: { doUpdateTimeView: vi.fn() },
+      onLocaleChange: vi.fn(),
+      viewPreset: { id: "weekAndMonth" },
+      presets: { getById: () => ({ id: "weekAndMonth", options: {} }) },
+      startDate: new Date("2026-11-12"),
+      endDate: new Date("2026-11-16"),
     };
     globalThis.bryntum = { fromElement: vi.fn(() => widget) };
 
@@ -77,15 +89,26 @@ describe("syncTimelineLocale time axis", () => {
     }
 
     expect(applyLocale).toHaveBeenCalledTimes(3);
-    expect(refreshTimeAxis).toHaveBeenCalledTimes(3);
-    expect(refreshTimeAxis.mock.calls.every((call) => call[0] === true)).toBe(true);
+    expect(refreshHeader).toHaveBeenCalledTimes(3);
+    expect(tvmUpdate).toHaveBeenCalled();
     delete globalThis.bryntum;
   });
 
-  it("falls back to timeAxisColumn.refreshHeader when refreshTimeAxis is missing", () => {
+  it("regenerates headers via timeAxisViewModel and refreshHeader", () => {
     const refreshHeader = vi.fn();
-    refreshTimelineTimeAxis({ timeAxisColumn: { refreshHeader } });
-    expect(refreshHeader).toHaveBeenCalledWith(null, true);
+    const update = vi.fn();
+    rebuildTimelineTimeAxisHeaders({
+      isPainted: true,
+      isHorizontal: true,
+      infiniteScroll: false,
+      timeAxisSubGrid: { scrollable: { element: { getBoundingClientRect: () => ({ width: 120 }) } } },
+      timeAxisViewModel: { update },
+      timeAxisColumn: { refreshHeader },
+      currentOrientation: { doUpdateTimeView: vi.fn() },
+      onLocaleChange: vi.fn(),
+    });
+    expect(update).toHaveBeenCalled();
+    expect(refreshHeader).toHaveBeenCalledWith();
   });
 });
 
@@ -100,13 +123,24 @@ describe("runTimelineLocaleSyncWithRetries", () => {
 
   it(`retries up to ${TIMELINE_LOCALE_SYNC_MAX_ATTEMPTS} times when the widget is not mounted`, async () => {
     const applyLocale = vi.fn(() => Promise.resolve());
-    const refreshTimeAxis = vi.fn();
+    const refreshHeader = vi.fn();
     const host = document.createElement("div");
     host.innerHTML = '<div class="b-scheduler"></div>';
     const widget = {
       columns: { first: { text: "" } },
       localeManager: { applyLocale },
-      refreshTimeAxis,
+      isPainted: true,
+      isHorizontal: true,
+      infiniteScroll: false,
+      timeAxisSubGrid: { scrollable: { element: { getBoundingClientRect: () => ({ width: 100 }) } } },
+      timeAxisViewModel: { update: vi.fn() },
+      timeAxisColumn: { refreshHeader },
+      currentOrientation: { doUpdateTimeView: vi.fn() },
+      onLocaleChange: vi.fn(),
+      viewPreset: { id: "weekAndMonth" },
+      presets: { getById: () => ({ id: "weekAndMonth", options: {} }) },
+      startDate: new Date("2026-11-12"),
+      endDate: new Date("2026-11-16"),
     };
     let mountAttempt = 0;
     const fromElement = vi.fn(() => {
@@ -129,7 +163,7 @@ describe("runTimelineLocaleSyncWithRetries", () => {
 
     expect(fromElement.mock.calls.length).toBe(3);
     expect(applyLocale).toHaveBeenCalledWith("En");
-    expect(refreshTimeAxis).toHaveBeenCalledWith(true);
+    expect(refreshHeader).toHaveBeenCalled();
     cancel();
     delete globalThis.bryntum;
   });

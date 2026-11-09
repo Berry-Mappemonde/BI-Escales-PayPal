@@ -79,17 +79,40 @@ export function resolveSchedulerWidget(schedulerRef, hostRef) {
 }
 
 /**
- * Repaint time-axis day/month headers after a locale switch so no cell keeps the previous language.
+ * Regenerate every time-axis header cell after a locale switch.
+ * `refreshTimeAxis(true)` alone can leave the last partial day cell in the previous language (e.g. `16 nov.`).
  */
-export function refreshTimelineTimeAxis(widget) {
+export function rebuildTimelineTimeAxisHeaders(widget) {
   if (!widget) return;
-  if (typeof widget.refreshTimeAxis === "function") {
-    widget.refreshTimeAxis(true);
-    return;
+
+  if (widget.isPainted && typeof widget.onLocaleChange === "function") {
+    widget.onLocaleChange();
   }
-  const refreshHeader = widget.timeAxisColumn?.refreshHeader;
-  if (typeof refreshHeader === "function") {
-    refreshHeader(null, true);
+
+  const timeAxisViewModel = widget.timeAxisViewModel;
+  if (timeAxisViewModel && typeof timeAxisViewModel.update === "function") {
+    const scrollable = widget.isHorizontal ? widget.timeAxisSubGrid?.scrollable : widget.scrollable;
+    const dimension = widget.isHorizontal ? "width" : "height";
+    const availableSpace = scrollable?.element?.getBoundingClientRect?.()[dimension];
+    if (availableSpace != null) {
+      timeAxisViewModel.update(availableSpace, widget.infiniteScroll, true);
+    } else {
+      timeAxisViewModel.update(undefined, undefined, true);
+    }
+  }
+
+  widget.currentOrientation?.doUpdateTimeView?.();
+  widget.timeAxisColumn?.refreshHeader?.();
+
+  const presetId = widget.viewPreset?.id ?? widget.viewPreset;
+  if (presetId && widget.presets?.getById) {
+    const presetRecord = widget.presets.getById(presetId);
+    if (presetRecord) {
+      const startDate = widget.startDate;
+      const endDate = widget.endDate;
+      presetRecord.options = { ...(presetRecord.options ?? {}), startDate, endDate };
+      widget.viewPreset = presetRecord;
+    }
   }
 }
 
@@ -103,7 +126,7 @@ export async function syncTimelineLocale({ schedulerRef, hostRef, modules, i18n,
       await applyResult;
     }
   }
-  refreshTimelineTimeAxis(widget);
+  rebuildTimelineTimeAxisHeaders(widget);
   const heading = i18n.t("scheduler.heading", { lng });
   const column = widget?.columns?.first;
   if (column) {
@@ -232,6 +255,8 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
     [i18n.language, t],
   );
 
+  const bryntumLocaleKey = bryntumLocaleForLanguage(i18n.language);
+
   const schedulerProps = useMemo(
     () => ({
       readOnly: true,
@@ -264,7 +289,7 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
       data-testid="escales-scheduler-bryntum"
       ref={hostRef}
     >
-      <BryntumScheduler ref={schedulerRef} {...schedulerProps} />
+      <BryntumScheduler key={bryntumLocaleKey} ref={schedulerRef} {...schedulerProps} />
     </div>
   );
 }

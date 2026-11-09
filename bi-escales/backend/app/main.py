@@ -51,7 +51,7 @@ def apple_pay_domain_association():
     candidate = resolve_apple_pay_domain_association_path()
     if not candidate.is_file():
         raise HTTPException(status_code=404, detail="apple pay domain file missing")
-    return FileResponse(candidate, media_type="text/plain")
+    return FileResponse(candidate, media_type="application/octet-stream")
 
 
 @app.get("/bi-projects.geojson", include_in_schema=False)

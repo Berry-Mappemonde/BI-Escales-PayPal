@@ -9,11 +9,11 @@ EXPECTED_SIZE = 9094
 EXPECTED_PREFIX = b"7B227073704964223A"
 
 
-def test_apple_pay_domain_association_is_public_text_plain():
+def test_apple_pay_domain_association_is_public_octet_stream():
     with TestClient(app) as client:
         res = client.get("/.well-known/apple-developer-merchantid-domain-association")
     assert res.status_code == 200
-    assert res.headers.get("content-type", "").startswith("text/plain")
+    assert res.headers.get("content-type", "").startswith("application/octet-stream")
     body = res.content
     assert len(body) == EXPECTED_SIZE
     assert body.startswith(EXPECTED_PREFIX)

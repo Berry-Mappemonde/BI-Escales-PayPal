@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from tests.schedule_clocks import near_mayotte_clock
 from app.channel3_catalog import project_id_for_product
 from app.channel3_paypal import (
     PAYPAL_CURRENCY_CODES_URL,
@@ -241,7 +242,7 @@ class AuthorizeSpy(CaptureOrderSpy):
 
 def test_eur_stop_pledge_stays_eur(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     reset_ledger()
     spy = AuthorizeSpy()
 

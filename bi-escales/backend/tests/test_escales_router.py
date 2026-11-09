@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tests.review_helpers import approve_capture_review, propose_capture_review
+from tests.schedule_clocks import near_mayotte_clock
 
 from app.escales.audit import AUDIT_COLLECTION, list_entries
 from app.escales.pledges import reset_ledger
@@ -139,13 +140,13 @@ MAYOTTE_PLEDGE = {
     "milestone_id": "dep-mayotte",
     "description": "20 milles Mayotte",
 }
-NEAR_MAYOTTE_CLOCK = "2027-05-15T08:00:00Z"
+NEAR_MAYOTTE_CLOCK = near_mayotte_clock()
 
 
 def _ready_mayotte(client, key, monkeypatch, body=None):
     monkeypatch.setenv("ESCALES_CLOCK_NOW", NEAR_MAYOTTE_CLOCK)
     created, authorized = _ready(client, key, body or MAYOTTE_PLEDGE)
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", NEAR_MAYOTTE_CLOCK)
     return created, authorized
 
 

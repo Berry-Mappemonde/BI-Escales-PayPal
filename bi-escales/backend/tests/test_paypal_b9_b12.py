@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.escales.config import EscalesConfig
 from app.escales.departure_clock import run_departure_clock
 from tests.review_helpers import approve_capture_review, propose_capture_review
+from tests.schedule_clocks import mayotte_authorize_window_clock
 from app.escales.paypal_client import PayPalClient, PayPalError
 from app.escales.paypal_reconcile import reconcile_paypal_ledger
 from app.escales.pledges import (
@@ -199,7 +200,7 @@ def test_b11_reconcile_matches_on_capture_id():
 
 def test_b12_stop_mile_pledge_settles_on_arrival(monkeypatch):
     """Stop-level miles: captured on boat arrival at the stop (7488f15); void if cancelled."""
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00+00:00")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", mayotte_authorize_window_clock())
     monkeypatch.setenv("ESCALES_VAULT_ENABLED", "0")
     spy = CaptureSpy()
 

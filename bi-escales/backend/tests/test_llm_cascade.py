@@ -12,6 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from tests.schedule_clocks import near_mayotte_clock
 from app.core import llm
 from app.escales import captain
 from app.escales.captain import chat, review
@@ -56,7 +57,7 @@ def isolated(monkeypatch):
     for name in LLM_ENV:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     monkeypatch.setenv("ESCALES_NIM_GAP_S", "0")
     reset_ledger()
     llm.reset_llm_budget()

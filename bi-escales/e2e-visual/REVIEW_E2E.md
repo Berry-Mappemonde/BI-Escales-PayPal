@@ -10,7 +10,7 @@ The live probe failed once before the fix: PayPal's default create response is m
 
 ### Local app
 
-Local uvicorn, memory store, `ESCALES_VAULT_ENABLED=1`, `ESCALES_ENV=development`. A schedule file supplied two milestones: `dep-mayotte-soon` arriving 2026-11-20 (16 days, AUTHORIZE) and `dep-mayotte-2027` arriving 2027-05-15 (VAULT, horizon at least 29 days).
+Local uvicorn, memory store, `ESCALES_VAULT_ENABLED=1`, `ESCALES_ENV=development`. A schedule file supplied two milestones: `dep-mayotte-soon` arriving 2026-11-20 (16 days, AUTHORIZE) and `dep-mayotte-far` beyond the 29-day horizon (VAULT when vault is enabled).
 
 PayPal wallet approval cannot be completed from this environment: there is no sandbox buyer login. The automatable path is PayPal's documented server-side card flow (sandbox Visa test card, last digits 1881): `confirm-payment-source` for an AUTHORIZE order, and a card setup token for Vault. The app's own routes then authorize, capture, void, register, and delete.
 
@@ -67,7 +67,7 @@ No 429. The four captain calls stayed inside 10 per minute.
 
 Differences versus the local probe:
 
-- Render does not have the Naviguide bridge on, so the schedule is the built-in export. Both arrivals are already past (4 Nov 2026), so the horizon is 0 days and a pledge stays `AUTHORIZE` even though `vault` is true. Locally, `dep-mayotte-2027` (15 May 2027) selected `VAULT`.
+- Render does not have the Naviguide bridge on, so the schedule is the built-in export. Both arrivals are already past (4 Nov 2026), so the horizon is 0 days and a pledge stays `AUTHORIZE` even though `vault` is true. Locally, `dep-mayotte-far` (far stop on the itinerary, beyond the 29-day horizon) selected `VAULT`.
 - The milestone collection on Render is empty until something syncs it. The schedule route still returns the static export.
 - Webhooks are off on Render (404). Locally the route was turned on only to exercise verify-webhook-signature.
 - Chat and review on both sides came back from the rules provider, not from an LLM completion, in this run. Place detection only matches `près de` / `near`, so these Mayotte sentences stay `unspecified`. That is the same code on both hosts. The local chat samples said `20 euros`, which is not a mile count, so the captain defaulted to 1.00 EUR. The Render samples said `20 milles` / `20 miles` and correctly suggested 20.00 EUR.

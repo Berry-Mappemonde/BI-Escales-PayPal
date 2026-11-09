@@ -84,6 +84,7 @@ describe("MOBILE-390 pledge panel bottom sheet", () => {
     const mapToggle = screen.getByTestId("ng-tools-toggle");
     const handle = screen.getByTestId("ng-tools-sheet-handle");
 
+    expect(handle).toBeVisible();
     expect(mapToggle).toHaveAttribute("aria-label", collapseLabel);
     expect(handle).toHaveAttribute("aria-label", collapseLabel);
     expect(screen.getByText(collapseLabel, { selector: ".ng-tools-sheet-handle-label" })).toBeInTheDocument();

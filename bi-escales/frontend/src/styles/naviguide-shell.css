@@ -335,8 +335,10 @@ body.ng-naviguide-shell {
   }
 }
 
-.ng-tools-sheet-handle {
-  display: none;
+@media (min-width: 901px) {
+  .ng-tools-sheet-handle {
+    display: none;
+  }
 }
 
 .treasurer-panel-toggle {

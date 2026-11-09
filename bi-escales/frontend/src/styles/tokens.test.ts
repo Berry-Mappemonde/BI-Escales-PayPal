@@ -115,6 +115,16 @@ describe("naviguide-shell.css", () => {
     expect(rule.slice(0, rule.indexOf("}"))).toContain("background: none");
   });
 
+  it("keeps the mobile sheet handle visible at max-width 900px (not hidden by a global rule)", () => {
+    expect(shellCss).toMatch(
+      /@media \(max-width: 900px\)[\s\S]*\.ng-tools-sheet-handle[\s\S]*display:\s*flex/,
+    );
+    expect(shellCss).not.toMatch(/\n\.ng-tools-sheet-handle\s*\{\s*display:\s*none;/);
+    expect(shellCss).toMatch(
+      /@media \(min-width: 901px\)[\s\S]*\.ng-tools-sheet-handle[\s\S]*display:\s*none/,
+    );
+  });
+
   it("gives every shell colour a value in both themes", () => {
     const names = (selector: string) => {
       const start = shellCss.indexOf(selector);

@@ -1229,6 +1229,7 @@ def _enforce_captain_rate(
         raise HTTPException(
             status_code=429,
             detail=limit_message(exc.kind, app_lang, exc.limit),
+            headers={"Retry-After": str(exc.retry_after)},
         ) from exc
 
 

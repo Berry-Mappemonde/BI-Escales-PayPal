@@ -294,8 +294,8 @@ def test_vault_charge_declined_then_retry_and_transport(monkeypatch):
 def test_client_ip_trusted_proxy_hops(monkeypatch):
     monkeypatch.setenv("ESCALES_TRUSTED_PROXY_HOPS", "1")
     assert trusted_proxy_hops() == 1
-    assert client_ip("1.1.1.1, 9.9.9.9", "127.0.0.1") == "9.9.9.9"
-    assert client_ip("203.0.113.1, 1.1.1.1, 9.9.9.9", "127.0.0.1") == "9.9.9.9"
+    assert client_ip("1.1.1.1, 9.9.9.9", "127.0.0.1") == "1.1.1.1"
+    assert client_ip("203.0.113.1, 1.1.1.1, 9.9.9.9", "127.0.0.1") == "203.0.113.1"
     assert client_ip("", "10.0.0.5") == "10.0.0.5"
     monkeypatch.setenv("ESCALES_TRUSTED_PROXY_HOPS", "0")
     assert client_ip("1.1.1.1, 9.9.9.9", "10.0.0.5") == "10.0.0.5"

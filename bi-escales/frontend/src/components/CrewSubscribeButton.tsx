@@ -14,30 +14,23 @@ import { subscribeCrewSubscribeReturn } from "../paypal/crewSubscribeReturnEvent
 export interface CrewSubscribeButtonProps {
   planId?: string;
   adminKey?: string;
+  /** When true, show a neutral setup hint instead of hiding if the plan id is missing. */
+  treasurerContext?: boolean;
   /** Parent renders the section heading; skip duplicate hint copy. */
   suppressHeadingHint?: boolean;
 }
 
 const PLAN_LOAD_TIMEOUT_MS = 20_000;
 
-export function CrewSubscribeButton(props: CrewSubscribeButtonProps) {
-  return (
-    <PayPalErrorBoundary testId="crew-subscribe-error">
-      <CrewSubscribeButtonInner {...props} />
-    </PayPalErrorBoundary>
-  );
-}
+type PlanLoadIssue = "missing" | "timeout" | null;
 
-function CrewSubscribeButtonInner({ planId: planIdProp, adminKey, suppressHeadingHint = false }: CrewSubscribeButtonProps) {
+function useCrewSupporterPlanId(planIdProp?: string) {
   const { t, i18n } = useTranslation();
   const appLang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
-  const host = useRef<HTMLDivElement | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [paypal, setPaypal] = useState<PayPalNamespace | null>(null);
-  const ready = paypal !== null;
   const [planId, setPlanId] = useState(() => (planIdProp || "").trim());
-  const [status, setStatus] = useState<string | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
+  const [planLoadIssue, setPlanLoadIssue] = useState<PlanLoadIssue>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     setPlanId((planIdProp || "").trim());
@@ -47,11 +40,12 @@ function CrewSubscribeButtonInner({ planId: planIdProp, adminKey, suppressHeadin
     if (planId) return;
     let cancelled = false;
     setPlanLoading(true);
-    setError(null);
+    setPlanLoadIssue(null);
+    setFetchError(null);
     const timeoutId = window.setTimeout(() => {
       if (!cancelled) {
         setPlanLoading(false);
-        setError(t("pledge.crewSubscribePlanTimeout"));
+        setPlanLoadIssue("timeout");
       }
     }, PLAN_LOAD_TIMEOUT_MS);
     void fetchCrewSupporterPlan(appLang)
@@ -61,11 +55,11 @@ function CrewSubscribeButtonInner({ planId: planIdProp, adminKey, suppressHeadin
         if (id) {
           setPlanId(id);
         } else {
-          setError(t("pledge.crewSubscribePlanMissing"));
+          setPlanLoadIssue("missing");
         }
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) setFetchError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => {
         if (!cancelled) {
@@ -77,11 +71,93 @@ function CrewSubscribeButtonInner({ planId: planIdProp, adminKey, suppressHeadin
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [planId, t, appLang]);
+  }, [planId, appLang]);
+
+  return {
+    t,
+    appLang,
+    planId,
+    planLoading,
+    planLoadIssue,
+    fetchError,
+    timeoutMessage: t("pledge.crewSubscribePlanTimeout"),
+  };
+}
+
+export function CrewSupporterPublicSection({ adminKey }: { adminKey?: string }) {
+  const { t } = useTranslation();
+  const treasurerContext = Boolean(adminKey?.trim());
+  const { planId, planLoading, planLoadIssue, fetchError, timeoutMessage } = useCrewSupporterPlanId();
+
+  if (!treasurerContext && !planId) {
+    return null;
+  }
+
+  const showTreasurerHint =
+    treasurerContext && !planId && !planLoading && (planLoadIssue === "missing" || planLoadIssue === "timeout");
+
+  return (
+    <section className="crew-supporter-public" data-testid="crew-supporter-public">
+      <div className="crew-supporter-heading">
+        <h2>{t("pledge.crewSubscribeHint")}</h2>
+        <small className="crew-sandbox-note">{t("pledge.crewSubscribeSandbox")}</small>
+      </div>
+      <div className="crew-paypal-frame">
+        {showTreasurerHint ? (
+          <div className="crew-subscribe" data-testid="crew-subscribe">
+            <p className="hint" data-testid="crew-subscribe-treasurer-hint">
+              {t("pledge.crewSubscribePlanTreasurerHint")}
+            </p>
+            {planLoadIssue === "timeout" ? <p className="hint">{timeoutMessage}</p> : null}
+          </div>
+        ) : treasurerContext && planLoading && !planId ? (
+          <div className="crew-subscribe" data-testid="crew-subscribe">
+            <p className="status">{t("pledge.crewSubscribeLoading")}</p>
+          </div>
+        ) : fetchError && treasurerContext && !planId ? (
+          <div className="crew-subscribe" data-testid="crew-subscribe">
+            <p className="hint" data-testid="crew-subscribe-treasurer-hint">
+              {t("pledge.crewSubscribePlanTreasurerHint")}
+            </p>
+            <p className="hint">{fetchError}</p>
+          </div>
+        ) : planId ? (
+          <CrewSubscribeButton
+            adminKey={adminKey}
+            planId={planId}
+            treasurerContext={treasurerContext}
+            suppressHeadingHint
+          />
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+export function CrewSubscribeButton(props: CrewSubscribeButtonProps) {
+  return (
+    <PayPalErrorBoundary testId="crew-subscribe-error">
+      <CrewSubscribeButtonInner {...props} />
+    </PayPalErrorBoundary>
+  );
+}
+
+function CrewSubscribeButtonInner({
+  planId: planIdProp,
+  adminKey,
+  treasurerContext = Boolean(adminKey?.trim()),
+  suppressHeadingHint = false,
+}: CrewSubscribeButtonProps) {
+  const { t, appLang, planId, planLoading, planLoadIssue, fetchError, timeoutMessage } =
+    useCrewSupporterPlanId(planIdProp);
+  const host = useRef<HTMLDivElement | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [paypal, setPaypal] = useState<PayPalNamespace | null>(null);
+  const ready = paypal !== null;
+  const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
     return subscribeCrewSubscribeReturn(() => {
-      setPlanLoading(false);
       setStatus(null);
       setError(null);
     });
@@ -166,7 +242,36 @@ function CrewSubscribeButtonInner({ planId: planIdProp, adminKey, suppressHeadin
     };
   }, [paypal, planId, adminKey, appLang, t]);
 
-  if (!planId && !error && planLoading) {
+  if (!treasurerContext && !planId && (planLoading || planLoadIssue || fetchError)) {
+    return null;
+  }
+
+  if (!planId && !treasurerContext) {
+    return null;
+  }
+
+  if (treasurerContext && !planId && !planLoading && planLoadIssue === "missing") {
+    return (
+      <div className="crew-subscribe" data-testid="crew-subscribe">
+        <p className="hint" data-testid="crew-subscribe-treasurer-hint">
+          {t("pledge.crewSubscribePlanTreasurerHint")}
+        </p>
+      </div>
+    );
+  }
+
+  if (treasurerContext && !planId && !planLoading && planLoadIssue === "timeout") {
+    return (
+      <div className="crew-subscribe" data-testid="crew-subscribe">
+        <p className="hint" data-testid="crew-subscribe-treasurer-hint">
+          {t("pledge.crewSubscribePlanTreasurerHint")}
+        </p>
+        <p className="hint">{timeoutMessage}</p>
+      </div>
+    );
+  }
+
+  if (!planId && !planLoadIssue && !fetchError && planLoading) {
     return (
       <div className="crew-subscribe" data-testid="crew-subscribe">
         {suppressHeadingHint ? null : <p className="hint">{t("pledge.crewSubscribeHint")}</p>}
@@ -178,7 +283,7 @@ function CrewSubscribeButtonInner({ planId: planIdProp, adminKey, suppressHeadin
   return (
     <div className="crew-subscribe" data-testid="crew-subscribe">
       {suppressHeadingHint ? null : <p className="hint">{t("pledge.crewSubscribeHint")}</p>}
-      {!ready && !error ? (
+      {!ready && !error && planId ? (
         <p className="status" data-testid="crew-subscribe-loading">
           {t("pledge.crewSubscribeLoading")}
         </p>

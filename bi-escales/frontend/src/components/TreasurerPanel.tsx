@@ -8,6 +8,7 @@ import { TreasurerQueue } from "./TreasurerQueue";
 import { TreasurerGrid } from "./TreasurerGrid";
 import { TreasurerStudioSection } from "./TreasurerStudioSection";
 import { DemoStopMoment } from "./DemoStopMoment";
+import { TreasurerWishlistsPanel } from "../wishlists/TreasurerWishlistsPanel";
 import "./treasurer-panel.css";
 
 function OpenFundTotals({
@@ -203,6 +204,7 @@ export function TreasurerPanel({
           />
           {!demoMode ? (
             <>
+          <TreasurerWishlistsPanel adminKey={adminKey} />
           <TreasurerPayPalPanel adminKey={adminKey} />
           <TreasurerWebhookPanel adminKey={adminKey} />
           <TreasurerGrid

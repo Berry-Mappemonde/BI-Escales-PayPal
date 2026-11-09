@@ -25,6 +25,7 @@ import { subscribePledgeReturn } from "../paypal/pledgeReturnEvents";
 export interface PledgeFormValues {
   quantity?: number;
   amount_eur: string;
+  currency?: string;
   description: string;
   milestone_id: string;
   contributor?: string;
@@ -71,6 +72,10 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   const vault = created ? isVaultPledge(created) : false;
   const isProjectPledge = (values.kind || "") === "project_pledge";
   const sdkIntent = isProjectPledge ? "capture" : "authorize";
+  const sdkCurrency =
+    isProjectPledge && values.currency?.trim()
+      ? values.currency.trim().toUpperCase()
+      : "EUR";
   const modeMatchesValues =
     pledgeMode?.milestoneId === values.milestone_id && pledgeMode.kind === values.kind;
   const shouldRenderSmartButtons =
@@ -116,7 +121,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
         cancelled = true;
       };
     }
-    void loadPayPalSdk(clientId, appLang, sdkIntent, walletPayEnabled)
+    void loadPayPalSdk(clientId, appLang, sdkIntent, walletPayEnabled, sdkCurrency)
       .then((ns) => {
         if (!cancelled) setPaypal(ns);
       })
@@ -126,7 +131,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     return () => {
       cancelled = true;
     };
-  }, [appLang, sdkIntent, walletPayEnabled, featuresKnown]);
+  }, [appLang, sdkIntent, sdkCurrency, walletPayEnabled, featuresKnown]);
 
   useEffect(() => {
     formRevisionRef.current += 1;
@@ -135,7 +140,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     setError(null);
     setBusy(false);
     activePledgeIdRef.current = null;
-  }, [values.amount_eur, values.kind, values.milestone_id, values.description, values.target_id]);
+  }, [values.amount_eur, values.currency, values.kind, values.milestone_id, values.description, values.target_id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,7 +200,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
       const pledge = await createPledge(
         {
           amount_eur: v.amount_eur,
-            quantity: v.quantity,
+          quantity: v.quantity,
           description: v.description,
           milestone_id: v.milestone_id,
           contributor: v.contributor?.trim() || undefined,
@@ -249,7 +254,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
           const pledge = await createPledge(
             {
               amount_eur: v.amount_eur,
-            quantity: v.quantity,
+              quantity: v.quantity,
               description: v.description,
               milestone_id: v.milestone_id,
               contributor: v.contributor?.trim() || undefined,

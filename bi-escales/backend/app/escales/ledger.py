@@ -721,6 +721,8 @@ def to_public_fund(fund: dict) -> dict:
     }
     if isinstance(fund.get("totals_by_currency"), dict):
         out["totals_by_currency"] = fund["totals_by_currency"]
+    if fund.get("received_net_eur") is not None:
+        out["received_net_eur"] = str(fund.get("received_net_eur"))
     return out
 
 
@@ -940,6 +942,15 @@ async def _assemble_fund(milestone_id: str, entries: list[dict]) -> dict:
     payout_total = eur.get("payouts", Decimal("0.00"))
     eur_outflow = spending_total + refund_total + payout_total
     balance = income_total - eur_outflow
+    from .paypal_settlement import finance_entry_received_net_eur, finance_entry_refund_net_eur
+
+    received_net_eur = Decimal("0.00")
+    for entry in income:
+        received_net_eur += finance_entry_received_net_eur(entry)
+    for entry in refunds:
+        received_net_eur -= finance_entry_refund_net_eur(entry)
+    if received_net_eur < Decimal("0.00"):
+        received_net_eur = Decimal("0.00")
     return {
         "milestone_id": milestone_id,
         "currency": "EUR",
@@ -955,6 +966,7 @@ async def _assemble_fund(milestone_id: str, entries: list[dict]) -> dict:
         "captured_eur": _euros_text(income_total),
         "authorized_eur": "0.00",
         "totals_by_currency": totals_by_currency,
+        "received_net_eur": _euros_text(received_net_eur),
         "donation_count": len(income),
     }
 

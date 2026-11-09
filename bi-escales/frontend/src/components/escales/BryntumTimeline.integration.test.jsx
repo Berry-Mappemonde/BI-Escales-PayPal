@@ -4,9 +4,12 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const applyLocaleSpy = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+const refreshTimeAxisSpy = vi.hoisted(() => vi.fn());
 const mockWidget = vi.hoisted(() => ({
   columns: { first: { text: "" } },
   localeManager: { applyLocale: applyLocaleSpy },
+  refreshTimeAxis: refreshTimeAxisSpy,
+  timeAxisHeaderLabels: ["16 nov."],
 }));
 
 vi.mock("@bryntum/scheduler-react-community", () => ({
@@ -53,7 +56,14 @@ describe("BryntumTimeline (scheduler-react-community)", () => {
 
   beforeEach(async () => {
     applyLocaleSpy.mockClear();
+    refreshTimeAxisSpy.mockClear();
+    refreshTimeAxisSpy.mockImplementation(() => {
+      const lastLocale = applyLocaleSpy.mock.calls.at(-1)?.[0];
+      mockWidget.timeAxisHeaderLabels =
+        lastLocale === "FrFr" ? ["16 nov."] : ["Nov 16"];
+    });
     mockWidget.columns.first.text = "";
+    mockWidget.timeAxisHeaderLabels = ["16 nov."];
     resetBryntumTimelineModulesForTests();
     globalThis.bryntum = {
       fromElement: vi.fn(() => mockWidget),
@@ -123,12 +133,26 @@ describe("BryntumTimeline (scheduler-react-community)", () => {
     await waitFor(() => {
       expect(document.querySelectorAll(".b-scheduler")).toHaveLength(1);
       expect(applyLocaleSpy.mock.calls.some((call) => call[0] === "En")).toBe(true);
+      expect(mockWidget.timeAxisHeaderLabels.every((label) => !/nov\./i.test(label) || /Nov/.test(label))).toBe(
+        true,
+      );
+    });
+
+    await act(async () => {
+      await i18n.changeLanguage("fr");
+    });
+
+    await waitFor(() => {
+      expect(applyLocaleSpy.mock.calls.at(-1)?.[0]).toBe("FrFr");
+      expect(mockWidget.timeAxisHeaderLabels).toEqual(["16 nov."]);
     });
 
     const localeCalls = applyLocaleSpy.mock.calls.map((call) => call[0]);
     expect(localeCalls).toContain("FrFr");
     expect(localeCalls).toContain("En");
     expect(localeCalls.indexOf("FrFr")).toBeLessThan(localeCalls.lastIndexOf("En"));
+    expect(refreshTimeAxisSpy.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(refreshTimeAxisSpy.mock.calls.every((call) => call[0] === true)).toBe(true);
 
     view.unmount();
     expect(errorSpy).not.toHaveBeenCalled();

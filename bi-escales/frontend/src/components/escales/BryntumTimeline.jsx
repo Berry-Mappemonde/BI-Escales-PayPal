@@ -10,6 +10,10 @@ export function bryntumLocaleForLanguage(i18nLanguage) {
   return base === "fr" ? "FrFr" : "En";
 }
 
+/** Bounded retries when the scheduler widget is not mounted yet at locale change. */
+export const TIMELINE_LOCALE_SYNC_MAX_ATTEMPTS = 5;
+export const TIMELINE_LOCALE_SYNC_RETRY_MS = 32;
+
 let timelineModulesPromise;
 
 export function resetBryntumTimelineModulesForTests() {
@@ -62,26 +66,81 @@ export function resolveSchedulerWidget(schedulerRef, hostRef) {
   if (schedEl && typeof fromElement === "function") {
     try {
       return fromElement(schedEl);
-    } catch {
+    } catch (error) {
+      console.warn("[BryntumTimeline] bryntum.fromElement failed while resolving scheduler widget", {
+        error,
+        hasHost: Boolean(host),
+        hasSchedulerElement: Boolean(schedEl),
+      });
       return null;
     }
   }
   return null;
 }
 
-export function syncTimelineLocale({ schedulerRef, hostRef, modules, i18n, lng }) {
+/**
+ * Repaint time-axis day/month headers after a locale switch so no cell keeps the previous language.
+ */
+export function refreshTimelineTimeAxis(widget) {
+  if (!widget) return;
+  if (typeof widget.refreshTimeAxis === "function") {
+    widget.refreshTimeAxis(true);
+    return;
+  }
+  const refreshHeader = widget.timeAxisColumn?.refreshHeader;
+  if (typeof refreshHeader === "function") {
+    refreshHeader(null, true);
+  }
+}
+
+export async function syncTimelineLocale({ schedulerRef, hostRef, modules, i18n, lng }) {
   const localeName = bryntumLocaleForLanguage(lng);
   const widget = resolveSchedulerWidget(schedulerRef, hostRef);
   const localeManager = widget?.localeManager ?? modules?.LocaleManager;
   if (localeManager) {
-    void localeManager.applyLocale(localeName);
+    const applyResult = localeManager.applyLocale(localeName);
+    if (applyResult && typeof applyResult.then === "function") {
+      await applyResult;
+    }
   }
+  refreshTimelineTimeAxis(widget);
   const heading = i18n.t("scheduler.heading", { lng });
   const column = widget?.columns?.first;
   if (column) {
     column.text = heading;
   }
   return { widget, heading, localeName };
+}
+
+/**
+ * Retry locale sync when the Bryntum widget is not yet mounted (bounded attempts, short delay).
+ * Returns a cancel function for effect cleanup.
+ */
+export function runTimelineLocaleSyncWithRetries(ctx) {
+  let attempt = 0;
+  let cancelled = false;
+  let timerId;
+
+  const trySync = () => {
+    if (cancelled) return;
+    void syncTimelineLocale(ctx).then(({ widget }) => {
+      if (cancelled) return;
+      if (widget || attempt >= TIMELINE_LOCALE_SYNC_MAX_ATTEMPTS - 1) {
+        return;
+      }
+      attempt += 1;
+      timerId = globalThis.setTimeout(trySync, TIMELINE_LOCALE_SYNC_RETRY_MS);
+    });
+  };
+
+  trySync();
+
+  return () => {
+    cancelled = true;
+    if (timerId != null) {
+      globalThis.clearTimeout(timerId);
+    }
+  };
 }
 
 export default function BryntumTimeline({ events, onSelect, fallback }) {
@@ -114,18 +173,17 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
 
   useEffect(() => {
     if (!modules) return undefined;
-    const apply = (lng) => {
-      const { widget } = syncTimelineLocale({ schedulerRef, hostRef, modules, i18n, lng });
-      if (!widget) {
-        requestAnimationFrame(() => syncTimelineLocale({ schedulerRef, hostRef, modules, i18n, lng }));
-      }
-    };
-    apply(i18n.language);
+    const ctx = { schedulerRef, hostRef, modules, i18n };
+
+    let cancelActiveSync = runTimelineLocaleSyncWithRetries({ ...ctx, lng: i18n.language });
+
     const onLanguageChanged = (lng) => {
-      apply(lng);
+      cancelActiveSync?.();
+      cancelActiveSync = runTimelineLocaleSyncWithRetries({ ...ctx, lng });
     };
     i18n.on("languageChanged", onLanguageChanged);
     return () => {
+      cancelActiveSync?.();
       i18n.off("languageChanged", onLanguageChanged);
     };
   }, [modules, i18n]);

@@ -160,8 +160,8 @@ def _httpx_fallback_reason() -> str | None:
     try:
         client()
     except (RuntimeError, ModuleNotFoundError, AttributeError, TypeError) as exc:
-        text = str(exc).strip()
-        return text or exc.__class__.__name__
+        # Constructor exceptions can contain request configuration. Never log it.
+        return f"SDK client build failed: {type(exc).__name__}"
     return None
 
 
@@ -240,6 +240,14 @@ def _execute(controller_name: str, operation: str, *args: Any) -> dict[str, Any]
     try:
         result = operation_fn(*args)
     except Exception as exc:
+        # OAuth failures are not ApiException and do not preserve an HTTP status.
+        # Do not replay a write through another transport or expose auth details.
+        auth_errors = importlib.import_module("apimatic_core.exceptions.auth_validation_exception")
+        if isinstance(exc, auth_errors.AuthValidationException):
+            try:
+                _raise_paypal_error(502, "PayPal SDK authentication unavailable")
+            except Exception as mapped:
+                raise mapped from None
         _reraise_api_error(exc)
         _reraise_transport_error(exc)
         raise

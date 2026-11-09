@@ -131,7 +131,7 @@ Every call below is `HttpMethodEnum.GET` on `Server.DEFAULT`.
 
 ## Errors that are not `PayPalError`
 
-- Token fetch failure is often `AuthValidationException` (`apimatic_core`), not `ApiException`. The auth manager hides the token-endpoint status. This gateway does not remap that type.
+- Token fetch failure is `AuthValidationException` (`apimatic_core`), not `ApiException`. The auth manager hides the token-endpoint status; the gateway maps it to a sanitized HTTP 502 without retry or fallback writes.
 - `OAuthProviderException` is an `ApiException` subclass, but it is raised by the token endpoint, not by these seven reads, and the auth manager usually swallows it.
 - Connection failures, DNS failures, and timeouts come from `requests` (`ConnectionError` and siblings). They propagate.
 - A typed error body that is not a JSON object leaves the unboxed attributes unset. `PayPalError` is built from `response_code` and `response.text`, not from those attributes, so the mapping still works. `str(exception)` on a typed error is not logged.
@@ -287,3 +287,28 @@ Stop arrival and cabin leg departure call this method after `refuse_early_captur
 | Response model | `Subscription` |
 | Fields used | `id`, `status`, `links[]` where `rel=approve`. Finance kind `paypal_subscription_create_cache` stores that projection. |
 | Errors | `400` `401` `403` `404` `422` `500` `SubscriptionErrorException`, other `SubscriptionErrorException` (`default`). Unboxed when the body is a JSON object: `name`, `message`, `debug_id`, `details`, `links`. |
+
+## APIM-3 OAuth failure and diagnostic hardening
+
+The operations, generated request models, signatures and PayPal-Request-Id rows
+above remain unchanged. Before modifying the gateway, the installed
+`paypal-server-sdk==2.4.0` / `apimatic_core` source was checked: an OAuth grant
+failure raises `AuthValidationException(message)` (an `Exception`, not an
+`ApiException`) during the operation call. The auth manager does not reliably
+preserve the upstream status, so do not invent an HTTP 401 or diagnose invalid
+credentials from that exception alone.
+
+Map this condition to `PayPalError(502, "PayPal SDK authentication unavailable")`.
+Do not log the original message, chain it into application tracebacks, retry the
+operation, or fall back to a second HTTP write. The caller's idempotency key is
+unchanged. Read-budget consumption still occurs before the attempted resource
+read; a refused fourth read must not perform OAuth or resource HTTP requests.
+Constructor refusal diagnostics retain exception class names only, never raw
+exception text that could contain credentials or request configuration.
+
+Validation: stub token failure and assert exactly one token request and zero
+resource writes; exercise read/write auth failures and synthetic constructor
+messages; rerun all parity, idempotency, budget and tracing redaction tests.
+Skills used: `python-getting-started`, `python-calling-endpoints`,
+`python-error-handling`, `python-configuration-resilience`, `python-testing`
+under the vendored `.cursor/skills/paypal-server-sdk` directory.

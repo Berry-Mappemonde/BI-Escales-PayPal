@@ -139,6 +139,11 @@ def toolkit_enabled() -> bool:
     return os.environ.get("ESCALES_TOOLKIT_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def paypal_sdk_reads_enabled() -> bool:
+    """PayPal Server SDK read gateway. Off unless ESCALES_PAYPAL_SDK_ENABLED is truthy."""
+    return os.environ.get("ESCALES_PAYPAL_SDK_ENABLED", "").strip().lower() in _TRUTHY
+
+
 def naviguide_bridge_enabled() -> bool:
     return os.environ.get("ESCALES_NAVIGUIDE_ENABLED", "").strip().lower() in _TRUTHY
 
@@ -153,6 +158,11 @@ def kernel_evidence_enabled() -> bool:
 
 def channel3_enabled() -> bool:
     return os.environ.get("ESCALES_CHANNEL3_ENABLED", "").strip().lower() in _TRUTHY
+
+
+def wishlists_enabled() -> bool:
+    """Channel3 wishlists + catalogue API (C3-05). Off unless explicitly enabled."""
+    return os.environ.get("ESCALES_WISHLISTS_ENABLED", "").strip().lower() in _TRUTHY
 
 
 def channel3_api_key() -> str:

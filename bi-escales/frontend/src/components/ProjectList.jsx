@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { fetchPublicProjectFund } from "../api/escales";
 import { filterProjectFeatures } from "../projects/filterProjectFeatures.js";
 import { parseProjectPledgeAmount } from "../projects/projectPledgeAmount.js";
+import { featureDisplayTitle } from "../projects/featureDisplayTitle";
 import { visibleProjectFeatures } from "../projects/visibleProjectFeatures.js";
 import { PledgeButton } from "./PledgeButton";
 import { ProjectFundProgress } from "./ProjectFundProgress";
@@ -17,12 +18,12 @@ const LIST_CAP = 100;
 const MIN_EUR = "1.00";
 
 function ProjectPledgeForm({ project, contributor, onAuthorized }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const props = project?.properties || {};
   const [amount, setAmount] = useState(MIN_EUR);
   const [who, setWho] = useState(contributor || "");
   const [publicTotal, setPublicTotal] = useState(null);
-  const title = props.title || props.id || "";
+  const title = featureDisplayTitle(props, i18n.language, t);
   const description = t("projects.pledgeDescription", { title });
   const parsed = parseProjectPledgeAmount(amount);
   const isGear = String(props.project_kind || "") === "gear_project";
@@ -87,8 +88,12 @@ function ProjectPledgeForm({ project, contributor, onAuthorized }) {
   );
 }
 
+const isGearFeature = (feature) =>
+  String(feature?.properties?.project_kind || "") === "gear_project";
+
 export default function ProjectList({
   projects,
+  featureScope = "projects",
   searchQuery: searchQueryProp = undefined,
   onSearchQueryChange = undefined,
   selectedProjectId,
@@ -102,18 +107,24 @@ export default function ProjectList({
   const query = searchQueryProp ?? localQuery;
   const setQuery = onSearchQueryChange ?? setLocalQuery;
 
+  const scopedFeatures = useMemo(() => {
+    const all = projects?.features || [];
+    if (featureScope === "gear") return all.filter(isGearFeature);
+    return all.filter((row) => !isGearFeature(row));
+  }, [projects, featureScope]);
+
   const filtered = useMemo(
-    () => filterProjectFeatures(projects?.features || [], {
+    () => filterProjectFeatures(scopedFeatures, {
       funderFilter: "All",
       categoryFilter: "All",
       searchQuery: query,
     }),
-    [projects, query],
+    [scopedFeatures, query],
   );
 
   const features = useMemo(
-    () => visibleProjectFeatures(projects?.features || [], filtered, selectedProjectId, LIST_CAP),
-    [projects, filtered, selectedProjectId],
+    () => visibleProjectFeatures(scopedFeatures, filtered, selectedProjectId, LIST_CAP),
+    [scopedFeatures, filtered, selectedProjectId],
   );
   const disclosure = useRef(null);
   useEffect(() => {
@@ -123,13 +134,16 @@ export default function ProjectList({
   const truncated = filtered.length > LIST_CAP;
   const formatCount = (count) => new Intl.NumberFormat(i18n.language || "fr").format(count);
 
+  const listTestId = featureScope === "gear" ? "gear-list" : "project-list";
+  const headingKey = featureScope === "gear" ? "gear.heading" : "projects.heading";
+
   return (
-    <details ref={disclosure} className="panel project-disclosure" data-testid="project-list">
+    <details ref={disclosure} className="panel project-disclosure" data-testid={listTestId}>
       <summary className="project-summary">
-        <h2>{t("projects.heading")}</h2>
+        <h2>{t(headingKey)}</h2>
         <span aria-hidden="true">·</span>
         <span className="project-list-total" data-testid="project-list-count">
-          {formatCount(projects?.features?.length || 0)}
+          {formatCount(scopedFeatures.length)}
         </span>
         <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true"><path d="m5 6 3 3 3-3" stroke="currentColor" strokeWidth="1.5" /></svg>
       </summary>
@@ -150,6 +164,7 @@ export default function ProjectList({
       <div>
         {features.map((feature) => {
           const props = feature.properties || {};
+          const rowTitle = featureDisplayTitle(props, i18n.language, t);
           const open = selectedProjectId === props.id;
           return (
             <div key={props.id} className="project-row" data-testid={`project-row-${props.id}`}>
@@ -161,7 +176,7 @@ export default function ProjectList({
                   if (onFlyTo && lat != null && lon != null) onFlyTo(props.id, lat, lon);
                 }}
               >
-                <strong>{props.title}</strong>
+                <strong>{rowTitle}</strong>
                 <span className="hint">{props.funder}</span>
               </button>
               <button

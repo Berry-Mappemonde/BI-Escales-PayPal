@@ -16,7 +16,13 @@ from pydantic import BaseModel, Field
 from starlette.responses import Response
 
 from app.core import llm
-from app.gear_projects_catalog import funded_percent, get_gear_feature_collection, lookup_project_fund_meta
+from app.gear_projects_catalog import (
+    funded_percent,
+    get_gear_feature_collection,
+    is_fully_funded_amount,
+    lookup_project_fund_meta,
+    sanitize_public_gear_collection,
+)
 from app.escales.captain import chat as captain_chat
 from app.escales.captain import review as captain_review
 from app.escales.captain import simulated_price_label, simulated_prices, simulated_unit
@@ -24,6 +30,7 @@ from app.escales.config import (
     bryntum_scheduler_enabled,
     card_fields_enabled,
     channel3_enabled,
+    wishlists_enabled,
     clock_start,
     clock_now_pinned,
     parse_clock_moment,
@@ -111,14 +118,25 @@ from app.escales.app_i18n import (
 )
 from app.escales.rate_limit import (
     RateLimited,
+    captain_rate_feature,
     captain_rate_key,
     client_ip,
     hit as hit_captain_rate,
     limit_message,
 )
+from app.escales.certificates import (
+    ensure_certificate,
+    load_certificate,
+    payer_proof_matches,
+    public_certificate_links,
+    render_certificate_pdf,
+    render_certificate_png,
+)
 from app.escales.pledges import (
     IllegalTransition,
+    PledgeAlreadyFullyRefunded,
     PledgeNotFound,
+    RefundRequestKeyRequired,
     admin_reauthorize_pledge,
     authorize_pledge,
     capture_pledge,
@@ -168,6 +186,14 @@ class _WebhooksRoute(APIRoute):
 
 router = APIRouter(prefix="/api/escales", route_class=_EnabledRoute, tags=["escales"])
 webhooks_router = APIRouter(prefix="/api/escales", route_class=_WebhooksRoute, tags=["escales-webhooks"])
+
+
+class CertificateIn(BaseModel):
+    payer_proof: Optional[str] = Field(
+        None,
+        description="PayPal order id or vault setup token id from the buyer checkout response.",
+    )
+    display_name: Optional[str] = Field(None, max_length=120)
 
 
 class PledgeIn(BaseModel):
@@ -222,6 +248,21 @@ class SpendingIn(BaseModel):
 class RefundIn(BaseModel):
     amount_eur: Optional[str] = None
     now: Optional[str] = None
+    request_key: Optional[str] = Field(
+        None,
+        description=(
+            "Per-refund idempotency token; maps to PayPal-Request-Id "
+            "(refund-{pledge_id}-{request_key}). Replays return HTTP 200 with the existing pledge."
+        ),
+    )
+    paypal_refund_id: Optional[str] = Field(
+        None,
+        description=(
+            "PayPal refund resource id when reconciling a webhook-first refund. "
+            "On idempotent replay the public pledge includes refund_id; HTTP 409 responses "
+            "include paypal_refund_id when the pledge is already fully refunded."
+        ),
+    )
 
 
 class CaptureIn(BaseModel):
@@ -456,6 +497,8 @@ def _paypal_client_error_detail(exc: PayPalError) -> str:
 
 
 def _money_http(exc: Exception, lang: Optional[str] = None) -> HTTPException:
+    if isinstance(exc, RefundRequestKeyRequired):
+        return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, ValueError):
         if str(exc) == "order not approved yet":
             if lang is not None:
@@ -550,6 +593,9 @@ def _public_pledge(doc: dict, *, lang: Optional[str] = None) -> dict:
     public["payment_mode"] = doc.get("payment_mode") or doc.get("intent")
     kind = str(public.get("kind") or "mile")
     public["simulated_price"] = simulated_unit(kind, resolved)
+    pledge_ccy = str(doc.get("currency") or "EUR").strip().upper()
+    if pledge_ccy != "EUR":
+        public["simulated_price"]["currency"] = pledge_ccy
     public["price_label"] = simulated_price_label(resolved)
     if not public.get("approve_link") and public.get("order_id"):
         public["approve_link"] = approve_link({"id": public["order_id"]})
@@ -589,6 +635,7 @@ async def get_features():
         "elastic": elastic_evidence_enabled(),
         "kernel": kernel_evidence_enabled(),
         "channel3": channel3_enabled(),
+        "wishlists": wishlists_enabled(),
         "bryntum": bryntum_scheduler_enabled(),
         "vault": vault_enabled(),
         "card_fields": card_fields_enabled(),
@@ -602,6 +649,7 @@ async def get_features():
         "crew_supporter_plan_id": crew_plan_id,
         "demo_treasurer": demo_treasurer_enabled(),
         "fastlane": False,
+        "captain_rate": captain_rate_feature(),
     }
 
 
@@ -672,28 +720,9 @@ async def post_schedule_sync():
 @router.get("/pledges/mode")
 async def get_pledge_mode(milestone_id: str, kind: str = "mile"):
     """Read-only card checkout preview: no PayPal calls or ledger writes."""
-    from app.escales.pledges import _kind, _resolve_target
-    from app.escales.naviguide_bridge import resolve_milestone, leg_departing_from
-    from app.escales.payment_mode import resolve_pledge_mode
+    from app.escales.payment_mode import preview_payment_mode
     try:
-        milestone_id = milestone_id.strip()
-        pledge_kind = _kind(kind)
-        if pledge_kind == "project_pledge":
-            raise ValueError("project_pledge uses PayPal wallet checkout only")
-        canonical = (
-            "" if pledge_kind == "common_fund" and not milestone_id
-            else resolve_milestone(milestone_id)
-        )
-        if canonical is None:
-            if not await get_ledger().get_milestone(milestone_id):
-                raise ValueError("milestone_id must name a known stopover")
-            canonical = milestone_id
-        if pledge_kind == "cabin_leg" and not canonical.startswith("leg-"):
-            leg = leg_departing_from(canonical)
-            if leg:
-                canonical = str(leg["id"])
-        await _resolve_target(None, canonical, pledge_kind)
-        mode = await resolve_pledge_mode({"milestone_id": canonical, "kind": pledge_kind}, read_only=True)
+        mode = await preview_payment_mode(milestone_id, kind)
         return {"payment_mode": mode}
     except ValueError as exc:
         raise _as_http(exc) from exc
@@ -793,8 +822,44 @@ async def post_void(pledge_id: str, request: Request):
     return await _public_pledge_with_fund(doc)
 
 
-@router.post("/pledges/{pledge_id}/refund")
+def _resolve_refund_request_key(request: Request, body: RefundIn) -> Optional[str]:
+    """Per-refund idempotency token for ``refund_pledge`` (maps to PayPal-Request-Id).
+
+    ``Idempotency-Key`` header wins when present; otherwise ``request_key`` in the JSON body.
+    If both differ, the header value is used (not rejected).
+    """
+    header = (
+        request.headers.get("Idempotency-Key")
+        or request.headers.get("idempotency-key")
+        or ""
+    ).strip()
+    if header:
+        return header
+    field = (body.request_key or "").strip()
+    return field or None
+
+
+@router.post(
+    "/pledges/{pledge_id}/refund",
+    responses={
+        409: {
+            "description": (
+                "Conflict: illegal state, duplicate amount without request_key, "
+                "or pledge already fully refunded (body includes paypal_refund_id)."
+            ),
+        },
+    },
+)
 async def post_refund(pledge_id: str, body: RefundIn, request: Request):
+    """Treasurer refund for a captured pledge (sandbox authorize-then-capture flow).
+
+    Idempotent replays (same ``request_key`` / ``Idempotency-Key`` or matching
+    ``paypal_refund_id``) return HTTP 200 and the public pledge; the pledge
+    ``refund_id`` field is the latest PayPal refund resource id.
+
+    When nothing remains refundable and the call is not a replay, HTTP 409 returns
+    ``detail`` plus ``paypal_refund_id`` (the PayPal refund id already on file).
+    """
     _require_treasurer(request)
     effective_at = None
     if (body.now or "").strip():
@@ -810,8 +875,20 @@ async def post_refund(pledge_id: str, body: RefundIn, request: Request):
             _paypal(),
             amount_eur=body.amount_eur,
             effective_at=effective_at,
+            request_key=_resolve_refund_request_key(request, body),
+            paypal_refund_id=(body.paypal_refund_id or "").strip() or None,
         )
-    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
+    except PledgeAlreadyFullyRefunded as exc:
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": "pledge already fully refunded",
+                "paypal_refund_id": exc.paypal_refund_id,
+            },
+        )
+    except (PledgeNotFound, IllegalTransition, PayPalError, ValueError, RefundRequestKeyRequired) as exc:
         raise _money_http(exc) from exc
     return await _public_pledge_with_fund(doc)
 
@@ -1068,7 +1145,8 @@ async def post_subscription_approve(body: SubscriptionApproveIn):
 @router.get("/gear")
 async def get_public_gear_list():
     """Expedition Gear projects (sandbox seed + optional Channel3 search when enabled)."""
-    return await get_gear_feature_collection()
+    payload = await get_gear_feature_collection()
+    return await sanitize_public_gear_collection(payload)
 
 
 @router.get("/projects/{project_id}/fund")
@@ -1078,24 +1156,87 @@ async def get_public_project_fund(project_id: str):
     Same spirit as public stopover ``GET /milestones/{id}/fund`` via ``to_public_fund``:
     aggregates only. Treasurer detail stays on ``GET /milestones/{project_id}/fund``.
     """
+    from app.channel3_catalog import lookup_catalog_by_project_id
+    from app.channel3_funding import enrich_item_funding, fund_snapshot_for_project
+    from app.channel3_paypal import catalog_project_id
+    from app.channel3_public import apply_buy_link_policy
+
+    if catalog_project_id(project_id):
+        catalog = lookup_catalog_by_project_id(project_id, public_only=True)
+        if not catalog:
+            raise HTTPException(status_code=404, detail="Project fund not found")
+    else:
+        catalog = lookup_catalog_by_project_id(project_id)
+    meta = lookup_project_fund_meta(project_id)
     try:
-        if await _project_fund_target(project_id) is None:
-            raise LookupError("not a project fund")
-        fund = await fund_for_milestone(project_id)
+        if catalog:
+            fund = await fund_snapshot_for_project(project_id)
+        else:
+            if await _project_fund_target(project_id) is None:
+                raise LookupError("not a project fund")
+            fund = await fund_for_milestone(project_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Project fund not found") from exc
-    meta = lookup_project_fund_meta(project_id)
-    goal = str((meta or {}).get("goal_eur") or "").strip()
-    if goal:
+    goal_eur = str((meta or {}).get("goal_eur") or "").strip()
+    goal_amount = goal_eur or str((meta or {}).get("channel3_price") or "").strip()
+    goal_currency = (
+        "EUR"
+        if goal_eur
+        else str((meta or {}).get("channel3_currency") or (meta or {}).get("goal_currency") or "EUR").strip().upper()
+    )
+    if catalog:
+        enriched = enrich_item_funding(catalog, fund)
         base = to_public_project_donation_total(fund)
-        pct = funded_percent(base["amount_eur"], goal)
-        payload = to_public_project_donation_total(fund, goal_eur=goal, funded_pct=pct)
+        payload = {**base, **{k: enriched[k] for k in enriched if k not in ("channel3_buy_url", "product_url")}}
+        payload["project_kind"] = "gear_project"
+        if meta and meta.get("channel3_product_name"):
+            payload["channel3_product_name"] = meta["channel3_product_name"]
+        buy_url = (meta or {}).get("channel3_buy_url") or catalog.get("channel3_buy_url")
+        return apply_buy_link_policy(
+            payload,
+            fully_funded=bool(enriched.get("fully_funded")),
+            buy_url=buy_url,
+        )
+    if goal_amount:
+        base = to_public_project_donation_total(fund)
+        fund_currency = str(base.get("currency") or "EUR").strip().upper()
+        pct = funded_percent(
+            base["amount_eur"],
+            goal_amount,
+            amount_currency=fund_currency,
+            goal_currency=goal_currency,
+        )
+        fully = is_fully_funded_amount(
+            base["amount_eur"],
+            goal_amount,
+            amount_currency=fund_currency,
+            goal_currency=goal_currency,
+        )
+        payload = to_public_project_donation_total(
+            fund,
+            goal_eur=goal_eur or None,
+            funded_pct=pct,
+        )
+        meta_keys = (
+            "channel3_image_url",
+            "project_kind",
+            "channel3_product_name",
+            "channel3_price",
+            "channel3_currency",
+            "goal_currency",
+            "price_amount_minor",
+            "price_currency",
+        )
         if meta:
-            for key in ("channel3_buy_url", "channel3_image_url", "project_kind", "channel3_product_name"):
+            for key in meta_keys:
                 if meta.get(key):
                     payload[key] = meta[key]
-        payload["fully_funded"] = pct >= 100
-        return payload
+        if not goal_eur and goal_amount:
+            payload["goal_amount"] = goal_amount
+            payload["goal_currency"] = goal_currency
+        payload["fully_funded"] = fully
+        buy_url = str((meta or {}).get("channel3_buy_url") or "").strip() or None
+        return apply_buy_link_policy(payload, fully_funded=fully, buy_url=buy_url)
     return to_public_project_donation_total(fund)
 
 
@@ -1166,6 +1307,68 @@ async def get_pledge(pledge_id: str, request: Request):
     return full
 
 
+@router.post("/pledges/{pledge_id}/certificate")
+async def post_pledge_certificate(
+    pledge_id: str,
+    lang: Optional[str] = None,
+    body: CertificateIn = CertificateIn(),
+):
+    """Issue (once) a mile sponsorship certificate after a successful mile pledge."""
+    app_lang = resolve_app_language(lang)
+    try:
+        pledge = await require_pledge(pledge_id)
+    except PledgeNotFound as exc:
+        raise HTTPException(status_code=404, detail="Pledge not found") from exc
+    if not payer_proof_matches(pledge, body.payer_proof):
+        raise HTTPException(status_code=403, detail="Payer proof required")
+    try:
+        doc = await ensure_certificate(
+            pledge_id,
+            display_name=body.display_name,
+            lang=app_lang,
+        )
+    except PledgeNotFound as exc:
+        raise HTTPException(status_code=404, detail="Pledge not found") from exc
+    except ValueError as exc:
+        raise _as_http(exc) from exc
+    token = str(doc.get("token") or "")
+    return {
+        "token": token,
+        "mile_number": doc.get("mile_number"),
+        "mile_quantity": doc.get("mile_quantity"),
+        "issue_date": doc.get("issue_date"),
+        **public_certificate_links(token),
+    }
+
+
+@router.get("/certificates/{token}.png")
+async def get_certificate_png(token: str, lang: Optional[str] = None):
+    app_lang = resolve_app_language(lang)
+    doc = await load_certificate(token)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    body = render_certificate_png(doc, app_lang)
+    return Response(
+        content=body,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.get("/certificates/{token}.pdf")
+async def get_certificate_pdf(token: str, lang: Optional[str] = None):
+    app_lang = resolve_app_language(lang)
+    doc = await load_certificate(token)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    body = render_certificate_pdf(doc, app_lang)
+    return Response(
+        content=body,
+        media_type="application/pdf",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @router.get("/milestones/{milestone_id}/fund")
 async def get_fund(milestone_id: str, request: Request):
     """A stopover, cabin-leg, or common fund total is public. The project fund needs the key.
@@ -1229,6 +1432,7 @@ def _enforce_captain_rate(
         raise HTTPException(
             status_code=429,
             detail=limit_message(exc.kind, app_lang, exc.limit),
+            headers={"Retry-After": str(exc.retry_after)},
         ) from exc
 
 
@@ -1301,3 +1505,8 @@ async def post_paypal_webhook(request: Request):
         return {"accepted": True, "duplicate": True, "transmission_id": exc.transmission_id}
     except WebhookRejected as exc:
         raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+
+
+from app.routers import wishlists as _wishlists_router
+
+router.include_router(_wishlists_router.router)

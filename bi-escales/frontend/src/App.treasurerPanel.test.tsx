@@ -4,7 +4,7 @@ import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "./i18n";
 import App from "./App";
-import { fetchCrewSupporterPlan, approveCrewSubscription } from "./api/escales";
+import { approveCrewSubscription, fetchCrewSupporterPlan, fetchFund } from "./api/escales";
 
 vi.mock("./hooks/usePledgeQueue", () => ({
   usePledgeQueue: () => ({
@@ -48,7 +48,10 @@ vi.mock("./components/EscalePopup.jsx", () => ({ EscalePopup: () => null }));
 vi.mock("./components/EscalesPanel", () => ({ EscalesPanel: () => null }));
 vi.mock("./components/MarinasPanel.jsx", () => ({ default: () => null }));
 vi.mock("./components/ProjectList.jsx", () => ({ default: () => null }));
-vi.mock("./components/CrewSubscribeButton", () => ({ CrewSubscribeButton: () => null }));
+vi.mock("./components/CrewSubscribeButton", () => ({
+  CrewSubscribeButton: () => null,
+  CrewSupporterPublicSection: () => null,
+}));
 vi.mock("./marinas/escaleFiche.js", () => ({
   loadEscaleFiche: vi.fn(),
   loadEscaleMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),
@@ -194,6 +197,33 @@ describe("Treasurer panel (mini-mix lot 1)", () => {
     });
     expect(screen.getByTestId("admin-key-input")).toBeInTheDocument();
     expect(screen.getByTestId("departure-settle")).toBeDisabled();
+  });
+
+  it("does not call treasurer-only fund endpoints until the admin key is set", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("location", {
+      ...window.location,
+      hash: "#tresorier",
+      href: "http://localhost/#tresorier",
+    });
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("treasurer-panel-toggle")).toHaveAttribute("aria-expanded", "true");
+    });
+    await waitFor(() => {
+      expect(vi.mocked(fetchFund)).not.toHaveBeenCalled();
+    });
+
+    await user.type(screen.getByTestId("admin-key-input"), "treasurer-key");
+    await waitFor(() => {
+      expect(vi.mocked(fetchFund)).toHaveBeenCalledWith("project", "treasurer-key");
+    });
   });
 
   it("clears #tresorier from the URL when the panel is closed", async () => {

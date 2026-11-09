@@ -175,8 +175,8 @@ def test_two_partial_refunds_use_distinct_idempotency_keys(monkeypatch):
         await refund_pledge(pledge_id, client, amount_eur="2.00")
         assert len(client.refund_keys) == 2
         assert client.refund_keys[0] != client.refund_keys[1]
-        assert client.refund_keys[0] == f"refund-{pledge_id}-1"
-        assert client.refund_keys[1] == f"refund-{pledge_id}-2"
+        assert client.refund_keys[0] == f"refund-{pledge_id}-3.00"
+        assert client.refund_keys[1] == f"refund-{pledge_id}-2.00"
 
     asyncio.run(run())
 

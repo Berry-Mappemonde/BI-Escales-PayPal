@@ -25,6 +25,13 @@ def test_lookup_gear_goal_from_bundled_snapshot():
 def test_funded_percent_caps_at_100():
     assert funded_percent("500.00", "450.00") == 100
     assert funded_percent("225.00", "450.00") == 50
+    assert funded_percent("9999.00", "10000.00") == 99
+    assert funded_percent("99.50", "100.00") == 99
+    assert funded_percent("10000.00", "10000.00") == 100
+
+
+def test_funded_percent_skips_mismatched_currency():
+    assert funded_percent("10.00", "20.00", amount_currency="EUR", goal_currency="USD") is None
 
 
 @pytest.fixture

@@ -451,43 +451,97 @@ def _limits_enabled() -> bool:
     return limits_enabled()
 
 
-def llm_daily_cap() -> int:
-    raw = _env("ESCALES_LLM_DAILY_CAP")
+def _positive_env(name: str) -> Optional[int]:
+    raw = _env(name)
     if not raw:
-        return LLM_DAILY_CAP_DEFAULT
+        return None
     try:
         value = int(raw)
     except ValueError:
-        return LLM_DAILY_CAP_DEFAULT
-    return value if value > 0 else LLM_DAILY_CAP_DEFAULT
+        return None
+    return value if value > 0 else None
+
+
+def llm_daily_cap() -> int:
+    from app.escales.rate_limit import judging_window_active, llm_daily_cap_judging
+
+    if judging_window_active():
+        return llm_daily_cap_judging()
+    base = _positive_env("ESCALES_LLM_DAILY_CAP")
+    if base is not None:
+        return base
+    return LLM_DAILY_CAP_DEFAULT
 
 
 def reset_llm_budget() -> None:
     global _llm_day, _llm_count
+    from app.core.llm_daily_counter_store import reset_llm_daily_counter_store
+
     _llm_day = ""
     _llm_count = 0
+    reset_llm_daily_counter_store()
+
+
+def _day_key(moment: dt.datetime) -> str:
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment.astimezone(dt.timezone.utc).date().isoformat()
 
 
 def llm_calls_today() -> int:
     return _llm_count
 
 
-def consume_llm_call(now: Optional[dt.datetime] = None) -> bool:
+async def fetch_llm_calls_today(now: Optional[dt.datetime] = None) -> int:
+    """Return today's count, loading from Mongo when available (survives process restart)."""
+    global _llm_day, _llm_count
+    if not _limits_enabled():
+        return 0
+    moment = now or _budget_now()
+    day = _day_key(moment)
+    from app.core.llm_daily_counter_store import mongo_persistence_active, read_count
+
+    if mongo_persistence_active():
+        stored = await read_count(day)
+        if stored is not None:
+            _llm_day = day
+            _llm_count = stored
+            return stored
+    if day != _llm_day:
+        _llm_day = day
+        _llm_count = 0
+    return _llm_count
+
+
+def _consume_llm_call_memory(day: str, cap: int) -> bool:
+    global _llm_day, _llm_count
+    if day != _llm_day:
+        _llm_day = day
+        _llm_count = 0
+    if _llm_count >= cap:
+        return False
+    _llm_count += 1
+    return True
+
+
+async def consume_llm_call(now: Optional[dt.datetime] = None) -> bool:
     """Reserve one LLM call. Always allowed, and not counted, outside production."""
     global _llm_day, _llm_count
     if not _limits_enabled():
         return True
     moment = now or _budget_now()
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=dt.timezone.utc)
-    day = moment.astimezone(dt.timezone.utc).date().isoformat()
-    if day != _llm_day:
-        _llm_day = day
-        _llm_count = 0
-    if _llm_count >= llm_daily_cap():
-        return False
-    _llm_count += 1
-    return True
+    day = _day_key(moment)
+    cap = llm_daily_cap()
+    from app.core.llm_daily_counter_store import consume_one, mongo_persistence_active
+
+    if mongo_persistence_active():
+        outcome = await consume_one(day, cap)
+        if outcome is not None:
+            allowed, count = outcome
+            _llm_day = day
+            _llm_count = count
+            return allowed
+    return _consume_llm_call_memory(day, cap)
 
 
 def _client() -> httpx.AsyncClient:
@@ -981,7 +1035,7 @@ async def ask_text(
     """
     if not has_llm():
         raise RuntimeError("No LLM configured")
-    if not consume_llm_call():
+    if not await consume_llm_call():
         raise LlmBudgetExhausted("ESCALES_LLM_DAILY_CAP reached")
     system_text = (system or "").strip() or default_system(lang)
     user = prompt or ""

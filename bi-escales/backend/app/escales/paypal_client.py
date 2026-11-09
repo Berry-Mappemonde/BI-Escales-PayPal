@@ -141,6 +141,91 @@ def approve_link(order: dict) -> str:
     return f"https://www.sandbox.paypal.com/checkoutnow?token={order_id}"
 
 
+def paypal_error_issues(body: Any) -> list[str]:
+    """PayPal ``details[].issue`` codes from an error body."""
+    fields = _paypal_api_error_fields(body)
+    if not fields:
+        return []
+    issues: list[str] = []
+    for item in fields.get("details") or []:
+        if not isinstance(item, dict):
+            continue
+        issue = item.get("issue")
+        if issue:
+            issues.append(str(issue))
+    return issues
+
+
+def paypal_error_has_issue(exc: PayPalError, code: str) -> bool:
+    if exc.status != 422:
+        return False
+    return code in paypal_error_issues(exc.body)
+
+
+_USABLE_AUTHORIZATION_STATUSES = frozenset({"CREATED", "PENDING"})
+
+
+def _decimal_amount_eq(wanted: str, got: Any) -> bool:
+    from decimal import Decimal, InvalidOperation
+
+    try:
+        return Decimal(str(wanted).strip()) == Decimal(str(got).strip())
+    except (InvalidOperation, ValueError):
+        return str(wanted).strip() == str(got).strip()
+
+
+def _first_usable_authorization(order: dict) -> tuple[dict, dict]:
+    for unit in order.get("purchase_units") or []:
+        if not isinstance(unit, dict):
+            continue
+        payments = unit.get("payments") or {}
+        for auth in payments.get("authorizations") or []:
+            if not isinstance(auth, dict):
+                continue
+            status = str(auth.get("status") or "").upper()
+            if status not in _USABLE_AUTHORIZATION_STATUSES:
+                continue
+            if auth.get("id"):
+                return unit, auth
+    raise PayPalError(502, "authorization id missing")
+
+
+def adopted_authorization_mismatch(order: dict, pledge: dict) -> Optional[str]:
+    """Return a mismatch code when an adopted hold does not match the pledge."""
+    try:
+        unit, auth = _first_usable_authorization(order)
+    except PayPalError:
+        return "authorization"
+    pledge_id = str(pledge.get("_id") or "")[:127]
+    amount_eur = str(pledge.get("amount_eur") or "")
+    currency = str(pledge.get("currency") or "EUR").strip().upper()
+    auth_amount = auth.get("amount") if isinstance(auth.get("amount"), dict) else {}
+    if not _decimal_amount_eq(amount_eur, auth_amount.get("value")):
+        return "amount"
+    auth_currency = str(auth_amount.get("currency_code") or "").strip().upper()
+    if auth_currency != currency:
+        return "currency"
+    custom = str(unit.get("custom_id") or "").strip()
+    invoice = str(unit.get("invoice_id") or "").strip()
+    if custom and custom != pledge_id:
+        return "custom_id"
+    if invoice and invoice != pledge_id:
+        return "invoice_id"
+    if not custom and not invoice:
+        return "reference"
+    return None
+
+
+def usable_authorization_from_order(order: dict) -> tuple[str, Optional[str]]:
+    """Authorization id from a GET order when authorize returned ORDER_ALREADY_AUTHORIZED."""
+    _unit, auth = _first_usable_authorization(order)
+    auth_id = auth.get("id")
+    if auth_id:
+        expiration = auth.get("expiration_time")
+        return str(auth_id), str(expiration) if expiration else None
+    raise PayPalError(502, "authorization id missing")
+
+
 def authorization_from(order: dict) -> tuple[str, Optional[str]]:
     """Return (authorization id, expiration) from an authorize-order response."""
     for unit in order.get("purchase_units") or []:
@@ -246,6 +331,7 @@ class PayPalClient:
         description: str,
         amount_eur: str,
         *,
+        currency_code: Optional[str] = None,
         payee_merchant_id: Optional[str] = None,
         platform_fee_eur: Optional[str] = None,
         platform_merchant_id: Optional[str] = None,
@@ -257,7 +343,10 @@ class PayPalClient:
             "custom_id": ref[:127],
             "invoice_id": ref[:127],
             "soft_descriptor": SOFT_DESCRIPTOR,
-            "amount": {"currency_code": self.cfg.currency, "value": amount_eur},
+            "amount": {
+                "currency_code": (currency_code or self.cfg.currency).strip().upper(),
+                "value": amount_eur,
+            },
         }
         if payee_merchant_id:
             unit["payee"] = {"merchant_id": payee_merchant_id}
@@ -268,7 +357,10 @@ class PayPalClient:
                 "disbursement_mode": "INSTANT",
                 "platform_fees": [
                     {
-                        "amount": {"currency_code": self.cfg.currency, "value": fee},
+                        "amount": {
+                            "currency_code": (currency_code or self.cfg.currency).strip().upper(),
+                            "value": fee,
+                        },
                         "payee": {"merchant_id": platform_id},
                     }
                 ],
@@ -376,6 +468,7 @@ class PayPalClient:
         return_url: Optional[str] = None,
         cancel_url: Optional[str] = None,
         checkout_locale: Optional[str] = None,
+        currency_code: Optional[str] = None,
     ) -> dict:
         """Classic CAPTURE order (immediate payment after buyer approval)."""
         back = (return_url or "").strip() or order_return_url()
@@ -389,7 +482,14 @@ class PayPalClient:
                     ),
                 },
             },
-            "purchase_units": [self._purchase_unit(reference_id, description, amount_eur)],
+            "purchase_units": [
+                self._purchase_unit(
+                    reference_id,
+                    description,
+                    amount_eur,
+                    currency_code=currency_code or self.cfg.currency,
+                )
+            ],
         }
         return self._req(
             "POST",
@@ -552,13 +652,35 @@ class PayPalClient:
             idempotency_key=paypal_request_id(ref, "reauthorize"),
         )
 
+    def _sdk_reads(self, method: str, *args: Any, **kwargs: Any) -> Optional[dict]:
+        """Delegate one read when the Server SDK flag is on. ``None`` keeps httpx."""
+        from .paypal_sdk_gateway import paypal_sdk_reads_enabled
+
+        if not paypal_sdk_reads_enabled():
+            return None
+        from . import paypal_sdk_gateway
+
+        result = getattr(paypal_sdk_gateway, method)(*args, **kwargs)
+        if not isinstance(result, dict):
+            raise PayPalError(502, "PayPal SDK response was not an object")
+        return result
+
     def get_order(self, order_id: str) -> dict:
+        delegated = self._sdk_reads("get_order", order_id)
+        if delegated is not None:
+            return delegated
         return self._req("GET", f"/v2/checkout/orders/{order_id}")
 
     def get_authorization(self, authorization_id: str) -> dict:
+        delegated = self._sdk_reads("get_authorized_payment", authorization_id)
+        if delegated is not None:
+            return delegated
         return self._req("GET", f"/v2/payments/authorizations/{authorization_id}")
 
     def get_setup_token(self, setup_token_id: str) -> dict:
+        delegated = self._sdk_reads("get_setup_token", setup_token_id)
+        if delegated is not None:
+            return delegated
         return self._req("GET", f"/v3/vault/setup-tokens/{setup_token_id}")
 
     def create_setup_token(
@@ -805,10 +927,21 @@ class PayPalClient:
 
     def list_billing_plans(self, *, product_id: str, page_size: int = 20) -> dict:
         pid = str(product_id or "").strip()
+        delegated = self._sdk_reads(
+            "list_billing_plans", product_id=pid, page_size=page_size,
+        )
+        if delegated is not None:
+            return delegated
         return self._req(
             "GET",
             f"/v1/billing/plans?product_id={pid}&page_size={page_size}&total_required=true",
         )
+
+    def get_billing_plan(self, plan_id: str) -> dict:
+        delegated = self._sdk_reads("get_billing_plan", plan_id)
+        if delegated is not None:
+            return delegated
+        return self._req("GET", f"/v1/billing/plans/{plan_id}")
 
     def create_billing_plan(
         self,
@@ -840,6 +973,9 @@ class PayPalClient:
         return self._req("POST", "/v1/billing/plans", body, idempotency_key=idempotency_key)
 
     def get_subscription(self, subscription_id: str) -> dict:
+        delegated = self._sdk_reads("get_subscription", subscription_id)
+        if delegated is not None:
+            return delegated
         return self._req("GET", f"/v1/billing/subscriptions/{subscription_id}")
 
     def create_billing_subscription(
@@ -875,6 +1011,7 @@ class PayPalClient:
         capture_id: str,
         *,
         amount_eur: Optional[str] = None,
+        currency_code: Optional[str] = None,
         idempotency_key: str,
     ) -> dict:
         """Refund a captured payment (full or partial).
@@ -883,7 +1020,13 @@ class PayPalClient:
         """
         body: dict = {}
         if amount_eur:
-            body["amount"] = {"currency_code": self.cfg.currency, "value": amount_eur}
+            from app.channel3_paypal import format_paypal_amount_value
+
+            ccy = str(currency_code or self.cfg.currency).strip().upper()
+            body["amount"] = {
+                "currency_code": ccy,
+                "value": format_paypal_amount_value(amount_eur, ccy),
+            }
         return self._req(
             "POST",
             f"/v2/payments/captures/{capture_id}/refund",
@@ -940,6 +1083,11 @@ class PayPalClient:
         from .paypal_txn_search import clamp_transaction_search_range
 
         start_date, end_date = clamp_transaction_search_range(start_date, end_date)
+        delegated = self._sdk_reads(
+            "search_transactions", start_date=start_date, end_date=end_date,
+        )
+        if delegated is not None:
+            return delegated
         query = urlencode({
             "start_date": start_date,
             "end_date": end_date,

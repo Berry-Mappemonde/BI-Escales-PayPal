@@ -105,6 +105,15 @@ Default branch on GitHub is `main`. Active integration branch is **`test/integra
 - Do not capture or void real pledges, and do not perform Capture pledge / vault release demos that move or risk real funds, without an explicit per-action owner approval.
 - Optional partner flags (AG Grid, Bryntum, Zapier, toolkit, webhooks, …) stay behind env flags; do not turn production-risk features on without being asked.
 
+## PayPal server code
+
+Any Python change that calls PayPal must follow this workflow (PayPal **sandbox** only; never live):
+
+1. **Load the entry skill first:** read `bi-escales/backend/.cursor/skills/paypal-server-sdk/python-getting-started/SKILL.md` (and other `python-*` skills under that directory as needed). Do not use marketplace `python-integrate-paypal` skills — they target a different SDK.
+2. **Dependency:** use `paypal-server-sdk==2.4.0` and import `paypalserversdk` (not legacy REST helpers unless the plan says otherwise).
+3. **Plan before code:** write or refresh `bi-escales/backend/paypal-plan.md` with the PayPal operations you will call, method signatures, error types, and any duplicate-claim / idempotency rows **before** editing application code.
+4. **PR hygiene:** name which vendored `python-*` skills you used in the pull request body.
+
 ## How to work with this codebase
 
 - Prefer extending existing routes, components, and tests over new parallel stacks.

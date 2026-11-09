@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from tests.schedule_clocks import near_mayotte_clock
 from app.escales.audit import list_entries
 from app.escales.pledges import reset_ledger
 from app.escales.toolkit_tools import (
@@ -189,6 +190,7 @@ def _assert_fresh_app_import_skips_toolkit() -> None:
         "os.environ['MONGO_URL'] = 'mongodb://127.0.0.1:27017'\n"
         "os.environ['ESCALES_ENABLED'] = '1'\n"
         "os.environ.pop('ESCALES_TOOLKIT_ENABLED', None)\n"
+        "os.environ.pop('ESCALES_PAYPAL_SDK_ENABLED', None)\n"
         "import app.main\n"
         "import app.escales.captain\n"
         "import app.escales.paypal_client\n"
@@ -197,6 +199,8 @@ def _assert_fresh_app_import_skips_toolkit() -> None:
         "    name for name in sys.modules\n"
         "    if name == 'paypal_agent_toolkit'\n"
         "    or name.startswith('paypal_agent_toolkit.')\n"
+        "    or name == 'paypalserversdk'\n"
+        "    or name.startswith('paypalserversdk.')\n"
         "    or 'apimatic' in name.lower()\n"
         "]\n"
         "assert loaded == [], loaded\n"
@@ -205,6 +209,7 @@ def _assert_fresh_app_import_skips_toolkit() -> None:
     env["MONGO_URL"] = "mongodb://127.0.0.1:27017"
     env["ESCALES_ENABLED"] = "1"
     env.pop("ESCALES_TOOLKIT_ENABLED", None)
+    env.pop("ESCALES_PAYPAL_SDK_ENABLED", None)
     completed = subprocess.run(
         [sys.executable, "-c", script],
         cwd=str(BACKEND),
@@ -247,7 +252,7 @@ def test_core_has_no_sponsor_import():
     checked.extend(
         path
         for path in (BACKEND / "app" / "escales").glob("*.py")
-        if path.name != "toolkit_tools.py"
+        if path.name not in {"toolkit_tools.py", "paypal_sdk_gateway.py"}
     )
     for path in checked:
         text = path.read_text(encoding="utf-8").lower()
@@ -267,13 +272,18 @@ def test_core_has_no_sponsor_import():
         stripped = line.strip()
         if stripped.startswith("import paypal_agent_toolkit") or stripped.startswith("from paypal_agent_toolkit"):
             assert line[:1] in {" ", "\t"}
+    gateway = (BACKEND / "app" / "escales" / "paypal_sdk_gateway.py").read_text(encoding="utf-8")
+    for line in gateway.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("import paypalserversdk") or stripped.startswith("from paypalserversdk"):
+            assert line[:1] in {" ", "\t"}
 
 
 def test_flag_off_app_and_captain_work_without_the_toolkit(monkeypatch):
     monkeypatch.delenv("ESCALES_TOOLKIT_ENABLED", raising=False)
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
     import app.core.llm as llm
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: False)
@@ -354,7 +364,7 @@ def test_flag_on_mocked_toolkit_is_used_and_stays_readonly(monkeypatch):
     monkeypatch.setenv("ESCALES_TOOLKIT_ENABLED", "1")
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "test-admin-key")
     import app.core.llm as llm
     monkeypatch.setattr(llm, "has_llm", lambda settings=None: False)

@@ -1,6 +1,7 @@
 {
   "app": {
     "title": "BI Escales — Pay Only If We Sail",
+    "subtitle": "Pay Only If We Sail",
     "tagline": "Stop pledges capture on boat arrival; cabins on leg departure; common fund at once.",
     "langFr": "Français",
     "langEn": "English",
@@ -14,7 +15,9 @@
     "dismissNotice": "Dismiss",
     "dismissNoticeAria": "Dismiss",
     "toolsCollapse": "Hide tools",
-    "toolsExpand": "Show settings"
+    "toolsExpand": "Show settings",
+    "metaDescription": "BI Escales — support the Berry-Mappemonde expedition. Stop pledges capture on boat arrival (voided if the stop is cancelled); cabins on leg departure; common fund and project gifts at once.",
+    "ogLocale": "en_US"
   },
   "common": {
     "showSecret": "Show",
@@ -22,7 +25,21 @@
   },
   "tabs": {
     "voyage": "Voyage map",
-    "marinas": "Marinas"
+    "marinas": "Marinas",
+    "gear": "Gear"
+  },
+  "settings": {
+    "heading": "Settings",
+    "lead": "Language, theme, treasurer tools, and sandbox operator controls.",
+    "leadPanel": "Language, theme, and sandbox operator controls."
+  },
+  "gear": {
+    "heading": "Expedition gear",
+    "seedTitles": {
+      "gear-dive-computer-expedition": "Expedition dive computer",
+      "gear-dry-bag-expedition": "Dry bags (expedition lot)",
+      "gear-marine-binoculars": "Marine binoculars"
+    }
   },
   "clock": {
     "waiting": "Departure in {{days}}d {{hours}}h",
@@ -73,7 +90,7 @@
     "visitSite": "Project website",
     "noDescription": "No description in the snapshot.",
     "publicTotal": "{{amount}} {{currency}} collected · {{count}} donations",
-    "goalProgress": "{{amount}} / {{goal}} {{currency}} funded ({{pct}}%)",
+    "goalProgress": "{{amount}} {{amountCurrency}} / {{goal}} {{goalCurrency}} funded ({{pct}}%)",
     "buyViaChannel3": "Buy via Channel3 (goal reached)"
   },
   "marinas": {
@@ -90,6 +107,9 @@
     "legendDefault": "Marina — red on the map (Maps search link)",
     "legendRejected": "Rejected Google place — red on the map"
   },
+  "map": {
+    "boatMarker": "Boat / catamaran"
+  },
   "fund": {
     "heading": "Common fund",
     "figures": "balance {{balance}} {{currency}} (income {{income}}, spending {{spending}})",
@@ -105,6 +125,13 @@
     "projectTotals": "Project pledges",
     "boatTotals": "Common fund",
     "publicCommon": "Community fund · {{balance}}"
+  },
+  "cabinLegPicker": {
+    "label": "Choose a voyage leg",
+    "hint": "Cabins are charged when this leg departs.",
+    "empty": "No legs available in the schedule.",
+    "loading": "Loading voyage legs…",
+    "error": "Could not load the schedule"
   },
   "scheduler": {
     "heading": "Stopover calendar",
@@ -154,15 +181,15 @@
     "returnPendingProject": "Approve on PayPal. Your project contribution is charged when you return.",
     "cancelled": "Approval cancelled. Nothing is authorized.",
     "intentVault": "Saved with PayPal · charged only if we sail",
-    "intent": "AUTHORIZE intent — PayPal sandbox",
-    "intentProject": "CAPTURE intent — your project contribution is collected immediately after approval (PayPal sandbox).",
+    "intent": "PayPal authorisation hold — you are not charged until we arrive (sandbox).",
+    "intentProject": "Immediate charge — your project contribution is collected after approval (PayPal sandbox).",
     "create": "Create the PayPal order",
     "approve": "Approve on the PayPal page",
     "authorize": "I approved — authorize",
     "creating": "Creating pledge…",
     "authorizing": "Authorizing on server…",
     "authorized": "Pledge authorized",
-    "vaultHint": "Vault: approve the saved payment method on PayPal, then confirm. Nothing is captured yet.",
+    "vaultHint": "Approve the saved payment method on PayPal, then confirm. Nothing is captured until we sail.",
     "vaultApprove": "Approve the payment method",
     "vaultConfirm": "I approved — save it",
     "vaulting": "Saving the payment method…",
@@ -170,11 +197,19 @@
     "vaultSaved": "Saved — charged only if we sail",
     "vaultFailed": "Could not save the payment method. Try again from the pledge button.",
     "vaultRedirect": "Redirecting to PayPal to save your payment method…",
-    "vaultRetry": "Vault setup cancelled. You can try again from the pledge button.",
-    "vaultCancelled": "Vault setup cancelled. Nothing was saved.",
+    "vaultRetry": "Payment method setup cancelled. You can try again from the pledge button.",
+    "vaultCancelled": "Payment method setup cancelled. Nothing was saved.",
     "venmoNote": "PayPal wallet or card (EUR). Venmo is not available — USD only.",
-    "cardFieldsHint": "Card (sandbox): vault setup or authorization depending on departure date.",
+    "cardFieldsHint": "Card (sandbox): saved payment method or authorisation hold, depending on departure date.",
     "cardPay": "Pay with card",
+    "cardConfirmAuthorizeTitle": "Card payment confirmed — pledge authorized",
+    "cardConfirmVaultTitle": "Card payment confirmed — payment method saved",
+    "cardConfirmRef": "Reference: {{ref}}",
+    "cardConfirmStopNext": "Charged only after the boat arrives at this stop and the treasurer approves.",
+    "cardConfirmCabinNext": "Charged only when this leg departs.",
+    "cardErrorInvalidExpiry": "Card expiry date is invalid. Check month and year.",
+    "cardErrorInvalidCvv": "Security code (CVV) is invalid.",
+    "cardErrorInvalidNumber": "Card number is invalid.",
     "walletPayHint": "Google Pay (Chrome) or Apple Pay (Safari), TEST sandbox EUR.",
     "error": "Pledge error",
     "crewSubscribeHint": "Support the crew monthly",
@@ -183,6 +218,7 @@
     "crewSubscribeLoading": "Loading Crew supporter plan…",
     "crewSubscribePlanTimeout": "Could not load the Crew supporter plan. Try again in a moment.",
     "crewSubscribePlanMissing": "Crew supporter plan is not set up yet. Ask the treasurer to run setup.",
+    "crewSubscribePlanTreasurerHint": "Crew supporter plan is not configured yet. Open Treasurer tools → PayPal and use \"Ensure Crew supporter plan (sandbox)\".",
     "crewSubscribeConfirmed": "Crew supporter subscription confirmed. Thank you.",
     "crewSubscribeVerifying": "Verifying Crew supporter subscription with PayPal…",
     "crewSubscribePending": "Subscription is not active yet. Finish approval in PayPal or try again shortly.",
@@ -206,7 +242,7 @@
   "stopPanel": {
     "status": {
       "upcoming": "Upcoming",
-      "en_route": "En route",
+      "en_route": "Underway",
       "arrived": "Arrived",
       "cancelled": "Cancelled"
     },
@@ -307,6 +343,17 @@
     "panelTitle": "Treasurer",
     "demoButton": "Demo treasurer",
     "demoBanner": "Sandbox demo — queue, review, capture, and void only. No admin key on this device.",
+    "demoStop": {
+      "heading": "Judge moment — La Rochelle",
+      "hint": "Sandbox only, treasurer key required: stop {{id}}. Simulate arrival captures authorized pledges (approval applies to this action only, nothing is stored); cancel voids authorizations; reset clears demo state without undoing captures.",
+      "working": "Working… PayPal handles each pledge in turn, this can take up to a minute.",
+      "simulateArrival": "Simulate boat arrival",
+      "cancelStop": "Cancel stop",
+      "resetDemo": "Reset demo",
+      "captureLine": "Pledge {{pledgeId}} — capture id {{captureId}}",
+      "voidLine": "Pledge {{pledgeId}} — void id {{voidId}}",
+      "emptyActions": "Done. No authorized pledges to process."
+    },
     "heading": "Treasurer queue",
     "adminKey": "Treasurer key (x-admin-key)",
     "adminKeyHint": "Held in memory only — never stored.",
@@ -326,6 +373,8 @@
     "status": "Status",
     "amount": "Amount",
     "description": "Description",
+    "pledgeRef": "Pledge",
+    "createdAt": "Created",
     "milestoneFromStop": "Spending and fund use the selected stop milestone: {{id}}",
     "milestone": "Milestone",
     "actions": "Actions",
@@ -348,6 +397,7 @@
       "invoices": "Invoices: {{count}}",
       "subscriptions": "Crew subscriptions: {{count}}",
       "setupCrew": "Ensure Crew supporter plan (sandbox)",
+      "crewPlanMissingHint": "No Crew supporter plan id is published yet. Use the button below to create the sandbox catalog.",
       "setupDone": "Crew supporter catalog already configured.",
       "setupCreated": "Crew supporter product and plan created.",
       "reconcileLag": "Reconcile matches capture_id to PayPal transaction_id; sandbox reporting can lag about 3 hours."
@@ -443,8 +493,62 @@
     "statusRefunded": "Refunded",
     "statusCaptureFailed": "Capture failed",
     "statusChargeFailed": "Charge failed",
-    "statusTokenDeletePending": "Vault token deletion pending",
+    "statusTokenDeletePending": "Payment token deletion pending",
     "statusSettled": "Settled",
     "statusFailed": "Failed"
+  },
+  "wishlists": {
+    "navLink": "Channel3 gear wishlists",
+    "pageTitle": "Gear wishlists",
+    "pageLead": "Treasurer-published lists — sandbox PayPal pledges; the association never checks out on Channel3.",
+    "backToMap": "Back to map",
+    "loading": "Loading wishlists…",
+    "disabled": "Channel3 wishlists are not enabled on this deployment.",
+    "empty": "No published wishlists yet.",
+    "quantityNeeded": "Quantity needed: {{count}}",
+    "fundedPct": "{{pct}}% funded",
+    "fundedPctNative": "{{funded}} {{currency}} / {{target}} {{targetCurrency}} · {{pct}}%",
+    "lineTarget": "Line target (API): {{amount}}",
+    "amountInCurrency": "Amount ({{currency}})",
+    "fundItem": "Fund this item",
+    "buyViaChannel3": "Channel3 purchase link (fully funded)",
+    "pledgeDescription": "Gear pledge — {{title}}",
+    "itemUnavailable": "Item unavailable (missing from live catalogue: {{productId}})",
+    "treasurer": {
+      "heading": "Channel3 wishlists (treasurer)",
+      "needKey": "Enter the treasurer key to manage wishlists.",
+      "create": "Create wishlist",
+      "title": "Title",
+      "slug": "Slug (URL)",
+      "createSubmit": "Create",
+      "created": "Wishlist created.",
+      "itemAdded": "Item added to the wishlist.",
+      "pickList": "Active wishlist",
+      "pickListEmpty": "— Select —",
+      "badgePublished": "Published",
+      "badgeDraft": "Draft",
+      "publish": "Publish",
+      "unpublish": "Unpublish",
+      "published": "Wishlist published (public).",
+      "unpublished": "Wishlist unpublished.",
+      "removeItem": "Remove",
+      "addItem": "Add from catalogue",
+      "catalogPick": "Catalogue item",
+      "catalogPickEmpty": "— Select —",
+      "optionalCategory": "optional",
+      "quantity": "Quantity",
+      "targetMinor": "Target (minor units, optional)",
+      "targetMinorHint": "blank = unit price × quantity",
+      "allowOptionalToggle": "Allow optional item (clothing)",
+      "clothingNeedsOptional": "Clothing catalogue lines require the optional toggle.",
+      "addSubmit": "Add to list"
+    }
+  },
+  "certificate": {
+    "heading": "Download my certificate",
+    "downloadPng": "PNG",
+    "downloadPdf": "PDF",
+    "preparing": "Preparing your certificate…",
+    "error": "Could not prepare the certificate. Try again in a moment."
   }
 }

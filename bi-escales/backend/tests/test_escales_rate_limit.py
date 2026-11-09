@@ -16,7 +16,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app.core import llm
 from app.escales.config import limits_enabled
 from app.escales.pledges import reset_ledger
-from app.escales.rate_limit import RateLimited, captain_rate_key, hit, per_day, per_minute, reset
+from app.escales import rate_limit as rate_limit_module
+from app.escales.rate_limit import (
+    RateLimited,
+    captain_rate_feature,
+    captain_rate_key,
+    client_ip,
+    demo_retry_after,
+    hit,
+    hit_demo,
+    judging_window_active,
+    per_day,
+    per_minute,
+    reset,
+    reset_judging_cache,
+    trusted_proxy_hops,
+)
 from app.escales.captain import chat
 from app.routers.escales import router, set_paypal_client_factory
 from test_llm_cascade import _openai, _transport
@@ -24,6 +39,15 @@ from test_llm_cascade import _openai, _transport
 ROOT = Path(__file__).resolve().parents[2]
 FR = "Je parraine 5 milles près de Brest"
 EN = "I'd like to sponsor 5 nautical miles near Brest"
+
+_NO_XFF = object()
+
+
+@pytest.fixture(autouse=True)
+def _reset_judging_rate_cache():
+    reset_judging_cache()
+    yield
+    reset_judging_cache()
 
 
 @pytest.fixture
@@ -47,8 +71,21 @@ def api(monkeypatch):
     llm.reset_llm_budget()
 
 
-def _chat(client, message, ip="203.0.113.10", accept_language="", lang=None, headers=None):
-    req_headers = {"x-forwarded-for": ip, **(headers or {})}
+def _chat(
+    client,
+    message,
+    ip="203.0.113.10",
+    accept_language="",
+    lang=None,
+    headers=None,
+    *,
+    forwarded_for=_NO_XFF,
+):
+    req_headers = dict(headers or {})
+    if forwarded_for is _NO_XFF:
+        req_headers.setdefault("x-forwarded-for", ip)
+    elif forwarded_for:
+        req_headers["x-forwarded-for"] = forwarded_for
     if accept_language:
         req_headers["accept-language"] = accept_language
     payload = {"message": message}
@@ -82,10 +119,27 @@ def test_limits_follow_production_unless_overridden(monkeypatch):
     assert limits_enabled() is True
     monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", raising=False)
     monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_DAY", raising=False)
+    monkeypatch.delenv("ESCALES_JUDGING_START", raising=False)
+    monkeypatch.delenv("ESCALES_JUDGING_END", raising=False)
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", raising=False)
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", raising=False)
     monkeypatch.delenv("ESCALES_LLM_DAILY_CAP", raising=False)
+    reset_judging_cache()
     assert per_minute() == 10
     assert per_day() == 100
+    assert judging_window_active() is False
     assert llm.llm_daily_cap() == 100
+
+
+def test_env_invalid_rate_limits_fall_back_to_defaults(monkeypatch):
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "not-a-number")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY", "0")
+    assert per_minute() == 10
+    assert per_day() == 100
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "")
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_DAY", raising=False)
+    assert per_minute() == 10
+    assert per_day() == 100
 
 
 def test_development_does_not_limit_captain_routes(api, monkeypatch):
@@ -97,6 +151,54 @@ def test_development_does_not_limit_captain_routes(api, monkeypatch):
         assert response.status_code == 200, response.text
     review = _review(api)
     assert review.status_code == 200, review.text
+
+
+def test_demo_retry_after_uses_calling_ip_sliding_window(monkeypatch):
+    monkeypatch.setenv("ESCALES_DEMO_RATE_PER_MINUTE", "6")
+    reset()
+    t0 = dt.datetime(2026, 11, 9, 12, 0, 0, tzinfo=dt.timezone.utc)
+    t0_plus_40 = t0 + dt.timedelta(seconds=40)
+    ip_a = "198.51.100.10"
+    ip_b = "198.51.100.20"
+    for _ in range(6):
+        hit_demo(ip_a, now=t0)
+    for _ in range(6):
+        hit_demo(ip_b, now=t0_plus_40)
+    with pytest.raises(RateLimited) as blocked_b:
+        hit_demo(ip_b, now=t0_plus_40)
+    assert 59 <= blocked_b.value.retry_after <= 61
+    assert demo_retry_after(ip_b, now=t0_plus_40) == blocked_b.value.retry_after
+    with pytest.raises(RateLimited) as blocked_a:
+        hit_demo(ip_a, now=t0_plus_40)
+    assert 19 <= blocked_a.value.retry_after <= 21
+    assert demo_retry_after(ip_a, now=t0_plus_40) == blocked_a.value.retry_after
+
+
+def test_reset_clears_captain_hits_demo_hits_and_judging_cache(monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "1")
+    monkeypatch.setenv("ESCALES_DEMO_RATE_PER_MINUTE", "1")
+    reset()
+    hit("198.51.100.1")
+    hit_demo("198.51.100.2")
+    assert rate_limit_module._hits
+    assert rate_limit_module._demo_hits
+    rate_limit_module._judging_cache = (
+        _WALL_INSIDE,
+        rate_limit_module._JudgingLimits(36, 9000, True),
+    )
+    rate_limit_module._judging_warning_logged = True
+    reset()
+    assert rate_limit_module._hits == {}
+    assert rate_limit_module._demo_hits == {}
+    assert rate_limit_module._judging_cache is None
+    assert rate_limit_module._judging_warning_logged is False
+    hit("198.51.100.1")
+    hit_demo("198.51.100.2")
+    with pytest.raises(RateLimited):
+        hit("198.51.100.1")
+    with pytest.raises(RateLimited):
+        hit_demo("198.51.100.2")
 
 
 def test_development_calls_are_not_counted_when_production_turns_on(monkeypatch):
@@ -121,19 +223,26 @@ def test_production_minute_cap_is_localized(api, monkeypatch):
     assert _review(api).status_code == 200
     blocked = _chat(api, FR, accept_language="en")
     assert blocked.status_code == 429
-    assert blocked.json()["detail"] == "Trop de requêtes. Le capitaine accepte 2 par minute."
+    assert blocked.json()["detail"] == (
+        "Trop de requêtes. Réessayez plus tard. Le capitaine accepte 2 par minute."
+    )
+    assert int(blocked.headers.get("retry-after", "0")) >= 1
     english = _review(api, ip="203.0.113.11", accept_language="en-GB,en;q=0.8", lang="en")
     assert english.status_code == 200
     assert _review(api, ip="203.0.113.11", accept_language="en-GB", lang="en").status_code == 200
     again = _review(api, ip="203.0.113.11", accept_language="en-GB,en;q=0.8", lang="en")
     assert again.status_code == 429
-    assert again.json()["detail"] == "Too many requests. The captain accepts 2 per minute."
+    assert again.json()["detail"] == (
+        "Too many requests. Try again later. The captain accepts 2 per minute."
+    )
     chat_en = _chat(api, EN, ip="203.0.113.12", lang="en")
     assert chat_en.status_code == 200
     assert _chat(api, EN, ip="203.0.113.12", lang="en").status_code == 200
     third = _chat(api, EN, ip="203.0.113.12", accept_language="fr", lang="en")
     assert third.status_code == 429
-    assert third.json()["detail"] == "Too many requests. The captain accepts 2 per minute."
+    assert third.json()["detail"] == (
+        "Too many requests. Try again later. The captain accepts 2 per minute."
+    )
 
 
 def test_production_day_cap_is_localized(api, monkeypatch):
@@ -144,7 +253,9 @@ def test_production_day_cap_is_localized(api, monkeypatch):
     assert _chat(api, FR, ip="203.0.113.20").status_code == 200
     blocked = _chat(api, FR, ip="203.0.113.20")
     assert blocked.status_code == 429
-    assert blocked.json()["detail"] == "Trop de requêtes. Le capitaine accepte 2 par jour."
+    assert blocked.json()["detail"] == (
+        "Trop de requêtes. Réessayez plus tard. Le capitaine accepte 2 par jour."
+    )
     other = _chat(api, EN, ip="198.51.100.4")
     assert other.status_code == 200
 
@@ -233,9 +344,223 @@ def test_rotating_sessions_share_the_daily_ip_cap(monkeypatch):
     reset()
 
 
+def test_xff_client_ip_parsing(monkeypatch):
+    monkeypatch.setenv("ESCALES_TRUSTED_PROXY_HOPS", "1")
+    assert trusted_proxy_hops() == 1
+    assert client_ip("203.0.113.55, 10.0.0.2", "127.0.0.1") == "10.0.0.2"
+    assert client_ip(" 203.0.113.55 , 10.0.0.2 ", "127.0.0.1") == "10.0.0.2"
+    assert client_ip("", "10.0.0.5") == "10.0.0.5"
+    monkeypatch.setenv("ESCALES_TRUSTED_PROXY_HOPS", "0")
+    assert client_ip("203.0.113.55, 10.0.0.2", "10.0.0.5") == "10.0.0.5"
+
+
+def test_spoofed_leftmost_xff_cannot_bypass_per_ip_limit(api, monkeypatch):
+    """Leftmost XFF is forgeable; rate limit keys on the trusted rightmost hop."""
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "10")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY", "100")
+    for n in range(10):
+        spoofed = f"198.51.100.{n}, 203.0.113.10"
+        response = _chat(api, FR, forwarded_for=spoofed)
+        assert response.status_code == 200, response.text
+    blocked = _chat(api, FR, forwarded_for="1.2.3.99, 203.0.113.10")
+    assert blocked.status_code == 429
+    assert "Réessayez plus tard" in blocked.json()["detail"]
+
+
+def test_rate_limit_without_xff_uses_socket_host(api, monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE", "2")
+    for _ in range(2):
+        assert _chat(api, FR, forwarded_for=None).status_code == 200
+    blocked = _chat(api, FR, forwarded_for=None)
+    assert blocked.status_code == 429
+
+
 def test_captain_rate_key_composes_ip_and_session():
     assert captain_rate_key("1.2.3.4", "") == "1.2.3.4"
     assert captain_rate_key("1.2.3.4", "uuid") == "1.2.3.4|uuid"
+
+
+_JUDGING_START = "2026-11-30T22:00:00Z"
+_JUDGING_END = "2026-12-16T05:00:00Z"
+_WALL_INSIDE = dt.datetime(2026, 12, 1, 12, 0, tzinfo=dt.timezone.utc)
+_WALL_BEFORE = dt.datetime(2026, 11, 1, 12, 0, tzinfo=dt.timezone.utc)
+_WALL_AFTER = dt.datetime(2027, 1, 1, 12, 0, tzinfo=dt.timezone.utc)
+
+
+def _patch_wall_clock(monkeypatch, moment: dt.datetime) -> None:
+    monkeypatch.setattr(rate_limit_module, "_wall_now", lambda: moment)
+    reset_judging_cache()
+
+
+def _set_judging_window(monkeypatch, *, start=_JUDGING_START, end=_JUDGING_END) -> None:
+    monkeypatch.setenv("ESCALES_JUDGING_START", start)
+    monkeypatch.setenv("ESCALES_JUDGING_END", end)
+    reset_judging_cache()
+
+
+def test_judging_window_unset_uses_default_captain_limits(monkeypatch):
+    monkeypatch.delenv("ESCALES_JUDGING_START", raising=False)
+    monkeypatch.delenv("ESCALES_JUDGING_END", raising=False)
+    reset_judging_cache()
+    assert per_minute() == 10
+    assert per_day() == 100
+    assert judging_window_active() is False
+    assert captain_rate_feature() == {
+        "per_minute": 10,
+        "per_day": 100,
+        "judging_window_active": False,
+    }
+
+
+def test_judging_window_inside_uses_judging_rate_limits(monkeypatch):
+    _set_judging_window(monkeypatch)
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", "30")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", "1000")
+    reset_judging_cache()
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 30
+    assert per_day() == 1000
+    assert judging_window_active() is True
+
+
+def test_judging_window_active_uses_nim_margin_defaults_when_unset(monkeypatch):
+    _set_judging_window(monkeypatch)
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", raising=False)
+    monkeypatch.delenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", raising=False)
+    monkeypatch.delenv("ESCALES_LLM_DAILY_CAP_JUDGING", raising=False)
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "100")
+    reset_judging_cache()
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 36
+    assert per_day() == 9000
+    assert judging_window_active() is True
+    assert llm.llm_daily_cap() == 9000
+
+
+def test_judging_rate_env_invalid_falls_back_to_judging_defaults(monkeypatch, caplog):
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    _set_judging_window(monkeypatch)
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", "nope")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", "0")
+    reset_judging_cache()
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 36
+    assert per_day() == 9000
+    assert any(
+        "ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING invalid" in r.message
+        for r in caplog.records
+    )
+
+
+def test_judging_window_before_and_after_use_defaults(monkeypatch):
+    _set_judging_window(monkeypatch)
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", "30")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", "1000")
+    _patch_wall_clock(monkeypatch, _WALL_BEFORE)
+    assert per_minute() == 10
+    assert per_day() == 100
+    assert judging_window_active() is False
+    _patch_wall_clock(monkeypatch, _WALL_AFTER)
+    assert per_minute() == 10
+    assert per_day() == 100
+    assert judging_window_active() is False
+
+
+def test_judging_window_invalid_bounds_log_once_and_use_defaults(monkeypatch, caplog):
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    _set_judging_window(monkeypatch, start="not-iso", end=_JUDGING_END)
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 10
+    assert judging_window_active() is False
+    assert any("judging window disabled" in record.message for record in caplog.records)
+    per_minute()
+    assert (
+        len([r for r in caplog.records if "judging window disabled" in r.message]) == 1
+    )
+
+    caplog.clear()
+    reset_judging_cache()
+    _set_judging_window(monkeypatch, start=_JUDGING_END, end=_JUDGING_START)
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 10
+    assert judging_window_active() is False
+    assert any("judging window disabled" in record.message for record in caplog.records)
+
+
+def test_judging_window_uses_wall_clock_not_simulated_voyage(monkeypatch):
+    _set_judging_window(monkeypatch)
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", "30")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-12T08:00:00Z")
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert per_minute() == 30
+    assert judging_window_active() is True
+
+
+def test_judging_minute_cap_keeps_localized_429(api, monkeypatch):
+    monkeypatch.setenv("ESCALES_ENV", "production")
+    _set_judging_window(monkeypatch)
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_MINUTE_JUDGING", "2")
+    monkeypatch.setenv("ESCALES_CAPTAIN_RATE_PER_DAY_JUDGING", "100")
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert _chat(api, FR).status_code == 200
+    assert _review(api).status_code == 200
+    blocked = _chat(api, FR, accept_language="en")
+    assert blocked.status_code == 429
+    assert blocked.json()["detail"] == (
+        "Trop de requêtes. Réessayez plus tard. Le capitaine accepte 2 par minute."
+    )
+    assert int(blocked.headers.get("retry-after", "0")) >= 1
+    english = _review(api, ip="203.0.113.71", accept_language="en-GB", lang="en")
+    assert english.status_code == 200
+    assert _review(api, ip="203.0.113.71", accept_language="en-GB", lang="en").status_code == 200
+    again = _chat(api, EN, ip="203.0.113.71", lang="en")
+    assert again.status_code == 429
+    assert again.json()["detail"] == (
+        "Too many requests. Try again later. The captain accepts 2 per minute."
+    )
+
+
+def test_features_exposes_captain_rate(api, monkeypatch):
+    monkeypatch.delenv("ESCALES_JUDGING_START", raising=False)
+    monkeypatch.delenv("ESCALES_JUDGING_END", raising=False)
+    reset_judging_cache()
+    body = api.get("/api/escales/features").json()
+    assert body["captain_rate"] == {
+        "per_minute": 10,
+        "per_day": 100,
+        "judging_window_active": False,
+    }
+
+
+def test_llm_daily_cap_judging_when_window_active(monkeypatch):
+    monkeypatch.delenv("ESCALES_LLM_DAILY_CAP", raising=False)
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "100")
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP_JUDGING", "5000")
+    _set_judging_window(monkeypatch)
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert llm.llm_daily_cap() == 5000
+
+
+def test_llm_daily_cap_falls_back_outside_judging_window(monkeypatch):
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "100")
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP_JUDGING", "5000")
+    _set_judging_window(monkeypatch)
+    _patch_wall_clock(monkeypatch, _WALL_BEFORE)
+    assert llm.llm_daily_cap() == 100
+
+
+def test_llm_daily_cap_judging_unset_uses_judging_default_not_base_cap(monkeypatch):
+    monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "250")
+    monkeypatch.delenv("ESCALES_LLM_DAILY_CAP_JUDGING", raising=False)
+    _set_judging_window(monkeypatch)
+    _patch_wall_clock(monkeypatch, _WALL_INSIDE)
+    assert llm.llm_daily_cap() == 9000
 
 
 def test_render_and_readme_document_the_production_gate():
@@ -255,8 +580,8 @@ def test_development_does_not_cap_llm_usage(monkeypatch):
     monkeypatch.delenv("ESCALES_RATE_LIMIT_ENABLED", raising=False)
     monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "1")
     llm.reset_llm_budget()
-    assert llm.consume_llm_call() is True
-    assert llm.consume_llm_call() is True
+    assert asyncio.run(llm.consume_llm_call()) is True
+    assert asyncio.run(llm.consume_llm_call()) is True
     assert llm.llm_calls_today() == 0
     monkeypatch.setenv("ESCALES_LLM_ENABLED", "1")
     monkeypatch.setenv("NVIDIA_API_KEY", "test-nvidia-key")
@@ -290,9 +615,9 @@ def test_production_llm_cap_falls_back_to_the_rules(monkeypatch):
     monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "1")
     llm.reset_llm_budget()
     morning = dt.datetime(2026, 11, 4, 12, 0, tzinfo=dt.timezone.utc)
-    assert llm.consume_llm_call(morning) is True
-    assert llm.consume_llm_call(morning) is False
-    assert llm.consume_llm_call(morning + dt.timedelta(days=1)) is True
+    assert asyncio.run(llm.consume_llm_call(morning)) is True
+    assert asyncio.run(llm.consume_llm_call(morning)) is False
+    assert asyncio.run(llm.consume_llm_call(morning + dt.timedelta(days=1))) is True
     llm.reset_llm_budget()
     monkeypatch.setenv("ESCALES_LLM_ENABLED", "1")
     monkeypatch.setenv("NVIDIA_API_KEY", "test-nvidia-key")
@@ -327,6 +652,6 @@ def test_override_false_removes_the_llm_cap_in_production(monkeypatch):
     monkeypatch.setenv("ESCALES_RATE_LIMIT_ENABLED", "0")
     monkeypatch.setenv("ESCALES_LLM_DAILY_CAP", "1")
     llm.reset_llm_budget()
-    assert llm.consume_llm_call() is True
-    assert llm.consume_llm_call() is True
+    assert asyncio.run(llm.consume_llm_call()) is True
+    assert asyncio.run(llm.consume_llm_call()) is True
     assert llm.llm_calls_today() == 0

@@ -5,14 +5,27 @@ import { useTranslation } from "react-i18next";
  */
 export function ProjectFundProgress({ properties, fund }) {
   const { t } = useTranslation();
-  const goal = String(fund?.goal_eur || properties?.goal_eur || "").trim();
+  const goal = String(
+    fund?.goal_eur ||
+      fund?.goal_amount ||
+      properties?.goal_eur ||
+      properties?.channel3_price ||
+      "",
+  ).trim();
   if (!goal) return null;
-  const pct = Number(fund?.funded_pct ?? 0);
+  const goalCurrency = String(
+    fund?.goal_currency ||
+      properties?.goal_currency ||
+      properties?.channel3_currency ||
+      (fund?.goal_eur || properties?.goal_eur ? "EUR" : ""),
+  ).trim();
+  const pctRaw = fund?.funded_pct;
+  const pct = pctRaw == null ? null : Number(pctRaw);
   const amount = fund?.amount_eur ?? "0.00";
-  const currency = fund?.currency ?? "EUR";
+  const amountCurrency = fund?.currency ?? "EUR";
   const buyUrl = String(fund?.channel3_buy_url || properties?.channel3_buy_url || "").trim();
   const imageUrl = String(fund?.channel3_image_url || properties?.channel3_image_url || "").trim();
-  const fullyFunded = Boolean(fund?.fully_funded) || pct >= 100;
+  const fullyFunded = Boolean(fund?.fully_funded) || (pct != null && pct >= 100);
 
   return (
     <div className="project-fund-progress" data-testid="project-fund-progress">
@@ -25,11 +38,20 @@ export function ProjectFundProgress({ properties, fund }) {
         />
       ) : null}
       <p className="hint" data-testid="project-fund-goal">
-        {t("projects.goalProgress", { amount, goal, currency, pct })}
+        {t("projects.goalProgress", {
+          amount,
+          amountCurrency,
+          goal,
+          goalCurrency: goalCurrency || "EUR",
+          pct: pct == null ? "—" : pct,
+        })}
       </p>
       <div className="gauge">
         <div className="gauge-track">
-          <div className="gauge-fill tone-cap" style={{ width: `${Math.min(100, pct)}%` }} />
+          <div
+            className="gauge-fill tone-cap"
+            style={{ width: `${pct == null ? 0 : Math.min(100, pct)}%` }}
+          />
         </div>
       </div>
       {fullyFunded && buyUrl ? (

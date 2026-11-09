@@ -19,10 +19,13 @@ cancelled); cabin legs on leg departure; common fund at once (treasurer, not the
 """
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import hashlib
+import logging
 import re
 import uuid
+from contextlib import asynccontextmanager
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -49,16 +52,33 @@ from .ledger import (
 from .payment_mode import PaymentMode
 from .paypal_client import (
     PayPalError,
+    adopted_authorization_mismatch,
     approve_link,
     authorization_from,
+    paypal_error_has_issue,
     read_capture_result,
     setup_token_approve_link,
+    usable_authorization_from_order,
     vault_id_from_order,
     vault_id_from_token,
     vault_source_from_token,
 )
 
 HONOR_DAYS = 3
+log = logging.getLogger(__name__)
+_authorize_guard = asyncio.Lock()
+_authorize_locks: dict[str, asyncio.Lock] = {}
+
+
+@asynccontextmanager
+async def _serialize_pledge_authorize(pledge_id: str):
+    async with _authorize_guard:
+        lock = _authorize_locks.get(pledge_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            _authorize_locks[pledge_id] = lock
+    async with lock:
+        yield
 
 
 def _normalize_refunds(pledge: dict) -> list[dict]:
@@ -101,6 +121,59 @@ def _append_refund_row(refunds: list[dict], row: dict) -> list[dict]:
     if any(str(existing.get("id") or "") == refund_id for existing in refunds):
         return refunds
     return [*refunds, row]
+
+
+def _refund_amount_idempotency_key(pledge_id: str, refund_value: str) -> str:
+    key = f"refund-{pledge_id}-{refund_value}"
+    if len(key) > 108:
+        return key[:108]
+    return key
+
+
+def _refund_request_idempotency_key(pledge_id: str, request_key: str) -> str:
+    raw = str(request_key or "").strip()
+    if not raw:
+        raise ValueError("request_key must not be empty")
+    key = f"refund-{pledge_id}-{raw}"
+    resolved = _client_key(key)
+    return resolved if resolved is not None else key
+
+
+def _refund_row_for_paypal_id(pledge: dict, refund_id: str) -> Optional[dict]:
+    needle = str(refund_id or "").strip()
+    if not needle:
+        return None
+    for row in _normalize_refunds(pledge):
+        if str(row.get("id") or "").strip() != needle:
+            continue
+        status = str(row.get("status") or "COMPLETED").upper()
+        if status in {"COMPLETED", "PENDING", "REFUNDED"}:
+            return row
+    return None
+
+
+def _refund_row_for_key(pledge: dict, key: str) -> Optional[dict]:
+    needle = str(key or "").strip()
+    if not needle:
+        return None
+    for row in _normalize_refunds(pledge):
+        if str(row.get("key") or "").strip() != needle:
+            continue
+        status = str(row.get("status") or "COMPLETED").upper()
+        if status in {"COMPLETED", "PENDING", "REFUNDED"}:
+            return row
+    return None
+
+
+async def _finish_idempotent_refund(pledge_id: str, pledge: dict) -> dict:
+    """Return pledge after a refund intent is already satisfied (webhook or prior API)."""
+    if pledge.get("pending_refund"):
+        pledge.pop("pending_refund", None)
+        pledge = await get_ledger().save_pledge(pledge)
+    fresh = await get_ledger().get_pledge(pledge_id)
+    if fresh is None:
+        raise PledgeNotFound(pledge_id)
+    return fresh
 
 
 def _is_transport_retry(exc: Exception) -> bool:
@@ -158,22 +231,36 @@ async def reconcile_refund_on_pledge(
     status: str = "COMPLETED",
     key: str = "",
     at: Optional[str] = None,
+    refund_payload: Optional[dict] = None,
 ) -> dict:
     """Merge one PayPal refund id into ``pledge["refunds"]`` (webhook or API)."""
     stored_status = str(status or "COMPLETED").upper()
     if stored_status == "REFUNDED":
         stored_status = "COMPLETED"
-    refunds = _append_refund_row(
-        _normalize_refunds(pledge),
-        {
-            "id": str(refund_id),
-            "amount": amount_eur,
-            "key": key,
-            "status": stored_status,
-            "at": at or now_iso(),
-        },
-    )
+    refund_row = {
+        "id": str(refund_id),
+        "amount": amount_eur,
+        "key": key,
+        "status": stored_status,
+        "at": at or now_iso(),
+    }
+    from .paypal_settlement import enrich_refund_row_settlement, recompute_received_net_eur
+
+    refund_row = enrich_refund_row_settlement(pledge, refund_payload, refund_row)
+    existing = _normalize_refunds(pledge)
+    refunds = _append_refund_row(existing, refund_row)
+    if refunds is existing and any(str(r.get("id") or "") == str(refund_id) for r in existing):
+        for index, row in enumerate(refunds):
+            if str(row.get("id") or "") != str(refund_id):
+                continue
+            merged = dict(row)
+            for field, value in refund_row.items():
+                if value not in (None, "") and merged.get(field) in (None, ""):
+                    merged[field] = value
+            refunds[index] = merged
+            break
     pledge["refunds"] = refunds
+    recompute_received_net_eur(pledge, refunds)
     total = refunded_amount_from_pledge(pledge)
     pledge["refunded_amount_eur"] = f"{total:.2f}"
     capture_total = Decimal(str(pledge.get("amount_eur") or "0"))
@@ -225,6 +312,33 @@ class IllegalTransition(Exception):
         self.current = current
         self.target = target
         super().__init__(f"forbidden transition {current} -> {target}")
+
+
+class RefundRequestKeyRequired(Exception):
+    """Another refund of the same amount needs an explicit request_key."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "another refund of this amount requires request_key; "
+            "send a unique request_key per refund action"
+        )
+
+
+class PledgeAlreadyFullyRefunded(Exception):
+    """Refund requested after the capture is already fully reversed."""
+
+    def __init__(self, paypal_refund_id: str = "") -> None:
+        self.paypal_refund_id = str(paypal_refund_id or "").strip()
+        super().__init__("pledge already fully refunded")
+
+
+def _ledger_paypal_refund_id(pledge: dict) -> str:
+    """Latest PayPal refund resource id stored on the pledge ledger row."""
+    for row in reversed(_normalize_refunds(pledge)):
+        rid = str(row.get("id") or "").strip()
+        if rid:
+            return rid
+    return str(pledge.get("refund_id") or "").strip()
 
 
 class PledgeNotFound(Exception):
@@ -423,6 +537,8 @@ async def record_pledge_captured_once(pledge: dict, *, actor: str, client: Any =
     milestone_id = finance_milestone_id(pledge)
     await ensure_finance_milestone(pledge, milestone_id)
     at = str(pledge.get("captured_at") or "").strip() or now_iso()
+    from .paypal_settlement import settlement_finance_fields
+
     await record_finance(
         "pledge_captured",
         pledge_id=pledge_id,
@@ -434,6 +550,7 @@ async def record_pledge_captured_once(pledge: dict, *, actor: str, client: Any =
         at=at,
         capture_id=pledge.get("capture_id"),
         **_identity(pledge),
+        **settlement_finance_fields(pledge),
     )
     pledge = await apply_marina_berth_settlement(pledge, actor=actor, client=client)
     if pledge.get("platform_fee_eur") or pledge.get("marina_payout_batch_id") or pledge.get("marina_payout_status"):
@@ -557,7 +674,7 @@ def _create_capture_order(client: Any, **kwargs: Any) -> dict:
         slim = {
             key: value
             for key, value in kwargs.items()
-            if key not in {"return_url", "cancel_url", "checkout_locale"}
+            if key not in {"return_url", "cancel_url", "checkout_locale", "currency_code"}
         }
         return create(**slim)
 
@@ -701,17 +818,20 @@ async def _create_pledge(
     checkout_locale: Optional[str] = None,
     checkout_method: Optional[str] = None,
 ) -> dict:
-    amount = normalize_amount(amount_eur)
+    raw_amount = amount_eur
     description = _require_text(description, "description")
     pledge_kind = _kind(kind)
-    exact = _EXACT_PRICE.get(pledge_kind)
-    if exact is not None:
-        exact *= quantity or 1
-    if exact is not None and Decimal(amount) != exact:
-        raise ValueError(f"{pledge_kind} amount must be {exact:.2f} EUR")
-    floor = _UNIT_FLOOR.get(pledge_kind)
-    if exact is None and floor is not None and Decimal(amount) < floor:
-        raise ValueError(f"{pledge_kind} amount must be at least {floor:.2f} EUR")
+    amount: Optional[str] = None
+    if pledge_kind != "project_pledge":
+        amount = normalize_amount(raw_amount)
+        exact = _EXACT_PRICE.get(pledge_kind)
+        if exact is not None:
+            exact *= quantity or 1
+        if exact is not None and Decimal(amount) != exact:
+            raise ValueError(f"{pledge_kind} amount must be {exact:.2f} EUR")
+        floor = _UNIT_FLOOR.get(pledge_kind)
+        if exact is None and floor is not None and Decimal(amount) < floor:
+            raise ValueError(f"{pledge_kind} amount must be at least {floor:.2f} EUR")
     if pledge_kind in _UNPLACED_TARGET and not (milestone_id or "").strip():
         milestone_id = ""
     else:
@@ -750,6 +870,36 @@ async def _create_pledge(
 
         await resolve_schedule_milestone(milestone_id)
     if pledge_kind == "project_pledge":
+        pledge_currency = "EUR"
+        from app.channel3_catalog import catalog_needs_confirmation, lookup_catalog_by_project_id
+        from app.channel3_paypal import catalog_project_id, paypal_currency_supported
+
+        catalog = lookup_catalog_by_project_id(
+            resolved_target,
+            public_only=catalog_project_id(resolved_target),
+        )
+        if catalog is None:
+            pending = lookup_catalog_by_project_id(
+                resolved_target,
+                include_needs_confirmation=True,
+            )
+            if pending is not None and catalog_needs_confirmation(pending):
+                raise ValueError("catalog item needs confirmation and cannot be funded")
+        if catalog_project_id(resolved_target) and catalog is None:
+            raise ValueError("catalog item is not available for public funding")
+        if catalog:
+            from app.channel3_paypal import normalize_project_pledge_amount
+
+            pledge_currency = str(catalog.get("price_currency") or "EUR").upper()
+            if not paypal_currency_supported(pledge_currency):
+                raise ValueError(
+                    f"PayPal checkout does not support catalog currency {pledge_currency}"
+                )
+            amount = normalize_project_pledge_amount(raw_amount, pledge_currency)
+        elif amount is None:
+            amount = normalize_amount(raw_amount)
+            if Decimal(amount) < Decimal("1.00"):
+                raise ValueError("project_pledge amount must be at least 1.00 EUR")
         return await _create_capture_pledge(
             amount=amount,
             description=description,
@@ -763,6 +913,7 @@ async def _create_pledge(
             caller_origin=caller_origin,
             checkout_locale=checkout_locale,
             checkout_method=checkout_method,
+            currency=pledge_currency,
         )
     mode: PaymentMode = payment_mode or "AUTHORIZE"
     from .departure_clock import refuse_cancelled_departure
@@ -821,6 +972,7 @@ async def _create_capture_pledge(
     caller_origin: Optional[str] = None,
     checkout_locale: Optional[str] = None,
     checkout_method: Optional[str] = None,
+    currency: str = "EUR",
 ) -> dict:
     """Project crowdfunding: CAPTURE intent, charged when the buyer approves on return."""
     key = _client_key(client_key)
@@ -844,15 +996,20 @@ async def _create_capture_pledge(
         pledge_id,
         "cancel",
     )
+    pledge_currency = str(currency or "EUR").strip().upper()
+    from app.channel3_paypal import format_paypal_amount_value
+
+    paypal_amount = format_paypal_amount_value(amount, pledge_currency)
     order = _create_capture_order(
         client,
-        amount_eur=amount,
+        amount_eur=paypal_amount,
         description=description,
         reference_id=pledge_id,
         idempotency_key=idempotency_key,
         return_url=back,
         cancel_url=cancel,
         checkout_locale=checkout_locale,
+        currency_code=pledge_currency,
     )
     order_id = order.get("id")
     if not order_id:
@@ -867,7 +1024,7 @@ async def _create_capture_pledge(
         "status": "created",
         "intent": "CAPTURE",
         "payment_mode": "CAPTURE",
-        "currency": "EUR",
+        "currency": pledge_currency,
         "amount_eur": amount,
         "description": description,
         "milestone_id": milestone_id,
@@ -894,7 +1051,7 @@ async def _create_capture_pledge(
             pledge_id=pledge_id,
             milestone_id=milestone_id,
             amount_eur=amount,
-            currency="EUR",
+            currency=pledge_currency,
             order_id=order_id,
             status="created",
             payment_mode="CAPTURE",
@@ -1213,23 +1370,20 @@ async def _capture_order_pledge(pledge_id: str, client: Any, pledge: dict) -> di
     )
 
 
-async def authorize_pledge(pledge_id: str, client: Any) -> dict:
-    pledge = await require_pledge(pledge_id)
-    mode = str(pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE")
-    if mode == "CAPTURE":
-        return await _capture_order_pledge(pledge_id, client, pledge)
-    _require_status(pledge, "created", "authorized")
-    order_id = str(pledge.get("order_id") or "")
-    if not _buyer_approved(client, order_id):
-        raise ValueError("order not approved yet")
-    from .departure_clock import refuse_cancelled_departure
-
-    await refuse_cancelled_departure(pledge)
-    order = client.authorize_order(order_id, pledge_id=pledge_id)
-    auth_id, expiration = authorization_from(order)
+async def _finish_pledge_authorization(
+    pledge: dict,
+    order: dict,
+    client: Any,
+    *,
+    auth_id: Optional[str] = None,
+    expiration: Optional[str] = None,
+) -> dict:
+    if not auth_id:
+        auth_id, expiration = authorization_from(order)
     if pledge.get("vault_on_purchase"):
         vault_id = vault_id_from_order(order if isinstance(order, dict) else {})
         if not vault_id:
+            order_id = str(pledge.get("order_id") or "")
             try:
                 refreshed = client.get_order(order_id) or {}
             except Exception:
@@ -1255,6 +1409,53 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
         **_identity(saved),
     )
     return saved
+
+
+async def authorize_pledge(pledge_id: str, client: Any) -> dict:
+    pledge = await require_pledge(pledge_id)
+    mode = str(pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE")
+    if mode == "CAPTURE":
+        return await _capture_order_pledge(pledge_id, client, pledge)
+    async with _serialize_pledge_authorize(pledge_id):
+        pledge = await require_pledge(pledge_id)
+        if str(pledge.get("status") or "") == "authorized":
+            existing = str(pledge.get("authorization_id") or "").strip()
+            if existing:
+                return pledge
+        _require_status(pledge, "created", "authorized")
+        order_id = str(pledge.get("order_id") or "")
+        if not _buyer_approved(client, order_id):
+            raise ValueError("order not approved yet")
+        from .departure_clock import refuse_cancelled_departure
+
+        await refuse_cancelled_departure(pledge)
+        try:
+            order = client.authorize_order(order_id, pledge_id=pledge_id)
+        except PayPalError as exc:
+            if not paypal_error_has_issue(exc, "ORDER_ALREADY_AUTHORIZED"):
+                raise
+            refreshed = client.get_order(order_id) or {}
+            mismatch = adopted_authorization_mismatch(refreshed, pledge)
+            if mismatch:
+                log.warning(
+                    "ORDER_ALREADY_AUTHORIZED adoption refused pledge_id=%s order_id=%s mismatch=%s",
+                    pledge_id,
+                    order_id,
+                    mismatch,
+                )
+                raise exc from None
+            try:
+                auth_id, expiration = usable_authorization_from_order(refreshed)
+            except PayPalError:
+                raise exc from None
+            return await _finish_pledge_authorization(
+                pledge,
+                refreshed,
+                client,
+                auth_id=auth_id,
+                expiration=expiration,
+            )
+        return await _finish_pledge_authorization(pledge, order, client)
 
 
 def _money_event_timestamp(
@@ -1370,6 +1571,12 @@ async def _finish_capture(
                 not_before=str(pledge.get("authorized_at") or ""),
             )
         pledge["history"] = list(pledge.get("history") or []) + ["captured"]
+        from .paypal_settlement import apply_capture_settlement
+
+        pledge = apply_capture_settlement(
+            pledge,
+            payload if isinstance(payload, dict) else {},
+        )
         saved = await get_ledger().save_pledge(pledge)
         await record("capture", status="captured", **audit_fields)
         return await record_pledge_captured_once(saved, actor="treasurer", client=client)
@@ -1771,47 +1978,92 @@ async def refund_pledge(
     *,
     amount_eur: Optional[str] = None,
     effective_at: Optional[dt.datetime] = None,
+    request_key: Optional[str] = None,
+    paypal_refund_id: Optional[str] = None,
 ) -> dict:
     """Treasurer refund for a captured pledge. Does not run without admin approval."""
     from .audit import record
 
     pledge = await require_pledge(pledge_id)
+    pledge_currency = str(pledge.get("currency") or "EUR").strip().upper()
+    from app.channel3_paypal import format_paypal_amount_value, normalize_project_pledge_amount
+
     current = str(pledge.get("status") or "")
-    if current not in ("captured", "partially_refunded"):
+    if current not in ("captured", "partially_refunded", "refunded"):
         raise IllegalTransition(current, "refunded")
     capture_id = str(pledge.get("capture_id") or "").strip()
     if not capture_id:
         raise ValueError("capture_id is required to refund")
     capture_total = Decimal(str(pledge.get("amount_eur") or "0"))
     already_refunded = refunded_amount_from_pledge(pledge)
+    remaining = capture_total - already_refunded
+    expected_refund_id = str(paypal_refund_id or "").strip()
     pending = pledge.get("pending_refund")
-    if isinstance(pending, dict) and str(pending.get("key") or "").strip():
+    resuming_pending = isinstance(pending, dict) and str(pending.get("key") or "").strip()
+    new_pending_row: Optional[dict] = None
+    if resuming_pending:
         idempotency_key = str(pending["key"])
         refund_this = Decimal(str(pending.get("amount") or "0"))
         if refund_this <= Decimal("0"):
-            refund_this = capture_total - already_refunded
+            refund_this = remaining
+        if not expected_refund_id:
+            expected_refund_id = str(pending.get("paypal_refund_id") or "").strip()
     else:
         if amount_eur:
-            refund_this = Decimal(normalize_amount(amount_eur))
+            if pledge_currency == "EUR":
+                refund_this = Decimal(normalize_amount(amount_eur))
+            else:
+                refund_this = Decimal(normalize_project_pledge_amount(amount_eur, pledge_currency))
         else:
-            refund_this = capture_total - already_refunded
+            refund_this = remaining
         if refund_this <= Decimal("0"):
-            raise ValueError("refund amount must be positive")
-        if already_refunded + refund_this > capture_total:
-            raise ValueError("refund exceeds captured amount")
-        refund_count = len(_normalize_refunds(pledge))
-        idempotency_key = f"refund-{pledge_id}-{refund_count + 1}"
-        pledge["pending_refund"] = {
+            if remaining > Decimal("0"):
+                raise ValueError("refund amount must be positive")
+        refund_value = format_paypal_amount_value(f"{refund_this}", pledge_currency)
+        caller = str(request_key or "").strip()
+        if caller:
+            idempotency_key = _refund_request_idempotency_key(pledge_id, caller)
+        else:
+            idempotency_key = _refund_amount_idempotency_key(pledge_id, refund_value)
+        new_pending_row = {
             "key": idempotency_key,
-            "amount": f"{refund_this:.2f}",
+            "amount": refund_value,
         }
+        if caller:
+            new_pending_row["request_key"] = caller
+        if expected_refund_id:
+            new_pending_row["paypal_refund_id"] = expected_refund_id
+    refund_value = format_paypal_amount_value(f"{refund_this}", pledge_currency)
+    pledge = await require_pledge(pledge_id)
+    already_refunded = refunded_amount_from_pledge(pledge)
+    remaining = capture_total - already_refunded
+    if expected_refund_id and _refund_row_for_paypal_id(pledge, expected_refund_id):
+        return await _finish_idempotent_refund(pledge_id, pledge)
+    caller_key = str(request_key or "").strip()
+    if resuming_pending and isinstance(pending, dict):
+        caller_key = caller_key or str(pending.get("request_key") or "").strip()
+    existing_key_row = _refund_row_for_key(pledge, idempotency_key)
+    if caller_key:
+        if existing_key_row:
+            return await _finish_idempotent_refund(pledge_id, pledge)
+    elif existing_key_row:
+        if resuming_pending:
+            return await _finish_idempotent_refund(pledge_id, pledge)
+        if refund_this <= remaining:
+            raise RefundRequestKeyRequired()
+        return await _finish_idempotent_refund(pledge_id, pledge)
+    if remaining <= Decimal("0") and already_refunded > Decimal("0"):
+        raise PledgeAlreadyFullyRefunded(_ledger_paypal_refund_id(pledge))
+    if refund_this > remaining:
+        raise ValueError("refund exceeds remaining refundable amount")
+    if not resuming_pending and new_pending_row is not None:
+        pledge["pending_refund"] = new_pending_row
         pledge = await get_ledger().save_pledge(pledge)
-    if already_refunded + refund_this > capture_total:
-        raise ValueError("refund exceeds captured amount")
     try:
         payload = client.refund_capture(
             capture_id,
-            amount_eur=f"{refund_this:.2f}",
+            amount_eur=refund_value,
+            currency_code=pledge_currency,
             idempotency_key=idempotency_key,
         )
     except Exception as exc:
@@ -1832,13 +2084,14 @@ async def refund_pledge(
     saved = await reconcile_refund_on_pledge(
         pledge,
         refund_id=refund_id,
-        amount_eur=f"{refund_this:.2f}",
+        amount_eur=refund_value,
         status=normalized_status,
         key=idempotency_key,
         at=_money_event_timestamp(
             effective_at,
             not_before=str(pledge.get("captured_at") or ""),
         ),
+        refund_payload=payload,
     )
     saved["refunded_at"] = _money_event_timestamp(
         effective_at,
@@ -1854,25 +2107,34 @@ async def refund_pledge(
         actor="treasurer",
         pledge_id=saved["_id"],
         milestone_id=milestone_id,
-        amount_eur=f"{refund_this:.2f}",
-        currency="EUR",
+        amount_eur=refund_value,
+        currency=pledge_currency,
         capture_id=capture_id,
         refund_id=saved.get("refund_id"),
         refunded_amount_eur=saved.get("refunded_amount_eur"),
         **_identity(saved),
     )
+    refund_finance: dict = {}
+    refunds = _normalize_refunds(saved)
+    if refunds:
+        last = refunds[-1]
+        if last.get("refund_net_eur") is not None:
+            refund_finance["refund_net_eur"] = last.get("refund_net_eur")
+    if saved.get("received_net_eur") is not None:
+        refund_finance["received_net_eur"] = saved.get("received_net_eur")
     await record_finance(
         "pledge_refunded",
         pledge_id=saved["_id"],
         milestone_id=milestone_id,
-        amount_eur=f"{refund_this:.2f}",
-        currency="EUR",
+        amount_eur=refund_value,
+        currency=pledge_currency,
         capture_id=capture_id,
         refund_id=saved.get("refund_id"),
         refunded_amount_eur=saved.get("refunded_amount_eur"),
         status=saved.get("status"),
         actor="treasurer",
         **_identity(saved),
+        **refund_finance,
     )
     return saved
 

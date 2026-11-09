@@ -242,7 +242,7 @@ def future_clock(voy: dict, track: dict, polar_raw: Optional[dict]) -> Optional[
         m = dict(m)
         # `index` vise la route complète ; `rest[k]` = `pts[i + k]` (k >= 1).
         # Sans ce recalage, Nouméa (index 620) tombait sur pts[i + 620], dans
-        # le golfe de Gascogne, et son ETA passait en mai 2027.
+        # le golfe de Gascogne, et son ETA a glissé bien plus loin dans le calendrier.
         idx = m.get("index")
         if isinstance(idx, int) and not isinstance(idx, bool):
             local = idx - i

@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 pytest.importorskip("motor")
 
+from tests.schedule_clocks import near_mayotte_clock
 from app.escales.ledger import MongoLedger, get_ledger, record_finance, reset_ledger
 from app.escales.pledges import create_pledge
 
@@ -21,7 +22,7 @@ def mongo_store(monkeypatch):
     from mongomock_motor import AsyncMongoMockClient
 
     monkeypatch.setenv("ESCALES_STORE", "mongo")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     monkeypatch.setenv("MONGO_URL", "mongodb://mongomock")
     monkeypatch.setenv("DB_NAME", "bi_escales_test")
     import app.db as dbmod
@@ -168,3 +169,27 @@ def test_ensure_never_creates_an_index_on_id(mongo_store):
     for keys, _kwargs in requested:
         fields = [keys] if isinstance(keys, str) else [k for k, *_ in keys]
         assert "_id" not in fields
+
+
+def test_two_pledges_without_paypal_request_id_do_not_collide(mongo_store):
+    """``client_key`` is unique + sparse: a stored ``null`` would collide (E11000 → 500)."""
+    spy = Spy()
+
+    async def body():
+        ledger = get_ledger()
+        assert isinstance(ledger, MongoLedger)
+        first = await create_pledge(
+            amount_eur="1.00", description="1 mille", milestone_id="dep-mayotte", client=spy,
+        )
+        second = await create_pledge(
+            amount_eur="1.00", description="1 mille", milestone_id="dep-mayotte", client=spy,
+        )
+        assert first["_id"] != second["_id"]
+        raw = await ledger._pledges.find_one({"_id": second["_id"]})
+        assert "client_key" not in raw
+        # Saving again (status change) must not write the null back either.
+        await ledger.save_pledge({**second, "status": "authorized"})
+        raw = await ledger._pledges.find_one({"_id": second["_id"]})
+        assert "client_key" not in raw
+
+    asyncio.run(body())

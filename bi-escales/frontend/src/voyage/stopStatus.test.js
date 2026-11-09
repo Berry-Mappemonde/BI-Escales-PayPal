@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { departurePlusDays } from "./scheduleClock.testHelper.js";
 import {
   formatEurAmount,
   formatScheduleDate,
@@ -55,7 +56,7 @@ describe("stopTimeline", () => {
       escales: [
         { milestone_id: "dep-ajaccio-corse", name: "Ajaccio (Corse)", arrival_iso: ARRIVAL },
         { milestone_id: "dep-la-rochelle", name: "La Rochelle", arrival_iso: START },
-        { milestone_id: "dep-saint-pierre", name: "Saint-Pierre", arrival_iso: "2027-05-01T08:00:00Z" },
+        { milestone_id: "dep-saint-pierre", name: "Saint-Pierre", arrival_iso: departurePlusDays(200) },
       ],
     },
     legs: [

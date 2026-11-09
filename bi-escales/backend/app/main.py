@@ -51,7 +51,7 @@ def apple_pay_domain_association():
     candidate = resolve_apple_pay_domain_association_path()
     if not candidate.is_file():
         raise HTTPException(status_code=404, detail="apple pay domain file missing")
-    return FileResponse(candidate, media_type="text/plain")
+    return FileResponse(candidate, media_type="application/octet-stream")
 
 
 @app.get("/bi-projects.geojson", include_in_schema=False)
@@ -81,10 +81,11 @@ async def escale_marinas_geojson(name: str = ""):
 
 _escales_on = os.environ.get("ESCALES_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
 if _escales_on:
-    from app.routers import escales
+    from app.routers import escales, escales_demo
 
     app.include_router(escales.router)
     app.include_router(escales.webhooks_router)
+    app.include_router(escales_demo.router)
 
 
 def frontend_dist() -> Path:
@@ -102,7 +103,7 @@ def attach_frontend(application: FastAPI) -> None:
     if assets.is_dir():
         application.mount("/assets", StaticFiles(directory=assets), name="frontend-assets")
 
-    @application.get("/{full_path:path}", include_in_schema=False)
+    @application.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     def spa(full_path: str):
         if full_path == "api" or full_path.startswith("api/"):
             raise HTTPException(status_code=404)

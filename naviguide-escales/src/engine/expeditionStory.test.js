@@ -6,6 +6,7 @@ import {
   normStop, officialDatedStops,
 } from "./expeditionStory.js";
 import { NM_TO_KM } from "../utils/berryLegs.js";
+import { departurePlusDays } from "./scheduleClock.testHelper.js";
 
 const clock = { t0: "2026-05-15T08:00:00Z" };
 const marks = [
@@ -293,11 +294,12 @@ describe("expeditionStory — script du film", () => {
   });
 
   it("tête du récit : Saint-Maur le 15 mai 2026 même avec une horloge de simulation", () => {
-    const simClock = { t0: "2027-04-25T08:00:00Z" };
+    const simT0 = departurePlusDays(165);
+    const simClock = { t0: simT0 };
     const simMarks = [
-      { name: "La Rochelle", nm: 0, filmNm: 122, iso: "2027-04-25T08:00:00Z", holdHours: 72 },
-      { name: "Ajaccio (Corse)", nm: 1820, filmNm: 1942, iso: "2027-05-04T12:00:00Z", holdHours: 72 },
-      { name: "Fort-de-France (Martinique)", nm: 6973, filmNm: 7095, iso: "2027-06-02T08:00:00Z", holdHours: 72 },
+      { name: "La Rochelle", nm: 0, filmNm: 122, iso: simT0, holdHours: 72 },
+      { name: "Ajaccio (Corse)", nm: 1820, filmNm: 1942, iso: departurePlusDays(205, 12), holdHours: 72 },
+      { name: "Fort-de-France (Martinique)", nm: 6973, filmNm: 7095, iso: departurePlusDays(203), holdHours: 72 },
     ];
     const live = { filmNm: 19400, sailNm: 19260, seaHours: 94 * 24, iso: "2026-09-19T02:00:00Z", status: "live", vehicle: "main" };
     const paras = expeditionStory({ clock: simClock, marks: simMarks, live, now, lang: "fr" }).map(plain);
@@ -319,11 +321,12 @@ describe("expeditionStory — script du film", () => {
     assert.match(filmFr.chapters[0].text, /15 mai 2026/);
     assert.doesNotMatch(blobFr, /\bnm\b/);
     assert.doesNotMatch(blobEn, /\bnm\b/);
+    const simT0 = departurePlusDays(165);
     const simFilm = buildFilmScript({
-      clock: { t0: "2027-04-25T08:00:00Z" },
+      clock: { t0: simT0 },
       marks: [
-        { name: "La Rochelle", nm: 0, filmNm: 122, iso: "2027-04-25T08:00:00Z", holdHours: 72, lat: 46.15, lon: -1.16 },
-        { name: "Ajaccio (Corse)", nm: 1820, filmNm: 1942, iso: "2027-05-04T12:00:00Z", holdHours: 72, lat: 41.9, lon: 8.7 },
+        { name: "La Rochelle", nm: 0, filmNm: 122, iso: simT0, holdHours: 72, lat: 46.15, lon: -1.16 },
+        { name: "Ajaccio (Corse)", nm: 1820, filmNm: 1942, iso: departurePlusDays(205, 12), holdHours: 72, lat: 41.9, lon: 8.7 },
       ],
       live: { filmNm: 19400, sailNm: 19260, iso: "2026-09-19T02:00:00Z", status: "live" },
       now: Date.parse("2026-09-19T02:00:00Z"),

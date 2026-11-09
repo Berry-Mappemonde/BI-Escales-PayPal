@@ -22,11 +22,13 @@ from app.escales.config import (
     bryntum_scheduler_enabled,
     card_fields_enabled,
     channel3_enabled,
+    wishlists_enabled,
     elastic_evidence_enabled,
     escales_enabled,
     kernel_evidence_enabled,
     limits_enabled,
     naviguide_bridge_enabled,
+    paypal_sdk_reads_enabled,
     toolkit_enabled,
     vault_enabled,
     vault_on_purchase_enabled,
@@ -35,6 +37,7 @@ from app.escales.config import (
     zapiper_enabled,
 )
 from app.escales.ledger import MongoLedger, get_ledger, reset_ledger
+from app.escales.paypal_apimatic_extras import apimatic_extras_enabled
 from app.escales.paypal_client import PayPalClient, read_capture_result
 from app.escales.pledges import authorize_pledge, capture_pledge, create_pledge
 from app.main import install_cors
@@ -47,10 +50,13 @@ ROOT = BACKEND.parent
 FLAG_GETTERS = {
     "ESCALES_ENABLED": escales_enabled,
     "ESCALES_TOOLKIT_ENABLED": toolkit_enabled,
+    "ESCALES_PAYPAL_SDK_ENABLED": paypal_sdk_reads_enabled,
+    "ESCALES_APIMATIC_EXTRAS_ENABLED": apimatic_extras_enabled,
     "ESCALES_NAVIGUIDE_ENABLED": naviguide_bridge_enabled,
     "ESCALES_ELASTIC_ENABLED": elastic_evidence_enabled,
     "ESCALES_KERNEL_ENABLED": kernel_evidence_enabled,
     "ESCALES_CHANNEL3_ENABLED": channel3_enabled,
+    "ESCALES_WISHLISTS_ENABLED": wishlists_enabled,
     "ESCALES_BRYNTUM_ENABLED": bryntum_scheduler_enabled,
     "ESCALES_VAULT_ENABLED": vault_enabled,
     "ESCALES_CARD_FIELDS_ENABLED": card_fields_enabled,

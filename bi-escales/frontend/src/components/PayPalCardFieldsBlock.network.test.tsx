@@ -2,6 +2,7 @@ import { StrictMode, useState } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
+import type { PayPalNamespace } from "../paypal/paypalSdk";
 import { PayPalCardFieldsBlock } from "./PayPalCardFieldsBlock";
 import "../i18n";
 
@@ -46,7 +47,7 @@ it.each(["AUTHORIZE", "VAULT"])("posts no %s pledge until Pay, then posts once w
       <label>Quantity<input type="number" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} /></label>
       <label>Contributor<input value={contributor} onChange={(e) => setContributor(e.target.value)} /></label>
       <PayPalCardFieldsBlock
-        paypal={paypal} appLang="en" onAuthorized={done}
+        paypal={paypal as unknown as PayPalNamespace} appLang="en" onAuthorized={done}
         values={{
           quantity, contributor, amount_eur: `${quantity}.00`,
           description: `${quantity} miles`, milestone_id: "dep-mayotte", kind: "mile",
@@ -75,5 +76,7 @@ it.each(["AUTHORIZE", "VAULT"])("posts no %s pledge until Pay, then posts once w
   expect(init.headers).toMatchObject({ "PayPal-Request-Id": expect.any(String) });
   expect(Object.keys(CardFields.mock.calls[0][0])).toEqual([
     mode === "VAULT" ? "createVaultSetupToken" : "createOrder",
+    "onApprove",
+    "onError",
   ]);
 });

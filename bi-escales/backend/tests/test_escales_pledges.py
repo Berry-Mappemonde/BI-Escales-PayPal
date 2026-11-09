@@ -14,6 +14,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.escales.config import EscalesConfig, load_config
 from app.escales.paypal_client import PayPalClient, approve_link
+from tests.schedule_clocks import (
+    mayotte_authorize_window_clock,
+    mayotte_cabin_vault_clock,
+    near_mayotte_clock,
+)
 from app.escales.pledges import (
     COLLECTIONS,
     IllegalTransition,
@@ -31,7 +36,7 @@ from app.escales.pledges import (
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", mayotte_authorize_window_clock())
     reset_ledger()
     yield
     reset_ledger()
@@ -279,7 +284,7 @@ def test_same_client_key_reuses_pledge_without_a_second_order():
     asyncio.run(body())
 
 
-def test_state_machine_and_forbidden_transitions():
+def test_state_machine_and_forbidden_transitions(monkeypatch):
     async def body():
         spy = Spy()
         created = await create_pledge(
@@ -301,12 +306,13 @@ def test_state_machine_and_forbidden_transitions():
         assert authorized["status"] == "authorized"
         assert authorized["authorization_id"] == "AUTH-ORDER1"
         assert authorized["authorization_expires_at"] == "2099-01-01T00:00:00Z"
-        with pytest.raises(IllegalTransition):
-            await authorize_pledge(created["_id"], spy)
+        calls_after_first_auth = len(spy.calls)
+        repeat = await authorize_pledge(created["_id"], spy)
+        assert repeat["status"] == "authorized"
+        assert repeat["authorization_id"] == "AUTH-ORDER1"
+        assert len(spy.calls) == calls_after_first_auth
 
-        import os
-
-        os.environ["ESCALES_CLOCK_NOW"] = "2027-06-12T08:00:00Z"
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
         captured = await capture_pledge(created["_id"], spy)
         assert captured["status"] == "captured"
         with pytest.raises(IllegalTransition):
@@ -457,6 +463,8 @@ def test_cabin_leg_authorizes_and_waits_for_departure(monkeypatch):
     from app.escales.naviguide_bridge import sync_leg_shells
 
     monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+    # Far Mayotte leg departure still beyond the vault horizon; autouse is nearer arrival.
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", mayotte_cabin_vault_clock())
     monkeypatch.delenv("ESCALES_CLOCK_START", raising=False)
     leg = "leg-la-rochelle-to-ajaccio-corse"
 
@@ -599,7 +607,7 @@ def test_legacy_memory_row_reads_as_a_mile():
 
 @pytest.mark.live
 def test_live_sandbox_create_authorize_order():
-    """Optional sandbox create. Skipped unless PAYPAL_CLIENT_ID is set. Does not print secrets."""
+    """Optional sandbox create. Needs ESCALES_RUN_LIVE=1 and PayPal sandbox credentials."""
     if not os.environ.get("PAYPAL_CLIENT_ID"):
         pytest.skip("PAYPAL_CLIENT_ID is not set")
     if not os.environ.get("PAYPAL_CLIENT_SECRET"):
@@ -619,7 +627,7 @@ def test_live_sandbox_create_authorize_order():
     assert approve_link(order)
 
 
-def test_pending_capture_is_recorded_and_can_be_retried():
+def test_pending_capture_is_recorded_and_can_be_retried(monkeypatch):
     """PR #7 recorded PayPal's capture status. A PENDING hold stays pending."""
 
     class PendingSpy(Spy):
@@ -641,9 +649,7 @@ def test_pending_capture_is_recorded_and_can_be_retried():
             client_key="pending-cap",
         )
         await authorize_pledge(created["_id"], spy)
-        import os
-
-        os.environ["ESCALES_CLOCK_NOW"] = "2027-06-12T08:00:00Z"
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
         pending = await capture_pledge(created["_id"], spy)
         assert pending["status"] == "pending"
         assert pending["paypal_status"] == "PENDING"

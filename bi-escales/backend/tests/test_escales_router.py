@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tests.review_helpers import approve_capture_review, propose_capture_review
+from tests.schedule_clocks import near_mayotte_clock
 
 from app.escales.audit import AUDIT_COLLECTION, list_entries
 from app.escales.pledges import reset_ledger
@@ -139,13 +140,13 @@ MAYOTTE_PLEDGE = {
     "milestone_id": "dep-mayotte",
     "description": "20 milles Mayotte",
 }
-NEAR_MAYOTTE_CLOCK = "2027-05-15T08:00:00Z"
+NEAR_MAYOTTE_CLOCK = near_mayotte_clock()
 
 
 def _ready_mayotte(client, key, monkeypatch, body=None):
     monkeypatch.setenv("ESCALES_CLOCK_NOW", NEAR_MAYOTTE_CLOCK)
     created, authorized = _ready(client, key, body or MAYOTTE_PLEDGE)
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", NEAR_MAYOTTE_CLOCK)
     return created, authorized
 
 
@@ -711,8 +712,11 @@ def test_forbidden_transition_returns_409(api):
     assert early_void.status_code == 409
     authorized = _authorize(client, pledge_id)
     assert authorized.status_code == 200
+    calls_after_first = len(fake.calls)
     again = _authorize(client, pledge_id)
-    assert again.status_code == 409
+    assert again.status_code == 200
+    assert again.json()["status"] == "authorized"
+    assert len(fake.calls) == calls_after_first
     _approve_capture(created.json()["milestone_id"])
     captured = client.post(f"/api/escales/pledges/{pledge_id}/capture", headers=ADMIN)
     assert captured.status_code == 200
@@ -879,7 +883,9 @@ def test_main_registers_escales_only_when_enabled():
     for line in text.splitlines():
         if line.startswith("from app.routers import") and "escales" in line:
             raise AssertionError("escales must be imported only inside the ESCALES_ENABLED branch")
-    assert "\n    from app.routers import escales\n" in text
+    assert "from app.routers import escales" in text
+    assert "escales_demo" in text
+    assert "app.include_router(escales_demo.router)" in text
     assert "webhooks_router" in text
 
 
@@ -894,7 +900,7 @@ def test_pledge_defaults_to_mile_and_labels_the_simulated_price(api):
     assert body["intent"] == "AUTHORIZE"
     assert body["status"] == "created"
     assert body["price_label"] == "prix simulé"
-    assert body["simulated_price"]["label"] == "prix simulé"
+    assert body["simulated_price"]["label"] == "prix fixe"
     assert body["simulated_price"]["simulated"] is True
     assert body["simulated_price"]["amount_eur"] == "1.00"
     assert "capture" not in [call[0] for call in fake.calls]
@@ -915,7 +921,7 @@ def test_pledge_accepts_kind_and_target(api, monkeypatch):
     assert body["target_id"] == "dzaoudzi-mayotte"
     assert body["milestone_id"] == "dep-dzaoudzi-mayotte"
     assert body["simulated_price"]["amount_eur"] == "60.00"
-    assert body["simulated_price"]["label"] == "prix simulé"
+    assert body["simulated_price"]["label"] == "prix fixe"
 
 
 def test_target_slug_must_be_known_for_a_stopover_kind(api, monkeypatch):
@@ -978,8 +984,16 @@ def test_prices_and_clock(api, monkeypatch):
     assert kinds == [
         "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "common_fund",
     ]
-    assert all(row["label"] == "prix simulé" and row["simulated"] is True for row in catalogue["prices"])
     by_kind = {row["kind"]: row for row in catalogue["prices"]}
+    fixed_kinds = ("mile", "berth", "night", "meal", "care", "cabin_leg")
+    free_kinds = ("project_pledge", "common_fund")
+    assert all(by_kind[k]["label"] == "prix fixe" for k in fixed_kinds)
+    assert all(by_kind[k]["label"] == "montant libre" for k in free_kinds)
+    assert all(by_kind[k]["free_amount"] is False for k in fixed_kinds)
+    assert all(by_kind[k]["free_amount"] is True for k in free_kinds)
+    assert all(by_kind[k]["indicative"] is False for k in fixed_kinds)
+    assert all(by_kind[k]["indicative"] is True for k in free_kinds)
+    assert all(row["simulated"] is True for row in catalogue["prices"])
     assert by_kind["mile"]["amount_eur"] == "1.00"
     assert by_kind["berth"]["amount_eur"] == "30.00"
     assert by_kind["night"]["amount_eur"] == "60.00"
@@ -988,11 +1002,12 @@ def test_prices_and_clock(api, monkeypatch):
     assert by_kind["cabin_leg"]["amount_eur"] == "80.00"
     assert "amount_eur" not in by_kind["project_pledge"]
     assert "amount_eur" not in by_kind["common_fund"]
-    assert by_kind["project_pledge"]["free_amount"] is True
-    assert by_kind["mile"]["free_amount"] is False
-    assert by_kind["mile"]["indicative"] is True
-    assert catalogue["indicative"] is True
-    assert "indicatif" in catalogue["note"].lower()
+    note = catalogue["note"].lower()
+    assert "tarifs fixes" in note
+    assert "fonds commun" in note
+    assert "montant libre" in note
+    assert "1 €" in catalogue["note"]
+    assert catalogue["indicative"] is False
     clock = client.get("/api/escales/clock")
     assert clock.status_code == 200
     assert clock.json()["start"] == "2026-11-12"

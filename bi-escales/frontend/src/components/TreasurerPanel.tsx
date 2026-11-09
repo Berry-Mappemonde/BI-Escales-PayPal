@@ -7,6 +7,8 @@ import { TreasurerWebhookPanel } from "./TreasurerWebhookPanel";
 import { TreasurerQueue } from "./TreasurerQueue";
 import { TreasurerGrid } from "./TreasurerGrid";
 import { TreasurerStudioSection } from "./TreasurerStudioSection";
+import { DemoStopMoment } from "./DemoStopMoment";
+import { TreasurerWishlistsPanel } from "../wishlists/TreasurerWishlistsPanel";
 import "./treasurer-panel.css";
 
 function OpenFundTotals({
@@ -67,6 +69,8 @@ export interface TreasurerPanelProps {
   fund: FundView | null;
   onSpendSubmit: (event: FormEvent) => void;
   demoMode?: boolean;
+  /** Host allows the sandbox judge moment (``features.demo_treasurer``); still keyed. */
+  demoStopAvailable?: boolean;
   children?: ReactNode;
 }
 
@@ -100,6 +104,7 @@ export function TreasurerPanel({
   fund,
   onSpendSubmit,
   demoMode = false,
+  demoStopAvailable = false,
   children,
 }: TreasurerPanelProps) {
   const { t } = useTranslation();
@@ -124,9 +129,11 @@ export function TreasurerPanel({
       {open ? (
         <div className="treasurer-panel-body" id="treasurer-panel-body" data-testid="treasurer-panel-body">
           {demoMode ? (
+            <>
             <p className="notice demo-treasurer-banner" data-testid="demo-treasurer-banner">
               {t("treasurer.demoBanner")}
             </p>
+            </>
           ) : (
             <>
           <p className="hint">{t("treasurer.adminKeyHint")}</p>
@@ -180,8 +187,11 @@ export function TreasurerPanel({
               </button>
             </div>
           ) : null}
+          {demoStopAvailable ? (
+            <DemoStopMoment adminKey={adminKey} onRefresh={onRefreshQueue} />
+          ) : null}
           <section className="panel" data-testid="treasurer-open-funds">
-            <h2>{t("fund.openHeading")}</h2>
+            <h3>{t("fund.openHeading")}</h3>
             <OpenFundTotals title={t("fund.projectTotals")} fund={projectFund} testId="project-fund-totals" />
             <OpenFundTotals title={t("fund.boatTotals")} fund={boatFund} testId="common-fund-totals" />
           </section>
@@ -199,6 +209,7 @@ export function TreasurerPanel({
           />
           {!demoMode ? (
             <>
+          <TreasurerWishlistsPanel adminKey={adminKey} />
           <TreasurerPayPalPanel adminKey={adminKey} />
           <TreasurerWebhookPanel adminKey={adminKey} />
           <TreasurerGrid
@@ -212,7 +223,7 @@ export function TreasurerPanel({
           />
           <TreasurerStudioSection pledges={pledges} />
           <form className="stack-form" onSubmit={onSpendSubmit}>
-            <h2>{t("fund.heading")}</h2>
+            <h3>{t("fund.heading")}</h3>
             <label>
               {t("fund.spendAmount")}
               <input value={spendAmount} onChange={(event) => onSpendAmountChange(event.target.value)} />

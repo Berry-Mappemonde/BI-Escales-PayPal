@@ -78,7 +78,26 @@ def _cancelled(milestone: dict) -> bool:
         if facts.get("cancelled") is True or facts.get("departed") is False:
             return True
     meta = milestone.get("meta") if isinstance(milestone.get("meta"), dict) else {}
+    if meta.get("demo_cancelled") is True:
+        return True
     return meta.get("cancelled") is True
+
+
+async def _with_demo_overlay(doc: dict, milestone_id: str) -> dict:
+    """Merge BI Escales-only demo cancellation flags into schedule metadata."""
+    from .pledges import get_ledger
+
+    stored = await get_ledger().get_milestone(milestone_id)
+    if not stored:
+        return doc
+    stored_meta = stored.get("meta") if isinstance(stored.get("meta"), dict) else {}
+    if stored_meta.get("demo_cancelled") is not True:
+        return doc
+    out = dict(doc)
+    meta = dict(out.get("meta") or {})
+    meta["demo_cancelled"] = True
+    out["meta"] = meta
+    return out
 
 
 async def departure_milestone(pledge: dict, *, read_only: bool = False) -> Optional[dict]:
@@ -91,7 +110,7 @@ async def departure_milestone(pledge: dict, *, read_only: bool = False) -> Optio
     doc = await resolve_schedule_milestone(milestone_id, read_only=True) if read_only else await resolve_schedule_milestone(milestone_id)
     meta = (doc or {}).get("meta") if isinstance(doc, dict) else None
     if isinstance(meta, dict) and meta.get("capture_on") == "departure":
-        return doc
+        return await _with_demo_overlay(doc, milestone_id) if doc else doc
     leg = leg_by_id(milestone_id)
     if leg:
         merged = leg_milestone_meta(leg)
@@ -101,7 +120,7 @@ async def departure_milestone(pledge: dict, *, read_only: bool = False) -> Optio
             return None
         base = dict(doc or {"_id": leg["id"], "evidence": []})
         base["meta"] = merged
-        return base
+        return await _with_demo_overlay(base, milestone_id)
     return None
 
 
@@ -126,7 +145,7 @@ async def arrival_milestone(pledge: dict, *, read_only: bool = False) -> Optiona
         return None
     base = dict(doc)
     base["meta"] = meta
-    return base
+    return await _with_demo_overlay(base, milestone_id)
 
 
 async def timing_milestone(pledge: dict, *, read_only: bool = False) -> Optional[dict]:
@@ -304,6 +323,34 @@ async def run_departure_clock(client: Any, *, now: Optional[dt.datetime] = None)
         seen.add(pledge_id)
         await _settle_timed_pledge(pledge, doc, client, moment=moment, actions=actions)
     return {
+        "now": moment.replace(microsecond=0).isoformat(),
+        "actions": actions,
+    }
+
+
+async def run_departure_clock_for_milestone(
+    client: Any,
+    milestone_id: str,
+    *,
+    now: Optional[dt.datetime] = None,
+) -> dict:
+    """Settle pledges bound to one milestone id (demo judge moment)."""
+    from .naviguide_bridge import resolve_milestone
+
+    moment = now or simulated_now()
+    wanted = {milestone_id, resolve_milestone(milestone_id) or milestone_id}
+    actions: list[dict] = []
+    for pledge in await get_ledger().list_pledges():
+        if str(pledge.get("milestone_id") or "") not in wanted:
+            continue
+        doc = await departure_milestone(pledge)
+        if doc is None:
+            doc = await arrival_milestone(pledge)
+        if doc is None:
+            continue
+        await _settle_timed_pledge(pledge, doc, client, moment=moment, actions=actions)
+    return {
+        "milestone_id": milestone_id,
         "now": moment.replace(microsecond=0).isoformat(),
         "actions": actions,
     }

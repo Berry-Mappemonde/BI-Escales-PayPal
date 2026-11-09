@@ -316,6 +316,53 @@ body.ng-naviguide-shell {
   background: none;
 }
 
+.ng-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ng-settings-header {
+  margin: 0;
+}
+
+.ng-settings-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-panel-heading);
+  line-height: var(--text-panel-heading--line-height);
+  font-weight: 600;
+}
+
+.ng-settings-lead {
+  margin: 0;
+}
+
+.ng-settings-controls {
+  margin: 0;
+}
+
+.ng-settings-dev-t0 {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.ng-sidebar .ng-shell-header {
+  padding-inline: var(--space-5);
+}
+
+.ng-sidebar > .how-it-works,
+.ng-sidebar > [data-testid="escale-popup"],
+.ng-sidebar > .marinas-panel {
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--color-line);
+  padding-top: var(--space-3);
+}
+
+.ng-tools-panel .treasurer-panel .treasurer-panel-body > .stack-form > button[type="submit"],
+.ng-tools-panel .treasurer-panel .treasurer-panel-body > button {
+  align-self: end;
+}
+
 .ng-tools-panel .panel + .panel {
   margin-top: var(--space-3);
 }
@@ -740,6 +787,21 @@ body.ng-naviguide-shell {
 .captain-chat .stack-form button { align-self: end; justify-self: end; }
 .captain-prompts { display: flex; gap: var(--space-1); flex-wrap: wrap; margin: var(--space-3) 0 0; padding: 0; list-style: none; }
 .captain-prompts li { border: 1px solid var(--color-line-strong); padding: var(--space-1) var(--space-2); border-radius: var(--radius-tray); color: var(--color-fg-2); font-size: var(--text-meta); }
+.captain-prompts button.captain-prompt-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
 .captain-thinking { color: var(--color-fg-2); animation: captain-appear var(--duration-base) var(--ease-out); }
 @keyframes captain-appear { from { opacity: 0; } to { opacity: 1; } }
 
@@ -757,7 +819,8 @@ body.ng-naviguide-shell {
 .queue-value > button { display: block; margin-inline: auto 0; max-width: 100%; white-space: normal; }
 .treasurer-queue .captain-decision { background: var(--color-raised); border-block-start: 1px solid var(--color-line-strong); }
 .captain-chat .captain-draft { gap: var(--space-1); color: var(--color-fg-2); font-size: var(--text-meta); }
-.ng-sidebar .treasurer-panel .treasurer-queue { box-sizing: border-box; min-width: 0; max-width: 100%; padding-inline: var(--space-2); border: 0; background: transparent; }
+.ng-sidebar .treasurer-panel .treasurer-queue,
+.ng-tools-panel .treasurer-panel .treasurer-queue { box-sizing: border-box; min-width: 0; max-width: 100%; padding-inline: var(--space-2); border: 0; background: transparent; }
 .treasurer-queue .captain-section, .treasurer-queue .captain-card-head { padding: var(--space-3); gap: var(--space-1); }
 .treasurer-queue .captain-card { background: var(--color-panel); }
 
@@ -779,7 +842,8 @@ body.ng-naviguide-shell {
 .ng-sidebar > .crew-supporter-public,
 .ng-sidebar > [data-testid="public-common-fund"],
 .ng-sidebar > .captain-chat,
-.ng-sidebar > [data-testid="project-list"] {
+.ng-sidebar > [data-testid="project-list"],
+.ng-sidebar > [data-testid="gear-list"] {
   margin-top: var(--space-3);
   border-top: 1px solid var(--color-line);
   padding-top: var(--space-3);
@@ -841,7 +905,8 @@ body.ng-naviguide-shell {
 }
 
 .ng-sidebar .captain-chat,
-.ng-sidebar [data-testid="project-list"] {
+.ng-sidebar [data-testid="project-list"],
+.ng-sidebar [data-testid="gear-list"] {
   padding-inline: var(--space-5);
 }
 
@@ -954,3 +1019,49 @@ body.ng-naviguide-shell {
   color: var(--color-fg);
   border: 1px solid var(--color-line-strong);
 }
+
+/* Treasurer queue in the left sidebar: the 4-column table was ~300px wide, so every
+   column wrapped to one or two characters. Stack each pledge as a card instead.
+   Selectors out-rank treasurer-panel.css (.treasurer-panel .treasurer-panel-body .fallback-table td). */
+.ng-sidebar .treasurer-panel .treasurer-queue-table :is(table, tbody, tr, td) { display: block; }
+.ng-sidebar .treasurer-panel .treasurer-queue-table table { table-layout: auto; }
+.ng-sidebar .treasurer-panel .treasurer-queue-table thead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ng-sidebar .treasurer-panel .treasurer-queue-table tbody tr {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "ref date"
+    "desc desc"
+    "act act";
+  gap: var(--space-1) var(--space-2);
+  padding-block: var(--space-3);
+  border-block-end: 1px solid var(--color-line);
+}
+.ng-sidebar .treasurer-panel .treasurer-queue-table .fallback-table td { padding: 0; border: 0; overflow-wrap: normal; }
+.ng-sidebar .treasurer-panel .treasurer-queue-table .fallback-table td:nth-child(1) { grid-area: ref; }
+.ng-sidebar .treasurer-panel .treasurer-queue-table .fallback-table td:nth-child(2) { grid-area: date; color: var(--color-fg-2); font-size: var(--text-meta); }
+.ng-sidebar .treasurer-panel .treasurer-queue-table .fallback-table td:nth-child(3) { grid-area: desc; overflow-wrap: anywhere; }
+.ng-sidebar .treasurer-panel .treasurer-queue-table .fallback-table td.queue-value {
+  grid-area: act;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: start;
+}
+.ng-sidebar .treasurer-panel .treasurer-queue-table .fallback-table td.queue-value > button { margin: 0 0 0 auto; white-space: nowrap; }
+.ng-sidebar .treasurer-panel .treasurer-queue-table .treasurer-confirmation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  flex-basis: 100%;
+}
+.ng-sidebar .treasurer-panel .treasurer-queue-table .treasurer-confirmation > p { flex-basis: 100%; margin: 0; }

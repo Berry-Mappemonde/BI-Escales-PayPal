@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   approveCaptainReview,
@@ -14,6 +14,27 @@ import { CaptainReviewCard } from "./captain/CaptainReviewCard";
 import { releasableHolds, stopOnSchedule } from "./captain/captainEvidence";
 import { PledgeStatusChip } from "./captain/PledgeStatusChip";
 import { useHoldRelease } from "./captain/useHoldRelease";
+
+export function shortPledgeId(id: string): string {
+  return id.length > 8 ? id.slice(0, 8) : id;
+}
+
+export function formatPledgeCreatedAt(iso: string | undefined, language: string): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  const locale = language === "fr" ? "fr-FR" : "en-GB";
+  return new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" }).format(date);
+}
+
+function comparePledgesNewestFirst(a: PublicPledge, b: PublicPledge): number {
+  const ta = Date.parse(a.created_at ?? "");
+  const tb = Date.parse(b.created_at ?? "");
+  const safeA = Number.isFinite(ta) ? ta : 0;
+  const safeB = Number.isFinite(tb) ? tb : 0;
+  if (safeB !== safeA) return safeB - safeA;
+  return b.id.localeCompare(a.id);
+}
 
 // The API refunds the remaining balance, or resumes an already keyed refund.
 function refundableAmount(pledge: PublicPledge): string | null {
@@ -61,7 +82,10 @@ export function TreasurerQueue({
   };
   const [approvedMilestones, setApprovedMilestones] = useState<Record<string, boolean>>({});
 
-  const queue = pledges.filter((p) => isTreasurerQueueRow(p.status));
+  const queue = useMemo(
+    () => pledges.filter((p) => isTreasurerQueueRow(p.status)).sort(comparePledgesNewestFirst),
+    [pledges],
+  );
   const pending = queue.filter((p) => isQueuedPledge(p.status));
   // Capture, void, refund and review approval always need the treasurer key, even in demo.
   const canMoveMoney = Boolean(adminKey.trim());
@@ -194,7 +218,7 @@ export function TreasurerQueue({
   return (
     <section className="panel treasurer-queue">
       <header className="queue-heading">
-        <h2>{t("treasurer.heading")}</h2>
+        <h3>{t("treasurer.heading")}</h3>
         <button type="button" onClick={onRefresh} disabled={loading}>
           {t("treasurer.refresh")}
         </button>
@@ -244,6 +268,8 @@ export function TreasurerQueue({
         <table className="fallback-table">
           <thead>
             <tr>
+              <th scope="col">{t("treasurer.pledgeRef")}</th>
+              <th scope="col">{t("treasurer.createdAt")}</th>
               <th scope="col">{t("treasurer.description")}</th>
               <th scope="col">{t("treasurer.amount")}</th>
             </tr>
@@ -251,6 +277,23 @@ export function TreasurerQueue({
           <tbody>
             {queue.map((p) => (
               <tr key={p.id} data-testid={`queue-row-${p.id}`}>
+                <td>
+                  <span
+                    className="treasurer-pledge-ref"
+                    data-testid={`pledge-short-id-${p.id}`}
+                    title={p.id}
+                  >
+                    {shortPledgeId(p.id)}
+                  </span>
+                </td>
+                <td>
+                  <time
+                    data-testid={`pledge-created-${p.id}`}
+                    dateTime={p.created_at || undefined}
+                  >
+                    {formatPledgeCreatedAt(p.created_at, i18n.language)}
+                  </time>
+                </td>
                 <td>
                   <strong>{p.description}</strong>
                   <small>{p.milestone_id}</small>

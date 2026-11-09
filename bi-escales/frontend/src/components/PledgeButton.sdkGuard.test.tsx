@@ -11,6 +11,7 @@ vi.mock("../api/escales", () => ({
   registerVault: vi.fn(),
   authorizePledge: vi.fn(),
   fetchPledgeMode: vi.fn().mockResolvedValue({ payment_mode: "AUTHORIZE" }),
+  fetchSchedule: vi.fn().mockResolvedValue({ legs: [] }),
   fetchFeatures: vi.fn().mockResolvedValue({ card_fields: true, wallet_pay: true }),
   isVaultPledge: () => false,
 }));
@@ -72,7 +73,12 @@ describe("PledgeButton with a broken PayPal SDK (stopover crash regression)", ()
     );
     await waitFor(() => expect(render1).toHaveBeenCalled());
     expect(loadPayPalSdk).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(loadPayPalSdk).mock.calls[0]).toEqual(["sandbox-client-id", "en", "authorize", true]);
+    expect(vi.mocked(loadPayPalSdk).mock.calls[0]?.slice(0, 4)).toEqual([
+      "sandbox-client-id",
+      "en",
+      "authorize",
+      true,
+    ]);
   });
 
   it("hides the redirect fallback after Smart Buttons render successfully", async () => {
@@ -109,13 +115,21 @@ describe("PledgeButton with a broken PayPal SDK (stopover crash regression)", ()
       expect(screen.queryByRole("button", { name: i18n.t("pledge.create") })).toBeNull(),
     );
     expect(fetchPledgeMode).not.toHaveBeenCalled();
-    expect(loadPayPalSdk).toHaveBeenCalledWith("sandbox-client-id", "en", "capture", true);
-    expect(createButtons.mock.calls[0][0]).toMatchObject({
+    expect(vi.mocked(loadPayPalSdk).mock.calls[0]?.slice(0, 4)).toEqual([
+      "sandbox-client-id",
+      "en",
+      "capture",
+      true,
+    ]);
+    const calls = vi.mocked(createButtons).mock.calls as unknown as Array<
+      [{ style?: { layout?: string; label?: string } }]
+    >;
+    expect(calls[0]?.[0]).toMatchObject({
       style: { layout: "vertical", label: "donate" },
     });
   });
 
-  it("keeps the redirect fallback and skips Smart Buttons for VAULT mode", async () => {
+  it("keeps the redirect fallback and skips Smart Buttons for non-cabin VAULT mode", async () => {
     const renderButtons = vi.fn(async () => undefined);
     vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "VAULT" });
     vi.mocked(loadPayPalSdk).mockResolvedValue({
@@ -160,7 +174,12 @@ describe("PledgeButton with a broken PayPal SDK (stopover crash regression)", ()
     );
     await waitFor(() => expect(fetchPledgeMode).toHaveBeenCalledWith(values.milestone_id, values.kind));
 
-    const updatedValues = { ...values, milestone_id: "dep-autre", kind: "cabin_leg" };
+    const updatedValues = {
+      ...values,
+      milestone_id: "leg-la-rochelle-to-ajaccio-corse",
+      target_id: "leg-la-rochelle-to-ajaccio-corse",
+      kind: "cabin_leg",
+    };
     vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "VAULT" });
     view.rerender(
       <I18nextProvider i18n={i18n}>
@@ -168,6 +187,9 @@ describe("PledgeButton with a broken PayPal SDK (stopover crash regression)", ()
       </I18nextProvider>,
     );
     await waitFor(() => expect(fetchPledgeMode).toHaveBeenCalledWith(updatedValues.milestone_id, updatedValues.kind));
-    await waitFor(() => expect(screen.getByRole("button", { name: i18n.t("pledge.create") })).toBeInTheDocument());
+    await waitFor(() => expect(renderButtons).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: i18n.t("pledge.create") })).toBeNull(),
+    );
   });
 });

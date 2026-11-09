@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGaugeRows, gaugePercent } from "../utils/gauges";
+import { buildGaugeRows, gaugePercent, sumAmount } from "../utils/gauges";
 import type { PublicPledge } from "../api/types";
 
 describe("buildGaugeRows", () => {
@@ -39,5 +39,31 @@ describe("buildGaugeRows", () => {
     expect(main?.authorized_count).toBe(1);
     expect(main?.captured_count).toBe(1);
     expect(gaugePercent(main!, "authorized")).toBe(50);
+  });
+});
+
+describe("sumAmount", () => {
+  it("n'additionne pas les montants non-EUR dans le total EUR", () => {
+    const pledges: PublicPledge[] = [
+      {
+        id: "eur",
+        status: "authorized",
+        intent: "AUTHORIZE",
+        currency: "EUR",
+        amount_eur: "25.00",
+        description: "x",
+        milestone_id: "m",
+      },
+      {
+        id: "usd",
+        status: "authorized",
+        intent: "AUTHORIZE",
+        currency: "USD",
+        amount_eur: "99.00",
+        description: "y",
+        milestone_id: "m",
+      },
+    ];
+    expect(sumAmount(pledges, "authorized")).toBe(25);
   });
 });

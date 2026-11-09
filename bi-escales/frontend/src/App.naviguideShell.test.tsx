@@ -47,7 +47,15 @@ vi.mock("./components/EscalePopup.jsx", () => ({ EscalePopup: () => null }));
 vi.mock("./components/EscalesPanel", () => ({ EscalesPanel: () => <div data-testid="captain-panel" /> }));
 vi.mock("./components/MarinasPanel.jsx", () => ({ default: () => <div data-testid="marinas-panel" /> }));
 vi.mock("./components/ProjectList.jsx", () => ({ default: () => null }));
-vi.mock("./components/CrewSubscribeButton", () => ({ CrewSubscribeButton: () => <span>Crew</span> }));
+vi.mock("./components/CrewSubscribeButton", () => ({
+  CrewSubscribeButton: () => <span>Crew</span>,
+  CrewSupporterPublicSection: () => (
+    <section className="crew-supporter-public" data-testid="crew-supporter-public">
+      <small className="crew-sandbox-note">PayPal sandbox</small>
+      <span>Crew</span>
+    </section>
+  ),
+}));
 vi.mock("./marinas/escaleFiche.js", () => ({
   loadEscaleFiche: vi.fn(),
   loadEscaleMarinasGeojson: vi.fn().mockResolvedValue({ type: "FeatureCollection", features: [] }),
@@ -113,7 +121,7 @@ describe("NAVIGUIDE shell wiring", () => {
     ]);
   });
 
-  it("switches marinas tab to the marinas tools panel", async () => {
+  it("switches marinas tab to the marinas feature panel on the left", async () => {
     const user = userEvent.setup();
     render(
       <I18nextProvider i18n={i18n}>

@@ -7,6 +7,8 @@ the evidence nor the sum or difference of two figures that are.
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import datetime as dt
 import re
 from decimal import Decimal, InvalidOperation
@@ -236,7 +238,11 @@ def latest_evidence(milestone: Optional[dict]) -> dict:
     return evidence[-1]
 
 
-async def record_captain_review_approval(milestone_id: str) -> dict[str, Any]:
+async def record_captain_review_approval(
+    milestone_id: str,
+    *,
+    at: Optional[str] = None,
+) -> dict[str, Any]:
     """Append the approved verdict and voyage-clock time; never infer it later."""
     from .config import simulated_now
     from .ledger import record_finance
@@ -253,13 +259,35 @@ async def record_captain_review_approval(milestone_id: str) -> dict[str, Any]:
     proposal = review.get("proposal") if isinstance(review, dict) else None
     if not isinstance(proposal, str) or proposal not in {"capture", "void", "wait", "reauthorize"}:
         raise ValueError("a Captain review is required before approval")
-    at = simulated_now().isoformat()
+    approved_at = (at or "").strip() or simulated_now().isoformat()
     await record_finance(
         "captain_review_approved", milestone_id=mid, proposal=proposal,
-        proposal_at=review.get("at"), at=at,
+        proposal_at=review.get("at"), at=approved_at,
         recorded_at=dt.datetime.now(dt.timezone.utc).isoformat(),
     )
-    return {"milestone_id": mid, "approved": True, "proposal": proposal, "at": at}
+    return {"milestone_id": mid, "approved": True, "proposal": proposal, "at": approved_at}
+
+
+_DEMO_ARRIVAL_APPROVAL: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "escales_demo_arrival_approval", default=None,
+)
+
+
+@contextlib.contextmanager
+def demo_arrival_approval(milestone_id: str):
+    """Treat ``milestone_id`` as approved for capture inside this block only.
+
+    Used by the keyed judge-moment route. Nothing is persisted: once the block
+    exits, ``captain_review_approved`` reads only the real finance journal again.
+    """
+    from .naviguide_bridge import resolve_milestone
+
+    mid = (milestone_id or "").strip()
+    token = _DEMO_ARRIVAL_APPROVAL.set(resolve_milestone(mid) or mid)
+    try:
+        yield
+    finally:
+        _DEMO_ARRIVAL_APPROVAL.reset(token)
 
 
 async def captain_review_approved(
@@ -279,6 +307,9 @@ async def captain_review_approved(
     if not mid:
         return False
     mid = resolve_milestone(mid) or mid
+    demo_mid = _DEMO_ARRIVAL_APPROVAL.get()
+    if demo_mid and demo_mid == mid:
+        return True
     milestone = await resolve_schedule_milestone(mid)
     meta = (milestone or {}).get("meta") or {}
     anchor_key = "departure_iso" if meta.get("capture_on") == "departure" else "arrival_iso"

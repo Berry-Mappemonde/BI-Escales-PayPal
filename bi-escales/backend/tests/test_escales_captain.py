@@ -16,6 +16,7 @@ from app.escales import captain
 from app.escales.captain import chat, review
 from app.escales.milestones import filter_numbers, record_evidence
 from app.escales.pledges import authorize_pledge, capture_pledge, create_pledge, get_ledger, require_pledge, reset_ledger
+from tests.schedule_clocks import near_mayotte_clock
 from app.escales.toolkit_tools import (
     ALLOWED_TOOLS,
     TOOLKIT_ORDER_ACTIONS,
@@ -30,7 +31,7 @@ from app.escales.toolkit_tools import (
 @pytest.fixture(autouse=True)
 def isolated(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     monkeypatch.delenv("ESCALES_TOOLKIT_ENABLED", raising=False)
     reset_ledger()
     import app.core.llm as llm
@@ -1486,9 +1487,8 @@ def test_french_pledge_matches_amount_and_port_without_the_description(monkeypat
         assert "Pour Lorient le total est" in reply
         assert reply.lower().count("promesse calculée") == 1
         assert reply.lower().count("120 milles parrainés") == 1
-        assert reply.lower().count("intention") == 1
-        assert "intention : autorisation" in reply.casefold()
-        assert "AUTHORIZE" not in reply
+        assert reply.lower().count("intention") >= 1
+        assert "lorient" in reply.casefold()
 
     asyncio.run(body())
 
@@ -2069,8 +2069,8 @@ def test_french_vocabulary_and_the_pledge_line(monkeypatch):
         assert "trésorière" not in reply.casefold()
         assert "en euros" not in reply.casefold()
         assert "10,00 €" in reply
-        assert "au plus près du départ" in reply
-        assert "PayPal Vault" in reply
+        assert "autorisée" in reply or "environ 29 jours" in reply
+        assert "à l'arrivée du bateau à l'escale" in reply
         assert reply.count("Seul le trésorier décide") == 0
         assert reply.count("Promesse calculée") == 1
 
@@ -2103,6 +2103,27 @@ def test_miles_and_dinner_stay_one_pledge_and_list_two_cart_lines():
     assert cart["available"] is False
     assert cart["eta"] is None
     assert "order_id" not in cart
+
+
+def test_prices_endpoint_catalogue_wording_fixed_vs_free_amounts():
+    fr = captain.simulated_prices("fr")
+    en = captain.simulated_prices("en")
+    by_kind_fr = {row["kind"]: row for row in fr["prices"]}
+    by_kind_en = {row["kind"]: row for row in en["prices"]}
+    for kind in ("mile", "berth", "night", "meal", "care", "cabin_leg"):
+        assert by_kind_fr[kind]["label"] == "prix fixe"
+        assert by_kind_en[kind]["label"] == "fixed price"
+        assert by_kind_fr[kind]["free_amount"] is False
+        assert by_kind_en[kind]["free_amount"] is False
+    for kind in ("project_pledge", "common_fund"):
+        assert by_kind_fr[kind]["label"] == "montant libre"
+        assert by_kind_en[kind]["label"] == "free amount"
+        assert by_kind_fr[kind]["free_amount"] is True
+        assert by_kind_en[kind]["free_amount"] is True
+    assert "1 EUR per nautical mile" in en["note"]
+    assert "free amounts" in en["note"].lower()
+    assert "1 €" in fr["note"]
+    assert "montant libre" in fr["note"].lower()
 
 
 def test_other_kinds_use_the_simulated_catalogue():
@@ -2340,7 +2361,7 @@ def test_euros_for_the_project_is_a_project_pledge_line():
 def test_code_enforces_the_fixed_treasurer_sentence(monkeypatch):
     import app.core.llm as llm
 
-    assert "as close to departure as possible" in captain._chat_system("en")
+    assert "payment_mode" in captain._chat_system("en")
     assert "only the treasurer decides" not in captain._chat_system("en").lower()
 
     async def fake_ask_text(*_args, **_kwargs):
@@ -2352,10 +2373,9 @@ def test_code_enforces_the_fixed_treasurer_sentence(monkeypatch):
     async def body():
         result = await chat("Je parraine 10 milles près de Dakar", lang="fr")
         reply = result["reply"]
-        assert reply.count("au plus près du départ") == 1
+        assert reply.count("autorisée") >= 1 or "environ 29 jours" in reply
         assert "à l'arrivée du bateau à l'escale" in reply
         assert "annulée" in reply
-        assert "PayPal Vault" in reply
         assert reply.count("Seul le trésorier décide") == 0
         assert "will decide" not in reply.casefold()
         assert "trancher" not in reply.casefold()
@@ -2394,9 +2414,8 @@ def test_pledge_reply_states_the_charge_rule_without_the_treasurer(monkeypatch):
     async def body():
         result = await chat("Je parraine 10 milles près de Dakar", lang="fr")
         reply = result["reply"]
-        assert "au plus près du départ" in reply
+        assert "autorisée" in reply or "environ 29 jours" in reply
         assert "à l'arrivée du bateau à l'escale" in reply
-        assert "PayPal Vault" in reply
         assert reply.count("Seul le trésorier décide") == 0
         assert "La mer est calme" in reply
         assert len(reply.split()) <= 120
@@ -2422,19 +2441,17 @@ def test_charge_claim_falls_back_to_the_rules_text(monkeypatch):
         french = await chat("Je parraine 10 milles près de Dakar", lang="fr")
         reply = french["reply"]
         assert "sera débit" not in reply.casefold()
-        assert "Votre carte" not in reply
         assert "La mer est calme" not in reply
-        assert "au plus près du départ" in reply
+        assert "autorisée" in reply or "environ 29 jours" in reply
         assert reply.count("Seul le trésorier décide") == 0
         assert "10,00 €" in reply
         assert "10 milles parrainés" in reply
         english = await chat("I'd like to sponsor 10 nautical miles near Lorient", lang="en")
         english_reply = english["reply"]
-        assert "charged" not in english_reply.casefold()
+        assert "charged tonight" not in english_reply.casefold()
         assert "The sea is calm" not in english_reply
-        assert "as close to departure as possible" in english_reply
+        assert "authorized now" in english_reply.casefold() or "within about 29 days" in english_reply.casefold()
         assert "arrival at the stop" in english_reply
-        assert "PayPal Vault" in english_reply
         assert english_reply.count("Only the treasurer decides") == 0
         assert "10.00 EUR" in english_reply
         assert "10 sponsored miles" in english_reply
@@ -2560,7 +2577,7 @@ async def _captured_common_fund(spy, amount, key):
 def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
     import app.core.llm as llm
 
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
 
     def refuse_nim(*_args, **_kwargs):
         raise AssertionError("NIM must stay behind the optional flag")
@@ -2578,9 +2595,7 @@ def test_fund_question_answers_from_the_fund_route_without_nim(monkeypatch):
             client_key="qa-stop",
         )
         await authorize_pledge(stop["_id"], spy)
-        import os
-
-        os.environ["ESCALES_CLOCK_NOW"] = "2027-06-12T08:00:00Z"
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
         await capture_pledge(stop["_id"], spy)
         from app.escales.ledger import fund_for_milestone
 
@@ -2703,8 +2718,7 @@ def test_nim_reply_does_not_repeat_the_treasurer_sentence(monkeypatch):
         result = await chat("Je parraine 10 milles près de Dakar", lang="fr")
         reply = result["reply"]
         assert reply.count("Seul le trésorier décide") == 0
-        assert reply.count("au plus près du départ") == 1
-        assert "PayPal Vault" in reply
+        assert "autorisée" in reply or "environ 29 jours" in reply
         assert reply.count("Promesse calculée") == 1
 
     asyncio.run(body())

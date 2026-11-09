@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import sys
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.escales.config import parse_clock_moment
 from app.escales.pledges import (
     PledgeAlreadyFullyRefunded,
     authorize_pledge,
@@ -18,12 +20,18 @@ from app.escales.pledges import (
     refund_pledge,
     reset_ledger,
 )
+from tests.schedule_clocks import mayotte_authorize_window_clock, near_mayotte_clock
+
+
+def _authorized_at_day_before_capture() -> str:
+    moment = parse_clock_moment(near_mayotte_clock()) - dt.timedelta(days=1)
+    return moment.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat()
 
 
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-10T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", mayotte_authorize_window_clock())
     reset_ledger()
     yield
     reset_ledger()
@@ -73,10 +81,10 @@ async def _captured(client: CountingPayPal, monkeypatch):
         client_key="rid2",
     )
     await authorize_pledge(created["_id"], client)
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     pledge = await get_ledger().get_pledge(created["_id"])
     assert pledge is not None
-    pledge["authorized_at"] = "2027-06-11T08:00:00+00:00"
+    pledge["authorized_at"] = _authorized_at_day_before_capture()
     await get_ledger().save_pledge(pledge)
     captured = await capture_pledge(created["_id"], client)
     assert captured["status"] == "captured"
@@ -158,7 +166,7 @@ def test_http_409_body_includes_paypal_refund_id(monkeypatch):
 
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-10T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", mayotte_authorize_window_clock())
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "rid2-admin")
     client_pp = CountingPayPal()
     set_paypal_client_factory(lambda: client_pp)
@@ -178,10 +186,10 @@ def test_http_409_body_includes_paypal_refund_id(monkeypatch):
             assert created.status_code == 200, created.text
             pledge_id = created.json()["id"]
             assert http.post(f"/api/escales/pledges/{pledge_id}/authorize").status_code == 200
-            monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+            monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
             pledge_doc = asyncio.run(get_ledger().get_pledge(pledge_id))
             assert pledge_doc is not None
-            pledge_doc["authorized_at"] = "2027-06-11T08:00:00+00:00"
+            pledge_doc["authorized_at"] = _authorized_at_day_before_capture()
             asyncio.run(get_ledger().save_pledge(pledge_doc))
             asyncio.run(approve_capture_review("dep-mayotte"))
             cap = http.post(

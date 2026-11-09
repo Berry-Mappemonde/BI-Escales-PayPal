@@ -45,6 +45,12 @@ type VoyageStop = {
 
 type FlyTarget = { lat: number; lon: number; ts: number };
 
+/** Matches GET /milestones/{id}/fund treasurer gate (aggregate project + per-project ids). */
+function milestoneFundRequiresAdminKey(milestoneId: string): boolean {
+  const token = milestoneId.trim().toLowerCase();
+  return token === "project" || token === "projet" || token.startsWith("projet-");
+}
+
 export default function App() {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
@@ -285,8 +291,13 @@ export default function App() {
       if (!treasurerOpen) setFund(null);
       return undefined;
     }
+    const key = adminKey.trim();
+    if (milestoneFundRequiresAdminKey(milestoneId) && !key) {
+      setFund(null);
+      return undefined;
+    }
     let cancelled = false;
-    void fetchFund(milestoneId, adminKey)
+    void fetchFund(milestoneId, key || undefined)
       .then((row) => {
         if (!cancelled) setFund(row);
       })
@@ -359,13 +370,16 @@ export default function App() {
   useEffect(() => {
     if (!treasurerOpen || demoTreasurer) return undefined;
     let cancelled = false;
-    void fetchFund("project", adminKey)
-      .then((row) => {
-        if (!cancelled) setProjectFund(row);
-      })
-      .catch(() => {
-        if (!cancelled) setProjectFund(null);
-      });
+    const key = adminKey.trim();
+    if (key) {
+      void fetchFund("project", key)
+        .then((row) => {
+          if (!cancelled) setProjectFund(row);
+        })
+        .catch(() => {
+          if (!cancelled) setProjectFund(null);
+        });
+    }
     void fetchPublicCommonFund()
       .then((row) => {
         if (!cancelled) setBoatFund(row);

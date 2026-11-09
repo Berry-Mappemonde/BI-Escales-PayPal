@@ -10,14 +10,14 @@ type StubPlugin = {
 describe("bryntumFallback", () => {
   it("leaves imports alone when the package is installed", () => {
     const plugin = bryntumFallback({ isInstalled: () => true }) as unknown as StubPlugin;
-    expect(plugin.resolveId("@bryntum/scheduler")).toBeNull();
+    expect(plugin.resolveId("@bryntum/scheduler-community")).toBeNull();
     expect(plugin.resolveId("react")).toBeNull();
   });
 
   it("stubs the module and its css when the optional install failed", () => {
     const plugin = bryntumFallback({ isInstalled: () => false }) as unknown as StubPlugin;
-    const js = plugin.resolveId("@bryntum/scheduler");
-    const css = plugin.resolveId("@bryntum/scheduler/scheduler.css");
+    const js = plugin.resolveId("@bryntum/scheduler-community");
+    const css = plugin.resolveId("@bryntum/scheduler-community/scheduler.css");
     expect(js).toBeTruthy();
     expect(css).toBeTruthy();
     expect(js).not.toEqual(css);

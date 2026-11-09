@@ -105,4 +105,16 @@ describe("MapScene boat and stop markers", () => {
     const boat = boatMarker();
     expect(boat.options.icon.options.html).toContain(`aria-label="${label}"`);
   });
+
+  it.each([
+    ["en", "Voyage stop: La Rochelle"],
+    ["fr", "Escale : La Rochelle"],
+  ])("exposes localized stop flag aria-label in %s", async (lang, label) => {
+    await i18n.changeLanguage(lang);
+    await renderScene();
+    const laRochelle = markerByMilestone("dep-la-rochelle");
+    expect(laRochelle).toBeTruthy();
+    expect(laRochelle.options.icon.options.html).toContain(`aria-label="${label}"`);
+    expect(laRochelle.options.icon.options.html).toContain('role="button"');
+  });
 });

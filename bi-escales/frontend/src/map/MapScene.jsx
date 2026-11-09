@@ -27,6 +27,7 @@ import {
 import { worldCopyLineCoords } from "../../../../naviguide-escales/src/utils/geo.js";
 import { officialAirRouteStyles } from "../../../../naviguide-escales/src/utils/berryLegs.js";
 import { catamaranSvg } from "../../../../naviguide-escales/src/engine/catamaranIcon.js";
+import { bindStopMarkerKeyboard } from "./stopMarkerA11y.js";
 import { escapeAttr, stopMarkerIconHtml, stopMarkerIconSize } from "./stopMarkerIcon.js";
 import { applyMarkerRotation } from "../../../../naviguide-escales/src/utils/markerRotation.js";
 import { mapTileUrlForTheme } from "./mapTileUrl.js";
@@ -181,9 +182,10 @@ export function MapScene({
       uniqueStops.forEach((stop, index) => {
         const { iconSize, iconAnchor } = stopMarkerIconSize(stop);
         const anchor = offsetToIconAnchor(iconAnchor, offsets[index] || [0, 0]);
+        const stopLabel = t("map.stopMarker", { name: stop.name });
         const icon = L.divIcon({
           className: "flag-divicon",
-          html: stopMarkerIconHtml(stop),
+          html: stopMarkerIconHtml(stop, stopLabel),
           iconSize,
           iconAnchor: anchor,
         });
@@ -193,6 +195,7 @@ export function MapScene({
           stopData: stop,
         }).addTo(group);
         marker.bindTooltip(stop.name, { direction: "top" });
+        bindStopMarkerKeyboard(marker, stop, (target) => onSelectRef.current?.(target));
         marker.on("click", (event) => {
           L.DomEvent.stopPropagation(event);
           const target = event?.target?.options?.stopData || stop;
@@ -208,7 +211,7 @@ export function MapScene({
       map.off("zoomend", renderStops);
       map.off("moveend", renderStops);
     };
-  }, [stops, segments]);
+  }, [stops, segments, i18nInstance.language, t]);
 
   useEffect(() => {
     const map = mapRef.current;

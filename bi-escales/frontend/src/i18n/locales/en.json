@@ -5,6 +5,8 @@
     "tagline": "Stop pledges capture on boat arrival; cabins on leg departure; common fund at once.",
     "langFr": "Français",
     "langEn": "English",
+    "langFrSwitch": "FR, Français",
+    "langEnSwitch": "EN, English",
     "language": "Language",
     "themeLight": "Light",
     "themeDark": "Dark",
@@ -108,7 +110,8 @@
     "legendRejected": "Rejected Google place — red on the map"
   },
   "map": {
-    "boatMarker": "Boat / catamaran"
+    "boatMarker": "Boat / catamaran",
+    "stopMarker": "Voyage stop: {{name}}"
   },
   "fund": {
     "heading": "Common fund",

@@ -39,7 +39,7 @@ describe("HowItWorks", () => {
   it("explains the pledge, cancellation, and cabin rules", () => {
     show();
     expect(screen.getByText("STOP PLEDGES")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /^Back a stop\.\s+Pay only if we arrive\.$/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^Back a stop\.\s+Pay only when we arrive\.$/ })).toBeInTheDocument();
     expect(screen.getByText(en.howItWorks.credit)).toBeInTheDocument();
     expect(screen.getByText(/Your pledge is authorised now/)).toBeInTheDocument();
     expect(screen.getByText("Cancelled stop? The authorisation is voided. No charge.")).toBeInTheDocument();
@@ -55,7 +55,7 @@ describe("HowItWorks", () => {
   it("shows in French", async () => {
     await i18n.changeLanguage("fr");
     show();
-    expect(screen.getByRole("heading", { name: /^Soutenez une escale\.\s+Vous ne payez que si nous arrivons\.$/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^Soutenez une escale\.\s+Payez seulement à notre arrivée\.$/ })).toBeInTheDocument();
     expect(screen.getByText(fr.howItWorks.credit)).toBeInTheDocument();
     expect(screen.getByText("Autorisation de votre promesse")).toBeInTheDocument();
   });

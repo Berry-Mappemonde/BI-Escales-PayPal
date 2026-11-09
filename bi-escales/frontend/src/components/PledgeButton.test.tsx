@@ -33,7 +33,7 @@ describe("PledgeButton", () => {
 
   it.each([
     ["en", "VAULT", "Saved with PayPal · charged only if we sail"],
-    ["fr", "VAULT", "Moyen de paiement enregistré auprès de PayPal · débité uniquement si nous partons"],
+    ["fr", "VAULT", "Moyen de paiement enregistré auprès de PayPal · débité uniquement à notre arrivée"],
     ["en", "AUTHORIZE", "PayPal authorisation hold — you are not charged until we arrive (sandbox)."],
     ["fr", "AUTHORIZE", "Autorisation PayPal — vous n’êtes pas débité tant que nous n’arrivons pas (bac à sable)."],
   ] as const)("shows %s %s checkout copy from the fetched mode", async (lang, payment_mode, expected) => {

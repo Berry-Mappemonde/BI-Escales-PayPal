@@ -12,5 +12,5 @@ export default defineConfig({
     screenshot: "off",
     launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || "/usr/bin/chromium" },
   },
-  webServer: { command: "npm run dev -- --host 127.0.0.1 --port 5178 --strictPort", url: "http://127.0.0.1:5178", reuseExistingServer: false },
+  webServer: { command: "npm run dev -- --host 127.0.0.1 --port 5178 --strictPort", url: "http://127.0.0.1:5178", reuseExistingServer: false, env: { VITE_PAYPAL_CLIENT_ID: "e2e-public-sandbox-id", VITE_API_BASE: "" } },
 });

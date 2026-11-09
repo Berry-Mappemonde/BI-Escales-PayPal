@@ -90,6 +90,8 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   );
   const cabinLegReady = !isCabinLeg || Boolean(cabinLegId.trim());
   const checkoutDisabled = Boolean(disabled || busy || !cabinLegReady);
+  // Internal progress must not destroy the SDK session that is creating an order.
+  const sdkCheckoutDisabled = Boolean(disabled || !cabinLegReady);
   const modeMatchesValues =
     pledgeMode?.milestoneId === effectiveMilestoneId && pledgeMode.kind === values.kind;
   const shouldRenderSmartButtons =
@@ -272,7 +274,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     const host = buttonsHost.current;
     if (!host) return;
     host.innerHTML = "";
-    if (!paypal || !shouldRenderSmartButtons || checkoutDisabled) return;
+    if (!paypal || !shouldRenderSmartButtons || sdkCheckoutDisabled) return;
     const vaultSmartButtons = isCabinLeg && modeMatchesValues && pledgeMode?.paymentMode === "VAULT";
     let pledgeId: string | null = null;
     let closed = false;
@@ -372,6 +374,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
       paypal.Buttons,
       {
         style: { layout: "vertical", label: isProjectPledge ? "donate" : "pay" },
+        offerPayLater: isProjectPledge && payLaterEligible(values.amount_eur, values.kind),
         ...smartCallbacks,
         onCancel: () => {
           setStatus(null);
@@ -398,7 +401,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   }, [
     paypal,
     shouldRenderSmartButtons,
-    checkoutDisabled,
+    sdkCheckoutDisabled,
     isProjectPledge,
     isCabinLeg,
     modeMatchesValues,

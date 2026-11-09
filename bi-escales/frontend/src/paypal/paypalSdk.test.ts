@@ -151,7 +151,7 @@ describe("v6 payment session adapters", () => {
     const adapter = buildV6Adapter(sdk as never, eligible);
     const host = document.createElement("div");
     const onApprove = vi.fn();
-    const result = await safePayPalRender(adapter.Buttons, { createSubscription: vi.fn(), onApprove }, host);
+    const result = await safePayPalRender(adapter.Buttons, { createSubscription: vi.fn((_data, actions) => actions.subscription.create({ plan_id: "PLAN" })), onApprove }, host);
     expect(result.ok).toBe(true);
     host.querySelector("paypal-button")!.dispatchEvent(new MouseEvent("click"));
     await expect(start.mock.calls[0][1]).resolves.toEqual({ subscriptionId: "SUB-TEST-1" });
@@ -245,4 +245,96 @@ it("renders v6 Pay Later messages using the native element and currency", async 
   expect(element.currencyCode).toBe("EUR");
   expect(createPayPalMessages).toHaveBeenCalledWith({ currencyCode: "EUR" });
   await message.close!(); expect(host.children).toHaveLength(0);
+});
+
+describe("v6 lifecycle and legacy callback parity", () => {
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+  it.each(["authorize", "capture"] as const)("keeps %s commit semantics on the one-time session", async intent => {
+    const factory = vi.fn(() => ({ start: vi.fn(), destroy: vi.fn() }));
+    const button = buildV6Adapter({ createPayPalOneTimePaymentSession: factory } as never, { isEligible: () => true }, false, intent).Buttons!({ createOrder: () => "ORDER" });
+    expect(factory).toHaveBeenCalledWith(expect.objectContaining({ commit: intent === "capture" }));
+    await button.close!();
+  });
+
+  it("deduplicates concurrent clicks and ignores callbacks after close", async () => {
+    let release!: () => void;
+    let callbacks: any;
+    const destroy = vi.fn();
+    const start = vi.fn(async (_opts, pending) => { await pending; await new Promise<void>(resolve => { release = resolve; }); });
+    const factory = (options: any) => { callbacks = options; return { start, destroy }; };
+    const createOrder = vi.fn(() => "ORDER");
+    const onApprove = vi.fn(); const onCancel = vi.fn();
+    const host = document.createElement("div");
+    const button = buildV6Adapter({ createPayPalOneTimePaymentSession: factory } as never, { isEligible: () => true }).Buttons!({ createOrder, onApprove, onCancel });
+    await button.render(host); const element = host.querySelector("paypal-button")!;
+    element.dispatchEvent(new MouseEvent("click")); element.dispatchEvent(new MouseEvent("click"));
+    await vi.waitFor(() => expect(createOrder).toHaveBeenCalledOnce());
+    expect(start).toHaveBeenCalledOnce();
+    await button.close!(); await button.close!();
+    await callbacks.onApprove({ orderId: "ORDER" }); callbacks.onCancel();
+    expect(onApprove).not.toHaveBeenCalled(); expect(onCancel).not.toHaveBeenCalled(); expect(destroy).toHaveBeenCalledOnce();
+    release(); await expect(button.render(host)).rejects.toThrow(/closed/);
+  });
+
+  it("reports rejected merchant token creation through onError", async () => {
+    const start = vi.fn(async (_opts, pending) => { await pending; });
+    const onError = vi.fn();
+    const button = buildV6Adapter({ createPayPalOneTimePaymentSession: () => ({ start, destroy: vi.fn() }) } as never, { isEligible: () => true }).Buttons!({ createOrder: () => { throw new Error("merchant creation failed"); }, onError });
+    const host = document.createElement("div"); await button.render(host);
+    host.querySelector("paypal-button")!.dispatchEvent(new MouseEvent("click"));
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: "merchant creation failed" })));
+    await button.close!();
+  });
+
+  it("renders Pay Later only when the app and merchant agree, using SDK metadata", async () => {
+    const start = vi.fn().mockResolvedValue(undefined); const laterDestroy = vi.fn();
+    const sdk = {
+      createPayPalOneTimePaymentSession: vi.fn(() => ({ start: vi.fn(), destroy: vi.fn() })),
+      createPayLaterOneTimePaymentSession: vi.fn(() => ({ start, destroy: laterDestroy })),
+    };
+    const adapter = buildV6Adapter(sdk as never, { isEligible: () => true, getDetails: () => ({ countryCode: "FR", productCode: "PAYLATER" }) } as never, false, "capture");
+    const host = document.createElement("div"); const createOrder = vi.fn(() => "LATER-ORDER");
+    const buttons = adapter.Buttons!({ createOrder, offerPayLater: true }); await buttons.render(host);
+    const later = host.querySelector("paypal-pay-later-button")!;
+    expect(later.countryCode).toBe("FR"); expect(later.productCode).toBe("PAYLATER");
+    later.dispatchEvent(new MouseEvent("click"));
+    await expect(start.mock.calls[0][1]).resolves.toEqual({ orderId: "LATER-ORDER" });
+    expect(sdk.createPayLaterOneTimePaymentSession).toHaveBeenCalledWith(expect.objectContaining({ commit: true }));
+    await buttons.close!(); expect(laterDestroy).toHaveBeenCalledOnce();
+    await adapter.Buttons!({ createOrder, offerPayLater: false }).render(host);
+    expect(host.querySelector("paypal-pay-later-button")).toBeNull();
+  });
+
+  it("destroying all hosted fields prevents a pending submission from reaching PayPal", async () => {
+    let resolve!: (id: string) => void;
+    const pending = new Promise<string>(done => { resolve = done; });
+    const submit = vi.fn(); const destroy = vi.fn();
+    const sdk = { createCardFieldsOneTimePaymentSession: () => ({ submit, destroy, createCardFieldsComponent: () => Object.assign(document.createElement("div"), { destroy: vi.fn() }) }) };
+    const cards = buildV6Adapter(sdk as never, { isEligible: () => true }).CardFields!({ createOrder: () => pending }) as any;
+    const field = cards.NumberField(); await field.render(document.createElement("div"));
+    const submission = cards.submit(); await field.close(); resolve("CARD-ORDER");
+    await expect(submission).rejects.toThrow(/closed/);
+    expect(submit).not.toHaveBeenCalled(); expect(destroy).toHaveBeenCalledOnce();
+  });
+});
+
+it.each(["succeeded", "canceled", "failed"])("card vault %s result preserves approval gating", async state => {
+  const submit = vi.fn().mockResolvedValue({ state, data: { vaultSetupToken: "SETUP", message: "not completed" } });
+  const onApprove = vi.fn();
+  const adapter = buildV6Adapter({ createCardFieldsSavePaymentSession: () => ({ submit, destroy: vi.fn() }) } as never, { isEligible: () => true });
+  const cards = adapter.CardFields!({ createVaultSetupToken: () => "SETUP", onApprove }) as any;
+  if (state === "succeeded") {
+    await cards.submit(); expect(onApprove).toHaveBeenCalledWith({ vaultSetupToken: "SETUP", message: "not completed" });
+  } else {
+    await expect(cards.submit()).rejects.toThrow(/not completed/); expect(onApprove).not.toHaveBeenCalled();
+  }
+  expect(submit).toHaveBeenCalledWith("SETUP");
+});
+
+it("a mismatched card confirmation cannot approve another order", async () => {
+  const onApprove = vi.fn();
+  const adapter = buildV6Adapter({ createCardFieldsOneTimePaymentSession: () => ({ submit: async () => ({ state: "succeeded", data: { orderId: "OTHER" } }), destroy: vi.fn() }) } as never, { isEligible: () => true });
+  const cards = adapter.CardFields!({ createOrder: () => "EXPECTED", onApprove }) as any;
+  await expect(cards.submit()).rejects.toThrow(/mismatch/); expect(onApprove).not.toHaveBeenCalled();
 });

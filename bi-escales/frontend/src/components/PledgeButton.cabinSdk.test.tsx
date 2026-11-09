@@ -100,7 +100,7 @@ describe("PledgeButton flow C (cabin_leg VAULT)", () => {
     expect(createBtn).not.toBeDisabled();
   });
 
-  it("locks create while the pledge request is in flight", async () => {
+  it("locks fallback creation while the pledge request is in flight", async () => {
     let resolvePledge: (value: PublicPledge) => void = () => {};
     vi.mocked(createPledge).mockImplementation(
       () =>
@@ -108,7 +108,7 @@ describe("PledgeButton flow C (cabin_leg VAULT)", () => {
           resolvePledge = resolve;
         }),
     );
-    vi.mocked(loadPayPalSdk).mockResolvedValue({ Buttons: vi.fn(() => ({ render: vi.fn() })) } as never);
+    vi.mocked(loadPayPalSdk).mockResolvedValue({ Buttons: vi.fn(() => ({ render: vi.fn().mockRejectedValue(new Error("SDK unavailable")) })) } as never);
 
     render(
       <I18nextProvider i18n={i18n}>

@@ -1,5 +1,5 @@
-import { walletFactories, type WalletSdk } from "./paypalWallets";
-import type { CardFieldComponent, CardFieldOptions, Components, PaymentFlow, EligiblePaymentMethodsOutput, PayPalMessagesInstance } from "@paypal/paypal-js/sdk-v6";
+import { walletFactories } from "./paypalWallets";
+import type { CardFieldComponent, CardFieldOptions, Components, PaymentFlow, EligiblePaymentMethodsOutput, PayPalV6Namespace, SdkInstance } from "@paypal/paypal-js/sdk-v6";
 
 /**
  * PayPal Web SDK v6 sandbox adapter for BI Escales.
@@ -23,6 +23,7 @@ type ButtonCallbacks = {
   onCancel?: Callback;
   onError?: Callback;
   style?: { label?: string };
+  offerPayLater?: boolean;
 };
 
 type CardCallbacks = {
@@ -32,33 +33,13 @@ type CardCallbacks = {
   onError?: Callback;
 };
 
-type V6Session = {
-  destroy?: () => void;
-  start: (options: { presentationMode: "auto" }, order: Promise<Record<string, string>>) => Promise<void>;
-};
-type V6CardSession = {
-  createCardFieldsComponent: (options: CardFieldOptions) => CardFieldComponent;
-  submit: (id: string) => Promise<{ state: string; data?: { message?: string } }>;
-};
-type V6Instance = WalletSdk & Partial<PayPalMessagesInstance> & {
-  findEligibleMethods: (options: { currencyCode: string; paymentFlow?: PaymentFlow }) => Promise<{
-    isEligible: (method: string) => boolean;
-    getDetails?: EligiblePaymentMethodsOutput["getDetails"];
-  }>;
-  createPayPalOneTimePaymentSession: (callbacks: Record<string, unknown>) => V6Session;
-  createPayPalSavePaymentSession: (callbacks: Record<string, unknown>) => V6Session;
-  createPayPalSubscriptionPaymentSession: (callbacks: Record<string, unknown>) => V6Session;
-  createCardFieldsOneTimePaymentSession: () => V6CardSession;
-  createCardFieldsSavePaymentSession: () => V6CardSession;
-};
-type V6Core = {
-  createInstance: (options: {
-    clientId: string;
-    components: Components[];
-    locale: string;
-    pageType: "checkout";
-  }) => Promise<V6Instance>;
-};
+type V6Instance = Pick<SdkInstance<Components[]>,
+  "findEligibleMethods" | "createPayPalOneTimePaymentSession" |
+  "createPayPalSavePaymentSession" | "createPayPalSubscriptionPaymentSession" |
+  "createCardFieldsOneTimePaymentSession" | "createCardFieldsSavePaymentSession" |
+  "createPayPalMessages" | "createPayLaterOneTimePaymentSession" | "createGooglePayOneTimePaymentSession" |
+  "createApplePayOneTimePaymentSession">;
+type V6Core = Pick<PayPalV6Namespace, "createInstance">;
 
 declare global {
   interface Window {
@@ -148,7 +129,7 @@ function waitForCore(): Promise<V6Core> {
   return corePending;
 }
 
-async function createSubscriptionOnServer(): Promise<string> {
+async function createSubscriptionOnServer(appLang?: string): Promise<string> {
   const base = String(import.meta.env.VITE_API_BASE ?? "").trim().replace(/\/$/, "");
   const current = window.location.origin + (window.location.pathname || "/");
   const response = await fetch(base + "/api/escales/paypal/subscriptions/create", {
@@ -158,6 +139,7 @@ async function createSubscriptionOnServer(): Promise<string> {
       "PayPal-Request-Id": crypto.randomUUID(),
     },
     body: JSON.stringify({
+      lang: appLang?.startsWith("en") ? "en" : "fr",
       return_url: current + "?sub=return",
       cancel_url: current + "?sub=cancel",
     }),
@@ -170,8 +152,10 @@ async function createSubscriptionOnServer(): Promise<string> {
 
 export function buildV6Adapter(
   sdk: V6Instance,
-  eligible: { isEligible: (method: string) => boolean } & Partial<Pick<EligiblePaymentMethodsOutput, "getDetails">>,
+  eligible: Pick<EligiblePaymentMethodsOutput, "isEligible"> & Partial<Pick<EligiblePaymentMethodsOutput, "getDetails">>,
   walletPay = false,
+  intent: SdkIntent = "authorize",
+  appLang?: string,
 ): PayPalNamespace {
   return {
     ...(walletPay && eligible.getDetails ? walletFactories(sdk, eligible as EligiblePaymentMethodsOutput) : {}),
@@ -190,6 +174,7 @@ export function buildV6Adapter(
           element.setAttribute("auto-bootstrap", "");
           message = element;
           host.replaceChildren(element);
+
         },
         close: async () => { message?.remove(); },
       };
@@ -198,53 +183,91 @@ export function buildV6Adapter(
       const config = opts as ButtonCallbacks;
       let element: HTMLElement | null = null;
       let click: EventListener | null = null;
+      let closed = false;
+      let starting = false;
+      let payLaterElement: HTMLElement | null = null;
+      let payLaterSession: ReturnType<V6Instance["createPayLaterOneTimePaymentSession"]> | null = null;
       const subscription = typeof config.createSubscription === "function";
       const vault = typeof config.createVaultSetupToken === "function";
       const callbacks = {
         onApprove: async (data: { orderId?: string; subscriptionId?: string; vaultSetupToken?: string }) => {
+          if (closed) return;
           if (subscription) await config.onApprove?.({ subscriptionID: data.subscriptionId });
           else await config.onApprove?.(data);
         },
-        onCancel: config.onCancel,
-        onError: config.onError,
+        onCancel: (...args: unknown[]) => { if (!closed) void config.onCancel?.(...args); },
+        onError: (...args: unknown[]) => { if (!closed) void config.onError?.(...args); },
         // AUTHORIZE stops are not captured in browser; server approval remains authoritative.
-        ...(!subscription && !vault ? { commit: false } : {}),
+        ...(!subscription && !vault ? { commit: intent === "capture" } : {}),
       };
-      const session = subscription
-        ? sdk.createPayPalSubscriptionPaymentSession(callbacks)
-        : vault
-          ? sdk.createPayPalSavePaymentSession(callbacks)
-          : sdk.createPayPalOneTimePaymentSession(callbacks);
+      let session: { destroy: () => void };
+      let start: () => Promise<unknown>;
+      const token = (value: unknown) => {
+        if (typeof value !== "string" || !value.trim()) throw new Error("PayPal payment token missing");
+        return value;
+      };
+      if (subscription) {
+        const subscriptionSession = sdk.createPayPalSubscriptionPaymentSession(callbacks);
+        session = subscriptionSession;
+        start = () => subscriptionSession.start({ presentationMode: "auto" },
+          Promise.resolve().then(() => config.createSubscription!({}, {
+            subscription: { create: () => createSubscriptionOnServer(appLang) },
+          })).then(value => ({ subscriptionId: token(value) })));
+      } else if (vault) {
+        const saveSession = sdk.createPayPalSavePaymentSession(callbacks);
+        session = saveSession;
+        start = () => saveSession.start({ presentationMode: "auto" },
+          Promise.resolve().then(() => config.createVaultSetupToken!()).then(value => ({ vaultSetupToken: token(value) })));
+      } else {
+        const orderSession = sdk.createPayPalOneTimePaymentSession(callbacks);
+        session = orderSession;
+        start = () => orderSession.start({ presentationMode: "auto" },
+          Promise.resolve().then(() => config.createOrder?.()).then(value => ({ orderId: token(value) })));
+      }
       return {
         render: async (target) => {
           const host = typeof target === "string" ? document.querySelector<HTMLElement>(target) : target;
+          if (closed) throw new Error("PayPal button session closed");
           if (!host) throw new Error("PayPal button host missing");
           if (!eligible.isEligible("paypal")) throw new Error("PayPal not eligible for this checkout");
           element = document.createElement("paypal-button");
           element.setAttribute("type", subscription ? "subscribe" : config.style?.label === "donate" ? "pay" : "pay");
           element.classList.add("paypal-gold");
           click = () => {
-            // Do not await the promise before session.start; browser user gesture is required.
-            let token: Promise<Record<string, string>>;
-            if (subscription) {
-              token = createSubscriptionOnServer().then((subscriptionId) => ({ subscriptionId }));
-            } else if (vault) {
-              token = Promise.resolve().then(() => config.createVaultSetupToken!())
-                .then((vaultSetupToken: string) => ({ vaultSetupToken }));
-            } else {
-              token = Promise.resolve().then(() => config.createOrder?.())
-                .then((orderId: string) => ({ orderId }));
-            }
-            void session.start({ presentationMode: "auto" }, token)
-              .catch((error: unknown) => { void config.onError?.(error); });
+            if (closed || starting) return;
+            starting = true;
+            // Call start synchronously to retain the browser user gesture.
+            void start().catch((error: unknown) => { if (!closed) void config.onError?.(error); })
+              .finally(() => { starting = false; });
           };
           element.addEventListener("click", click);
           host.replaceChildren(element);
+          if (!subscription && !vault && config.offerPayLater && eligible.isEligible("paylater") && eligible.getDetails) {
+            const details = eligible.getDetails("paylater");
+            payLaterSession = sdk.createPayLaterOneTimePaymentSession(callbacks);
+            const payLater = payLaterSession;
+            const button = document.createElement("paypal-pay-later-button");
+            button.countryCode = details.countryCode;
+            button.productCode = details.productCode;
+            button.onclick = () => {
+              if (closed || starting) return;
+              starting = true;
+              void payLater.start({ presentationMode: "auto" }, Promise.resolve().then(() => config.createOrder?.()).then(value => ({ orderId: token(value) })))
+                .catch(error => { if (!closed) void config.onError?.(error); }).finally(() => { starting = false; });
+            };
+            payLaterElement = button;
+            host.appendChild(button);
+          }
         },
         close: async () => {
+          if (closed) return;
+          closed = true;
           if (element && click) element.removeEventListener("click", click);
           element?.remove();
-          session.destroy?.();
+          if (payLaterElement) payLaterElement.onclick = null;
+          payLaterElement?.remove();
+          payLaterSession?.destroy();
+          session.destroy();
         },
       };
     },
@@ -254,14 +277,24 @@ export function buildV6Adapter(
       const session = vault
         ? sdk.createCardFieldsSavePaymentSession()
         : sdk.createCardFieldsOneTimePaymentSession();
+      const fields = new Set<CardFieldComponent>();
+      let disposed = false;
+      let submitting = false;
       const mountField = (type: CardFieldOptions["type"]) => () => {
         let field: CardFieldComponent | null = null;
         return {
           render: async (host: HTMLElement) => {
+            if (disposed) throw new Error("PayPal card session closed");
             field = session.createCardFieldsComponent({ type });
+            fields.add(field);
             host.appendChild(field);
           },
-          close: async () => { field?.destroy(); field = null; },
+          close: async () => {
+            if (!field) return;
+            fields.delete(field);
+            field.destroy(); field = null;
+            if (fields.size === 0 && !disposed) { disposed = true; session.destroy(); }
+          },
         };
       };
       return {
@@ -269,23 +302,32 @@ export function buildV6Adapter(
         NumberField: mountField("number"),
         ExpiryField: mountField("expiry"),
         CVVField: mountField("cvv"),
+        NameField: mountField("name"),
         submit: async () => {
-          // The card entry is held in PayPal-hosted iframes; raw PAN/CVV never touches our code.
-          const token = vault ? await config.createVaultSetupToken?.() : await config.createOrder?.();
-          if (!token || typeof token !== "string") throw new Error("PayPal order or vault token missing");
-          const result = await session.submit(token);
-          if (result.state !== "succeeded") throw new Error(result.data?.message || "Card confirmation was not completed");
-          await config.onApprove?.(result.data);
+          if (disposed || submitting) throw new Error("PayPal card session unavailable");
+          submitting = true;
+          try {
+            // The card entry is held in PayPal-hosted iframes; raw PAN/CVV never touches our code.
+            const token = vault ? await config.createVaultSetupToken?.() : await config.createOrder?.();
+            if (!token || typeof token !== "string") throw new Error("PayPal order or vault token missing");
+            if (disposed) throw new Error("PayPal card session closed");
+            const result = await session.submit(token);
+            if (disposed) throw new Error("PayPal card session closed");
+            if (result.state !== "succeeded") throw new Error(result.data?.message || "Card confirmation was not completed");
+            const confirmedToken = "orderId" in result.data ? result.data.orderId : result.data.vaultSetupToken;
+            if (confirmedToken !== token) throw new Error("PayPal confirmation token mismatch");
+            await config.onApprove?.(result.data);
+          } finally { submitting = false; }
         },
       };
     },
   };
 }
 
-function loadConfigured(clientId: string, appLang: string | undefined, currency: string, walletPay: boolean, paymentFlow: PaymentFlow = "ONE_TIME_PAYMENT"): Promise<PayPalNamespace> {
+function loadConfigured(clientId: string, appLang: string | undefined, currency: string, walletPay: boolean, paymentFlow: PaymentFlow = "ONE_TIME_PAYMENT", intent: SdkIntent = "authorize"): Promise<PayPalNamespace> {
   const trimmed = clientId.trim();
   if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
-  const key = [trimmed, paypalLocale(appLang), currency.toUpperCase(), walletPay, paymentFlow].join("|");
+  const key = [trimmed, paypalLocale(appLang), currency.toUpperCase(), walletPay, paymentFlow, intent].join("|");
   const existing = instances.get(key);
   if (existing) return existing;
   const promise = waitForCore().then(async (core) => {
@@ -302,7 +344,7 @@ function loadConfigured(clientId: string, appLang: string | undefined, currency:
       ],
     });
     const eligible = await sdk.findEligibleMethods({ currencyCode: currency.toUpperCase(), paymentFlow });
-    return buildV6Adapter(sdk, eligible, walletPay);
+    return buildV6Adapter(sdk, eligible, walletPay, intent, appLang);
   }).catch((error: unknown) => {
     instances.delete(key);
     throw error;
@@ -314,19 +356,19 @@ function loadConfigured(clientId: string, appLang: string | undefined, currency:
 export function loadPayPalSdk(
   clientId: string,
   appLang?: string,
-  _intent: SdkIntent = "authorize",
+  intent: SdkIntent = "authorize",
   walletPay = false,
   currency = "EUR",
   paymentFlow: PaymentFlow = "ONE_TIME_PAYMENT",
 ): Promise<PayPalNamespace> {
-  return loadConfigured(clientId, appLang, currency, walletPay, paymentFlow);
+  return loadConfigured(clientId, appLang, currency, walletPay, paymentFlow, intent);
 }
 export function loadPayPalWalletPaySdk(
   clientId: string,
   appLang?: string,
-  _intent: SdkIntent = "authorize",
+  intent: SdkIntent = "authorize",
 ): Promise<PayPalNamespace> {
-  return loadConfigured(clientId, appLang, "EUR", true);
+  return loadConfigured(clientId, appLang, "EUR", true, "ONE_TIME_PAYMENT", intent);
 }
 export function loadPayPalSubscriptionSdk(clientId: string, appLang?: string): Promise<PayPalNamespace> {
   return loadConfigured(clientId, appLang, "EUR", false, "RECURRING_PAYMENT");

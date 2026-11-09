@@ -1,244 +1,311 @@
-/** Load PayPal JS SDK (sandbox). Venmo is omitted — USD-only, not eligible for EUR Escales. */
-
 /**
- * One PayPal JS SDK global. Each distinct SDK URL (intent, locale, components) is loaded
- * once under its own `data-namespace`, so the Crew subscription SDK (intent=subscription)
- * and the stopover/project checkout SDKs (intent=authorize|capture) coexist on one page.
- * Nothing is ever torn down: removing a live SDK makes zoid throw
- * "zoid destroyed all components" and a second un-namespaced load throws
- * "Can not register multiple components with the same tag: paypal-buttons".
+ * PayPal Web SDK v6 sandbox adapter for BI Escales.
+ *
+ * A single v6 core script replaces all legacy v5 URLs. The existing React
+ * checkout components receive narrow button/card interfaces, while the SDK
+ * uses createInstance, eligibility checks and payment sessions internally.
+ * No live environment, merchant secret or PayPal money path is exposed here.
  */
-export interface PayPalNamespace {
-  Buttons?: (config: Record<string, unknown>) => PayPalSdkButtonInstance;
-  Messages?: (config: Record<string, unknown>) => { render?: (el: HTMLElement) => Promise<void> };
-  Googlepay?: (config?: Record<string, unknown>) => unknown;
-  Applepay?: (config?: Record<string, unknown>) => unknown;
-  CardFields?: (config: Record<string, unknown>) => Record<string, unknown>;
-}
-
-declare global {
-  interface Window {
-    /** Legacy un-namespaced global. The app no longer sets or reads it. */
-    paypal?: PayPalNamespace;
-  }
-}
-
-/** PayPal JS SDK v6 button-like components (Smart Buttons, Google Pay, Apple Pay). */
 export interface PayPalSdkButtonInstance {
-  render: (el: HTMLElement) => Promise<void>;
+  render: (el: HTMLElement | string) => Promise<void>;
   close?: () => Promise<void>;
 }
 
+type Callback = (...args: any[]) => any;
+type ButtonCallbacks = {
+  createOrder?: Callback;
+  createVaultSetupToken?: Callback;
+  createSubscription?: Callback;
+  onApprove?: Callback;
+  onCancel?: Callback;
+  onError?: Callback;
+  style?: { label?: string };
+};
+
+type CardCallbacks = {
+  createOrder?: Callback;
+  createVaultSetupToken?: Callback;
+  onApprove?: Callback;
+  onError?: Callback;
+};
+
+type V6Session = {
+  start: (options: { presentationMode: "auto" }, order: Promise<Record<string, string>>) => Promise<void>;
+};
+type V6CardSession = {
+  createCardFieldsComponent: (options: { type: string; placeholder?: string }) => HTMLElement;
+  submit: (id: string) => Promise<{ state: string; data?: { message?: string } }>;
+};
+type V6Instance = {
+  findEligibleMethods: (options: { currencyCode: string }) => Promise<{
+    isEligible: (method: string) => boolean;
+  }>;
+  createPayPalOneTimePaymentSession: (callbacks: Record<string, unknown>) => V6Session;
+  createPayPalSavePaymentSession: (callbacks: Record<string, unknown>) => V6Session;
+  createPayPalSubscriptionSession: (callbacks: Record<string, unknown>) => V6Session;
+  createCardFieldsOneTimePaymentSession: () => V6CardSession;
+  createCardFieldsSavePaymentSession: () => V6CardSession;
+};
+type V6Core = {
+  createInstance: (options: {
+    clientId: string;
+    components: string[];
+    locale: string;
+    pageType: "checkout";
+  }) => Promise<V6Instance>;
+};
+
+declare global {
+  interface Window {
+    paypal?: V6Core | PayPalNamespace;
+  }
+}
+
+export interface PayPalNamespace {
+  Buttons?: (config: Record<string, unknown>) => PayPalSdkButtonInstance;
+  CardFields?: (config: Record<string, unknown>) => Record<string, unknown>;
+  Messages?: (config: Record<string, unknown>) => { render?: (el: HTMLElement) => Promise<void> };
+  Googlepay?: (config?: Record<string, unknown>) => unknown;
+  Applepay?: (config?: Record<string, unknown>) => unknown;
+}
+
+const V6_URL = "https://www.sandbox.paypal.com/web-sdk/v6/core";
+const SCRIPT_SELECTOR = 'script[data-paypal-web-sdk="v6"]';
 const PAY_LATER_MIN = 30;
-
-export function paypalLocale(appLang?: string): string {
-  const raw = String(appLang || "fr").trim().toLowerCase();
-  if (raw.startsWith("en")) return "en_US";
-  return "fr_FR";
-}
-
-function sdkParams(clientId: string, locale: string, extra: Record<string, string>): URLSearchParams {
-  return new URLSearchParams({
-    "client-id": clientId,
-    locale,
-    ...extra,
-  });
-}
+const instances = new Map<string, Promise<PayPalNamespace>>();
+let corePending: Promise<V6Core> | null = null;
 
 export type SdkIntent = "authorize" | "capture";
 
+export function paypalLocale(appLang?: string): string {
+  return String(appLang || "fr").trim().toLowerCase().startsWith("en") ? "en_US" : "fr_FR";
+}
+
+/** All payment methods share the one v6 core script, never mixed with v5. */
 export function paypalSdkUrl(
-  clientId: string,
-  appLang?: string,
-  intent: SdkIntent = "authorize",
-  walletPay = false,
-  currency = "EUR",
+  _clientId: string,
+  _appLang?: string,
+  _intent: SdkIntent = "authorize",
+  _walletPay = false,
+  _currency = "EUR",
 ): string {
-  const components = walletPay
-    ? "buttons,card-fields,messages,applepay,googlepay"
-    : "buttons,card-fields,messages";
-  const params = sdkParams(clientId, paypalLocale(appLang), {
-    components,
-    intent,
-    currency: String(currency || "EUR").trim().toUpperCase() || "EUR",
-    vault: "true",
-    "disable-funding": "venmo",
-    "enable-funding": "paylater",
-  });
-  return `https://www.paypal.com/sdk/js?${params.toString()}`;
+  return V6_URL;
 }
-
-/** Card Fields + wallet buttons when the matching ESCALES_* flags are on (paypalSdk.ts pattern). */
-export function paypalCardFieldsSdkUrl(clientId: string, appLang?: string): string {
-  const params = sdkParams(clientId, paypalLocale(appLang), {
-    components: "card-fields,buttons,messages",
-    intent: "authorize",
-    currency: "EUR",
-    vault: "true",
-    "disable-funding": "venmo",
-  });
-  return `https://www.paypal.com/sdk/js?${params.toString()}`;
+export function paypalCardFieldsSdkUrl(_clientId: string, _appLang?: string): string {
+  return V6_URL;
 }
-
-export function paypalWalletPaySdkUrl(clientId: string, appLang?: string, intent: SdkIntent = "authorize"): string {
-  const params = sdkParams(clientId, paypalLocale(appLang), {
-    components: "applepay,googlepay,buttons,messages",
-    intent,
-    currency: "EUR",
-    vault: "true",
-    "disable-funding": "venmo",
-  });
-  return `https://www.paypal.com/sdk/js?${params.toString()}`;
+export function paypalWalletPaySdkUrl(_clientId: string, _appLang?: string, _intent: SdkIntent = "authorize"): string {
+  return V6_URL;
 }
-
-export function paypalSubscriptionSdkUrl(clientId: string, appLang?: string): string {
-  const params = sdkParams(clientId, paypalLocale(appLang), {
-    components: "buttons",
-    intent: "subscription",
-    vault: "true",
-    currency: "EUR",
-    "disable-funding": "venmo",
-  });
-  return `https://www.paypal.com/sdk/js?${params.toString()}`;
+export function paypalSubscriptionSdkUrl(_clientId: string, _appLang?: string): string {
+  return V6_URL;
 }
-
+export function paypalNamespaceFor(_src: string): string {
+  return "paypalWebSdkV6";
+}
+export function getPayPalNamespace(_src: string): PayPalNamespace | null {
+  return null; // Instances are keyed by merchant and locale; never read a legacy global.
+}
 export function payLaterEligible(amountEur: string, kind?: string): boolean {
-  const pledgeKind = (kind || "").trim();
-  if (pledgeKind && pledgeKind !== "project_pledge") {
-    return false;
-  }
-  const normalized = amountEur.replace(",", ".").trim();
-  const value = Number.parseFloat(normalized);
+  if (kind && kind.trim() !== "project_pledge") return false;
+  const value = Number.parseFloat(amountEur.replace(",", ".").trim());
   return Number.isFinite(value) && value >= PAY_LATER_MIN;
 }
 
-/** Short stable hash so each SDK URL maps to one JS identifier. */
-function hashSrc(src: string): string {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < src.length; i += 1) {
-    h ^= src.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
+function waitForCore(): Promise<V6Core> {
+  // Detect coexisting legacy SDKs before returning even a cached v6 instance.
+  if (document.querySelector('script[src*="/sdk/js?"]')) {
+    return Promise.reject(new Error("PayPal Web SDK v6 cannot coexist with v5"));
   }
-  return (h >>> 0).toString(36);
-}
-
-/** `data-namespace` for one SDK URL; subscription and checkout SDKs never share a global. */
-export function paypalNamespaceFor(src: string): string {
-  const prefix = src.includes("intent=subscription") ? "paypalSubscriptions" : "paypalCheckout";
-  return `${prefix}_${hashSrc(src)}`;
-}
-
-/** The loaded SDK object for `src`, or null when it is not (yet) on the page. */
-export function getPayPalNamespace(src: string): PayPalNamespace | null {
-  const value = (window as unknown as Record<string, unknown>)[paypalNamespaceFor(src)];
-  return value && typeof value === "object" ? (value as PayPalNamespace) : null;
-}
-
-const pending = new Map<string, Promise<PayPalNamespace>>();
-
-async function waitForButtons(src: string, timeoutMs = 8000): Promise<PayPalNamespace> {
-  const start = Date.now();
-  for (;;) {
-    const ns = getPayPalNamespace(src);
-    if (ns && typeof ns.Buttons === "function") return ns;
-    if (Date.now() - start >= timeoutMs) throw new Error("PayPal Buttons unavailable after SDK load");
-    await new Promise((r) => setTimeout(r, 50));
-  }
-}
-
-function findPayPalScript(src: string): HTMLScriptElement | null {
-  for (const node of document.querySelectorAll("script[data-paypal-sdk-src]")) {
-    const script = node as HTMLScriptElement;
-    if (script.dataset.paypalSdkSrc === src) return script;
-  }
-  return null;
-}
-
-function injectScript(src: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const existing = findPayPalScript(src);
-    if (existing) {
-      if (existing.dataset.loaded === "1") {
-        resolve();
-        return;
-      }
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("PayPal SDK failed to load")), { once: true });
-      return;
+  if ((window.paypal as V6Core | undefined)?.createInstance) return Promise.resolve(window.paypal as V6Core);
+  if (corePending) return corePending;
+  corePending = new Promise<V6Core>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(SCRIPT_SELECTOR);
+    const script = existing ?? document.createElement("script");
+    const onLoad = () => {
+      if ((window.paypal as V6Core | undefined)?.createInstance) resolve(window.paypal as V6Core);
+      else reject(new Error("PayPal Web SDK v6 createInstance unavailable"));
+    };
+    const onError = () => reject(new Error("PayPal Web SDK v6 failed to load"));
+    script.addEventListener("load", onLoad, { once: true });
+    script.addEventListener("error", onError, { once: true });
+    if (!existing) {
+      script.src = V6_URL;
+      script.async = true;
+      script.dataset.paypalWebSdk = "v6";
+      document.body.appendChild(script);
     }
-    const script = document.createElement("script");
-    script.src = src;
-    script.async = true;
-    script.dataset.paypalSdkSrc = src;
-    script.setAttribute("data-namespace", paypalNamespaceFor(src));
-    script.onload = () => {
-      script.dataset.loaded = "1";
-      resolve();
-    };
-    script.onerror = () => {
-      script.remove();
-      reject(new Error("PayPal SDK failed to load"));
-    };
-    document.body.appendChild(script);
+  }).catch((error: unknown) => {
+    corePending = null;
+    document.querySelector<HTMLScriptElement>(SCRIPT_SELECTOR)?.remove();
+    throw error;
   });
+  return corePending;
 }
 
-/** Load (once) the SDK at `src` under its own namespace and resolve with that namespace. */
-export function loadNamespacedSdk(src: string): Promise<PayPalNamespace> {
-  const ready = getPayPalNamespace(src);
-  if (ready && typeof ready.Buttons === "function") return Promise.resolve(ready);
-  const inFlight = pending.get(src);
-  if (inFlight && findPayPalScript(src)) return inFlight;
-  pending.delete(src);
-  const promise = injectScript(src)
-    .then(() => waitForButtons(src))
-    .catch((err: unknown) => {
-      pending.delete(src);
-      throw err instanceof Error ? err : new Error(String(err));
+async function createSubscriptionOnServer(): Promise<string> {
+  const base = String(import.meta.env.VITE_API_BASE ?? "").trim().replace(/\/$/, "");
+  const current = window.location.origin + (window.location.pathname || "/");
+  const response = await fetch(base + "/api/escales/paypal/subscriptions/create", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "PayPal-Request-Id": crypto.randomUUID(),
+    },
+    body: JSON.stringify({
+      return_url: current + "?sub=return",
+      cancel_url: current + "?sub=cancel",
+    }),
+  });
+  if (!response.ok) throw new Error("PayPal subscription creation failed");
+  const data = await response.json() as { subscription_id?: string };
+  if (!data.subscription_id) throw new Error("PayPal subscription ID missing");
+  return data.subscription_id;
+}
+
+export function buildV6Adapter(
+  sdk: V6Instance,
+  eligible: { isEligible: (method: string) => boolean },
+): PayPalNamespace {
+  return {
+    Buttons: (opts: Record<string, unknown>): PayPalSdkButtonInstance => {
+      const config = opts as ButtonCallbacks;
+      let element: HTMLElement | null = null;
+      let click: EventListener | null = null;
+      const subscription = typeof config.createSubscription === "function";
+      const vault = typeof config.createVaultSetupToken === "function";
+      const callbacks = {
+        onApprove: async (data: { orderId?: string; subscriptionId?: string; vaultSetupToken?: string }) => {
+          if (subscription) await config.onApprove?.({ subscriptionID: data.subscriptionId });
+          else await config.onApprove?.(data);
+        },
+        onCancel: config.onCancel,
+        onError: config.onError,
+        // AUTHORIZE stops are not captured in browser; server approval remains authoritative.
+        ...(!subscription && !vault ? { commit: false } : {}),
+      };
+      const session = subscription
+        ? sdk.createPayPalSubscriptionSession(callbacks)
+        : vault
+          ? sdk.createPayPalSavePaymentSession(callbacks)
+          : sdk.createPayPalOneTimePaymentSession(callbacks);
+      return {
+        render: async (target) => {
+          const host = typeof target === "string" ? document.querySelector<HTMLElement>(target) : target;
+          if (!host) throw new Error("PayPal button host missing");
+          if (!eligible.isEligible("paypal")) throw new Error("PayPal not eligible for this checkout");
+          element = document.createElement("paypal-button");
+          element.setAttribute("type", subscription ? "subscribe" : config.style?.label === "donate" ? "pay" : "pay");
+          element.classList.add("paypal-gold");
+          click = () => {
+            // Do not await the promise before session.start; browser user gesture is required.
+            let token: Promise<Record<string, string>>;
+            if (subscription) {
+              token = createSubscriptionOnServer().then((subscriptionId) => ({ subscriptionId }));
+            } else if (vault) {
+              token = Promise.resolve(config.createVaultSetupToken!())
+                .then((vaultSetupToken: string) => ({ vaultSetupToken }));
+            } else {
+              token = Promise.resolve(config.createOrder?.())
+                .then((orderId: string) => ({ orderId }));
+            }
+            void session.start({ presentationMode: "auto" }, token)
+              .catch((error: unknown) => { void config.onError?.(error); });
+          };
+          element.addEventListener("click", click);
+          host.replaceChildren(element);
+        },
+        close: async () => {
+          if (element && click) element.removeEventListener("click", click);
+          element?.remove();
+        },
+      };
+    },
+    CardFields: (opts: Record<string, unknown>) => {
+      const config = opts as CardCallbacks;
+      const vault = typeof config.createVaultSetupToken === "function";
+      const session = vault
+        ? sdk.createCardFieldsSavePaymentSession()
+        : sdk.createCardFieldsOneTimePaymentSession();
+      const mountField = (type: string) => () => {
+        let field: HTMLElement | null = null;
+        return {
+          render: async (host: HTMLElement) => {
+            field = session.createCardFieldsComponent({ type });
+            host.appendChild(field);
+          },
+          close: async () => { field?.remove(); },
+        };
+      };
+      return {
+        isEligible: () => eligible.isEligible("advanced_cards"),
+        NumberField: mountField("number"),
+        ExpiryField: mountField("expiry"),
+        CVVField: mountField("cvv"),
+        submit: async () => {
+          // The card entry is held in PayPal-hosted iframes; raw PAN/CVV never touches our code.
+          const token = vault ? await config.createVaultSetupToken?.() : await config.createOrder?.();
+          if (!token || typeof token !== "string") throw new Error("PayPal order or vault token missing");
+          const result = await session.submit(token);
+          if (result.state !== "succeeded") throw new Error(result.data?.message || "Card confirmation was not completed");
+          await config.onApprove?.(result.data);
+        },
+      };
+    },
+  };
+}
+
+function loadConfigured(clientId: string, appLang: string | undefined, currency: string, walletPay: boolean): Promise<PayPalNamespace> {
+  const trimmed = clientId.trim();
+  if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
+  const key = [trimmed, paypalLocale(appLang), currency.toUpperCase(), walletPay].join("|");
+  const existing = instances.get(key);
+  if (existing) return existing;
+  const promise = waitForCore().then(async (core) => {
+    const sdk = await core.createInstance({
+      clientId: trimmed,
+      locale: paypalLocale(appLang),
+      pageType: "checkout",
+      components: [
+        "paypal-payments",
+        "paypal-subscriptions",
+        "card-fields",
+        ...(walletPay ? ["googlepay-payments", "applepay-payments"] : []),
+      ],
     });
-  pending.set(src, promise);
+    const eligible = await sdk.findEligibleMethods({ currencyCode: currency.toUpperCase() });
+    return buildV6Adapter(sdk, eligible);
+  }).catch((error: unknown) => {
+    instances.delete(key);
+    throw error;
+  });
+  instances.set(key, promise);
   return promise;
 }
 
-/** Checkout SDK for stopover / project / marina pledges (intent authorize or capture). */
 export function loadPayPalSdk(
   clientId: string,
   appLang?: string,
-  intent: SdkIntent = "authorize",
+  _intent: SdkIntent = "authorize",
   walletPay = false,
   currency = "EUR",
 ): Promise<PayPalNamespace> {
-  const trimmed = clientId.trim();
-  if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
-  return loadNamespacedSdk(paypalSdkUrl(trimmed, appLang, intent, walletPay, currency));
+  return loadConfigured(clientId, appLang, currency, walletPay);
 }
-
 export function loadPayPalWalletPaySdk(
   clientId: string,
   appLang?: string,
-  intent: SdkIntent = "authorize",
+  _intent: SdkIntent = "authorize",
 ): Promise<PayPalNamespace> {
-  const trimmed = clientId.trim();
-  if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
-  return loadNamespacedSdk(paypalWalletPaySdkUrl(trimmed, appLang, intent));
+  return loadConfigured(clientId, appLang, "EUR", true);
 }
-
-/**
- * Crew supporter subscription SDK (intent=subscription). Lives in its own
- * `paypalSubscriptions_*` namespace so it never collides with a stopover checkout SDK.
- * EN↔FR loads the other locale once and keeps both; nothing is removed.
- */
 export function loadPayPalSubscriptionSdk(clientId: string, appLang?: string): Promise<PayPalNamespace> {
-  const trimmed = clientId.trim();
-  if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
-  return loadNamespacedSdk(paypalSubscriptionSdkUrl(trimmed, appLang));
+  return loadConfigured(clientId, appLang, "EUR", false);
+}
+export function loadNamespacedSdk(_src: string): Promise<PayPalNamespace> {
+  return Promise.reject(new Error("Use loadPayPalSdk with client ID for PayPal Web SDK v6"));
 }
 
-/**
- * Call a PayPal SDK factory and render the result into `el` without ever throwing.
- * Resolves true only when the component exposed a `render` function and it resolved.
- * (e.g. `Googlepay()` returns a config object with no `render`: that is a no-op, not a crash.)
- */
 export async function safePayPalRender(
   factory: unknown,
   config: Record<string, unknown> | undefined,
@@ -246,28 +313,15 @@ export async function safePayPalRender(
 ): Promise<{ ok: boolean; instance: PayPalSdkButtonInstance | null; error?: unknown }> {
   if (typeof factory !== "function") return { ok: false, instance: null };
   let instance: unknown;
-  try {
-    instance = (factory as (c?: Record<string, unknown>) => unknown)(config);
-  } catch (error) {
-    return { ok: false, instance: null, error };
-  }
-  const render = (instance as { render?: unknown } | null)?.render;
-  if (typeof render !== "function") return { ok: false, instance: null };
+  try { instance = (factory as (c?: Record<string, unknown>) => unknown)(config); }
+  catch (error) { return { ok: false, instance: null, error }; }
+  if (typeof (instance as { render?: unknown } | null)?.render !== "function") return { ok: false, instance: null };
   const typed = instance as PayPalSdkButtonInstance;
-  try {
-    await render.call(instance, el);
-    return { ok: true, instance: typed };
-  } catch (error) {
-    return { ok: false, instance: typed, error };
-  }
+  try { await typed.render(el); return { ok: true, instance: typed }; }
+  catch (error) { return { ok: false, instance: typed, error }; }
 }
-
-/** Close a PayPal component instance if it supports it; never throws. */
 export function safePayPalClose(instance: PayPalSdkButtonInstance | null | undefined): void {
   try {
-    const close = instance?.close;
-    if (typeof close === "function") void Promise.resolve(close.call(instance)).catch(() => undefined);
-  } catch {
-    /* already destroyed */
-  }
+    if (typeof instance?.close === "function") void Promise.resolve(instance.close()).catch(() => undefined);
+  } catch { /* unmounted */ }
 }

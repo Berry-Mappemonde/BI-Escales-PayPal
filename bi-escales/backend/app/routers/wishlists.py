@@ -62,7 +62,7 @@ async def get_channel3_catalog():
 @router.get("/channel3/catalog/{channel3_product_id}")
 async def get_channel3_catalog_item(channel3_product_id: str):
     _require_flags()
-    catalog = get_catalog_item(channel3_product_id)
+    catalog = get_catalog_item(channel3_product_id, public_only=True)
     if not catalog:
         raise HTTPException(status_code=404, detail="catalog item not found")
     fund = await fund_snapshot_for_project(catalog["project_id"])
@@ -76,7 +76,7 @@ async def get_channel3_catalog_item(channel3_product_id: str):
 async def get_channel3_item_fund(project_id: str):
     """Public fund totals for one catalogue ``project_id`` (PayPal ``target_id``)."""
     _require_flags()
-    catalog = lookup_catalog_by_project_id(project_id)
+    catalog = lookup_catalog_by_project_id(project_id, public_only=True)
     if not catalog:
         raise HTTPException(status_code=404, detail="catalog item not found")
     fund = await fund_snapshot_for_project(project_id)

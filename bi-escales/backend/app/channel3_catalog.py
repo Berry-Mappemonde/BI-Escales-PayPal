@@ -1,4 +1,4 @@
-"""Channel3 expedition catalogue (C3-02 seed) — in-kind funding targets, no checkout."""
+"""Channel3 expedition catalogue (C3-02 / C3-02b seed) — in-kind funding targets, no checkout."""
 from __future__ import annotations
 
 import json
@@ -24,12 +24,14 @@ def _normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
     minor = minor_units_for_major(float(raw["price"]), currency)
     qty = int(raw.get("quantity") or 1)
     optional = category in _OPTIONAL_CATEGORIES
+    needs_confirmation = bool(raw.get("needs_confirmation"))
     return {
         "channel3_product_id": pid,
         "project_id": project_id_for_product(pid),
         "name": str(raw.get("name") or "").strip(),
         "category": category,
         "catalog_optional": optional,
+        "needs_confirmation": needs_confirmation,
         "core_catalogue": category in _CORE_CATEGORIES,
         "why_needed": str(raw.get("why_needed") or "").strip() or None,
         "quantity_needed": qty,
@@ -64,31 +66,51 @@ def load_catalog_seed() -> dict[str, Any]:
     }
 
 
-def list_catalog_items(*, include_optional: bool = True) -> list[dict[str, Any]]:
+def _catalog_visible_public(row: dict[str, Any]) -> bool:
+    if row.get("needs_confirmation"):
+        return False
+    return True
+
+
+def list_catalog_items(
+    *,
+    include_optional: bool = True,
+    public_only: bool = False,
+) -> list[dict[str, Any]]:
     rows = load_catalog_seed().get("items") or []
-    if include_optional:
-        return list(rows)
-    return [row for row in rows if row.get("core_catalogue")]
+    if not include_optional:
+        rows = [row for row in rows if row.get("core_catalogue")]
+    if public_only:
+        rows = [row for row in rows if _catalog_visible_public(row)]
+    return list(rows)
 
 
-def get_catalog_item(channel3_product_id: str) -> Optional[dict[str, Any]]:
+def get_catalog_item(
+    channel3_product_id: str,
+    *,
+    public_only: bool = False,
+) -> Optional[dict[str, Any]]:
     token = str(channel3_product_id or "").strip()
-    for row in list_catalog_items():
+    for row in list_catalog_items(public_only=public_only):
         if row["channel3_product_id"] == token:
             return dict(row)
     return None
 
 
-def lookup_catalog_by_project_id(project_id: str) -> Optional[dict[str, Any]]:
+def lookup_catalog_by_project_id(
+    project_id: str,
+    *,
+    public_only: bool = False,
+) -> Optional[dict[str, Any]]:
     token = str(project_id or "").strip().casefold()
-    for row in list_catalog_items():
+    for row in list_catalog_items(public_only=public_only):
         if str(row.get("project_id") or "").casefold() == token:
             return dict(row)
     return None
 
 
 def default_wishlist_seed_items() -> list[dict[str, Any]]:
-    """Core catalogue only — optional ``crew_clothing`` excluded from default lists."""
+    """Core catalogue only — optional clothing and unconfirmed items excluded."""
     return [
         {
             "channel3_product_id": row["channel3_product_id"],
@@ -96,5 +118,5 @@ def default_wishlist_seed_items() -> list[dict[str, Any]]:
             "target_amount_minor": row["catalog_default_target_amount_minor"],
             "target_currency": row["catalog_default_target_currency"],
         }
-        for row in list_catalog_items(include_optional=False)
+        for row in list_catalog_items(include_optional=False, public_only=True)
     ]

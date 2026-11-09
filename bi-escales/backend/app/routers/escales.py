@@ -124,6 +124,13 @@ from app.escales.rate_limit import (
     hit as hit_captain_rate,
     limit_message,
 )
+from app.escales.certificates import (
+    ensure_certificate,
+    load_certificate,
+    public_certificate_links,
+    render_certificate_pdf,
+    render_certificate_png,
+)
 from app.escales.pledges import (
     IllegalTransition,
     PledgeNotFound,
@@ -176,6 +183,10 @@ class _WebhooksRoute(APIRoute):
 
 router = APIRouter(prefix="/api/escales", route_class=_EnabledRoute, tags=["escales"])
 webhooks_router = APIRouter(prefix="/api/escales", route_class=_WebhooksRoute, tags=["escales-webhooks"])
+
+
+class CertificateIn(BaseModel):
+    display_name: Optional[str] = Field(None, max_length=120)
 
 
 class PledgeIn(BaseModel):
@@ -1222,6 +1233,62 @@ async def get_pledge(pledge_id: str, request: Request):
     full = await _public_pledge_with_fund(doc)
     full["fund"] = fund
     return full
+
+
+@router.post("/pledges/{pledge_id}/certificate")
+async def post_pledge_certificate(
+    pledge_id: str,
+    lang: Optional[str] = None,
+    body: CertificateIn = CertificateIn(),
+):
+    """Issue (once) a mile sponsorship certificate after a successful mile pledge."""
+    app_lang = resolve_app_language(lang)
+    try:
+        doc = await ensure_certificate(
+            pledge_id,
+            display_name=body.display_name,
+            lang=app_lang,
+        )
+    except PledgeNotFound as exc:
+        raise HTTPException(status_code=404, detail="Pledge not found") from exc
+    except ValueError as exc:
+        raise _as_http(exc) from exc
+    token = str(doc.get("token") or "")
+    return {
+        "token": token,
+        "mile_number": doc.get("mile_number"),
+        "mile_quantity": doc.get("mile_quantity"),
+        "issue_date": doc.get("issue_date"),
+        **public_certificate_links(token),
+    }
+
+
+@router.get("/certificates/{token}.png")
+async def get_certificate_png(token: str, lang: Optional[str] = None):
+    app_lang = resolve_app_language(lang)
+    doc = await load_certificate(token)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    body = render_certificate_png(doc, app_lang)
+    return Response(
+        content=body,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@router.get("/certificates/{token}.pdf")
+async def get_certificate_pdf(token: str, lang: Optional[str] = None):
+    app_lang = resolve_app_language(lang)
+    doc = await load_certificate(token)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    body = render_certificate_pdf(doc, app_lang)
+    return Response(
+        content=body,
+        media_type="application/pdf",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @router.get("/milestones/{milestone_id}/fund")

@@ -23,6 +23,7 @@ import {
   stopTimeline,
 } from "../voyage/stopStatus.js";
 import { StopStatusChip } from "./stop/StopStatusChip.jsx";
+import { MileCertificateDownload } from "./MileCertificateDownload";
 import { useStopContext } from "./stop/useStopContext.js";
 import { evaluateGooglePlaceLink, googleMapsSearchUrl } from "../marinas/marinaPlaceLink.js";
 
@@ -99,6 +100,7 @@ export const EscaleSheet = memo(function EscaleSheet({
 }) {
   const { t, i18n } = useTranslation();
   const [quantity, setQuantity] = useState(1);
+  const [receiptPledge, setReceiptPledge] = useState(null);
   const lang = i18n.language?.startsWith("en") ? "en" : "fr";
   const context = useStopContext(stop?.milestoneId);
   const { refresh } = context;
@@ -107,6 +109,12 @@ export const EscaleSheet = memo(function EscaleSheet({
     (authorized) => {
       refresh();
       onPledgeAuthorized?.(authorized);
+      if (
+        authorized?.kind === "mile"
+        && ["authorized", "vaulted", "captured"].includes(authorized.status)
+      ) {
+        setReceiptPledge(authorized);
+      }
     },
     [refresh, onPledgeAuthorized],
   );
@@ -236,6 +244,7 @@ export const EscaleSheet = memo(function EscaleSheet({
               />
             </div>
           </div>
+          <MileCertificateDownload pledge={receiptPledge} contributor={pledge.contributor} />
           <h4 className="money-heading">{t("stopPanel.moneyHeading")}</h4>
           {pledge.kind === "common_fund" ? (
             <p className="stop-note" data-testid="stop-money-rule">{t("stopPanel.ruleCommonFund")}</p>

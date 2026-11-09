@@ -32,8 +32,8 @@ describe("PledgeButton", () => {
   });
 
   it.each([
-    ["en", "VAULT", "Saved with PayPal · charged only if we sail"],
-    ["fr", "VAULT", "Moyen de paiement enregistré auprès de PayPal · débité uniquement à notre arrivée"],
+    ["en", "VAULT", "Saved with PayPal · captured on arrival (voided if the stop is cancelled)"],
+    ["fr", "VAULT", "Moyen de paiement enregistré auprès de PayPal · débité à l'arrivée du bateau (annulé si l'escale est annulée)"],
     ["en", "AUTHORIZE", "PayPal authorisation hold — you are not charged until we arrive (sandbox)."],
     ["fr", "AUTHORIZE", "Autorisation PayPal — vous n’êtes pas débité tant que nous n’arrivons pas (bac à sable)."],
   ] as const)("shows %s %s checkout copy from the fetched mode", async (lang, payment_mode, expected) => {
@@ -58,10 +58,10 @@ describe("PledgeButton", () => {
     const { rerender } = render(<PledgeButton values={{ ...values, milestone_id: "dep-ajaccio-corse" }} />);
     expect(screen.queryByText(/AUTHORIZE|Saved with PayPal/)).toBeNull();
     rerender(<PledgeButton values={values} />);
-    expect(await screen.findByText("Saved with PayPal · charged only if we sail")).toBeInTheDocument();
+    expect(await screen.findByText("Saved with PayPal · captured on arrival (voided if the stop is cancelled)")).toBeInTheDocument();
     await act(async () => { finishOld({ payment_mode: "AUTHORIZE" }); });
     expect(screen.queryByText(/AUTHORIZE/)).toBeNull();
-    expect(screen.getByText("Saved with PayPal · charged only if we sail")).toBeInTheDocument();
+    expect(screen.getByText("Saved with PayPal · captured on arrival (voided if the stop is cancelled)")).toBeInTheDocument();
   });
 
   it("clears the mode label when the kind changes and the lookup fails", async () => {
@@ -70,7 +70,7 @@ describe("PledgeButton", () => {
       .mockResolvedValueOnce({ payment_mode: "VAULT" })
       .mockRejectedValueOnce(new Error("offline"));
     const { rerender } = render(<PledgeButton values={values} />);
-    await screen.findByText("Saved with PayPal · charged only if we sail");
+    await screen.findByText("Saved with PayPal · captured on arrival (voided if the stop is cancelled)");
     await act(async () => { rerender(<PledgeButton values={{ ...values, kind: "cabin" }} />); });
     expect(screen.queryByText(/AUTHORIZE|Saved with PayPal/)).toBeNull();
     expect(createPledge).not.toHaveBeenCalled();

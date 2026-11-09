@@ -108,7 +108,7 @@ describe("Toast component", () => {
     const items: ToastItem[] = [
       {
         id: "t-auto",
-        title: "Saved — charged only if we sail",
+        title: "Saved — captured on arrival (voided if the stop is cancelled)",
         variant: "success",
       },
     ];

@@ -18,9 +18,17 @@ _CACHE_TTL = 900.0
 
 def _gear_props(props: dict) -> dict[str, Any]:
     goal = str(props.get("goal_eur") or props.get("channel3_price_eur") or "").strip()
+    channel3_price = str(props.get("channel3_price") or "").strip()
+    channel3_currency = str(
+        props.get("channel3_currency") or props.get("goal_currency") or ""
+    ).strip().upper()
+    goal_currency = "EUR" if goal else (channel3_currency or None)
     return {
         "project_kind": str(props.get("project_kind") or "").strip() or None,
         "goal_eur": goal or None,
+        "goal_currency": goal_currency,
+        "channel3_price": channel3_price or None,
+        "channel3_currency": channel3_currency or None,
         "channel3_image_url": str(props.get("channel3_image_url") or props.get("channel3_photo") or "").strip() or None,
         "channel3_buy_url": str(props.get("channel3_buy_url") or props.get("channel3_url") or "").strip() or None,
         "channel3_product_name": str(props.get("channel3_product_name") or "").strip() or None,
@@ -99,7 +107,12 @@ def lookup_project_fund_meta(project_id: str) -> Optional[dict[str, Any]]:
         if str(props.get("id") or "").strip() != token:
             continue
         meta = _gear_props(props)
-        if meta.get("goal_eur") or meta.get("channel3_buy_url") or meta.get("project_kind") == "gear_project":
+        if (
+            meta.get("goal_eur")
+            or meta.get("channel3_price")
+            or meta.get("channel3_buy_url")
+            or meta.get("project_kind") == "gear_project"
+        ):
             return {"project_id": token, **meta}
     try:
         bundled = json.loads(_BUNDLED.read_text(encoding="utf-8"))
@@ -112,20 +125,36 @@ def lookup_project_fund_meta(project_id: str) -> Optional[dict[str, Any]]:
         if str(props.get("id") or "").strip() != token:
             continue
         meta = _gear_props(props)
-        if meta.get("goal_eur") or meta.get("channel3_buy_url") or meta.get("project_kind") == "gear_project":
+        if (
+            meta.get("goal_eur")
+            or meta.get("channel3_price")
+            or meta.get("channel3_buy_url")
+            or meta.get("project_kind") == "gear_project"
+        ):
             return {"project_id": token, **meta}
     return None
 
 
-def funded_percent(amount_eur: str, goal_eur: str) -> int:
+def funded_percent(
+    amount: str,
+    goal: str,
+    *,
+    amount_currency: str = "EUR",
+    goal_currency: str = "EUR",
+) -> Optional[int]:
+    """Progress percent when pledge and goal share the same currency; otherwise unset."""
+    pledge_ccy = str(amount_currency or "EUR").strip().upper()
+    goal_ccy = str(goal_currency or "EUR").strip().upper()
+    if pledge_ccy != goal_ccy:
+        return None
     try:
-        amount = float(str(amount_eur).replace(",", "."))
-        goal = float(str(goal_eur).replace(",", "."))
+        pledged = float(str(amount).replace(",", "."))
+        target = float(str(goal).replace(",", "."))
     except ValueError:
-        return 0
-    if goal <= 0:
-        return 0
-    return min(100, max(0, round((amount / goal) * 100)))
+        return None
+    if target <= 0:
+        return None
+    return min(100, max(0, round((pledged / target) * 100)))
 
 
 def reset_gear_catalog_cache() -> None:

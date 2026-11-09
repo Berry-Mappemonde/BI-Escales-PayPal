@@ -73,7 +73,7 @@
     "visitSite": "Site du projet",
     "noDescription": "Pas de description dans l’instantané.",
     "publicTotal": "{{amount}} {{currency}} collectés · {{count}} dons",
-    "goalProgress": "{{amount}} / {{goal}} {{currency}} financés ({{pct}} %)",
+    "goalProgress": "{{amount}} {{amountCurrency}} / {{goal}} {{goalCurrency}} financés ({{pct}} %)",
     "buyViaChannel3": "Acheter via Channel3 (objectif atteint)"
   },
   "marinas": {

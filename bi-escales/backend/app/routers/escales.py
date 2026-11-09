@@ -1085,16 +1085,43 @@ async def get_public_project_fund(project_id: str):
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Project fund not found") from exc
     meta = lookup_project_fund_meta(project_id)
-    goal = str((meta or {}).get("goal_eur") or "").strip()
-    if goal:
+    goal_eur = str((meta or {}).get("goal_eur") or "").strip()
+    goal_amount = goal_eur or str((meta or {}).get("channel3_price") or "").strip()
+    goal_currency = (
+        "EUR"
+        if goal_eur
+        else str((meta or {}).get("channel3_currency") or (meta or {}).get("goal_currency") or "EUR").strip().upper()
+    )
+    if goal_amount:
         base = to_public_project_donation_total(fund)
-        pct = funded_percent(base["amount_eur"], goal)
-        payload = to_public_project_donation_total(fund, goal_eur=goal, funded_pct=pct)
+        fund_currency = str(base.get("currency") or "EUR").strip().upper()
+        pct = funded_percent(
+            base["amount_eur"],
+            goal_amount,
+            amount_currency=fund_currency,
+            goal_currency=goal_currency,
+        )
+        payload = to_public_project_donation_total(
+            fund,
+            goal_eur=goal_eur or None,
+            funded_pct=pct,
+        )
         if meta:
-            for key in ("channel3_buy_url", "channel3_image_url", "project_kind", "channel3_product_name"):
+            for key in (
+                "channel3_buy_url",
+                "channel3_image_url",
+                "project_kind",
+                "channel3_product_name",
+                "channel3_price",
+                "channel3_currency",
+                "goal_currency",
+            ):
                 if meta.get(key):
                     payload[key] = meta[key]
-        payload["fully_funded"] = pct >= 100
+        if not goal_eur and goal_amount:
+            payload["goal_amount"] = goal_amount
+            payload["goal_currency"] = goal_currency
+        payload["fully_funded"] = pct is not None and pct >= 100
         return payload
     return to_public_project_donation_total(fund)
 

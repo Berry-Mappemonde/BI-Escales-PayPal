@@ -18,6 +18,25 @@ describe("ProjectFundProgress", () => {
     expect(screen.queryByTestId("gear-channel3-buy")).toBeNull();
   });
 
+  it("affiche la devise catalogue sur le montant objectif", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProjectFundProgress
+          properties={{ title: "Gear", channel3_price: "45.00", channel3_currency: "GBP" }}
+          fund={{
+            goal_amount: "45.00",
+            goal_currency: "GBP",
+            amount_eur: "10.00",
+            funded_pct: null,
+            currency: "EUR",
+          }}
+        />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("project-fund-goal").textContent).toMatch(/45\.00 GBP/);
+    expect(screen.getByTestId("project-fund-goal").textContent).toMatch(/10\.00 EUR/);
+  });
+
   it("affiche le lien Channel3 à 100%", () => {
     render(
       <I18nextProvider i18n={i18n}>

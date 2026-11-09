@@ -1,4 +1,4 @@
-import type { CardFieldComponent, CardFieldOptions, Components } from "@paypal/paypal-js/sdk-v6";
+import type { CardFieldComponent, CardFieldOptions, Components, PaymentFlow } from "@paypal/paypal-js/sdk-v6";
 
 /**
  * PayPal Web SDK v6 sandbox adapter for BI Escales.
@@ -32,6 +32,7 @@ type CardCallbacks = {
 };
 
 type V6Session = {
+  destroy?: () => void;
   start: (options: { presentationMode: "auto" }, order: Promise<Record<string, string>>) => Promise<void>;
 };
 type V6CardSession = {
@@ -39,7 +40,7 @@ type V6CardSession = {
   submit: (id: string) => Promise<{ state: string; data?: { message?: string } }>;
 };
 type V6Instance = {
-  findEligibleMethods: (options: { currencyCode: string }) => Promise<{
+  findEligibleMethods: (options: { currencyCode: string; paymentFlow?: PaymentFlow }) => Promise<{
     isEligible: (method: string) => boolean;
   }>;
   createPayPalOneTimePaymentSession: (callbacks: Record<string, unknown>) => V6Session;
@@ -220,6 +221,7 @@ export function buildV6Adapter(
         close: async () => {
           if (element && click) element.removeEventListener("click", click);
           element?.remove();
+          session.destroy?.();
         },
       };
     },
@@ -257,10 +259,10 @@ export function buildV6Adapter(
   };
 }
 
-function loadConfigured(clientId: string, appLang: string | undefined, currency: string, walletPay: boolean): Promise<PayPalNamespace> {
+function loadConfigured(clientId: string, appLang: string | undefined, currency: string, walletPay: boolean, paymentFlow: PaymentFlow = "ONE_TIME_PAYMENT"): Promise<PayPalNamespace> {
   const trimmed = clientId.trim();
   if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
-  const key = [trimmed, paypalLocale(appLang), currency.toUpperCase(), walletPay].join("|");
+  const key = [trimmed, paypalLocale(appLang), currency.toUpperCase(), walletPay, paymentFlow].join("|");
   const existing = instances.get(key);
   if (existing) return existing;
   const promise = waitForCore().then(async (core) => {
@@ -275,7 +277,7 @@ function loadConfigured(clientId: string, appLang: string | undefined, currency:
         ...(walletPay ? ["googlepay-payments", "applepay-payments"] as const : []),
       ],
     });
-    const eligible = await sdk.findEligibleMethods({ currencyCode: currency.toUpperCase() });
+    const eligible = await sdk.findEligibleMethods({ currencyCode: currency.toUpperCase(), paymentFlow });
     return buildV6Adapter(sdk, eligible);
   }).catch((error: unknown) => {
     instances.delete(key);
@@ -302,7 +304,7 @@ export function loadPayPalWalletPaySdk(
   return loadConfigured(clientId, appLang, "EUR", true);
 }
 export function loadPayPalSubscriptionSdk(clientId: string, appLang?: string): Promise<PayPalNamespace> {
-  return loadConfigured(clientId, appLang, "EUR", false);
+  return loadConfigured(clientId, appLang, "EUR", false, "RECURRING_PAYMENT");
 }
 export function loadNamespacedSdk(_src: string): Promise<PayPalNamespace> {
   return Promise.reject(new Error("Use loadPayPalSdk with client ID for PayPal Web SDK v6"));

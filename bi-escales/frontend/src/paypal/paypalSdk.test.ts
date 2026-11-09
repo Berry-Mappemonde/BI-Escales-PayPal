@@ -40,7 +40,7 @@ describe("PayPal Web SDK v6 core", () => {
       locale: "en-US",
       components: expect.arrayContaining(["paypal-payments", "paypal-subscriptions", "card-fields"]),
     }));
-    expect(findEligibleMethods).toHaveBeenCalledWith({ currencyCode: "EUR" });
+    expect(findEligibleMethods).toHaveBeenCalledWith({ currencyCode: "EUR", paymentFlow: "ONE_TIME_PAYMENT" });
     expect(document.querySelectorAll('script[data-paypal-web-sdk="v6"]')).toHaveLength(0);
   });
 
@@ -59,7 +59,8 @@ describe("PayPal Web SDK v6 core", () => {
     await first;
     await loadSub("new-client", "fr");
     expect(document.querySelectorAll('script[data-paypal-web-sdk="v6"]')).toHaveLength(1);
-    expect(createInstance).toHaveBeenCalledTimes(1);
+    expect(createInstance).toHaveBeenCalledTimes(2);
+    expect(sdk.findEligibleMethods).toHaveBeenLastCalledWith({ currencyCode: "EUR", paymentFlow: "RECURRING_PAYMENT" });
   });
 
   it("refuses a legacy script loaded on the page", async () => {
@@ -91,10 +92,11 @@ describe("v6 payment session adapters", () => {
   it("starts one-time checkout using a Promise<{orderId}> and calls server approval", async () => {
     let sessionCallbacks: Record<string, any> = {};
     const start = vi.fn().mockResolvedValue(undefined);
+    const destroy = vi.fn();
     const sdk = {
       createPayPalOneTimePaymentSession: vi.fn((opts) => {
         sessionCallbacks = opts;
-        return { start };
+        return { start, destroy };
       }),
     };
     const adapter = buildV6Adapter(sdk as never, eligible);
@@ -112,6 +114,7 @@ describe("v6 payment session adapters", () => {
     await sessionCallbacks.onApprove({ orderId: "TEST-ORDER" });
     expect(onApprove).toHaveBeenCalledOnce();
     safePayPalClose(result.instance);
+    expect(destroy).toHaveBeenCalledOnce();
     host.remove();
   });
 

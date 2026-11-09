@@ -124,6 +124,120 @@ def test_capture_not_approved_returns_409_without_capture(onboarding_api, monkey
     assert mock.capture_calls == []
 
 
+class CaptureRouteHttpSpy:
+    """PayPal client via MockTransport; records capture POSTs for route-level tests."""
+
+    def __init__(self, *, order_body: dict):
+        self.order_body = dict(order_body)
+        self.capture_paths: list[str] = []
+        self._client: PayPalClient | None = None
+
+    def client(self) -> PayPalClient:
+        if self._client is None:
+            spy = self
+
+            def handler(request: httpx.Request) -> httpx.Response:
+                if request.url.path == "/v1/oauth2/token":
+                    return httpx.Response(200, json={"access_token": "mock-token", "expires_in": 3600})
+                if request.method == "GET" and request.url.path.startswith("/v2/checkout/orders/"):
+                    body = dict(spy.order_body)
+                    body.setdefault("id", request.url.path.rsplit("/", 1)[-1])
+                    body.setdefault("status", "APPROVED")
+                    return httpx.Response(200, json=body)
+                if request.method == "POST" and request.url.path.endswith("/capture"):
+                    spy.capture_paths.append(request.url.path)
+                    return httpx.Response(
+                        201,
+                        json={
+                            "status": "COMPLETED",
+                            "purchase_units": [
+                                {"payments": {"captures": [{"id": "CAP-HTTP-SPY", "status": "COMPLETED"}]}}
+                            ],
+                        },
+                    )
+                if request.method == "POST" and request.url.path == "/v2/checkout/orders":
+                    created = request.read()
+                    import json as _json
+
+                    _ = _json.loads(created) if created else {}
+                    return httpx.Response(
+                        201,
+                        json={
+                            "id": "ORDER-MOCK",
+                            "links": [
+                                {
+                                    "rel": "approve",
+                                    "href": "https://www.sandbox.paypal.com/checkoutnow?token=ORDER-MOCK",
+                                }
+                            ],
+                        },
+                    )
+                return httpx.Response(404, json={"name": "NOT_FOUND"})
+
+            self._client = PayPalClient(
+                EscalesConfig(client_id="cid", client_secret="secret", base_url=SANDBOX_BASE, env="sandbox"),
+                transport=httpx.MockTransport(handler),
+            )
+        return self._client
+
+
+def test_capture_rejects_foreign_order_metadata_without_paypal_capture(onboarding_api, monkeypatch):
+    onboarding_api.post("/api/escales/project-onboarding/seed", headers={"x-admin-key": "test-admin"})
+    spy = CaptureRouteHttpSpy(
+        order_body={
+            "id": "ORDER-MOCK",
+            "status": "APPROVED",
+            "purchase_units": [
+                {
+                    "reference_id": "donation-belongs-to-another-row",
+                    "custom_id": DEMO_PROJECT_ID,
+                }
+            ],
+        }
+    )
+    monkeypatch.setattr("app.project_onboarding.service._paypal", spy.client)
+    created = onboarding_api.post(
+        f"/api/escales/project-onboarding/projects/{DEMO_PROJECT_ID}/donations",
+        json={"amount_eur": "12.00"},
+    ).json()
+    assert created.get("order_id") == "ORDER-MOCK"
+    res = onboarding_api.post(
+        f"/api/escales/project-onboarding/donations/{created['_id']}/capture",
+    )
+    assert res.status_code == 400
+    assert res.json()["detail"] == "PayPal order does not match this donation"
+    assert spy.capture_paths == []
+
+
+def test_capture_matching_order_metadata_calls_paypal_capture_once(onboarding_api, monkeypatch):
+    onboarding_api.post("/api/escales/project-onboarding/seed", headers={"x-admin-key": "test-admin"})
+    monkeypatch.setattr("app.project_onboarding.service._paypal", lambda: CaptureRouteHttpSpy(order_body={}).client())
+    created = onboarding_api.post(
+        f"/api/escales/project-onboarding/projects/{DEMO_PROJECT_ID}/donations",
+        json={"amount_eur": "11.00"},
+    ).json()
+    spy = CaptureRouteHttpSpy(
+        order_body={
+            "id": created["order_id"],
+            "status": "APPROVED",
+            "purchase_units": [
+                {
+                    "reference_id": created["_id"],
+                    "custom_id": DEMO_PROJECT_ID,
+                }
+            ],
+        }
+    )
+    monkeypatch.setattr("app.project_onboarding.service._paypal", spy.client)
+    res = onboarding_api.post(
+        f"/api/escales/project-onboarding/donations/{created['_id']}/capture",
+    )
+    assert res.status_code == 200
+    assert res.json().get("capture_id") == "CAP-HTTP-SPY"
+    assert len(spy.capture_paths) == 1
+    assert spy.capture_paths[0].endswith(f"/v2/checkout/orders/{created['order_id']}/capture")
+
+
 def test_capture_rate_limit_returns_429(onboarding_api, monkeypatch):
     onboarding_api.post("/api/escales/project-onboarding/seed", headers={"x-admin-key": "test-admin"})
     mock = MockPayPal()

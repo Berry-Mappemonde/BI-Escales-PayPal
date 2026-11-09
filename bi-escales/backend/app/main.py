@@ -8,11 +8,57 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
+from fastapi.openapi.utils import get_openapi
+
 from app.bi_marinas_catalog import build_escale_fiche, get_all_escale_marinas_geojson, get_escale_marinas_geojson
 from app.bi_projects_catalog import get_bi_projects_geojson
 from app.escales.config import cors_origins, resolve_apple_pay_domain_association_path
+from app.openapi_metadata import describe_framework_schemas, json_success
 
-app = FastAPI(title="BI Escales — Pay Only If We Sail")
+_OPENAPI_TAGS = [
+    {
+        "name": "health",
+        "description": "Liveness check for the API process.",
+    },
+    {
+        "name": "escales",
+        "description": "Voyage pledges, captain review, and treasurer actions. PayPal stays sandbox.",
+    },
+    {
+        "name": "escales-webhooks",
+        "description": "PayPal sandbox webhook intake and the treasurer read of recent attempts.",
+    },
+    {
+        "name": "escales-demo",
+        "description": "Sandbox demo-treasurer actions for the single judge stop. No live money movement.",
+    },
+    {
+        "name": "channel3-wishlists",
+        "description": "Channel3 catalogue and treasurer wishlists. Hidden unless the feature flags are on.",
+    },
+]
+
+app = FastAPI(
+    title="BI Escales — Pay Only If We Sail",
+    description=(
+        "Association Berry-Mappemonde expedition support. A supporter pledge is authorized "
+        "with PayPal Orders v2 intent AUTHORIZE and captured only after the AI Captain "
+        "reviews voyage-stop evidence and a human treasurer approves. Otherwise the "
+        "authorization is voided. The AI Captain proposes; it never executes money "
+        "movement. PayPal stays sandbox. Voyage clock reference: 12 Nov 2026."
+    ),
+    contact={
+        "name": "Association Berry-Mappemonde",
+        "url": "https://devpost.com/software/bi-escales-pay-only-if-we-sail",
+    },
+    servers=[
+        {
+            "url": "https://bi-escales-api-test2.onrender.com",
+            "description": "Sandbox test API (test2). PayPal calls from this host stay sandbox.",
+        }
+    ],
+    openapi_tags=_OPENAPI_TAGS,
+)
 
 
 def install_cors(application: FastAPI) -> None:
@@ -40,8 +86,21 @@ _log_nim_ids()
 install_cors(app)
 
 
-@app.get("/api/health")
+@app.get(
+    "/api/health",
+    tags=["health"],
+    summary="Health check",
+    response_description="The API process is up.",
+    responses={
+        200: json_success(
+            "The API process is up.",
+            "Liveness payload. No PayPal call.",
+            {"status": "ok"},
+        )
+    },
+)
 def health():
+    """Liveness check. Returns status ok and does not call PayPal."""
     return {"status": "ok"}
 
 
@@ -114,3 +173,46 @@ def attach_frontend(application: FastAPI) -> None:
 
 
 attach_frontend(app)
+
+
+def _annotate_validation_responses(schema: dict) -> None:
+    """Example on the generated 422 body. The schema $ref is left untouched."""
+    example = {
+        "detail": [
+            {"loc": ["body", "amount_eur"], "msg": "Field required", "type": "missing"}
+        ]
+    }
+    for methods in schema.get("paths", {}).values():
+        for operation in methods.values():
+            if not isinstance(operation, dict):
+                continue
+            content = (
+                ((operation.get("responses") or {}).get("422") or {}).get("content") or {}
+            ).get("application/json")
+            if isinstance(content, dict) and "example" not in content:
+                content["example"] = example
+
+
+def custom_openapi():
+    """Generated spec plus descriptions on FastAPI's validation-error schemas."""
+    if app.openapi_schema:
+        describe_framework_schemas(app.openapi_schema)
+        _annotate_validation_responses(app.openapi_schema)
+        return app.openapi_schema
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        openapi_version=app.openapi_version,
+        description=app.description,
+        routes=app.routes,
+        tags=app.openapi_tags,
+        servers=app.servers,
+        contact=app.contact,
+    )
+    describe_framework_schemas(schema)
+    _annotate_validation_responses(schema)
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = custom_openapi

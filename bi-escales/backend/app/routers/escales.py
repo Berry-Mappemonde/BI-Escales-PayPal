@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import os
 import secrets
-from typing import Any, Callable, Optional
+from typing import Annotated, Any, Callable, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.routing import APIRoute
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.openapi_metadata import path_param, query_param, route_docs, with_example
 from starlette.responses import Response
 
 from app.core import llm
@@ -187,20 +189,85 @@ router = APIRouter(prefix="/api/escales", route_class=_EnabledRoute, tags=["esca
 webhooks_router = APIRouter(prefix="/api/escales", route_class=_WebhooksRoute, tags=["escales-webhooks"])
 
 
+def _text(
+    description: str,
+    example: str,
+    title: str,
+    *,
+    default: Any = ...,
+    **constraints: Any,
+):
+    """Field metadata. Constraints already on the field are passed through."""
+    kwargs: dict[str, Any] = {
+        "description": description,
+        "title": title,
+        "examples": [example],
+        "json_schema_extra": {"example": example},
+    }
+    kwargs.update(constraints)
+    if default is ...:
+        return Field(**kwargs)
+    return Field(default, **kwargs)
+
+
 class CertificateIn(BaseModel):
+    """Buyer proof and optional display name for a mile sponsorship certificate."""
+
+    model_config = ConfigDict(
+        json_schema_extra=with_example(
+            {"payer_proof": "ORDER-example", "display_name": "Ada"}
+        )
+    )
     payer_proof: Optional[str] = Field(
         None,
         description="PayPal order id or vault setup token id from the buyer checkout response.",
+        title="Certificate payer proof",
+        examples=["ORDER-example"],
+        json_schema_extra={"example": "ORDER-example"},
     )
-    display_name: Optional[str] = Field(None, max_length=120)
+    display_name: Optional[str] = Field(
+        None,
+        max_length=120,
+        description="Name printed on the mile certificate.",
+        title="Certificate display name",
+        examples=["Ada"],
+        json_schema_extra={"example": "Ada"},
+    )
 
 
 class PledgeIn(BaseModel):
-    quantity: Optional[int] = Field(None, ge=1, le=1000, strict=True)
-    amount_eur: str
-    description: str
+    """Create a sandbox pledge. This route authorizes or vaults; it does not capture."""
+
+    model_config = ConfigDict(
+        json_schema_extra=with_example(
+            {
+                "amount_eur": "20.00",
+                "description": "20 milles La Rochelle",
+                "milestone_id": "dep-la-rochelle",
+                "kind": "mile",
+                "quantity": 1,
+            }
+        )
+    )
+    quantity: Optional[int] = Field(
+        None,
+        ge=1,
+        le=1000,
+        strict=True,
+        title="Pledge quantity",
+        description="How many simulated units. Omit it to let the server apply the kind default.",
+        examples=[1],
+        json_schema_extra={"example": 1},
+    )
+    amount_eur: str = _text("Pledge amount in EUR.", "20.00", "Pledge amount in EUR")
+    description: str = _text(
+        "Supporter-facing pledge description.",
+        "20 milles La Rochelle",
+        "Pledge description",
+    )
     milestone_id: str = Field(
         "",
+        title="Pledge milestone id",
         description=(
             "Where the pledge sits on the route: a stop id (dep-… or ret-…) or a "
             "cabin leg id (leg-…). Empty for project_pledge and common_fund when "
@@ -208,113 +275,360 @@ class PledgeIn(BaseModel):
             "differ: the bare stop slug, the same leg id, or the default projet "
             "or fonds-commun."
         ),
+        examples=["dep-la-rochelle"],
+        json_schema_extra={"example": "dep-la-rochelle"},
     )
-    contributor: Optional[str] = None
-    kind: Optional[str] = None
+    contributor: Optional[str] = _text(
+        "Display name the supporter chooses to share.",
+        "Ada",
+        "Pledge contributor",
+        default=None,
+    )
+    kind: Optional[str] = _text(
+        "Pledge kind such as mile, berth, cabin, project_pledge, or common_fund.",
+        "mile",
+        "Pledge kind",
+        default=None,
+    )
     target_id: Optional[str] = Field(
         None,
+        title="Pledge target id",
         description=(
             "What the money is for. A stopover kind stores the bare slug of "
             "milestone_id. A cabin stores the leg id, the same value as "
             "milestone_id. project_pledge defaults to projet and common_fund to "
             "fonds-commun when milestone_id is empty."
         ),
+        examples=["dep-la-rochelle"],
+        json_schema_extra={"example": "dep-la-rochelle"},
     )
-    return_url: Optional[str] = None
-    cancel_url: Optional[str] = None
-    lang: Optional[str] = None
+    return_url: Optional[str] = _text(
+        "Browser URL after the buyer approves the sandbox checkout.",
+        "https://bi-escales-api-test2.onrender.com/paypal/return",
+        "Pledge return URL",
+        default=None,
+    )
+    cancel_url: Optional[str] = _text(
+        "Browser URL when the buyer cancels the sandbox checkout.",
+        "https://bi-escales-api-test2.onrender.com/paypal/cancel",
+        "Pledge cancel URL",
+        default=None,
+    )
+    lang: Optional[str] = _text(
+        "Checkout language, en or fr.",
+        "en",
+        "Pledge checkout language",
+        default=None,
+    )
     checkout_method: Optional[str] = Field(
         None,
+        title="Pledge checkout method",
         description="wallet (default) or card when ESCALES_CARD_FIELDS_ENABLED is on.",
+        examples=["wallet"],
+        json_schema_extra={"example": "wallet"},
     )
 
 
 class EvidenceIn(BaseModel):
-    met: Optional[bool] = None
-    facts: dict = Field(default_factory=dict)
+    """Treasurer evidence attached to one voyage stop."""
+
+    model_config = ConfigDict(
+        json_schema_extra=with_example({"met": True, "facts": {"note": "Alongside in La Rochelle"}})
+    )
+    met: Optional[bool] = _text(
+        "Whether the stop condition is met.",
+        True,
+        "Evidence met",
+        default=None,
+    )
+    facts: dict = Field(
+        default_factory=dict,
+        title="Evidence facts",
+        description="Free-form facts the treasurer attaches to the stop.",
+    )
 
 
 class ChatIn(BaseModel):
-    message: str
-    lang: Optional[str] = None
+    """Question for the AI Captain. The captain does not move money."""
+
+    model_config = ConfigDict(
+        json_schema_extra=with_example(
+            {"message": "When is the La Rochelle stop?", "lang": "en"}
+        )
+    )
+    message: str = _text(
+        "Supporter question for the AI Captain.",
+        "When is the La Rochelle stop?",
+        "Captain chat message",
+    )
+    lang: Optional[str] = _text(
+        "Reply language, en or fr.",
+        "en",
+        "Captain chat language",
+        default=None,
+    )
 
 
 class SpendingIn(BaseModel):
-    amount_eur: str
-    description: str
+    """Treasurer spending line recorded against a stop fund."""
+
+    model_config = ConfigDict(
+        json_schema_extra=with_example({"amount_eur": "12.00", "description": "Harbour dues"})
+    )
+    amount_eur: str = _text("Spending amount in EUR.", "12.00", "Spending amount in EUR")
+    description: str = _text("What the spending line paid for.", "Harbour dues", "Spending description")
 
 
 class RefundIn(BaseModel):
-    amount_eur: Optional[str] = None
-    now: Optional[str] = None
-    request_key: Optional[str] = None
-    paypal_refund_id: Optional[str] = None
+    """Treasurer sandbox refund. Capture is not repeated here."""
+
+    model_config = ConfigDict(
+        json_schema_extra=with_example({"amount_eur": "20.00", "request_key": "refund-example"})
+    )
+    amount_eur: Optional[str] = _text(
+        "Refund amount in EUR. Omit it to refund the captured amount.",
+        "20.00",
+        "Refund amount in EUR",
+        default=None,
+    )
+    now: Optional[str] = _text(
+        "Optional simulated-clock moment. Requires ESCALES_CLOCK_NOW.",
+        "2026-11-12T12:00:00Z",
+        "Refund clock moment",
+        default=None,
+    )
+    request_key: Optional[str] = _text(
+        "Idempotency token when the Idempotency-Key header is absent.",
+        "refund-example",
+        "Refund request key",
+        default=None,
+    )
+    paypal_refund_id: Optional[str] = _text(
+        "Existing PayPal sandbox refund id when the treasurer records one.",
+        "REFUND-example",
+        "PayPal refund id",
+        default=None,
+    )
 
 
 class CaptureIn(BaseModel):
-    now: Optional[str] = None
+    """Optional clock override for a treasurer capture."""
+
+    model_config = ConfigDict(json_schema_extra=with_example({"now": "2026-11-12T12:00:00Z"}))
+    now: Optional[str] = _text(
+        "Optional simulated-clock moment. Requires ESCALES_CLOCK_NOW.",
+        "2026-11-12T12:00:00Z",
+        "Capture clock moment",
+        default=None,
+    )
 
 
 class ReauthorizeIn(BaseModel):
+    """Test-only honor-period reauthorize body."""
+
+    model_config = ConfigDict(json_schema_extra=with_example({"now": "2026-11-12T12:00:00Z"}))
     mock_response: Optional[str] = Field(
         None,
+        title="Reauthorize mock response",
         description="Optional PayPal-Mock-Response JSON for sandbox negative testing.",
+        examples=['{"mock_application_codes":"INSTRUMENT_DECLINED"}'],
+        json_schema_extra={"example": '{"mock_application_codes":"INSTRUMENT_DECLINED"}'},
     )
     now: Optional[str] = Field(
         None,
+        title="Reauthorize clock moment",
         description="Optional simulated-clock moment (requires ESCALES_CLOCK_NOW).",
+        examples=["2026-11-12T12:00:00Z"],
+        json_schema_extra={"example": "2026-11-12T12:00:00Z"},
     )
 
 
 class PayoutProposeIn(BaseModel):
-    amount_eur: str
-    receiver_email: str
-    note: str = ""
+    """Propose a project payout. PayPal is not called until approve."""
+
+    model_config = ConfigDict(
+        json_schema_extra=with_example(
+            {
+                "amount_eur": "10.00",
+                "receiver_email": "marina@example.com",
+                "note": "Berth",
+            }
+        )
+    )
+    amount_eur: str = _text("Payout amount in EUR.", "10.00", "Payout amount in EUR")
+    receiver_email: str = _text(
+        "Sandbox receiver email. No live payout is sent from this route.",
+        "marina@example.com",
+        "Payout receiver email",
+    )
+    note: str = _text("Note stored with the payout proposal.", "Berth", "Payout proposal note", default="")
 
 
 class VaultRegisterIn(BaseModel):
-    setup_token_id: Optional[str] = None
+    """Setup-token id after the buyer approves a vault. No debit."""
+
+    model_config = ConfigDict(json_schema_extra=with_example({"setup_token_id": "SETUP-example"}))
+    setup_token_id: Optional[str] = _text(
+        "PayPal setup token id from the buyer vault approval.",
+        "SETUP-example",
+        "Vault setup token id",
+        default=None,
+    )
 
 
 class ClockSettleIn(BaseModel):
-    now: Optional[str] = None
+    """Optional simulated-clock override for treasurer settlement."""
+
+    model_config = ConfigDict(json_schema_extra=with_example({"now": "2026-11-12T12:00:00Z"}))
+    now: Optional[str] = _text(
+        "Optional simulated-clock moment. Requires ESCALES_CLOCK_NOW.",
+        "2026-11-12T12:00:00Z",
+        "Clock settle moment",
+        default=None,
+    )
 
 
 class InvoiceCreateIn(BaseModel):
-    recipient_email: str
-    amount_eur: str
-    description: str
-    reference: str = ""
-    invoice_number: Optional[str] = None
-    lang: Optional[str] = None
+    """Draft a PayPal sandbox invoice. Sending it is a separate treasurer route."""
+
+    model_config = ConfigDict(
+        json_schema_extra=with_example(
+            {
+                "recipient_email": "partner@example.com",
+                "amount_eur": "15.00",
+                "description": "Harbour dues",
+                "lang": "en",
+            }
+        )
+    )
+    recipient_email: str = _text(
+        "Sandbox recipient email.",
+        "partner@example.com",
+        "Invoice recipient email",
+    )
+    amount_eur: str = _text("Invoice amount in EUR.", "15.00", "Invoice amount in EUR")
+    description: str = _text("Invoice line description.", "Harbour dues", "Invoice description")
+    reference: str = _text("Optional invoice reference.", "harbour-2026-11-12", "Invoice reference", default="")
+    invoice_number: Optional[str] = _text(
+        "Optional invoice number. PayPal assigns one when this is omitted.",
+        "INV-example",
+        "Invoice number",
+        default=None,
+    )
+    lang: Optional[str] = _text("Invoice language, en or fr.", "en", "Invoice language", default=None)
 
 
 class DisputeEvidenceIn(BaseModel):
-    milestone_id: str
-    notes: Optional[str] = None
-    lang: Optional[str] = None
+    """Evidence the treasurer sends to a PayPal sandbox dispute."""
+
+    model_config = ConfigDict(
+        json_schema_extra=with_example(
+            {"milestone_id": "dep-la-rochelle", "notes": "Arrival logged", "lang": "en"}
+        )
+    )
+    milestone_id: str = _text(
+        "Voyage stop the dispute evidence refers to.",
+        "dep-la-rochelle",
+        "Dispute evidence milestone id",
+    )
+    notes: Optional[str] = _text(
+        "Notes included with the dispute evidence.",
+        "Arrival logged",
+        "Dispute evidence notes",
+        default=None,
+    )
+    lang: Optional[str] = _text(
+        "Language for the dispute evidence, en or fr.",
+        "en",
+        "Dispute evidence language",
+        default=None,
+    )
 
 
 class DisputeAcceptIn(BaseModel):
-    note: str = ""
+    """Accept a PayPal sandbox dispute claim."""
+
+    model_config = ConfigDict(json_schema_extra=with_example({"note": "Accepted in sandbox"}))
+    note: str = _text(
+        "Note sent with the sandbox claim acceptance.",
+        "Accepted in sandbox",
+        "Dispute acceptance note",
+        default="",
+    )
 
 
 class SubscriptionRecordIn(BaseModel):
-    subscription_id: str
-    plan_id: str
-    status: str = "ACTIVE"
-    subscriber_email: Optional[str] = None
+    """Record a crew subscription the treasurer already sees in PayPal sandbox."""
+
+    model_config = ConfigDict(
+        json_schema_extra=with_example(
+            {
+                "subscription_id": "I-example",
+                "plan_id": "P-example",
+                "status": "ACTIVE",
+                "subscriber_email": "crew@example.com",
+            }
+        )
+    )
+    subscription_id: str = _text(
+        "PayPal sandbox subscription id to record.",
+        "I-example",
+        "Recorded subscription id",
+    )
+    plan_id: str = _text("PayPal sandbox plan id.", "P-example", "Recorded subscription plan id")
+    status: str = _text("Subscription status stored locally.", "ACTIVE", "Recorded subscription status", default="ACTIVE")
+    subscriber_email: Optional[str] = _text(
+        "Subscriber email stored with the local record.",
+        "crew@example.com",
+        "Recorded subscriber email",
+        default=None,
+    )
 
 
 class SubscriptionCreateIn(BaseModel):
-    return_url: Optional[str] = None
-    cancel_url: Optional[str] = None
-    lang: Optional[str] = None
+    """Buyer return URLs for a crew subscription checkout."""
+
+    model_config = ConfigDict(
+        json_schema_extra=with_example(
+            {
+                "return_url": "https://bi-escales-api-test2.onrender.com/paypal/return",
+                "cancel_url": "https://bi-escales-api-test2.onrender.com/paypal/cancel",
+                "lang": "en",
+            }
+        )
+    )
+    return_url: Optional[str] = _text(
+        "Browser URL after the buyer approves the subscription.",
+        "https://bi-escales-api-test2.onrender.com/paypal/return",
+        "Subscription return URL",
+        default=None,
+    )
+    cancel_url: Optional[str] = _text(
+        "Browser URL when the buyer cancels the subscription.",
+        "https://bi-escales-api-test2.onrender.com/paypal/cancel",
+        "Subscription cancel URL",
+        default=None,
+    )
+    lang: Optional[str] = _text(
+        "Subscription checkout language, en or fr.",
+        "en",
+        "Subscription checkout language",
+        default=None,
+    )
 
 
 class SubscriptionApproveIn(BaseModel):
-    subscription_id: str
-    plan_id: str
+    """Ids from the PayPal sandbox subscription approval."""
+
+    model_config = ConfigDict(
+        json_schema_extra=with_example({"subscription_id": "I-example", "plan_id": "P-example"})
+    )
+    subscription_id: str = _text(
+        "PayPal sandbox subscription id the buyer approved.",
+        "I-example",
+        "Approved subscription id",
+    )
+    plan_id: str = _text("PayPal sandbox plan id the buyer approved.", "P-example", "Approved subscription plan id")
 
 
 def _paypal(lang: Optional[str] = None) -> Any:
@@ -613,8 +927,17 @@ def _public_pledge_summary(doc: dict, fund: Optional[dict]) -> dict:
     }
 
 
-@router.get("/features")
+@router.get(
+    '/features',
+    **route_docs(
+        'List feature flags',
+        'Public feature flags for the expedition shell.',
+        {'card_fields': False},
+        schema_description='Feature flags the shell may show. Flags do not move money.',
+    ),
+)
 async def get_features():
+    """Public feature flags. No PayPal call."""
     crew_plan_id = await public_crew_supporter_plan_id()
     return {
         "naviguide_bridge": naviguide_bridge_enabled(),
@@ -639,8 +962,17 @@ async def get_features():
     }
 
 
-@router.get("/prices")
+@router.get(
+    '/prices',
+    **route_docs(
+        'List public prices',
+        'Public prices for the simulated catalogue.',
+        {'prices': []},
+        schema_description='Public price list. No PayPal call.',
+    ),
+)
 async def get_prices():
+    """Public prices. No PayPal call."""
     return simulated_prices()
 
 
@@ -651,13 +983,31 @@ def _clock_body() -> dict:
     }
 
 
-@router.get("/clock")
+@router.get(
+    '/clock',
+    **route_docs(
+        'Read the voyage clock',
+        'Current simulated voyage clock.',
+        {'now': '2026-11-12T12:00:00Z'},
+        schema_description='Voyage clock. The reference date is 12 Nov 2026.',
+    ),
+)
 async def get_clock():
     """Public voyage clock. It does not capture or void."""
     return _clock_body()
 
 
-@router.post("/clock/settle")
+@router.post(
+    '/clock/settle',
+    **route_docs(
+        'Settle pledges on the voyage clock',
+        'Settlement actions for the simulated clock.',
+        {'actions': []},
+        schema_description='Treasurer settlement result. Capture or void runs only when the clock and review allow it.',
+        validation_loc=['body', 'now'],
+        body_description='Optional simulated-clock moment for treasurer settlement.',
+    ),
+)
 async def post_clock_settle(request: Request, payload: ClockSettleIn = ClockSettleIn()):
     """Settle departure pledges. Treasurer key. Uses the simulated clock."""
     from app.escales.departure_clock import run_departure_clock
@@ -678,8 +1028,17 @@ async def post_clock_settle(request: Request, payload: ClockSettleIn = ClockSett
     return body
 
 
-@router.get("/schedule")
+@router.get(
+    '/schedule',
+    **route_docs(
+        'Read the public schedule',
+        'Public voyage schedule.',
+        {'stops': []},
+        schema_description='Public schedule. No PayPal call.',
+    ),
+)
 async def get_schedule():
+    """Public voyage schedule. No PayPal call."""
     from ..escales.navigation_logbook import navigation_logbook
 
     export = await fetch_naviguide_export()
@@ -696,15 +1055,33 @@ async def get_schedule():
     }
 
 
-@router.post("/schedule/sync")
+@router.post(
+    '/schedule/sync',
+    **route_docs(
+        'Sync the public schedule',
+        'Schedule after the sync.',
+        {'stops': []},
+        schema_description='Schedule sync result. No pledge capture.',
+    ),
+)
 async def post_schedule_sync():
+    """Sync the public schedule. No pledge capture."""
     docs = await sync_milestone_shells()
     docs.extend(await sync_leg_shells())
     return [_public_milestone(doc) for doc in docs]
 
 
-@router.get("/pledges/mode")
-async def get_pledge_mode(milestone_id: str, kind: str = "mile"):
+@router.get(
+    '/pledges/mode',
+    **route_docs(
+        'Preview the pledge checkout mode',
+        'Read-only checkout mode for one stop or leg.',
+        {'kind': 'mile', 'milestone_id': 'dep-la-rochelle', 'checkout_method': 'wallet'},
+        schema_description='Checkout mode preview. No PayPal call and no ledger write.',
+        validation_loc=['query', 'milestone_id'],
+    ),
+)
+async def get_pledge_mode(milestone_id: Annotated[str, query_param('Stop or leg id whose payment mode is previewed.', 'dep-la-rochelle', 'Pledge mode milestone id')], kind: Annotated[str, query_param('Pledge kind to preview, such as mile.', 'mile', 'Pledge mode kind')] = "mile"):
     """Read-only card checkout preview: no PayPal calls or ledger writes."""
     from app.escales.payment_mode import preview_payment_mode
     try:
@@ -714,8 +1091,19 @@ async def get_pledge_mode(milestone_id: str, kind: str = "mile"):
         raise _as_http(exc) from exc
 
 
-@router.post("/pledges")
+@router.post(
+    '/pledges',
+    **route_docs(
+        'Create a sandbox pledge',
+        'Created pledge and the sandbox checkout links.',
+        {'status': 'created', 'amount_eur': '20.00'},
+        schema_description='Created pledge. The route authorizes or vaults; it does not capture.',
+        validation_loc=['body', 'amount_eur'],
+        body_description='Pledge to authorize or vault in PayPal sandbox.',
+    ),
+)
 async def post_pledge(body: PledgeIn, request: Request):
+    """Create a sandbox pledge. Does not capture funds."""
     client_key = request.headers.get("paypal-request-id")
     try:
         doc = await create_pledge(
@@ -739,8 +1127,18 @@ async def post_pledge(body: PledgeIn, request: Request):
     return await _public_pledge_with_fund(doc, lang=resolve_app_language(body.lang))
 
 
-@router.post("/pledges/{pledge_id}/vault")
-async def post_register_vault(pledge_id: str, body: VaultRegisterIn):
+@router.post(
+    '/pledges/{pledge_id}/vault',
+    **route_docs(
+        'Register a vaulted payment method',
+        'Pledge after the setup token is stored.',
+        {'status': 'vaulted'},
+        schema_description='Vault registration result. No debit.',
+        validation_loc=['path', 'pledge_id'],
+        body_description='Setup token from the buyer vault approval.',
+    ),
+)
+async def post_register_vault(pledge_id: Annotated[str, path_param('Ledger id of the pledge whose payment method is stored.', 'pledge_example', 'Vault pledge id')], body: VaultRegisterIn):
     """Store the PayPal payment method after setup-token approval (no debit)."""
     if not vault_enabled():
         raise HTTPException(status_code=404, detail="Not Found")
@@ -755,8 +1153,18 @@ async def post_register_vault(pledge_id: str, body: VaultRegisterIn):
     return await _public_pledge_with_fund(doc)
 
 
-@router.post("/pledges/{pledge_id}/authorize")
-async def post_authorize(pledge_id: str):
+@router.post(
+    '/pledges/{pledge_id}/authorize',
+    **route_docs(
+        'Authorize a sandbox pledge',
+        'Pledge after the PayPal sandbox authorization.',
+        {'status': 'authorized', 'amount_eur': '20.00'},
+        schema_description='Public pledge plus the fund aggregate. Capture has not run.',
+        validation_loc=['path', 'pledge_id'],
+    ),
+)
+async def post_authorize(pledge_id: Annotated[str, path_param('Ledger id of the pledge to authorize.', 'pledge_example', 'Authorize pledge id')]):
+    """Authorize a created PayPal sandbox order. Does not capture funds."""
     try:
         doc = await authorize_pledge(pledge_id, _paypal())
     except (PledgeNotFound, IllegalTransition, PayPalError, ValueError) as exc:
@@ -764,8 +1172,19 @@ async def post_authorize(pledge_id: str):
     return await _public_pledge_with_fund(doc)
 
 
-@router.post("/pledges/{pledge_id}/capture")
-async def post_capture(pledge_id: str, request: Request, body: CaptureIn = CaptureIn()):
+@router.post(
+    '/pledges/{pledge_id}/capture',
+    **route_docs(
+        'Capture an authorized pledge',
+        'Pledge after the treasurer capture.',
+        {'status': 'captured', 'amount_eur': '20.00'},
+        schema_description='Captured pledge. A human treasurer must call this route.',
+        validation_loc=['path', 'pledge_id'],
+        body_description='Optional simulated-clock moment for the capture.',
+    ),
+)
+async def post_capture(pledge_id: Annotated[str, path_param('Ledger id of the authorized pledge to capture.', 'pledge_example', 'Capture pledge id')], request: Request, body: CaptureIn = CaptureIn()):
+    """Treasurer capture of an authorized sandbox pledge."""
     _require_treasurer(request)
     effective_at = None
     if (body.now or "").strip():
@@ -798,8 +1217,18 @@ async def post_capture(pledge_id: str, request: Request, body: CaptureIn = Captu
     return await _public_pledge_with_fund(doc)
 
 
-@router.post("/pledges/{pledge_id}/void")
-async def post_void(pledge_id: str, request: Request):
+@router.post(
+    '/pledges/{pledge_id}/void',
+    **route_docs(
+        'Void an authorized pledge',
+        'Pledge after the authorization is voided.',
+        {'status': 'voided'},
+        schema_description='Voided pledge. Captured funds are not refunded here.',
+        validation_loc=['path', 'pledge_id'],
+    ),
+)
+async def post_void(pledge_id: Annotated[str, path_param('Ledger id of the authorized pledge to void.', 'pledge_example', 'Void pledge id')], request: Request):
+    """Treasurer void of an authorized sandbox pledge. Does not refund a capture."""
     _require_treasurer(request)
     try:
         doc = await void_pledge(pledge_id, _paypal())
@@ -825,8 +1254,19 @@ def _resolve_refund_request_key(request: Request, body: RefundIn) -> Optional[st
     return field or None
 
 
-@router.post("/pledges/{pledge_id}/refund")
-async def post_refund(pledge_id: str, body: RefundIn, request: Request):
+@router.post(
+    '/pledges/{pledge_id}/refund',
+    **route_docs(
+        'Refund a captured pledge',
+        'Pledge after the sandbox refund.',
+        {'status': 'refunded', 'amount_eur': '20.00'},
+        schema_description='Refund result for a captured pledge.',
+        validation_loc=['path', 'pledge_id'],
+        body_description='Refund amount and optional clock or idempotency fields.',
+    ),
+)
+async def post_refund(pledge_id: Annotated[str, path_param('Ledger id of the captured pledge to refund.', 'pledge_example', 'Refund pledge id')], body: RefundIn, request: Request):
+    """Treasurer sandbox refund of a captured pledge."""
     _require_treasurer(request)
     effective_at = None
     if (body.now or "").strip():
@@ -850,9 +1290,19 @@ async def post_refund(pledge_id: str, body: RefundIn, request: Request):
     return await _public_pledge_with_fund(doc)
 
 
-@router.post("/admin/pledges/{pledge_id}/reauthorize")
+@router.post(
+    '/admin/pledges/{pledge_id}/reauthorize',
+    **route_docs(
+        'Reauthorize a pledge in sandbox',
+        'Pledge after the test-only reauthorize.',
+        {'status': 'authorized'},
+        schema_description='Test-only reauthorize result. Hidden when the environment is production.',
+        validation_loc=['path', 'pledge_id'],
+        body_description='Optional mock response and simulated-clock moment.',
+    ),
+)
 async def post_admin_reauthorize(
-    pledge_id: str,
+    pledge_id: Annotated[str, path_param('Ledger id of the pledge to reauthorize in sandbox.', 'pledge_example', 'Reauthorize pledge id')],
     request: Request,
     body: ReauthorizeIn = ReauthorizeIn(),
 ):
@@ -880,12 +1330,21 @@ async def post_admin_reauthorize(
     return await _public_pledge_with_fund(doc)
 
 
-@router.get("/paypal/reconcile")
+@router.get(
+    '/paypal/reconcile',
+    **route_docs(
+        'Reconcile the ledger with PayPal',
+        'Read-only reconciliation report.',
+        {'rows': []},
+        schema_description='Ledger versus PayPal Transaction Search. No capture or void.',
+        validation_loc=['query', 'start_date'],
+    ),
+)
 async def get_paypal_reconcile(
     request: Request,
-    start_date: str,
-    end_date: str,
-    lang: Optional[str] = None,
+    start_date: Annotated[str, query_param('Inclusive search start date. Voyage clock reference is 12 Nov 2026.', '2026-11-12', 'Reconcile start date')],
+    end_date: Annotated[str, query_param('Inclusive search end date.', '2026-11-12', 'Reconcile end date')],
+    lang: Annotated[Optional[str], query_param('Report language, en or fr.', 'en', 'Reconcile language')] = None,
 ):
     """Read-only ledger vs PayPal Transaction Search. Treasurer key required."""
     _require_treasurer(request)
@@ -903,8 +1362,18 @@ async def get_paypal_reconcile(
         raise _as_http(exc, lang=app_lang) from exc
 
 
-@router.get("/paypal/disputes")
-async def get_paypal_disputes(request: Request, start_time: Optional[str] = None):
+@router.get(
+    '/paypal/disputes',
+    **route_docs(
+        'List PayPal sandbox disputes',
+        'Disputes visible to the treasurer.',
+        {'disputes': []},
+        schema_description='Sandbox dispute list. No claim is accepted here.',
+        validation_loc=['query', 'start_time'],
+    ),
+)
+async def get_paypal_disputes(request: Request, start_time: Annotated[Optional[str], query_param('Only disputes updated at or after this moment.', '2026-11-12T12:00:00Z', 'Dispute search start time')] = None):
+    """List PayPal sandbox disputes for the treasurer."""
     _require_treasurer(request)
     try:
         remote = await list_paypal_disputes(_paypal(), start_time=start_time)
@@ -913,8 +1382,18 @@ async def get_paypal_disputes(request: Request, start_time: Optional[str] = None
         raise _as_http(exc) from exc
 
 
-@router.get("/paypal/disputes/{dispute_id}")
-async def get_paypal_dispute(dispute_id: str, request: Request):
+@router.get(
+    '/paypal/disputes/{dispute_id}',
+    **route_docs(
+        'Read one PayPal sandbox dispute',
+        'One sandbox dispute.',
+        {'dispute_id': 'PP-D-example'},
+        schema_description='Sandbox dispute detail.',
+        validation_loc=['path', 'dispute_id'],
+    ),
+)
+async def get_paypal_dispute(dispute_id: Annotated[str, path_param('PayPal sandbox dispute id to read.', 'PP-D-example', 'Dispute id to read')], request: Request):
+    """Read one PayPal sandbox dispute."""
     _require_treasurer(request)
     try:
         return await get_dispute(_paypal(), dispute_id)
@@ -922,8 +1401,19 @@ async def get_paypal_dispute(dispute_id: str, request: Request):
         raise _as_http(exc) from exc
 
 
-@router.post("/paypal/disputes/{dispute_id}/accept-claim")
-async def post_dispute_accept(dispute_id: str, body: DisputeAcceptIn, request: Request):
+@router.post(
+    '/paypal/disputes/{dispute_id}/accept-claim',
+    **route_docs(
+        'Accept a sandbox dispute claim',
+        'Dispute after the claim is accepted.',
+        {'dispute_id': 'PP-D-example', 'status': 'RESOLVED'},
+        schema_description='Sandbox claim acceptance. This does not capture a pledge.',
+        validation_loc=['path', 'dispute_id'],
+        body_description='Note sent with the sandbox claim acceptance.',
+    ),
+)
+async def post_dispute_accept(dispute_id: Annotated[str, path_param('PayPal sandbox dispute id whose claim is accepted.', 'PP-D-example', 'Dispute id to accept')], body: DisputeAcceptIn, request: Request):
+    """Accept a PayPal sandbox dispute claim."""
     _require_treasurer(request)
     try:
         return await accept_dispute_claim(_paypal(), dispute_id, note=body.note)
@@ -931,8 +1421,19 @@ async def post_dispute_accept(dispute_id: str, body: DisputeAcceptIn, request: R
         raise _as_http(exc) from exc
 
 
-@router.post("/paypal/disputes/{dispute_id}/provide-evidence")
-async def post_dispute_evidence(dispute_id: str, body: DisputeEvidenceIn, request: Request):
+@router.post(
+    '/paypal/disputes/{dispute_id}/provide-evidence',
+    **route_docs(
+        'Provide sandbox dispute evidence',
+        'Dispute after evidence is sent.',
+        {'dispute_id': 'PP-D-example'},
+        schema_description='Sandbox dispute evidence result.',
+        validation_loc=['path', 'dispute_id'],
+        body_description='Stop id and notes sent as sandbox dispute evidence.',
+    ),
+)
+async def post_dispute_evidence(dispute_id: Annotated[str, path_param('PayPal sandbox dispute id that receives the evidence.', 'PP-D-example', 'Dispute id for evidence')], body: DisputeEvidenceIn, request: Request):
+    """Send voyage-stop evidence to a PayPal sandbox dispute."""
     _require_treasurer(request)
     app_lang = resolve_app_language(body.lang)
     try:
@@ -947,8 +1448,18 @@ async def post_dispute_evidence(dispute_id: str, body: DisputeEvidenceIn, reques
         raise _as_http(exc, lang=app_lang) from exc
 
 
-@router.get("/paypal/invoices")
-async def get_paypal_invoices(request: Request, page: int = 1):
+@router.get(
+    '/paypal/invoices',
+    **route_docs(
+        'List PayPal sandbox invoices',
+        'One page of sandbox invoices.',
+        {'invoices': []},
+        schema_description='Sandbox invoice page.',
+        validation_loc=['query', 'page'],
+    ),
+)
+async def get_paypal_invoices(request: Request, page: Annotated[int, query_param('1-based invoice page.', 1, 'Invoice list page')] = 1):
+    """List PayPal sandbox invoices for the treasurer."""
     _require_treasurer(request)
     try:
         return await list_treasurer_invoices(_paypal(), page=page)
@@ -956,8 +1467,19 @@ async def get_paypal_invoices(request: Request, page: int = 1):
         raise _as_http(exc) from exc
 
 
-@router.post("/paypal/invoices")
+@router.post(
+    '/paypal/invoices',
+    **route_docs(
+        'Create a sandbox invoice draft',
+        'Created sandbox invoice draft.',
+        {'invoice_id': 'INV-example', 'status': 'DRAFT'},
+        schema_description='Draft invoice. Sending it is a separate route.',
+        validation_loc=['body', 'recipient_email'],
+        body_description='Recipient, amount, and description for the draft invoice.',
+    ),
+)
 async def post_paypal_invoice(body: InvoiceCreateIn, request: Request):
+    """Create a PayPal sandbox invoice draft. Does not send it."""
     _require_treasurer(request)
     app_lang = resolve_app_language(body.lang)
     try:
@@ -974,8 +1496,18 @@ async def post_paypal_invoice(body: InvoiceCreateIn, request: Request):
         raise _as_http(exc, lang=app_lang) from exc
 
 
-@router.post("/paypal/invoices/{invoice_id}/send")
-async def post_invoice_send(invoice_id: str, request: Request):
+@router.post(
+    '/paypal/invoices/{invoice_id}/send',
+    **route_docs(
+        'Send a sandbox invoice',
+        'Invoice after it is sent.',
+        {'invoice_id': 'INV-example', 'status': 'SENT'},
+        schema_description='Sent sandbox invoice.',
+        validation_loc=['path', 'invoice_id'],
+    ),
+)
+async def post_invoice_send(invoice_id: Annotated[str, path_param('PayPal sandbox invoice id to send.', 'INV-example', 'Invoice id to send')], request: Request):
+    """Send a PayPal sandbox invoice draft."""
     _require_treasurer(request)
     try:
         return await send_invoice(_paypal(), invoice_id)
@@ -983,12 +1515,22 @@ async def post_invoice_send(invoice_id: str, request: Request):
         raise _as_http(exc) from exc
 
 
-@router.post("/paypal/invoices/{invoice_id}/remind")
+@router.post(
+    '/paypal/invoices/{invoice_id}/remind',
+    **route_docs(
+        'Remind a sandbox invoice',
+        'Invoice after the reminder is sent.',
+        {'invoice_id': 'INV-example'},
+        schema_description='Sandbox invoice reminder result.',
+        validation_loc=['path', 'invoice_id'],
+    ),
+)
 async def post_invoice_remind(
-    invoice_id: str,
+    invoice_id: Annotated[str, path_param('PayPal sandbox invoice id to remind.', 'INV-example', 'Invoice id to remind')],
     request: Request,
-    lang: Optional[str] = None,
+    lang: Annotated[Optional[str], query_param('Reminder language, en or fr.', 'en', 'Invoice reminder language')] = None,
 ):
+    """Send a reminder for a PayPal sandbox invoice."""
     _require_treasurer(request)
     app_lang = resolve_app_language(lang)
     try:
@@ -997,8 +1539,18 @@ async def post_invoice_remind(
         raise _as_http(exc, lang=app_lang) from exc
 
 
-@router.post("/paypal/invoices/{invoice_id}/cancel")
-async def post_invoice_cancel(invoice_id: str, request: Request):
+@router.post(
+    '/paypal/invoices/{invoice_id}/cancel',
+    **route_docs(
+        'Cancel a sent sandbox invoice',
+        'Invoice after it is cancelled.',
+        {'invoice_id': 'INV-example', 'status': 'CANCELLED'},
+        schema_description='Cancelled sandbox invoice.',
+        validation_loc=['path', 'invoice_id'],
+    ),
+)
+async def post_invoice_cancel(invoice_id: Annotated[str, path_param('PayPal sandbox invoice id to cancel.', 'INV-example', 'Invoice id to cancel')], request: Request):
+    """Cancel a sent PayPal sandbox invoice."""
     _require_treasurer(request)
     try:
         return await cancel_invoice(_paypal(), invoice_id)
@@ -1006,8 +1558,17 @@ async def post_invoice_cancel(invoice_id: str, request: Request):
         raise _as_http(exc) from exc
 
 
-@router.delete("/paypal/invoices/{invoice_id}")
-async def delete_invoice_route(invoice_id: str, request: Request):
+@router.delete(
+    '/paypal/invoices/{invoice_id}',
+    **route_docs(
+        'Delete a draft sandbox invoice',
+        'Invoice after the draft is deleted.',
+        {'invoice_id': 'INV-example', 'deleted': True},
+        schema_description='Deleted draft invoice. PayPal only cancels invoices that were already sent.',
+        validation_loc=['path', 'invoice_id'],
+    ),
+)
+async def delete_invoice_route(invoice_id: Annotated[str, path_param('PayPal sandbox draft invoice id to delete.', 'INV-example', 'Invoice id to delete')], request: Request):
     """Remove a draft invoice (PayPal only cancels sent invoices)."""
     _require_treasurer(request)
     try:
@@ -1016,7 +1577,15 @@ async def delete_invoice_route(invoice_id: str, request: Request):
         raise _as_http(exc) from exc
 
 
-@router.post("/paypal/subscriptions/setup")
+@router.post(
+    '/paypal/subscriptions/setup',
+    **route_docs(
+        'Set up the crew subscription plan',
+        'Crew supporter product and monthly plan.',
+        {'plan_id': 'P-example'},
+        schema_description='Idempotent sandbox product and plan. No buyer is charged here.',
+    ),
+)
 async def post_subscription_setup(request: Request):
     """Idempotent Crew supporter product + monthly EUR plan (admin)."""
     _require_treasurer(request)
@@ -1026,8 +1595,17 @@ async def post_subscription_setup(request: Request):
         raise _as_http(exc) from exc
 
 
-@router.get("/paypal/subscriptions/plan")
-async def get_crew_subscription_plan(lang: Optional[str] = None):
+@router.get(
+    '/paypal/subscriptions/plan',
+    **route_docs(
+        'Read the crew subscription plan',
+        'Public crew supporter plan id.',
+        {'plan_id': 'P-example'},
+        schema_description='Read-only billing plan. No subscription is created.',
+        validation_loc=['query', 'lang'],
+    ),
+)
+async def get_crew_subscription_plan(lang: Annotated[Optional[str], query_param('Plan language, en or fr.', 'en', 'Subscription plan language')] = None):
     """Public read-only Crew supporter billing plan id (hydrates from PayPal when needed)."""
     app_lang = resolve_app_language(lang)
     try:
@@ -1037,7 +1615,17 @@ async def get_crew_subscription_plan(lang: Optional[str] = None):
     return {"plan_id": plan_id, "lang": app_lang}
 
 
-@router.post("/paypal/subscriptions/create")
+@router.post(
+    '/paypal/subscriptions/create',
+    **route_docs(
+        'Start a crew subscription checkout',
+        'Sandbox subscription checkout for the buyer.',
+        {'subscription_id': 'I-example'},
+        schema_description='Subscription checkout. Approval is recorded on a separate route.',
+        validation_loc=['body', 'return_url'],
+        body_description='Optional return and cancel URLs for the buyer.',
+    ),
+)
 async def post_subscription_create(request: Request, body: SubscriptionCreateIn = SubscriptionCreateIn()):
     """Buyer checkout: catalog + PayPal subscription (public)."""
     app_lang = resolve_app_language(body.lang)
@@ -1066,14 +1654,34 @@ async def post_subscription_create(request: Request, body: SubscriptionCreateIn 
         raise _as_http(exc, lang=app_lang) from exc
 
 
-@router.get("/paypal/subscriptions")
+@router.get(
+    '/paypal/subscriptions',
+    **route_docs(
+        'List recorded crew subscriptions',
+        'Subscriptions stored for the treasurer.',
+        {'subscriptions': []},
+        schema_description='Local subscription records. No new PayPal subscription is created.',
+    ),
+)
 async def get_paypal_subscriptions(request: Request):
+    """List crew subscriptions stored for the treasurer."""
     _require_treasurer(request)
     return {"items": await list_subscriptions_local()}
 
 
-@router.post("/paypal/subscriptions/record")
+@router.post(
+    '/paypal/subscriptions/record',
+    **route_docs(
+        'Record a crew subscription',
+        'Subscription stored from PayPal sandbox.',
+        {'subscription_id': 'I-example', 'status': 'ACTIVE'},
+        schema_description='Local record of a subscription the treasurer already sees in sandbox.',
+        validation_loc=['body', 'subscription_id'],
+        body_description='Subscription id, plan id, and status to store.',
+    ),
+)
 async def post_subscription_record(body: SubscriptionRecordIn, request: Request):
+    """Record a crew subscription the treasurer already sees in PayPal sandbox."""
     _require_treasurer(request)
     try:
         return await record_subscription(
@@ -1086,7 +1694,17 @@ async def post_subscription_record(body: SubscriptionRecordIn, request: Request)
         raise _as_http(exc) from exc
 
 
-@router.post("/paypal/subscriptions/approve")
+@router.post(
+    '/paypal/subscriptions/approve',
+    **route_docs(
+        'Record an approved crew subscription',
+        'Subscription after the buyer approval.',
+        {'subscription_id': 'I-example', 'status': 'APPROVED'},
+        schema_description='Local record after the buyer approves in PayPal sandbox.',
+        validation_loc=['body', 'subscription_id'],
+        body_description='Subscription id and plan id from the buyer approval.',
+    ),
+)
 async def post_subscription_approve(body: SubscriptionApproveIn):
     """Record buyer subscription after SDK approval (public)."""
     try:
@@ -1099,15 +1717,32 @@ async def post_subscription_approve(body: SubscriptionApproveIn):
         raise _as_http(exc) from exc
 
 
-@router.get("/gear")
+@router.get(
+    '/gear',
+    **route_docs(
+        'List expedition gear projects',
+        'Public gear projects.',
+        {'projects': []},
+        schema_description='Gear catalogue. Sandbox seed plus Channel3 search when that flag is on.',
+    ),
+)
 async def get_public_gear_list():
     """Expedition Gear projects (sandbox seed + optional Channel3 search when enabled)."""
     payload = await get_gear_feature_collection()
     return await sanitize_public_gear_collection(payload)
 
 
-@router.get("/projects/{project_id}/fund")
-async def get_public_project_fund(project_id: str):
+@router.get(
+    '/projects/{project_id}/fund',
+    **route_docs(
+        'Read one project fund',
+        'Public totals for one project.',
+        {'project_id': 'gear-c3-gf8pnpl', 'amount_eur': '0.00'},
+        schema_description='Public crowdfunding totals. The pledge list is omitted.',
+        validation_loc=['path', 'project_id'],
+    ),
+)
+async def get_public_project_fund(project_id: Annotated[str, path_param('Project slug whose public fund totals are returned.', 'gear-c3-gf8pnpl', 'Project fund project id')]):
     """Public crowdfunding totals for one BI project (``target_id`` slug).
 
     Same spirit as public stopover ``GET /milestones/{id}/fund`` via ``to_public_fund``:
@@ -1197,7 +1832,15 @@ async def get_public_project_fund(project_id: str):
     return to_public_project_donation_total(fund)
 
 
-@router.get("/common-fund/fund")
+@router.get(
+    '/common-fund/fund',
+    **route_docs(
+        'Read the common fund',
+        'Public boat common-fund totals.',
+        {'target_id': 'fonds-commun', 'amount_eur': '0.00'},
+        schema_description='Public common-fund totals. The pledge list is omitted.',
+    ),
+)
 async def get_public_common_fund():
     """Public boat common-fund totals (pattern: ``GET /projects/{id}/fund`` from N33)."""
     try:
@@ -1206,8 +1849,18 @@ async def get_public_common_fund():
         raise HTTPException(status_code=404, detail="Common fund not found") from exc
 
 
-@router.post("/projects/{project_id}/payouts")
-async def post_project_payout(project_id: str, body: PayoutProposeIn, request: Request):
+@router.post(
+    '/projects/{project_id}/payouts',
+    **route_docs(
+        'Propose a project payout',
+        'Payout proposal before PayPal is called.',
+        {'payout_id': 'payout_example', 'amount_eur': '10.00'},
+        schema_description='Stored payout proposal. PayPal is not called until approve.',
+        validation_loc=['path', 'project_id'],
+        body_description='Amount, sandbox receiver, and note for the proposal.',
+    ),
+)
+async def post_project_payout(project_id: Annotated[str, path_param('Project slug the payout proposal belongs to.', 'gear-c3-gf8pnpl', 'Payout project id')], body: PayoutProposeIn, request: Request):
     """Propose a project payout. PayPal is not called until approve."""
     _require_treasurer(request)
     try:
@@ -1221,8 +1874,17 @@ async def post_project_payout(project_id: str, body: PayoutProposeIn, request: R
         raise _as_http(exc) from exc
 
 
-@router.post("/payouts/{payout_id}/approve")
-async def post_payout_approve(payout_id: str, request: Request, lang: Optional[str] = None):
+@router.post(
+    '/payouts/{payout_id}/approve',
+    **route_docs(
+        'Approve a project payout',
+        'Payout after it is sent to PayPal sandbox.',
+        {'payout_id': 'payout_example', 'status': 'sent'},
+        schema_description='Second human step. The payout is sent to PayPal sandbox.',
+        validation_loc=['path', 'payout_id'],
+    ),
+)
+async def post_payout_approve(payout_id: Annotated[str, path_param('Payout proposal id to send to PayPal sandbox.', 'payout_example', 'Payout id to approve')], request: Request, lang: Annotated[Optional[str], query_param('Payout language, en or fr.', 'en', 'Payout approval language')] = None):
     """Second human step: send a proposed payout to PayPal sandbox."""
     _require_treasurer(request)
     app_lang = resolve_app_language(lang)
@@ -1239,7 +1901,15 @@ async def post_payout_approve(payout_id: str, request: Request, lang: Optional[s
         raise _as_http(exc) from exc
 
 
-@router.get("/pledges")
+@router.get(
+    '/pledges',
+    **route_docs(
+        'List pledges',
+        'Pledges visible to this caller.',
+        {'pledges': []},
+        schema_description='Pledge list. A treasurer key sees every pledge. A sandbox demo session stays redacted.',
+    ),
+)
 async def get_pledges(request: Request):
     """Every pledge on the server. The key sees everything; a sandbox demo session sees a
     redacted list (status and amounts, never contributor names or PayPal ids)."""
@@ -1249,8 +1919,17 @@ async def get_pledges(request: Request):
     return rows if keyed else [_demo_pledge_row(row) for row in rows]
 
 
-@router.get("/pledges/{pledge_id}")
-async def get_pledge(pledge_id: str, request: Request):
+@router.get(
+    '/pledges/{pledge_id}',
+    **route_docs(
+        'Read one pledge',
+        'One pledge visible to this caller.',
+        {'pledge_id': 'pledge_example', 'status': 'authorized', 'amount_eur': '20.00'},
+        schema_description='Public read is status, amount, and the fund aggregate. The treasurer key sees the pledge.',
+        validation_loc=['path', 'pledge_id'],
+    ),
+)
+async def get_pledge(pledge_id: Annotated[str, path_param('Ledger id of the pledge to read.', 'pledge_example', 'Read pledge id')], request: Request):
     """Public read is status, amount, and the fund aggregate. The key sees the pledge."""
     try:
         doc = await require_pledge(pledge_id)
@@ -1264,10 +1943,20 @@ async def get_pledge(pledge_id: str, request: Request):
     return full
 
 
-@router.post("/pledges/{pledge_id}/certificate")
+@router.post(
+    '/pledges/{pledge_id}/certificate',
+    **route_docs(
+        'Issue a mile certificate',
+        'Certificate token after a successful mile pledge.',
+        {'token': 'cert_example'},
+        schema_description='Issued once. The PNG and PDF routes serve the bytes.',
+        validation_loc=['path', 'pledge_id'],
+        body_description='Optional payer proof and the name printed on the certificate.',
+    ),
+)
 async def post_pledge_certificate(
-    pledge_id: str,
-    lang: Optional[str] = None,
+    pledge_id: Annotated[str, path_param('Ledger id of the mile pledge that receives the certificate.', 'pledge_example', 'Certificate pledge id')],
+    lang: Annotated[Optional[str], query_param('Certificate language, en or fr.', 'en', 'Certificate language')] = None,
     body: CertificateIn = CertificateIn(),
 ):
     """Issue (once) a mile sponsorship certificate after a successful mile pledge."""
@@ -1298,8 +1987,17 @@ async def post_pledge_certificate(
     }
 
 
-@router.get("/certificates/{token}.png")
-async def get_certificate_png(token: str, lang: Optional[str] = None):
+@router.get(
+    '/certificates/{token}.png',
+    **route_docs(
+        'Download a certificate PNG',
+        'Certificate image bytes.',
+        schema_description='Runtime body is image/png. This schema stays the generated object because the handler returns a Response.',
+        validation_loc=['path', 'token'],
+    ),
+)
+async def get_certificate_png(token: Annotated[str, path_param('Token from the certificate issue response.', 'cert_example', 'Certificate PNG token')], lang: Annotated[Optional[str], query_param('Certificate language, en or fr.', 'en', 'Certificate PNG language')] = None):
+    """Return the mile certificate as a PNG. The response body is image/png."""
     app_lang = resolve_app_language(lang)
     doc = await load_certificate(token)
     if not doc:
@@ -1312,8 +2010,17 @@ async def get_certificate_png(token: str, lang: Optional[str] = None):
     )
 
 
-@router.get("/certificates/{token}.pdf")
-async def get_certificate_pdf(token: str, lang: Optional[str] = None):
+@router.get(
+    '/certificates/{token}.pdf',
+    **route_docs(
+        'Download a certificate PDF',
+        'Certificate document bytes.',
+        schema_description='Runtime body is application/pdf. This schema stays the generated object because the handler returns a Response.',
+        validation_loc=['path', 'token'],
+    ),
+)
+async def get_certificate_pdf(token: Annotated[str, path_param('Token from the certificate issue response.', 'cert_example', 'Certificate PDF token')], lang: Annotated[Optional[str], query_param('Certificate language, en or fr.', 'en', 'Certificate PDF language')] = None):
+    """Return the mile certificate as a PDF. The response body is application/pdf."""
     app_lang = resolve_app_language(lang)
     doc = await load_certificate(token)
     if not doc:
@@ -1326,8 +2033,17 @@ async def get_certificate_pdf(token: str, lang: Optional[str] = None):
     )
 
 
-@router.get("/milestones/{milestone_id}/fund")
-async def get_fund(milestone_id: str, request: Request):
+@router.get(
+    '/milestones/{milestone_id}/fund',
+    **route_docs(
+        'Read a stop fund',
+        'Public fund totals for one stop, leg, or the common fund.',
+        {'milestone_id': 'dep-la-rochelle', 'amount_eur': '0.00'},
+        schema_description='Public totals. A project fund requires the treasurer key. The pledge list is omitted.',
+        validation_loc=['path', 'milestone_id'],
+    ),
+)
+async def get_fund(milestone_id: Annotated[str, path_param('Stop id, cabin leg id, or common fund id.', 'dep-la-rochelle', 'Stop fund milestone id')], request: Request):
     """A stopover, cabin-leg, or common fund total is public. The project fund needs the key.
 
     The body is aggregated money only: no journal lines and no pledge ids.
@@ -1341,8 +2057,19 @@ async def get_fund(milestone_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Milestone not found") from exc
 
 
-@router.post("/milestones/{milestone_id}/fund/spending")
-async def post_spending(milestone_id: str, body: SpendingIn, request: Request):
+@router.post(
+    '/milestones/{milestone_id}/fund/spending',
+    **route_docs(
+        'Record spending against a stop fund',
+        'Fund after the spending line is stored.',
+        {'milestone_id': 'dep-la-rochelle', 'amount_eur': '12.00'},
+        schema_description='Treasurer spending line. PayPal is not called.',
+        validation_loc=['path', 'milestone_id'],
+        body_description='Amount and description of the spending line.',
+    ),
+)
+async def post_spending(milestone_id: Annotated[str, path_param('Stop or leg id the spending line is recorded against.', 'dep-la-rochelle', 'Spending milestone id')], body: SpendingIn, request: Request):
+    """Record a treasurer spending line. PayPal is not called."""
     _require_treasurer(request)
     try:
         entry = await record_spending(milestone_id, body.amount_eur, body.description)
@@ -1355,16 +2082,36 @@ async def post_spending(milestone_id: str, body: SpendingIn, request: Request):
     return fund
 
 
-@router.get("/milestones")
+@router.get(
+    '/milestones',
+    **route_docs(
+        'List voyage stops',
+        'Public voyage stops.',
+        {'milestones': []},
+        schema_description='Voyage stops. No PayPal call.',
+    ),
+)
 async def get_milestones():
+    """List public voyage stops. No PayPal call."""
     docs = await list_milestones()
     if not docs:
         docs = await sync_milestone_shells()
     return [_public_milestone(doc) for doc in docs]
 
 
-@router.post("/milestones/{milestone_id}/evidence")
-async def post_evidence(milestone_id: str, body: EvidenceIn, request: Request):
+@router.post(
+    '/milestones/{milestone_id}/evidence',
+    **route_docs(
+        'Attach evidence to a voyage stop',
+        'Stop after the evidence is stored.',
+        {'milestone_id': 'dep-la-rochelle', 'met': True},
+        schema_description='Treasurer evidence. The AI Captain does not capture or void.',
+        validation_loc=['path', 'milestone_id'],
+        body_description='Whether the stop condition is met, plus free-form facts.',
+    ),
+)
+async def post_evidence(milestone_id: Annotated[str, path_param('Stop or leg id the evidence is attached to.', 'dep-la-rochelle', 'Evidence milestone id')], body: EvidenceIn, request: Request):
+    """Attach treasurer evidence to a voyage stop. Does not move money."""
     _require_treasurer(request)
     try:
         evidence = await record_evidence(milestone_id, body.met, body.facts)
@@ -1393,8 +2140,18 @@ def _enforce_captain_rate(
         ) from exc
 
 
-@router.post("/captain/review/{milestone_id}")
-async def post_review(milestone_id: str, request: Request, lang: Optional[str] = None):
+@router.post(
+    '/captain/review/{milestone_id}',
+    **route_docs(
+        'Ask the AI Captain to review a stop',
+        'Captain review proposal for the stop.',
+        {'milestone_id': 'dep-la-rochelle', 'approved': False},
+        schema_description='Advisory review. The captain does not capture or void.',
+        validation_loc=['path', 'milestone_id'],
+    ),
+)
+async def post_review(milestone_id: Annotated[str, path_param('Stop or leg id the captain reviews.', 'dep-la-rochelle', 'Captain review milestone id')], request: Request, lang: Annotated[Optional[str], query_param('Review language, en or fr.', 'en', 'Captain review language')] = None):
+    """Ask the AI Captain for an advisory review. The captain does not move money."""
     app_lang = resolve_app_language(lang)
     _enforce_captain_rate(request, lang=app_lang)
     try:
@@ -1410,8 +2167,18 @@ async def post_review(milestone_id: str, request: Request, lang: Optional[str] =
     return proposal
 
 
-@router.post("/milestones/{milestone_id}/captain-review/approve")
-async def post_captain_review_approve(milestone_id: str, request: Request):
+@router.post(
+    '/milestones/{milestone_id}/captain-review/approve',
+    **route_docs(
+        'Record the captain review approval',
+        'Stop after the review approval is stored.',
+        {'milestone_id': 'dep-la-rochelle', 'captain_review_approved_at': '2026-11-12T12:00:00Z'},
+        schema_description='Stored approval timestamp. Capture still requires the treasurer.',
+        validation_loc=['path', 'milestone_id'],
+    ),
+)
+async def post_captain_review_approve(milestone_id: Annotated[str, path_param('Stop or leg id whose captain review is approved.', 'dep-la-rochelle', 'Captain approval milestone id')], request: Request):
+    """Record the captain review approval. Does not capture or void."""
     _require_treasurer(request)
     try:
         return await record_captain_review_approval(milestone_id)
@@ -1419,8 +2186,19 @@ async def post_captain_review_approve(milestone_id: str, request: Request):
         raise _as_http(exc) from exc
 
 
-@router.post("/captain/chat")
+@router.post(
+    '/captain/chat',
+    **route_docs(
+        'Ask the AI Captain',
+        'Captain reply.',
+        {'reply': 'The La Rochelle stop is the voyage clock reference, 12 Nov 2026.'},
+        schema_description='Advisory reply. The captain does not move money.',
+        validation_loc=['body', 'message'],
+        body_description='Supporter question for the AI Captain.',
+    ),
+)
 async def post_chat(body: ChatIn, request: Request):
+    """Ask the AI Captain a question. The captain does not move money."""
     app_lang = resolve_app_language(body.lang)
     _enforce_captain_rate(request, body.message, lang=app_lang)
     try:
@@ -1435,22 +2213,47 @@ async def post_chat(body: ChatIn, request: Request):
         raise _as_http(exc, lang=body.lang) from exc
 
 
-@router.get("/admin/llm-cascade-probe")
+@router.get(
+    '/admin/llm-cascade-probe',
+    **route_docs(
+        'Probe the captain model cascade',
+        'Which provider answered. No prompt bodies.',
+        {'chat': 'ok'},
+        schema_description='Treasurer probe. No prompt text and no API keys.',
+    ),
+)
 async def get_llm_cascade_probe(request: Request):
     """Treasurer-only: which provider answered chat, report, and ask_json. No bodies or keys."""
     _require_treasurer(request)
     return await llm.probe_cascade()
 
 
-@webhooks_router.get("/webhooks/recent")
+@webhooks_router.get(
+    '/webhooks/recent',
+    **route_docs(
+        'List recent PayPal webhook attempts',
+        'Recent webhook attempts.',
+        {'events': []},
+        schema_description='Read-only webhook log. Treasurer key required.',
+    ),
+)
 async def get_recent_webhooks(request: Request):
     """Read-only list of webhook attempts. Treasurer key, same check as capture."""
     _require_treasurer(request)
     return {"events": await list_webhook_outcomes()}
 
 
-@webhooks_router.post("/webhooks/paypal")
+@webhooks_router.post(
+    '/webhooks/paypal',
+    **route_docs(
+        'Receive a PayPal sandbox webhook',
+        'Webhook accepted.',
+        {'ok': True},
+        schema_description='Webhook intake. The handler verifies the sandbox transmission before any ledger update.',
+    ),
+)
 async def post_paypal_webhook(request: Request):
+    """Receive a PayPal sandbox webhook. Verification runs before any ledger update."""
     raw = await request.body()
     try:
         client = _paypal()

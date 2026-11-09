@@ -1,0 +1,577 @@
+{
+  "commit": "ed21eec98c71b34371f8efe38225955838ae70f0",
+  "note": "Path/method pairs, response status codes, and operationIds from app.openapi() with ESCALLES_ENABLED=1 at ed21eec, before APIM-5 metadata edits.",
+  "pairs": [
+    [
+      "/api/escales/admin/llm-cascade-probe",
+      "get"
+    ],
+    [
+      "/api/escales/admin/pledges/{pledge_id}/reauthorize",
+      "post"
+    ],
+    [
+      "/api/escales/captain/chat",
+      "post"
+    ],
+    [
+      "/api/escales/captain/review/{milestone_id}",
+      "post"
+    ],
+    [
+      "/api/escales/certificates/{token}.pdf",
+      "get"
+    ],
+    [
+      "/api/escales/certificates/{token}.png",
+      "get"
+    ],
+    [
+      "/api/escales/channel3/catalog",
+      "get"
+    ],
+    [
+      "/api/escales/channel3/catalog/by-project/{project_id}/fund",
+      "get"
+    ],
+    [
+      "/api/escales/channel3/catalog/{channel3_product_id}",
+      "get"
+    ],
+    [
+      "/api/escales/clock",
+      "get"
+    ],
+    [
+      "/api/escales/clock/settle",
+      "post"
+    ],
+    [
+      "/api/escales/common-fund/fund",
+      "get"
+    ],
+    [
+      "/api/escales/demo/stops/{milestone_id}/cancel",
+      "post"
+    ],
+    [
+      "/api/escales/demo/stops/{milestone_id}/reset",
+      "post"
+    ],
+    [
+      "/api/escales/demo/stops/{milestone_id}/simulate-arrival",
+      "post"
+    ],
+    [
+      "/api/escales/features",
+      "get"
+    ],
+    [
+      "/api/escales/gear",
+      "get"
+    ],
+    [
+      "/api/escales/milestones",
+      "get"
+    ],
+    [
+      "/api/escales/milestones/{milestone_id}/captain-review/approve",
+      "post"
+    ],
+    [
+      "/api/escales/milestones/{milestone_id}/evidence",
+      "post"
+    ],
+    [
+      "/api/escales/milestones/{milestone_id}/fund",
+      "get"
+    ],
+    [
+      "/api/escales/milestones/{milestone_id}/fund/spending",
+      "post"
+    ],
+    [
+      "/api/escales/payouts/{payout_id}/approve",
+      "post"
+    ],
+    [
+      "/api/escales/paypal/disputes",
+      "get"
+    ],
+    [
+      "/api/escales/paypal/disputes/{dispute_id}",
+      "get"
+    ],
+    [
+      "/api/escales/paypal/disputes/{dispute_id}/accept-claim",
+      "post"
+    ],
+    [
+      "/api/escales/paypal/disputes/{dispute_id}/provide-evidence",
+      "post"
+    ],
+    [
+      "/api/escales/paypal/invoices",
+      "get"
+    ],
+    [
+      "/api/escales/paypal/invoices",
+      "post"
+    ],
+    [
+      "/api/escales/paypal/invoices/{invoice_id}",
+      "delete"
+    ],
+    [
+      "/api/escales/paypal/invoices/{invoice_id}/cancel",
+      "post"
+    ],
+    [
+      "/api/escales/paypal/invoices/{invoice_id}/remind",
+      "post"
+    ],
+    [
+      "/api/escales/paypal/invoices/{invoice_id}/send",
+      "post"
+    ],
+    [
+      "/api/escales/paypal/reconcile",
+      "get"
+    ],
+    [
+      "/api/escales/paypal/subscriptions",
+      "get"
+    ],
+    [
+      "/api/escales/paypal/subscriptions/approve",
+      "post"
+    ],
+    [
+      "/api/escales/paypal/subscriptions/create",
+      "post"
+    ],
+    [
+      "/api/escales/paypal/subscriptions/plan",
+      "get"
+    ],
+    [
+      "/api/escales/paypal/subscriptions/record",
+      "post"
+    ],
+    [
+      "/api/escales/paypal/subscriptions/setup",
+      "post"
+    ],
+    [
+      "/api/escales/pledges",
+      "get"
+    ],
+    [
+      "/api/escales/pledges",
+      "post"
+    ],
+    [
+      "/api/escales/pledges/mode",
+      "get"
+    ],
+    [
+      "/api/escales/pledges/{pledge_id}",
+      "get"
+    ],
+    [
+      "/api/escales/pledges/{pledge_id}/authorize",
+      "post"
+    ],
+    [
+      "/api/escales/pledges/{pledge_id}/capture",
+      "post"
+    ],
+    [
+      "/api/escales/pledges/{pledge_id}/certificate",
+      "post"
+    ],
+    [
+      "/api/escales/pledges/{pledge_id}/refund",
+      "post"
+    ],
+    [
+      "/api/escales/pledges/{pledge_id}/vault",
+      "post"
+    ],
+    [
+      "/api/escales/pledges/{pledge_id}/void",
+      "post"
+    ],
+    [
+      "/api/escales/prices",
+      "get"
+    ],
+    [
+      "/api/escales/projects/{project_id}/fund",
+      "get"
+    ],
+    [
+      "/api/escales/projects/{project_id}/payouts",
+      "post"
+    ],
+    [
+      "/api/escales/schedule",
+      "get"
+    ],
+    [
+      "/api/escales/schedule/sync",
+      "post"
+    ],
+    [
+      "/api/escales/treasurer/wishlists",
+      "get"
+    ],
+    [
+      "/api/escales/treasurer/wishlists",
+      "post"
+    ],
+    [
+      "/api/escales/treasurer/wishlists/{wishlist_id}/items",
+      "post"
+    ],
+    [
+      "/api/escales/treasurer/wishlists/{wishlist_id}/items/{channel3_product_id}",
+      "delete"
+    ],
+    [
+      "/api/escales/treasurer/wishlists/{wishlist_id}/publish",
+      "post"
+    ],
+    [
+      "/api/escales/webhooks/paypal",
+      "post"
+    ],
+    [
+      "/api/escales/webhooks/recent",
+      "get"
+    ],
+    [
+      "/api/escales/wishlists",
+      "get"
+    ],
+    [
+      "/api/escales/wishlists/{wishlist_id}",
+      "get"
+    ],
+    [
+      "/api/health",
+      "get"
+    ]
+  ],
+  "status_codes": {
+    "GET /api/health": [
+      "200"
+    ],
+    "GET /api/escales/features": [
+      "200"
+    ],
+    "GET /api/escales/prices": [
+      "200"
+    ],
+    "GET /api/escales/clock": [
+      "200"
+    ],
+    "POST /api/escales/clock/settle": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/schedule": [
+      "200"
+    ],
+    "POST /api/escales/schedule/sync": [
+      "200"
+    ],
+    "GET /api/escales/pledges/mode": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/pledges": [
+      "200"
+    ],
+    "POST /api/escales/pledges": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/pledges/{pledge_id}/vault": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/pledges/{pledge_id}/authorize": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/pledges/{pledge_id}/capture": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/pledges/{pledge_id}/void": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/pledges/{pledge_id}/refund": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/admin/pledges/{pledge_id}/reauthorize": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/paypal/reconcile": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/paypal/disputes": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/paypal/disputes/{dispute_id}": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/paypal/disputes/{dispute_id}/accept-claim": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/paypal/disputes/{dispute_id}/provide-evidence": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/paypal/invoices": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/paypal/invoices": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/paypal/invoices/{invoice_id}/send": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/paypal/invoices/{invoice_id}/remind": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/paypal/invoices/{invoice_id}/cancel": [
+      "200",
+      "422"
+    ],
+    "DELETE /api/escales/paypal/invoices/{invoice_id}": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/paypal/subscriptions/setup": [
+      "200"
+    ],
+    "GET /api/escales/paypal/subscriptions/plan": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/paypal/subscriptions/create": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/paypal/subscriptions": [
+      "200"
+    ],
+    "POST /api/escales/paypal/subscriptions/record": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/paypal/subscriptions/approve": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/gear": [
+      "200"
+    ],
+    "GET /api/escales/projects/{project_id}/fund": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/common-fund/fund": [
+      "200"
+    ],
+    "POST /api/escales/projects/{project_id}/payouts": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/payouts/{payout_id}/approve": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/pledges/{pledge_id}": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/pledges/{pledge_id}/certificate": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/certificates/{token}.png": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/certificates/{token}.pdf": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/milestones/{milestone_id}/fund": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/milestones/{milestone_id}/fund/spending": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/milestones": [
+      "200"
+    ],
+    "POST /api/escales/milestones/{milestone_id}/evidence": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/captain/review/{milestone_id}": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/milestones/{milestone_id}/captain-review/approve": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/captain/chat": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/admin/llm-cascade-probe": [
+      "200"
+    ],
+    "GET /api/escales/channel3/catalog": [
+      "200"
+    ],
+    "GET /api/escales/channel3/catalog/{channel3_product_id}": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/channel3/catalog/by-project/{project_id}/fund": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/wishlists": [
+      "200"
+    ],
+    "GET /api/escales/wishlists/{wishlist_id}": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/treasurer/wishlists": [
+      "200"
+    ],
+    "POST /api/escales/treasurer/wishlists": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/treasurer/wishlists/{wishlist_id}/items": [
+      "200",
+      "422"
+    ],
+    "DELETE /api/escales/treasurer/wishlists/{wishlist_id}/items/{channel3_product_id}": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/treasurer/wishlists/{wishlist_id}/publish": [
+      "200",
+      "422"
+    ],
+    "GET /api/escales/webhooks/recent": [
+      "200"
+    ],
+    "POST /api/escales/webhooks/paypal": [
+      "200"
+    ],
+    "POST /api/escales/demo/stops/{milestone_id}/simulate-arrival": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/demo/stops/{milestone_id}/cancel": [
+      "200",
+      "422"
+    ],
+    "POST /api/escales/demo/stops/{milestone_id}/reset": [
+      "200",
+      "422"
+    ]
+  },
+  "operation_ids": {
+    "GET /api/health": "health_api_health_get",
+    "GET /api/escales/features": "get_features_api_escales_features_get",
+    "GET /api/escales/prices": "get_prices_api_escales_prices_get",
+    "GET /api/escales/clock": "get_clock_api_escales_clock_get",
+    "POST /api/escales/clock/settle": "post_clock_settle_api_escales_clock_settle_post",
+    "GET /api/escales/schedule": "get_schedule_api_escales_schedule_get",
+    "POST /api/escales/schedule/sync": "post_schedule_sync_api_escales_schedule_sync_post",
+    "GET /api/escales/pledges/mode": "get_pledge_mode_api_escales_pledges_mode_get",
+    "GET /api/escales/pledges": "get_pledges_api_escales_pledges_get",
+    "POST /api/escales/pledges": "post_pledge_api_escales_pledges_post",
+    "POST /api/escales/pledges/{pledge_id}/vault": "post_register_vault_api_escales_pledges__pledge_id__vault_post",
+    "POST /api/escales/pledges/{pledge_id}/authorize": "post_authorize_api_escales_pledges__pledge_id__authorize_post",
+    "POST /api/escales/pledges/{pledge_id}/capture": "post_capture_api_escales_pledges__pledge_id__capture_post",
+    "POST /api/escales/pledges/{pledge_id}/void": "post_void_api_escales_pledges__pledge_id__void_post",
+    "POST /api/escales/pledges/{pledge_id}/refund": "post_refund_api_escales_pledges__pledge_id__refund_post",
+    "POST /api/escales/admin/pledges/{pledge_id}/reauthorize": "post_admin_reauthorize_api_escales_admin_pledges__pledge_id__reauthorize_post",
+    "GET /api/escales/paypal/reconcile": "get_paypal_reconcile_api_escales_paypal_reconcile_get",
+    "GET /api/escales/paypal/disputes": "get_paypal_disputes_api_escales_paypal_disputes_get",
+    "GET /api/escales/paypal/disputes/{dispute_id}": "get_paypal_dispute_api_escales_paypal_disputes__dispute_id__get",
+    "POST /api/escales/paypal/disputes/{dispute_id}/accept-claim": "post_dispute_accept_api_escales_paypal_disputes__dispute_id__accept_claim_post",
+    "POST /api/escales/paypal/disputes/{dispute_id}/provide-evidence": "post_dispute_evidence_api_escales_paypal_disputes__dispute_id__provide_evidence_post",
+    "GET /api/escales/paypal/invoices": "get_paypal_invoices_api_escales_paypal_invoices_get",
+    "POST /api/escales/paypal/invoices": "post_paypal_invoice_api_escales_paypal_invoices_post",
+    "POST /api/escales/paypal/invoices/{invoice_id}/send": "post_invoice_send_api_escales_paypal_invoices__invoice_id__send_post",
+    "POST /api/escales/paypal/invoices/{invoice_id}/remind": "post_invoice_remind_api_escales_paypal_invoices__invoice_id__remind_post",
+    "POST /api/escales/paypal/invoices/{invoice_id}/cancel": "post_invoice_cancel_api_escales_paypal_invoices__invoice_id__cancel_post",
+    "DELETE /api/escales/paypal/invoices/{invoice_id}": "delete_invoice_route_api_escales_paypal_invoices__invoice_id__delete",
+    "POST /api/escales/paypal/subscriptions/setup": "post_subscription_setup_api_escales_paypal_subscriptions_setup_post",
+    "GET /api/escales/paypal/subscriptions/plan": "get_crew_subscription_plan_api_escales_paypal_subscriptions_plan_get",
+    "POST /api/escales/paypal/subscriptions/create": "post_subscription_create_api_escales_paypal_subscriptions_create_post",
+    "GET /api/escales/paypal/subscriptions": "get_paypal_subscriptions_api_escales_paypal_subscriptions_get",
+    "POST /api/escales/paypal/subscriptions/record": "post_subscription_record_api_escales_paypal_subscriptions_record_post",
+    "POST /api/escales/paypal/subscriptions/approve": "post_subscription_approve_api_escales_paypal_subscriptions_approve_post",
+    "GET /api/escales/gear": "get_public_gear_list_api_escales_gear_get",
+    "GET /api/escales/projects/{project_id}/fund": "get_public_project_fund_api_escales_projects__project_id__fund_get",
+    "GET /api/escales/common-fund/fund": "get_public_common_fund_api_escales_common_fund_fund_get",
+    "POST /api/escales/projects/{project_id}/payouts": "post_project_payout_api_escales_projects__project_id__payouts_post",
+    "POST /api/escales/payouts/{payout_id}/approve": "post_payout_approve_api_escales_payouts__payout_id__approve_post",
+    "GET /api/escales/pledges/{pledge_id}": "get_pledge_api_escales_pledges__pledge_id__get",
+    "POST /api/escales/pledges/{pledge_id}/certificate": "post_pledge_certificate_api_escales_pledges__pledge_id__certificate_post",
+    "GET /api/escales/certificates/{token}.png": "get_certificate_png_api_escales_certificates__token__png_get",
+    "GET /api/escales/certificates/{token}.pdf": "get_certificate_pdf_api_escales_certificates__token__pdf_get",
+    "GET /api/escales/milestones/{milestone_id}/fund": "get_fund_api_escales_milestones__milestone_id__fund_get",
+    "POST /api/escales/milestones/{milestone_id}/fund/spending": "post_spending_api_escales_milestones__milestone_id__fund_spending_post",
+    "GET /api/escales/milestones": "get_milestones_api_escales_milestones_get",
+    "POST /api/escales/milestones/{milestone_id}/evidence": "post_evidence_api_escales_milestones__milestone_id__evidence_post",
+    "POST /api/escales/captain/review/{milestone_id}": "post_review_api_escales_captain_review__milestone_id__post",
+    "POST /api/escales/milestones/{milestone_id}/captain-review/approve": "post_captain_review_approve_api_escales_milestones__milestone_id__captain_review_approve_post",
+    "POST /api/escales/captain/chat": "post_chat_api_escales_captain_chat_post",
+    "GET /api/escales/admin/llm-cascade-probe": "get_llm_cascade_probe_api_escales_admin_llm_cascade_probe_get",
+    "GET /api/escales/channel3/catalog": "get_channel3_catalog_api_escales_channel3_catalog_get",
+    "GET /api/escales/channel3/catalog/{channel3_product_id}": "get_channel3_catalog_item_api_escales_channel3_catalog__channel3_product_id__get",
+    "GET /api/escales/channel3/catalog/by-project/{project_id}/fund": "get_channel3_item_fund_api_escales_channel3_catalog_by_project__project_id__fund_get",
+    "GET /api/escales/wishlists": "get_public_wishlists_api_escales_wishlists_get",
+    "GET /api/escales/wishlists/{wishlist_id}": "get_public_wishlist_api_escales_wishlists__wishlist_id__get",
+    "GET /api/escales/treasurer/wishlists": "treasurer_list_wishlists_api_escales_treasurer_wishlists_get",
+    "POST /api/escales/treasurer/wishlists": "treasurer_create_wishlist_api_escales_treasurer_wishlists_post",
+    "POST /api/escales/treasurer/wishlists/{wishlist_id}/items": "treasurer_add_wishlist_item_api_escales_treasurer_wishlists__wishlist_id__items_post",
+    "DELETE /api/escales/treasurer/wishlists/{wishlist_id}/items/{channel3_product_id}": "treasurer_remove_wishlist_item_api_escales_treasurer_wishlists__wishlist_id__items__channel3_product_id__delete",
+    "POST /api/escales/treasurer/wishlists/{wishlist_id}/publish": "treasurer_publish_wishlist_api_escales_treasurer_wishlists__wishlist_id__publish_post",
+    "GET /api/escales/webhooks/recent": "get_recent_webhooks_api_escales_webhooks_recent_get",
+    "POST /api/escales/webhooks/paypal": "post_paypal_webhook_api_escales_webhooks_paypal_post",
+    "POST /api/escales/demo/stops/{milestone_id}/simulate-arrival": "post_simulate_arrival_api_escales_demo_stops__milestone_id__simulate_arrival_post",
+    "POST /api/escales/demo/stops/{milestone_id}/cancel": "post_cancel_stop_api_escales_demo_stops__milestone_id__cancel_post",
+    "POST /api/escales/demo/stops/{milestone_id}/reset": "post_reset_stop_api_escales_demo_stops__milestone_id__reset_post"
+  }
+}

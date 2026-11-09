@@ -1,0 +1,923 @@
+{
+  "task": "C3-02",
+  "generated_at": "2026-11-09T04:18:00-05:00",
+  "timezone": "America/Toronto",
+  "crew_size": 6,
+  "crew_size_note": "ASSUMPTION: crew size = 6. Not stated in LIVE_STATE.md nor in BI-Escales-PayPal README/AGENTS.md (searched 2026-11-09). Personal safety/clothing quantities use 6; boat-shared gear uses fixed counts.",
+  "hard_rule": "Association never spends via Channel3; research/search only; no purchase/checkout.",
+  "currencies_present": [
+    "EUR",
+    "GBP",
+    "USD"
+  ],
+  "countries_present": [
+    "FR",
+    "GB",
+    "US"
+  ],
+  "item_count": 37,
+  "dropped_404_count": 0,
+  "items": [
+    {
+      "channel3_product_id": "hwD0sF9",
+      "name": "Stainless-Steel Shackle",
+      "category": "accastillage",
+      "why_needed": "Stainless shackle for sheets, halyards and dock lines; spare deck hardware.",
+      "quantity": 6,
+      "merchant": "academy.com",
+      "merchant_country": "US",
+      "price": 9.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/hwD0sF9-DEoc-8GcCvU?o=01M1DQNXMHP587J8NG83Z593SA&aid=01M6ZS96FA4E434X85SX8RB0AQ",
+      "caution": "Generic stainless shackle (not a named marine brand). Confirm SWL/pin size for the boat before buying.",
+      "raw_file": "smoke-us-shackle.json",
+      "brands": [
+        "Marine Raider"
+      ],
+      "max_commission_rate": 0.014,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "AWIJckw",
+      "name": "Stainless Steel Anchor Shackle",
+      "category": "accastillage",
+      "why_needed": "Anchor/bow shackle for ground tackle and heavy leads.",
+      "quantity": 4,
+      "merchant": "shop.advanceautoparts.com",
+      "merchant_country": "US",
+      "price": 16.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/AWIJckw-d8bL-8GcCvU?o=01M1RC9XQG6TQEH0VA8GJRZY1F&aid=01M6ZS96FA4E434X85SX8RB0AQ",
+      "caution": "Sold as anchor shackle; confirm marine grade and pin type.",
+      "raw_file": "smoke-us-shackle.json",
+      "brands": [
+        "Valmar Marine"
+      ],
+      "max_commission_rate": 0.056,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "Tmatq3P",
+      "name": "8\" Single Grip Winch Handle, Locking",
+      "category": "accastillage",
+      "why_needed": "8\" locking winch handle — primary winch work on deck.",
+      "quantity": 2,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 79.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/Tmatq3P-jlW4-8GcCvU?o=01M3JPHTFBW4F35HKJ3N2QP3D9&aid=01M6ZS9GPK6GTACTQ5E23QCN8W",
+      "caution": "Confirm 8-point socket fits the boat's winches.",
+      "raw_file": "us-winch-handle.json",
+      "brands": [
+        "Lewmar"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "wHaggZE",
+      "name": "8\" One Touch Aluminum Winch Powergrip",
+      "category": "accastillage",
+      "why_needed": "Aluminum one-touch winch handle — second station / spare.",
+      "quantity": 1,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 139.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/wHaggZE-jlW4-8GcCvU?o=01M362VA3WR2QQ277F88BX6MBS&aid=01M6ZS9GPK6GTACTQ5E23QCN8W",
+      "caution": "Confirm socket compatibility; higher price than plastic/locking models.",
+      "raw_file": "us-winch-handle.json",
+      "brands": [
+        "Lewmar"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "JB9URra",
+      "name": "Twisted Nylon Dock Line",
+      "category": "accastillage",
+      "why_needed": "Twisted nylon dock/mooring line for alongside berths.",
+      "quantity": 4,
+      "merchant": "academy.com",
+      "merchant_country": "US",
+      "price": 31.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/JB9URra-DEoc-8GcCvU?o=01M16R9WCWPEVHJWZJH250CKZA&aid=01M6ZS9HVNN7C1007ZQ851Y6M0",
+      "caution": "Length/diameter not verified in Channel3 title alone — check product page for size.",
+      "raw_file": "us-mooring-line.json",
+      "brands": [
+        "SeaSense"
+      ],
+      "max_commission_rate": 0.014,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "2E0l990",
+      "name": "Boat Fender",
+      "category": "accastillage",
+      "why_needed": "Vinyl boat fender to protect hull at quays and raft-ups.",
+      "quantity": 6,
+      "merchant": "academy.com",
+      "merchant_country": "US",
+      "price": 19.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/2E0l990-DEoc-8GcCvU?o=01M1JKQ7CQ3PPYT4R2EDDV8WSW&aid=01M6ZS9K7W32KPV79ADKAQ9269",
+      "caution": "Size (diameter×length) not in title — check before ordering.",
+      "raw_file": "us-fender.json",
+      "brands": [
+        "Marine Raider"
+      ],
+      "max_commission_rate": 0.014,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "zRl9jHd",
+      "name": "Waterproof Dry Bag 25L",
+      "category": "accastillage",
+      "why_needed": "Regatta 25 L waterproof dry bag — protect electronics and papers.",
+      "quantity": 6,
+      "merchant": "regatta.com",
+      "merchant_country": "FR",
+      "price": 20.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/zRl9jHd-aTwc-8GcCvU?o=01M2QN4CB7GPF3PGZZ20S9H4Z4&aid=01M6ZS9D1460X6WG4YFHH33CZT",
+      "caution": "Stowage, not deck hardware sensu stricto; useful boat kit.",
+      "raw_file": "detail-fr-regatta-dry-bag-25l.json",
+      "brands": [
+        "Regatta"
+      ],
+      "max_commission_rate": 0.035,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "ySwJYWZ",
+      "name": "10x50 S",
+      "category": "accastillage",
+      "why_needed": "OM System 10×50 S binoculars — watchkeeping and pilotage.",
+      "quantity": 1,
+      "merchant": "explore.omsystem.com",
+      "merchant_country": "FR",
+      "price": 119.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/ySwJYWZ-IlFo-8GcCvU?o=01M2DPDSPJZCS05TRCZS6Y5TW9&aid=01M6ZS9DV0CBHW8VXGSK8PC28E",
+      "caution": "Boat-shared; consider floating strap separately (not in this listing).",
+      "raw_file": "detail-fr-omsystem-binoculars-10x50.json",
+      "brands": [
+        "OM SYSTEM"
+      ],
+      "max_commission_rate": 0.035,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "P6p8OYf",
+      "name": "Kent Type I Collar Style Life Jacket",
+      "category": "crew_safety",
+      "why_needed": "Kent Type I collar-style offshore life jacket (USCG Type I).",
+      "quantity": 6,
+      "merchant": "cabelas.com",
+      "merchant_country": "US",
+      "price": 64.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/P6p8OYf-WPap-8GcCvU?o=01KVT2ME9A5J75EJZXQM0SF2BP&aid=01M6ZS9MJY0J46V67174JZRABQ",
+      "caution": "USCG Type I — not automatically an ISO 12402 / EN lifejacket for EU waters; verify certification needed for the voyage flag.",
+      "raw_file": "us-lifejacket-offshore.json",
+      "brands": [
+        "GB KENT"
+      ],
+      "max_commission_rate": 0.028,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "i3ZXWdQ",
+      "name": "West Marine Cruiser Lifejacket",
+      "category": "crew_safety",
+      "why_needed": "West Marine Cruiser lifejacket — everyday PFD for nearshore work.",
+      "quantity": 6,
+      "merchant": "westmarine.com",
+      "merchant_country": "US",
+      "price": 49.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/i3ZXWdQ-ziE5-8GcCvU?o=01M4FGAYW0WN37VNCWTNKA0TW6&aid=01M6ZSADK4ST8X1JXVQXPX5Y02",
+      "caution": "Confirm buoyancy class and size range; not a replacement for offshore inflatable if required.",
+      "raw_file": "us-spinlock-harness.json",
+      "brands": [
+        "WEST MARINE"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "MKqaLZT",
+      "name": "Safety Tether",
+      "category": "crew_safety",
+      "why_needed": "Safety tether for clipping on when on deck underway.",
+      "quantity": 6,
+      "merchant": "cabelas.com",
+      "merchant_country": "US",
+      "price": 49.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/MKqaLZT-WPap-8GcCvU?o=01M0V6VA0ZDMR12DDAA06NSF7Z&aid=01M6ZS9NMZ80TGQG06RE7YRTEK",
+      "caution": "CAUTION: listing title is generic 'Safety Tether' — verify it is a sailing ISO 1095/12401 tether with overload indicator, not a pet/tow tether.",
+      "raw_file": "us-sailing-harness.json",
+      "brands": [
+        "Tigress"
+      ],
+      "max_commission_rate": 0.028,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "OYVJCbl",
+      "name": "ResQLink 425 Buoyant Personal Locator Beacon",
+      "category": "crew_safety",
+      "why_needed": "ACR ResQLink 425 buoyant PLB for individual MOB/abandon-ship.",
+      "quantity": 2,
+      "merchant": "basspro.com",
+      "merchant_country": "US",
+      "price": 469.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/OYVJCbl-qzpY-8GcCvU?o=01M0VSWF3WHC2GX75KT6EVZWN1&aid=01M6ZS9R4ENH0ZAAW0XAS275CN",
+      "caution": "CAUTION: PLB must be registered to a country (MMSI/hex ID); registration country should match the association/operator; battery expiry and hydrostatic buoyancy matter.",
+      "raw_file": "us-plb-acr.json",
+      "brands": [],
+      "max_commission_rate": null,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "zJpTONE",
+      "name": "ResQLink AIS PLB-450 Personal Locator Beacon",
+      "category": "crew_safety",
+      "why_needed": "ACR ResQLink AIS PLB-450 — PLB with AIS for faster local MOB detection.",
+      "quantity": 2,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 619.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/zJpTONE-jlW4-8GcCvU?o=01M3BB004N461DHY9NTWXDK0V7&aid=01M6ZS9R4ENH0ZAAW0XAS275CN",
+      "caution": "CAUTION: registration country required; AIS+PLB dual function — confirm programming and subscription/registration rules.",
+      "raw_file": "us-plb-acr.json",
+      "brands": [
+        "ACR Electronics"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "w5hPKfR",
+      "name": "SafeSea EPIRB3 Pro Category 1",
+      "category": "crew_safety",
+      "why_needed": "Ocean Signal SafeSea EPIRB3 Pro Category 1 — vessel EPIRB with auto-deploy housing.",
+      "quantity": 1,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 1044.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/w5hPKfR-jlW4-8GcCvU?o=01M3GDWF8PM1KGE2E207C6PKGF&aid=01M6ZS9S6Z0ED81WNVN8CM6ND2",
+      "caution": "CAUTION: EPIRB registration to vessel MMSI/country mandatory; Category 1 bracket/hydrostatic release; battery service life; not a substitute for a registered PLB per crew.",
+      "raw_file": "us-epirb.json",
+      "brands": [
+        "Ocean Signal"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "D1Imgm0",
+      "name": "Uniden Atlantis 155 Floating Handheld 2-way VHF Marine Radio",
+      "category": "crew_safety",
+      "why_needed": "Uniden Atlantis 155 floating handheld VHF — waterproof backup radio.",
+      "quantity": 2,
+      "merchant": "lowes.com",
+      "merchant_country": "US",
+      "price": 89.34,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/D1Imgm0-Qqxu-8GcCvU?o=01M6PVKD8QJEXXZ3M3WZZ7PEV0&aid=01M6ZS9TBQ02W0FF63500YE0J1",
+      "caution": "Handheld VHF; confirm ATIS/MMSI programming rules for FR/EU if used in European waters.",
+      "raw_file": "us-vhf-handheld.json",
+      "brands": [
+        "Uniden",
+        "Tractor Supply"
+      ],
+      "max_commission_rate": 0.018,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "Gf8pNpL",
+      "name": "BlueBound 350 Handheld VHF Marine Radio",
+      "category": "crew_safety",
+      "why_needed": "Standard Horizon BlueSeas 350 handheld VHF — second handheld for cockpit/MOB.",
+      "quantity": 1,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 139.95,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/Gf8pNpL-jlW4-8GcCvU?o=01M4M89SQEA12RYB6H6G0Z177Q&aid=01M6ZS9TBQ02W0FF63500YE0J1",
+      "caution": "Confirm model features (DSC/GPS) on merchant page; title truncated in search.",
+      "raw_file": "us-vhf-handheld.json",
+      "brands": [
+        "Cobra"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "60BXA1O",
+      "name": "Offshore Voyager Life Raft",
+      "category": "crew_safety",
+      "why_needed": "Offshore Voyager life raft (coastal/offshore abandon-ship).",
+      "quantity": 1,
+      "merchant": "westmarine.com",
+      "merchant_country": "US",
+      "price": 2457.63,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/60BXA1O-ziE5-8GcCvU?o=01KTYD14HCGMDGG8BMFMJR6Z6V&aid=01M6ZS9VDRKX371AZETKPH9MGP",
+      "caution": "CAUTION: liferafts need periodic servicing/repacking by an approved station; check capacity vs crew; shipping and hydrostatic release extras not included in catalogue price.",
+      "raw_file": "us-liferaft.json",
+      "brands": [
+        "Mustang Survival"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "KgmyoXI",
+      "name": "Coastal Flare Alerter Plus Kit",
+      "category": "crew_safety",
+      "why_needed": "Coastal flare alerter kit for distress signalling (pyrotechnic/coastal kit).",
+      "quantity": 1,
+      "merchant": "cabelas.com",
+      "merchant_country": "US",
+      "price": 134.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/KgmyoXI-WPap-8GcCvU?o=01KVF9XGYBTFCM9QYRYJGX9TZK&aid=01M6ZS9WG2FM4BF578FZW1BRAR",
+      "caution": "CAUTION: pyrotechnic flares — shipping/import to France may be restricted or forbidden for private parcels; check DGAC/customs and expiry dates; prefer electronic flare if shipping to FR.",
+      "raw_file": "us-flares.json",
+      "brands": [
+        "Orion Safety Products"
+      ],
+      "max_commission_rate": 0.028,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "3ZiHTua",
+      "name": "RescueMe EDF1 Electronic Distress Flare",
+      "category": "crew_safety",
+      "why_needed": "RescueMe EDF1 electronic distress flare (LED) — non-pyrotechnic alternative.",
+      "quantity": 2,
+      "merchant": "campingworld.com",
+      "merchant_country": "US",
+      "price": 169.99,
+      "currency": "USD",
+      "product_url": "https://buy.trychannel3.com/3ZiHTua-jlW4-8GcCvU?o=01M22AQ8JSGMSV71F1ZY4ZY3Q8&aid=01M6ZS9WG2FM4BF578FZW1BRAR",
+      "caution": "Electronic flare; still check flag-state carriage rules vs pyrotechnic SOLAS requirements.",
+      "raw_file": "us-flares.json",
+      "brands": [
+        "Ocean Signal"
+      ],
+      "max_commission_rate": 0.084,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "1SeHPzP",
+      "name": "Br3 Offshore Jacket",
+      "category": "crew_clothing",
+      "why_needed": "Musto BR3 offshore jacket — heavy foul-weather outer layer for night watches.",
+      "quantity": 6,
+      "merchant": "musto.com",
+      "merchant_country": "FR",
+      "price": 600.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/1SeHPzP-AXRy-8GcCvU?o=01M2S35H5JW9HHE2Y40TM3CG9N&aid=01M6ZS96P544VXM48X3VTW5FAP",
+      "caution": "Size/colour variants — donor must pick size on merchant site.",
+      "raw_file": "detail-fr-musto-br3-offshore-jacket.json",
+      "brands": [
+        "Musto",
+        "Pertex"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "vbbJ2xr",
+      "name": "Veste Br2 Offshore 2.0",
+      "category": "crew_clothing",
+      "why_needed": "Musto BR2 offshore jacket 2.0 — slightly lighter offshore jacket.",
+      "quantity": 4,
+      "merchant": "musto.com",
+      "merchant_country": "FR",
+      "price": 450.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/vbbJ2xr-AXRy-8GcCvU?o=01M2PKW5DRHA1EYV11CDB67M64&aid=01M6ZS974KVY16ZZAV30X1R03H",
+      "caution": "Overlap with BR3; Clément may pick one jacket line only.",
+      "raw_file": "detail-fr-musto-br2-offshore-jacket.json",
+      "brands": [
+        "Musto"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "AfLkvfQ",
+      "name": "Veste de quart Offshore",
+      "category": "crew_clothing",
+      "why_needed": "Bermudes offshore foul-weather jacket (veste de quart) — FR brand alternative.",
+      "quantity": 4,
+      "merchant": "armorlux.com",
+      "merchant_country": "FR",
+      "price": 599.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/AfLkvfQ-Bu5x-8GcCvU?o=01M598FR567C8KE1Z7Q41XJAFY&aid=01M6ZS97JAB8QKRRGAREQ70HTQ",
+      "caution": "Size selection on merchant site.",
+      "raw_file": "detail-fr-bermudes-veste-offshore.json",
+      "brands": [
+        "BERMUDES"
+      ],
+      "max_commission_rate": 0.04907,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "BTwmIAi",
+      "name": "Salopette de quart Offshore",
+      "category": "crew_clothing",
+      "why_needed": "Bermudes offshore salopette (bibs) — matches offshore jacket.",
+      "quantity": 4,
+      "merchant": "armorlux.com",
+      "merchant_country": "FR",
+      "price": 399.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/BTwmIAi-Bu5x-8GcCvU?o=01M5K5DKYYPMG6TY2Y2SKK9WDT&aid=01M6ZS989SEYVCJZPPVTANS844",
+      "caution": null,
+      "raw_file": "detail-fr-bermudes-salopette-offshore.json",
+      "brands": [
+        "BERMUDES"
+      ],
+      "max_commission_rate": 0.04907,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "Qf4fhyd",
+      "name": "Salopette de Voile pour Homme Skagen Offshore",
+      "category": "crew_clothing",
+      "why_needed": "Helly Hansen Skagen offshore sailing bib — third brand option for bibs.",
+      "quantity": 4,
+      "merchant": "hellyhansen.com",
+      "merchant_country": "FR",
+      "price": 320.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/Qf4fhyd-pbO4-8GcCvU?o=01M621HATXQC370SPHKTNV5DRZ&aid=01M6ZS992X39CM4NRS7T59CBCH",
+      "caution": null,
+      "raw_file": "detail-fr-hellyhansen-skagen-bib.json",
+      "brands": [
+        "Helly Hansen"
+      ],
+      "max_commission_rate": 0.07,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "wcPM902",
+      "name": "Mpx Gore-tex Pro Race Salopette 2.0",
+      "category": "crew_clothing",
+      "why_needed": "Musto MPX Gore-Tex Pro Race salopette 2.0 — top-tier racing/offshore bibs.",
+      "quantity": 2,
+      "merchant": "musto.com",
+      "merchant_country": "FR",
+      "price": 750.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/wcPM902-AXRy-8GcCvU?o=01M2PKXXMWZA0GYC3G6X7QYVQJ&aid=01M6ZS99G2DXZEKRA26SB6BMH9",
+      "caution": "High price; confirm if expedition needs Pro Race vs BR/Bermudes bibs.",
+      "raw_file": "detail-fr-musto-mpx-salopette.json",
+      "brands": [
+        "Musto",
+        "GORE-TEX"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "22kSrXV",
+      "name": "Hobart Men's Extrafit™ Sailing Boot",
+      "category": "crew_clothing",
+      "why_needed": "Dubarry Hobart Extrafit sailing boot — deck boot with grip.",
+      "quantity": 6,
+      "merchant": "fr.dubarry.com",
+      "merchant_country": "FR",
+      "price": 259.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/22kSrXV-LZRw-8GcCvU?o=01KRYMXDW1KZYB2Z9JSW417R8R&aid=01M6ZS99WNTFQ96VMJBGKDW0BR",
+      "caution": "Width Extrafit; size run on merchant site. Price refreshed 390→ wait check live detail: was 259 EUR.",
+      "raw_file": "detail-fr-dubarry-hobart-boot.json",
+      "brands": [
+        "Dubarry"
+      ],
+      "max_commission_rate": 0.06,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "H3jYXkq",
+      "name": "Neptune Neoprene Lined Wellington Boot",
+      "category": "crew_clothing",
+      "why_needed": "Le Chameau Neptune neoprene-lined wellington — wet deck / cold.",
+      "quantity": 4,
+      "merchant": "lechameau.com",
+      "merchant_country": "FR",
+      "price": 390.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/H3jYXkq-JTO4-8GcCvU?o=01M1Y22FJQSQ3HW5JF27XVAQNY&aid=01M6ZS9A9GHM6XG4MSBEYFJB6F",
+      "caution": "Price in live detail is 390.00 EUR (Page listed 325.00 EUR on 9 Nov ~03:10).",
+      "raw_file": "detail-fr-lechameau-neptune-boot.json",
+      "brands": [
+        "Le Chameau"
+      ],
+      "max_commission_rate": 0.07,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "HWSTzpv",
+      "name": "Regatta Deck Shoe",
+      "category": "crew_clothing",
+      "why_needed": "Dubarry Regatta deck shoe — dry-deck / ashore.",
+      "quantity": 6,
+      "merchant": "fr.dubarry.com",
+      "merchant_country": "FR",
+      "price": 189.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/HWSTzpv-LZRw-8GcCvU?o=01KRYK2D0AX8V7YBYMTH7XPSBD&aid=01M6ZS9AWS9J2QZFJX1QWAMCVN",
+      "caution": null,
+      "raw_file": "detail-fr-dubarry-regatta-deck-shoe.json",
+      "brands": [
+        "Dubarry"
+      ],
+      "max_commission_rate": 0.06,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "6k2GSTu",
+      "name": "Gants À Doigts Fermés Haute Performance 2.0",
+      "category": "crew_clothing",
+      "why_needed": "Musto performance short-finger sailing glove.",
+      "quantity": 12,
+      "merchant": "musto.com",
+      "merchant_country": "FR",
+      "price": 60.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/6k2GSTu-AXRy-8GcCvU?o=01M2S3AGXC7CAQXZYKG8JNBJYJ&aid=01M6ZS9BEN7RH202F3NV739VQG",
+      "caution": "Qty = 2 pairs × 6 crew. Confirm short vs long finger preference.",
+      "raw_file": "detail-fr-musto-short-finger-glove.json",
+      "brands": [
+        "Musto"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "QhNuuVx",
+      "name": "Men's Thermal Base Layer Top 2.0 | Musto",
+      "category": "crew_clothing",
+      "why_needed": "Musto thermal base-layer top 2.0.",
+      "quantity": 6,
+      "merchant": "musto.com",
+      "merchant_country": "FR",
+      "price": 75.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/QhNuuVx-AXRy-8GcCvU?o=01M2S2K7HSGRG1RBYAVWP1163W&aid=01M6ZS9BXWCADKTGEDF3FVYHPZ",
+      "caution": null,
+      "raw_file": "detail-fr-musto-thermal-top.json",
+      "brands": [
+        "Musto"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "6jNYc5H",
+      "name": "Men's Thermal Base Layer Pant 2.0",
+      "category": "crew_clothing",
+      "why_needed": "Musto thermal base-layer pant 2.0.",
+      "quantity": 6,
+      "merchant": "musto.com",
+      "merchant_country": "FR",
+      "price": 75.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/6jNYc5H-AXRy-8GcCvU?o=01M2S3CHWAED87YJ3VD2KZ354M&aid=01M6ZS9C9X7JZ257PSVSJMRCQH",
+      "caution": null,
+      "raw_file": "detail-fr-musto-thermal-pant.json",
+      "brands": [
+        "Musto"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "dWvfkIA",
+      "name": "Men's Cove Deep Pile Fleece Jacket",
+      "category": "crew_clothing",
+      "why_needed": "Musto Cove deep-pile fleece mid-layer.",
+      "quantity": 6,
+      "merchant": "musto.com",
+      "merchant_country": "FR",
+      "price": 150.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/dWvfkIA-AXRy-8GcCvU?o=01M2S36M162E4PXFA8AAY3XJWC&aid=01M6ZS9CN5D5WEHM1DPF2NNTF1",
+      "caution": null,
+      "raw_file": "detail-fr-musto-cove-fleece.json",
+      "brands": [
+        "Musto"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "pntIpmE",
+      "name": "Icon 700 Headlamp",
+      "category": "crew_safety",
+      "why_needed": "Black Diamond Icon 700 headlamp — night watch / engine bay.",
+      "quantity": 6,
+      "merchant": "eu.blackdiamondequipment.com",
+      "merchant_country": "FR",
+      "price": 100.0,
+      "currency": "EUR",
+      "product_url": "https://buy.trychannel3.com/pntIpmE-ccSv-8GcCvU?o=01KZBGSTYX4WK3Y2MAR2YHBC0N&aid=01M6ZS9DEQW77DT3558ENFD4H0",
+      "caution": "Not marine-specific; check IP waterproof rating for cockpit rain.",
+      "raw_file": "detail-fr-blackdiamond-icon-700.json",
+      "brands": [
+        "Black Diamond"
+      ],
+      "max_commission_rate": 0.05852,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "6QGw0iy",
+      "name": "Universal Life Vest Adult (50N)",
+      "category": "crew_safety",
+      "why_needed": "Decathlon universal adult buoyancy aid 50N — nearshore dinghy/harbour only.",
+      "quantity": 4,
+      "merchant": "decathlon.co.uk",
+      "merchant_country": "GB",
+      "price": 24.99,
+      "currency": "GBP",
+      "product_url": "https://buy.trychannel3.com/6QGw0iy-Jtvw-8GcCvU?o=01KBPBQB1S28CEF9C1WQFDQKJT&aid=01M6ZS9XV06N9JRVP2ZBE7Q58N",
+      "caution": "CAUTION: 50N buoyancy aid is NOT an offshore lifejacket; unsuitable as primary ocean PFD.",
+      "raw_file": "gb-lifejacket.json",
+      "brands": [
+        "Jobe"
+      ],
+      "max_commission_rate": 0.021,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "CBEJPxi",
+      "name": "Men's BR2 Offshore Jacket 2.0",
+      "category": "crew_clothing",
+      "why_needed": "Musto BR2 Offshore Jacket 2.0 (GBP listing on musto.com).",
+      "quantity": 2,
+      "merchant": "musto.com",
+      "merchant_country": "GB",
+      "price": 395.0,
+      "currency": "GBP",
+      "product_url": "https://buy.trychannel3.com/CBEJPxi-AXRy-8GcCvU?o=01M2VTXD9DYFQBE8V4BFGD12NC&aid=01M6ZS9XV06N9JRVP2ZBE7Q58N",
+      "caution": "Same product family as FR EUR vbbJ2xr; listed to show native GBP price. Prefer one currency listing for funding.",
+      "raw_file": "gb-lifejacket.json",
+      "brands": [
+        "Musto"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "K6gupx4",
+      "name": "HX210E VHF Radio (UK/EU)",
+      "category": "crew_safety",
+      "why_needed": "Standard Horizon / listed HX210E VHF radio (UK/EU) handheld.",
+      "quantity": 1,
+      "merchant": "mountainwarehouse.com",
+      "merchant_country": "GB",
+      "price": 114.0,
+      "currency": "GBP",
+      "product_url": "https://buy.trychannel3.com/K6gupx4-3n2Z-8GcCvU?o=01M2NVT4HTSJE3FAP2SJTTEZN3&aid=01M6ZSA388MZ02RW6HDZQ2PY28",
+      "caution": "Confirm exact brand/model on merchant page; UK/EU version for ATIS.",
+      "raw_file": "gb-vhf.json",
+      "brands": [
+        "Standard Horizon"
+      ],
+      "max_commission_rate": 0.091,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    },
+    {
+      "channel3_product_id": "GMF9MhP",
+      "name": "Essential Sailing Short Finger Glove 2.0",
+      "category": "crew_clothing",
+      "why_needed": "Musto Essential sailing short-finger glove 2.0 (GBP).",
+      "quantity": 6,
+      "merchant": "musto.com",
+      "merchant_country": "GB",
+      "price": 40.0,
+      "currency": "GBP",
+      "product_url": "https://buy.trychannel3.com/GMF9MhP-AXRy-8GcCvU?o=01M2VY6MWKZEES8ADH40SN19FZ&aid=01M6ZSA0GV164R81Y1TDA270RV",
+      "caution": "GBP twin of FR gloves line; pick FR or GB merchant, not both.",
+      "raw_file": "gb-winch-handle.json",
+      "brands": [
+        "Musto"
+      ],
+      "max_commission_rate": 0.042,
+      "url_check": {
+        "ok": true,
+        "status": 200,
+        "final_url_host": "buy.trychannel3.com",
+        "note": "ok"
+      }
+    }
+  ],
+  "dropped_404": [],
+  "trimmed_out_ids": [
+    "rFQlJlB",
+    "3XQ6FXz",
+    "ooroTSB",
+    "mCRhst6",
+    "LcJctAe",
+    "HmE5dvQ",
+    "loGvI4t",
+    "THkhG3I"
+  ],
+  "trimmed_out_note": "Removed overlapping clothing sizes/lines and redundant shackles/VHFs/EPIRBs to stay within 20–40. Still present in raw/ if Clément wants them."
+}

@@ -33,3 +33,16 @@ For catalogue `project_id` values (`gear-c3-*`):
 - **JPY, HUF, TWD**: PayPal order amounts are whole units (no decimal `.value`). Other supported currencies use two decimal places.
 - Ledger finance lines store `currency` on each capture; funding totals never mix currencies.
 - Stop/cabin/common-fund pledges stay **EUR** unchanged.
+
+## Native totals vs received net EUR (PayPal settlement)
+
+PayPal sandbox captures in USD/GBP (and other native catalogue currencies) are **settled into EUR** on the association merchant account. The EUR the treasurer can spend is **not** the native captured amount:
+
+| Field | Meaning |
+|-------|---------|
+| `totals_by_currency` / `funded_pct` | Native currency only (catalogue goal and progress). No FX. |
+| `received_net_eur` (pledge + fund) | EUR net from PayPal `seller_receivable_breakdown.net_amount` after fees and PayPal’s exchange rate. |
+| Refunds | Stay in the pledge’s native currency on the refund API; EUR takeback from `seller_payable_breakdown` reduces `received_net_eur`. |
+| Project payouts | Bounded by summed `received_net_eur`, not by treating USD/GBP as EUR. |
+
+Settlement fields (`gross_amount`, `paypal_fee`, `net_amount`, `exchange_rate`, `receivable_amount` when present) are stored on the pledge and on `pledge_captured` finance lines. Missing breakdown on non-EUR captures logs a warning and leaves settlement fields null; EUR captures without breakdown keep the previous behaviour (amount minus fee when reported).

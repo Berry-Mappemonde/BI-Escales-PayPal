@@ -49,6 +49,14 @@ async def fund_snapshot_for_project(project_id: str) -> dict[str, Any]:
         net = captured - refunded
         text = minor_to_major_display(major_string_to_minor(str(net), native), native)
         refunded_text = minor_to_major_display(major_string_to_minor(str(refunded), native), native)
+        from app.escales.paypal_settlement import finance_entry_received_net_eur, finance_entry_refund_net_eur
+
+        received_net_eur = Decimal("0.00")
+        for entry in await _project_finance_lines(project_id):
+            received_net_eur += finance_entry_received_net_eur(entry)
+            received_net_eur -= finance_entry_refund_net_eur(entry)
+        if received_net_eur < Decimal("0.00"):
+            received_net_eur = Decimal("0.00")
         return {
             "milestone_id": project_id,
             "currency": native,
@@ -56,6 +64,7 @@ async def fund_snapshot_for_project(project_id: str) -> dict[str, Any]:
             "amount_eur": text,
             "donation_count": donation_count,
             "refunded_eur": refunded_text,
+            "received_net_eur": f"{received_net_eur.quantize(Decimal('0.01')):.2f}",
         }
     from app.escales.ledger import fund_for_milestone
 
@@ -115,19 +124,20 @@ def enrich_item_funding(
     )
     fully_funded = pct is not None and pct >= 100
 
-    out.update(
-        {
-            "target_amount_minor": target_minor,
-            "target_currency": native_ccy,
-            "target_display": target_major,
-            "funded_amount_minor": funded_minor,
-            "funded_currency": native_ccy,
-            "funded_display": funded_major,
-            "funded_pct": pct,
-            "fully_funded": fully_funded,
-            "paypal_currency_supported": supported,
-        }
-    )
+    patch = {
+        "target_amount_minor": target_minor,
+        "target_currency": native_ccy,
+        "target_display": target_major,
+        "funded_amount_minor": funded_minor,
+        "funded_currency": native_ccy,
+        "funded_display": funded_major,
+        "funded_pct": pct,
+        "fully_funded": fully_funded,
+        "paypal_currency_supported": supported,
+    }
+    if fund.get("received_net_eur") is not None:
+        patch["received_net_eur"] = str(fund.get("received_net_eur"))
+    out.update(patch)
     out.pop("eur_funding_supported", None)
     out.pop("indicative_target_eur", None)
     out.pop("fx_source", None)

@@ -72,7 +72,7 @@ describe("PledgeButton with a broken PayPal SDK (stopover crash regression)", ()
     );
     await waitFor(() => expect(render1).toHaveBeenCalled());
     expect(loadPayPalSdk).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(loadPayPalSdk).mock.calls[0]).toEqual(["sandbox-client-id", "en", "authorize", true]);
+    expect(vi.mocked(loadPayPalSdk).mock.calls[0]).toEqual(["sandbox-client-id", "en", "authorize", true, "EUR"]);
   });
 
   it("hides the redirect fallback after Smart Buttons render successfully", async () => {
@@ -109,7 +109,7 @@ describe("PledgeButton with a broken PayPal SDK (stopover crash regression)", ()
       expect(screen.queryByRole("button", { name: i18n.t("pledge.create") })).toBeNull(),
     );
     expect(fetchPledgeMode).not.toHaveBeenCalled();
-    expect(loadPayPalSdk).toHaveBeenCalledWith("sandbox-client-id", "en", "capture", true);
+    expect(loadPayPalSdk).toHaveBeenCalledWith("sandbox-client-id", "en", "capture", true, "EUR");
     const calls = vi.mocked(createButtons).mock.calls as unknown as Array<
       [{ style?: { layout?: string; label?: string } }]
     >;

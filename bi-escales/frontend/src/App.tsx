@@ -108,6 +108,7 @@ export default function App() {
   });
   const [treasurerOpen, setTreasurerOpen] = useState(false);
   const [bryntumEnabled, setBryntumEnabled] = useState(false);
+  const [wishlistsEnabled, setWishlistsEnabled] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
 
   const prod = Boolean(import.meta.env.PROD);
@@ -196,6 +197,7 @@ export default function App() {
       .then((flags) => {
         if (cancelled) return;
         setBryntumEnabled(Boolean(flags.bryntum));
+        setWishlistsEnabled(Boolean(flags.wishlists));
         setClockPinned(Boolean(flags.clock_pinned));
         setDemoTreasurerAvailable(Boolean(flags.demo_treasurer));
       })
@@ -781,6 +783,11 @@ export default function App() {
             {t("tabs.gear")}
           </button>
         </div>
+        {wishlistsEnabled ? (
+          <p className="wishlists-nav" data-testid="wishlists-nav-link">
+            <a href="/escales/wishlists">{t("wishlists.navLink")}</a>
+          </p>
+        ) : null}
         <p className="ng-clock-line voyage-clock" data-testid="voyage-clock">
           {countdownHours !== null ? (
             <span className="voyage-clock-countdown">

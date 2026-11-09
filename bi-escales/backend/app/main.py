@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
@@ -12,6 +12,8 @@ from app.bi_marinas_catalog import build_escale_fiche, get_all_escale_marinas_ge
 from app.bi_projects_catalog import get_bi_projects_geojson
 from app.escales.config import cors_origins, resolve_apple_pay_domain_association_path
 from app.middleware.security_headers import install_security_headers
+from app.spa_client_routes import is_known_client_route
+from app.spa_html import render_spa_html
 
 app = FastAPI(title="BI Escales — Pay Only If We Sail")
 
@@ -112,7 +114,10 @@ def attach_frontend(application: FastAPI) -> None:
         candidate = (dist / full_path).resolve() if full_path else index
         if full_path and candidate.is_file() and str(candidate).startswith(str(dist)):
             return FileResponse(candidate)
-        return FileResponse(index)
+        template = index.read_text(encoding="utf-8")
+        html = render_spa_html(template, full_path)
+        status = 200 if is_known_client_route(full_path) else 404
+        return HTMLResponse(html, status_code=status)
 
 
 attach_frontend(app)

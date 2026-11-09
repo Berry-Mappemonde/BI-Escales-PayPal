@@ -191,6 +191,7 @@
     "crewSubscribeLoading": "Loading Crew supporter plan…",
     "crewSubscribePlanTimeout": "Could not load the Crew supporter plan. Try again in a moment.",
     "crewSubscribePlanMissing": "Crew supporter plan is not set up yet. Ask the treasurer to run setup.",
+    "crewSubscribePlanTreasurerHint": "Crew supporter plan is not configured yet. Open Treasurer tools → PayPal and use \"Ensure Crew supporter plan (sandbox)\".",
     "crewSubscribeConfirmed": "Crew supporter subscription confirmed. Thank you.",
     "crewSubscribeVerifying": "Verifying Crew supporter subscription with PayPal…",
     "crewSubscribePending": "Subscription is not active yet. Finish approval in PayPal or try again shortly.",
@@ -356,6 +357,7 @@
       "invoices": "Invoices: {{count}}",
       "subscriptions": "Crew subscriptions: {{count}}",
       "setupCrew": "Ensure Crew supporter plan (sandbox)",
+      "crewPlanMissingHint": "No Crew supporter plan id is published yet. Use the button below to create the sandbox catalog.",
       "setupDone": "Crew supporter catalog already configured.",
       "setupCreated": "Crew supporter product and plan created.",
       "reconcileLag": "Reconcile matches capture_id to PayPal transaction_id; sandbox reporting can lag about 3 hours."

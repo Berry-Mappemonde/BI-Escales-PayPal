@@ -11,7 +11,7 @@ import MarinasPanel from "./components/MarinasPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
 import { TreasurerPanel } from "./components/TreasurerPanel";
 import { ShellSettingsPanel } from "./components/ShellSettingsPanel";
-import { CrewSubscribeButton } from "./components/CrewSubscribeButton";
+import { CrewSupporterPublicSection } from "./components/CrewSubscribeButton";
 import { HowItWorks } from "./components/stop/HowItWorks.jsx";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
 import { ToastContainer } from "./components/Toast";
@@ -804,15 +804,7 @@ export default function App() {
               onSuggested={onSuggested}
               onAuthorized={onAuthorized}
             />
-            <section className="crew-supporter-public" data-testid="crew-supporter-public">
-              <div className="crew-supporter-heading">
-                <h2>{t("pledge.crewSubscribeHint")}</h2>
-                <small className="crew-sandbox-note">{t("pledge.crewSubscribeSandbox")}</small>
-              </div>
-              <div className="crew-paypal-frame">
-                <CrewSubscribeButton adminKey={adminKey.trim() || undefined} suppressHeadingHint />
-              </div>
-            </section>
+            <CrewSupporterPublicSection adminKey={adminKey.trim() || undefined} />
             {publicCommonFund ? (
               <p className="hint public-common-fund" data-testid="public-common-fund">
                 {t("fund.publicCommon", {

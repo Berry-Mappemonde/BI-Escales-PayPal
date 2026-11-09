@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  fetchCrewSupporterPlan,
   fetchPayPalDisputes,
   fetchPayPalInvoices,
   fetchPayPalSubscriptions,
@@ -17,6 +18,7 @@ export function TreasurerPayPalPanel({ adminKey }: TreasurerPayPalPanelProps) {
   const [invoiceCount, setInvoiceCount] = useState<number | null>(null);
   const [subscriptions, setSubscriptions] = useState<number | null>(null);
   const [setupNote, setSetupNote] = useState<string | null>(null);
+  const [crewPlanConfigured, setCrewPlanConfigured] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -48,6 +50,20 @@ export function TreasurerPayPalPanel({ adminKey }: TreasurerPayPalPanelProps) {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetchCrewSupporterPlan()
+      .then((body) => {
+        if (!cancelled) setCrewPlanConfigured(Boolean(String(body.plan_id || "").trim()));
+      })
+      .catch(() => {
+        if (!cancelled) setCrewPlanConfigured(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [setupNote]);
+
   const onSetup = async () => {
     const key = adminKey.trim();
     if (!key) return;
@@ -76,6 +92,11 @@ export function TreasurerPayPalPanel({ adminKey }: TreasurerPayPalPanelProps) {
           {t("treasurer.paypal.subscriptions", { count: subscriptions ?? "—" })}
         </li>
       </ul>
+      {crewPlanConfigured === false ? (
+        <p className="hint" data-testid="treasurer-crew-plan-missing-hint">
+          {t("treasurer.paypal.crewPlanMissingHint")}
+        </p>
+      ) : null}
       <button type="button" data-testid="crew-subscription-setup" onClick={() => void onSetup()}>
         {t("treasurer.paypal.setupCrew")}
       </button>

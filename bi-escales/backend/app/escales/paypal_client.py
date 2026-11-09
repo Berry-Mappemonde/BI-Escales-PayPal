@@ -141,6 +141,47 @@ def approve_link(order: dict) -> str:
     return f"https://www.sandbox.paypal.com/checkoutnow?token={order_id}"
 
 
+def paypal_error_issues(body: Any) -> list[str]:
+    """PayPal ``details[].issue`` codes from an error body."""
+    fields = _paypal_api_error_fields(body)
+    if not fields:
+        return []
+    issues: list[str] = []
+    for item in fields.get("details") or []:
+        if not isinstance(item, dict):
+            continue
+        issue = item.get("issue")
+        if issue:
+            issues.append(str(issue))
+    return issues
+
+
+def paypal_error_has_issue(exc: PayPalError, code: str) -> bool:
+    if exc.status != 422:
+        return False
+    return code in paypal_error_issues(exc.body)
+
+
+_USABLE_AUTHORIZATION_STATUSES = frozenset({"CREATED", "PENDING"})
+
+
+def usable_authorization_from_order(order: dict) -> tuple[str, Optional[str]]:
+    """Authorization id from a GET order when authorize returned ORDER_ALREADY_AUTHORIZED."""
+    for unit in order.get("purchase_units") or []:
+        payments = (unit or {}).get("payments") or {}
+        for auth in payments.get("authorizations") or []:
+            if not isinstance(auth, dict):
+                continue
+            status = str(auth.get("status") or "").upper()
+            if status not in _USABLE_AUTHORIZATION_STATUSES:
+                continue
+            auth_id = auth.get("id")
+            if auth_id:
+                expiration = auth.get("expiration_time")
+                return str(auth_id), str(expiration) if expiration else None
+    raise PayPalError(502, "authorization id missing")
+
+
 def authorization_from(order: dict) -> tuple[str, Optional[str]]:
     """Return (authorization id, expiration) from an authorize-order response."""
     for unit in order.get("purchase_units") or []:

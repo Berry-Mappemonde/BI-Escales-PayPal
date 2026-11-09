@@ -711,8 +711,11 @@ def test_forbidden_transition_returns_409(api):
     assert early_void.status_code == 409
     authorized = _authorize(client, pledge_id)
     assert authorized.status_code == 200
+    calls_after_first = len(fake.calls)
     again = _authorize(client, pledge_id)
-    assert again.status_code == 409
+    assert again.status_code == 200
+    assert again.json()["status"] == "authorized"
+    assert len(fake.calls) == calls_after_first
     _approve_capture(created.json()["milestone_id"])
     captured = client.post(f"/api/escales/pledges/{pledge_id}/capture", headers=ADMIN)
     assert captured.status_code == 200

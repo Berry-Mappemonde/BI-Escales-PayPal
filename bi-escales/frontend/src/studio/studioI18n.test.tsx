@@ -72,6 +72,8 @@ describe("copies studio", () => {
       copy.colNet,
       copy.colContributor,
       copy.colDescription,
+      language === "fr" ? "Type de financement" : "Funding type",
+      language === "fr" ? "Projet ciblé" : "Funding target",
     ]);
     expect(fieldFormatter(language, "amount_eur")?.(120)).toBe(
       language === "fr" ? "120,00 €" : "120.00 EUR",

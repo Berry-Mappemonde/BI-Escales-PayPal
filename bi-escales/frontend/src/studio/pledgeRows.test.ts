@@ -87,6 +87,11 @@ describe("nextTreasurerAction", () => {
     });
   });
 
+  it("routes crowdfunding queries to a read-only custom widget", () => {
+    expect(nextTreasurerAction("Show crowdfunding projects", 1).kind).toBe("add-funding-widget");
+    expect(nextTreasurerAction("Financement des projets", 1).kind).toBe("add-funding-widget");
+  });
+
   it("ajoute la jauge seulement si on le demande, puis répond", () => {
     expect(nextTreasurerAction("Ajoute la jauge", 1).kind).toBe("add-validation-widget");
     expect(nextTreasurerAction("Ajoute la jauge", 2).kind).toBe("reply");

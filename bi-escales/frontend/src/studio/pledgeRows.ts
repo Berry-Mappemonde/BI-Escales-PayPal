@@ -11,6 +11,8 @@ export interface PledgeStudioRow {
   net_eur: number;
   contributor: string;
   description: string;
+  kind: string;
+  target_id: string;
 }
 
 export function toPledgeStudioRows(pledges: StudioPledge[]): PledgeStudioRow[] {
@@ -24,6 +26,8 @@ export function toPledgeStudioRows(pledges: StudioPledge[]): PledgeStudioRow[] {
       net_eur: netOfRefunds(amount, pledge.refunded_amount_eur),
       contributor: pledge.contributor ?? "",
       description: pledge.description,
+      kind: pledge.kind ?? "",
+      target_id: pledge.target_id ?? "",
     };
   });
 }

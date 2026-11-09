@@ -1,0 +1,6 @@
+# Generated APIMatic trees are vendored as-is.
+# This file applies when ruff is run from this directory.
+exclude = [
+    "payouts-sdk-python",
+    "partner-referrals-sdk-python",
+]

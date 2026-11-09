@@ -7,6 +7,8 @@ the evidence nor the sum or difference of two figures that are.
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import datetime as dt
 import re
 from decimal import Decimal, InvalidOperation
@@ -266,6 +268,28 @@ async def record_captain_review_approval(
     return {"milestone_id": mid, "approved": True, "proposal": proposal, "at": approved_at}
 
 
+_DEMO_ARRIVAL_APPROVAL: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "escales_demo_arrival_approval", default=None,
+)
+
+
+@contextlib.contextmanager
+def demo_arrival_approval(milestone_id: str):
+    """Treat ``milestone_id`` as approved for capture inside this block only.
+
+    Used by the keyed judge-moment route. Nothing is persisted: once the block
+    exits, ``captain_review_approved`` reads only the real finance journal again.
+    """
+    from .naviguide_bridge import resolve_milestone
+
+    mid = (milestone_id or "").strip()
+    token = _DEMO_ARRIVAL_APPROVAL.set(resolve_milestone(mid) or mid)
+    try:
+        yield
+    finally:
+        _DEMO_ARRIVAL_APPROVAL.reset(token)
+
+
 async def captain_review_approved(
     milestone_id: str, *, now: Optional[dt.datetime] = None,
 ) -> bool:
@@ -283,6 +307,9 @@ async def captain_review_approved(
     if not mid:
         return False
     mid = resolve_milestone(mid) or mid
+    demo_mid = _DEMO_ARRIVAL_APPROVAL.get()
+    if demo_mid and demo_mid == mid:
+        return True
     milestone = await resolve_schedule_milestone(mid)
     meta = (milestone or {}).get("meta") or {}
     anchor_key = "departure_iso" if meta.get("capture_on") == "departure" else "arrival_iso"

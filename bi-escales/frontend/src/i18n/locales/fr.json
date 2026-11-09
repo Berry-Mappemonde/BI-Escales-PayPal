@@ -115,6 +115,13 @@
     "boatTotals": "Fonds commun",
     "publicCommon": "Fonds communautaire · {{balance}}"
   },
+  "cabinLegPicker": {
+    "label": "Choisir une jambe de voyage",
+    "hint": "Les cabines sont débitées au départ de cette jambe.",
+    "empty": "Aucune jambe disponible dans le calendrier.",
+    "loading": "Chargement des jambes du voyage…",
+    "error": "Impossible de charger le calendrier"
+  },
   "scheduler": {
     "heading": "Calendrier des escales",
     "empty": "Aucune escale planifiée.",
@@ -327,7 +334,7 @@
     "demoBanner": "Démo bac à sable — file, revue, capture et annulation seulement. Aucune clé admin sur cet appareil.",
     "demoStop": {
       "heading": "Moment juge — La Rochelle",
-      "hint": "Bac à sable : escale {{id}} uniquement. Simuler l'arrivée capture les promesses autorisées ; annuler vide les autorisations ; réinitialiser efface l'état démo sans toucher aux captures.",
+      "hint": "Bac à sable uniquement, clé trésorier requise : escale {{id}}. Simuler l'arrivée capture les promesses autorisées (l'approbation ne vaut que pour cette action, rien n'est enregistré) ; annuler vide les autorisations ; réinitialiser efface l'état démo sans toucher aux captures.",
       "simulateArrival": "Simuler l'arrivée du bateau",
       "cancelStop": "Annuler l'escale",
       "resetDemo": "Réinitialiser la démo",

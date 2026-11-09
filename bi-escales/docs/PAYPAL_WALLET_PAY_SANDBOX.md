@@ -2,20 +2,37 @@
 
 These buttons are gated by `ESCALES_WALLET_PAY_ENABLED=1` on the API and the matching Vite env on the frontend build. No Render change is made by the agent; you register domains in the PayPal sandbox dashboard.
 
+**Clément gate (prod):** Do not register `escales.naviguide.fr` in PayPal Apple Pay / Google Pay, change production Render env vars, or set `ESCALES_WALLET_PAY_ENABLED` on prod until Clément explicitly approves. Sandbox work on test2 (`bi-escales-api-test2.onrender.com`) is fine without that gate.
+
 ## Apple Pay (Safari, sandbox)
 
-1. Open [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/) → your sandbox REST app → **Apple Pay**.
-2. Register the **domain** where the Escales UI is served (for TEST: `bi-escales-api.onrender.com` if the app is served from there, or your local tunnel hostname if you test locally).
-3. The sandbox association file is served by the API at `GET /.well-known/apple-developer-merchantid-domain-association` (`text/plain`, no auth). The repo ships PayPal’s sandbox bytes under `backend/static/.well-known/` (9094 bytes). Optional override: `ESCALES_APPLE_PAY_DOMAIN_ASSOCIATION_FILE`.
-4. In sandbox, use an Apple Pay–capable Safari session with a **sandbox Apple ID** wallet; EUR merchant + FR buyer profile must stay eligible.
-5. Set `ESCALES_WALLET_PAY_ENABLED=1`, rebuild the frontend with `VITE_PAYPAL_CLIENT_ID`, redeploy TEST, and confirm `GET /api/escales/features` returns `"wallet_pay": true`.
+Official reference: [PayPal — Apple Pay](https://developer.paypal.com/docs/checkout/apm/apple-pay/).
+
+1. Open [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/) and ensure the **Sandbox** toggle is on.
+2. Go to **Apps & Credentials** → open the sandbox REST app (e.g. **BI Escales Cartes**) → **Features** → enable **Apple Pay** → **Save**.
+3. In the same app, open **Apple Pay** → **Manage** → review domains already listed → **Add Domain** and register the exact host where buyers see the button (for TEST2: `bi-escales-api-test2.onrender.com`; register every host you use, including subdomains).
+4. The sandbox association file must be reachable at **exactly**  
+   `GET https://<your-host>/.well-known/apple-developer-merchantid-domain-association`  
+   with **HTTP 200**, **no redirect**, and no auth. PayPal recommends serving it as **`application/octet-stream`** (not `text/html` or `text/plain`). The API serves PayPal’s sandbox bytes from `backend/static/.well-known/` (9094 bytes). Optional override: `ESCALES_APPLE_PAY_DOMAIN_ASSOCIATION_FILE`.
+5. After domain registration succeeds in the dashboard, use Safari with a **sandbox Apple ID** wallet and test cards; EUR merchant + FR buyer profile must stay eligible.
+6. On TEST2, `ESCALES_WALLET_PAY_ENABLED=1` is already set; confirm `GET /api/escales/features` returns `"wallet_pay": true` after deploy.
+
+Verify after deploy (coordinator):
+
+```bash
+curl -sI https://bi-escales-api-test2.onrender.com/.well-known/apple-developer-merchantid-domain-association
+```
+
+Expect `HTTP/1.1 200` and `Content-Type` starting with `application/octet-stream`.
 
 ## Google Pay (Chrome, sandbox)
 
-1. Same PayPal app → **Google Pay** → add the same **origin** (scheme + host + port) as the Escales page.
-2. Use Chrome with a **Google Pay test card** in sandbox mode (PayPal docs: Google Pay sandbox card suite).
-3. Confirm the origin matches `ESCALES_PUBLIC_URL` / the page the buyer uses (no mixed http/https).
-4. With the flag on, wire `loadPayPalWalletPaySdk` in the pledge sheet (see `paypalSdk.ts`) and render Apple Pay / Google Pay when the SDK reports eligibility.
+Official reference: [PayPal — Google Pay](https://developer.paypal.com/docs/checkout/apm/google-pay/).
+
+1. Same sandbox app → **Features** → enable **Google Pay** → **Save** (complete sandbox onboarding if the dashboard shows Google Pay as disabled).
+2. Google Pay via the PayPal JS SDK does **not** use an Apple-style `/.well-known` association file. Ensure the feature is enabled and the page **origin** (scheme + host [+ port]) matches where the Escales UI is served (`ESCALES_PUBLIC_URL` / the URL in the browser address bar; no mixed http/https).
+3. Use Chrome with Google Pay **test card suite** in sandbox (linked from PayPal’s sandbox testing section).
+4. With `ESCALES_WALLET_PAY_ENABLED=1`, wire `loadPayPalWalletPaySdk` in the pledge sheet (see `paypalSdk.ts`) and render Apple Pay / Google Pay when the SDK reports eligibility.
 
 ## After registration
 

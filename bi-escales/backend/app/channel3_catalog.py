@@ -47,6 +47,7 @@ def _normalize_item(raw: dict[str, Any]) -> dict[str, Any]:
         "caution": str(raw.get("caution") or "").strip() or None,
         "max_commission_rate": raw.get("max_commission_rate"),
         "channel3_buy_url": str(raw.get("product_url") or "").strip() or None,
+        "source_catalogue": str(raw.get("source_catalogue") or "").strip() or None,
     }
 
 

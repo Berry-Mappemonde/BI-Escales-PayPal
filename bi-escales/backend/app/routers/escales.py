@@ -1088,10 +1088,16 @@ async def get_public_project_fund(project_id: str):
     """
     from app.channel3_catalog import lookup_catalog_by_project_id
     from app.channel3_funding import enrich_item_funding, fund_snapshot_for_project
+    from app.channel3_paypal import catalog_project_id
     from app.channel3_public import apply_buy_link_policy
 
+    if catalog_project_id(project_id):
+        catalog = lookup_catalog_by_project_id(project_id, public_only=True)
+        if not catalog:
+            raise HTTPException(status_code=404, detail="Project fund not found")
+    else:
+        catalog = lookup_catalog_by_project_id(project_id)
     meta = lookup_project_fund_meta(project_id)
-    catalog = lookup_catalog_by_project_id(project_id)
     try:
         if catalog:
             fund = await fund_snapshot_for_project(project_id)

@@ -127,3 +127,33 @@ def test_cannot_add_needs_confirmation_to_wishlist(api):
     )
     assert res.status_code == 400
     assert "confirmation" in res.json()["detail"].lower()
+
+
+def test_unconfirmed_gear_project_fund_returns_404(api):
+    for pid in ("gear-c3-k4nwrdl", "gear-c3-60bxa1o"):
+        res = api.get(f"/api/escales/projects/{pid}/fund")
+        assert res.status_code == 404, pid
+
+
+def test_unconfirmed_project_pledge_rejected_no_order(api, monkeypatch):
+    orders: list[dict] = []
+
+    class _Spy:
+        def create_capture_order(self, *args, **kwargs):
+            orders.append(kwargs)
+            return {"id": "ORD-X", "status": "CREATED", "links": []}
+
+    set_paypal_client_factory(lambda: _Spy())
+    res = api.post(
+        "/api/escales/pledges",
+        json={
+            "amount_eur": "3845.99",
+            "description": "Raft",
+            "milestone_id": "",
+            "kind": "project_pledge",
+            "target_id": "gear-c3-k4nwrdl",
+        },
+    )
+    set_paypal_client_factory(lambda: object())
+    assert res.status_code in (400, 422)
+    assert not orders

@@ -13,6 +13,7 @@ from app.channel3_wishlists import (
     WishlistError,
     add_wishlist_item,
     create_wishlist,
+    enrich_treasurer_wishlist,
     get_wishlist,
     list_wishlists,
     public_catalog_payload,
@@ -110,7 +111,7 @@ async def treasurer_list_wishlists(request: Request):
     _require_flags()
     _require_treasurer(request)
     rows = await list_wishlists(published_only=False)
-    return {"wishlists": rows}
+    return {"wishlists": [enrich_treasurer_wishlist(row) for row in rows]}
 
 
 @router.post("/treasurer/wishlists")

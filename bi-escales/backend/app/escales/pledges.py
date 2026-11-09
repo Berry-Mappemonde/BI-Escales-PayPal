@@ -752,9 +752,14 @@ async def _create_pledge(
     if pledge_kind == "project_pledge":
         pledge_currency = "EUR"
         from app.channel3_catalog import lookup_catalog_by_project_id
-        from app.channel3_paypal import paypal_currency_supported
+        from app.channel3_paypal import catalog_project_id, paypal_currency_supported
 
-        catalog = lookup_catalog_by_project_id(resolved_target)
+        catalog = lookup_catalog_by_project_id(
+            resolved_target,
+            public_only=catalog_project_id(resolved_target),
+        )
+        if catalog_project_id(resolved_target) and not catalog:
+            raise ValueError("catalog item is not available for public funding")
         if catalog:
             from app.channel3_paypal import normalize_project_pledge_amount
 

@@ -48,6 +48,27 @@ async def create_wishlist(*, title: str, slug: str, items: Optional[list[dict]] 
     return await store.save_wishlist(doc)
 
 
+def _line_catalog_available(channel3_product_id: str) -> bool:
+    catalog = get_catalog_item(channel3_product_id)
+    if not catalog:
+        return False
+    if catalog.get("needs_confirmation"):
+        return False
+    return True
+
+
+def enrich_treasurer_wishlist(row: dict) -> dict[str, Any]:
+    out = dict(row)
+    items_out: list[dict] = []
+    for item in row.get("items") or []:
+        pid = str(item.get("channel3_product_id") or "").strip()
+        line = dict(item)
+        line["catalog_available"] = _line_catalog_available(pid)
+        items_out.append(line)
+    out["items"] = items_out
+    return out
+
+
 async def list_wishlists(*, published_only: bool = False) -> list[dict]:
     rows = await get_wishlist_store().list_wishlists()
     if published_only:

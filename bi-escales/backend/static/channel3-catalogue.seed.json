@@ -56,7 +56,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02"
     },
     {
       "channel3_product_id": "Mer1TUo",
@@ -80,7 +81,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "KgmyoXI",
@@ -104,7 +106,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02"
     },
     {
       "channel3_product_id": "xMQ5Si0",
@@ -128,7 +131,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "znyNibV",
@@ -152,7 +156,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "sSaJe7c",
@@ -176,7 +181,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "sHjuFqy",
@@ -200,7 +206,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "oXtjHJk",
@@ -226,7 +233,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "hDKesVv",
@@ -250,7 +258,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "K6gupx4",
@@ -274,7 +283,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "OS4mSt7",
@@ -298,7 +308,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "wFihSJF",
@@ -322,7 +333,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "pntIpmE",
@@ -346,7 +358,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02"
     },
     {
       "channel3_product_id": "pC9ea0j",
@@ -370,7 +383,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "HdjjRY8",
@@ -394,7 +408,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "ZXnyhqR",
@@ -418,7 +433,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "60BXA1O",
@@ -443,7 +459,8 @@
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
       },
-      "needs_confirmation": true
+      "needs_confirmation": true,
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "64tdtrd",
@@ -467,7 +484,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "TgHVqTW",
@@ -491,7 +509,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "OYVJCbl",
@@ -515,7 +534,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "zJpTONE",
@@ -539,7 +559,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "QdhVSLg",
@@ -563,7 +584,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "ElsTQdX",
@@ -587,7 +609,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "UpJqTLl",
@@ -611,7 +634,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "hkxJfs4",
@@ -635,7 +659,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "3ZiHTua",
@@ -659,7 +684,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "w5hPKfR",
@@ -683,7 +709,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "OR9IcSW",
@@ -707,7 +734,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "gd0LkxN",
@@ -731,7 +759,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "cXldDn2",
@@ -756,7 +785,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "lAZTrEZ",
@@ -780,7 +810,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "0b9xp6h",
@@ -804,7 +835,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "D1Imgm0",
@@ -829,7 +861,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02"
     },
     {
       "channel3_product_id": "k4nWRDl",
@@ -854,7 +887,8 @@
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
       },
-      "needs_confirmation": true
+      "needs_confirmation": true,
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "xGDEPk3",
@@ -878,7 +912,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "ySwJYWZ",
@@ -902,7 +937,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "wHaggZE",
@@ -926,7 +962,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02"
     },
     {
       "channel3_product_id": "Tmatq3P",
@@ -950,7 +987,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02"
     },
     {
       "channel3_product_id": "qnee5bD",
@@ -976,7 +1014,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "fXU4aRw",
@@ -1000,7 +1039,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "2E0l990",
@@ -1024,7 +1064,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02"
     },
     {
       "channel3_product_id": "rMnyMpm",
@@ -1050,7 +1091,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "9zyqp3q",
@@ -1074,7 +1116,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "LCpw4lc",
@@ -1098,7 +1141,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "QE0Vp6a",
@@ -1122,7 +1166,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "4uA6nx1",
@@ -1146,7 +1191,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "VpLagq3",
@@ -1170,7 +1216,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "LrnaflK",
@@ -1194,7 +1241,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "TdOeaEb",
@@ -1218,7 +1266,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "JB9URra",
@@ -1242,7 +1291,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02"
     },
     {
       "channel3_product_id": "gqaQCsE",
@@ -1266,7 +1316,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02b"
     },
     {
       "channel3_product_id": "zRl9jHd",
@@ -1290,7 +1341,8 @@
         "status": 200,
         "final_url_host": "buy.trychannel3.com",
         "note": "ok"
-      }
+      },
+      "source_catalogue": "C3-02"
     }
   ]
 }

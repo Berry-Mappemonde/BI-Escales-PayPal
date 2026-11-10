@@ -3,14 +3,23 @@ import { initReactI18next } from "react-i18next";
 import en from "./locales/en.json";
 import fr from "./locales/fr.json";
 
+/** First visit when `bi-escales-lang` is unset (demo / judge screenshots). */
+const FIRST_VISIT_DEFAULT_LANG: "en" = "en";
+
+/**
+ * Reserved for a later browser-locale policy (not used for first-load default).
+ * Intended future: `fr` → FR; else if `navigator.language` matches a BI Escales locale, use it; else EN.
+ */
 function browserDefaultLang(): "fr" | "en" {
   if (typeof navigator === "undefined") return "fr";
   const nav = String(navigator.language || "");
   return nav.toLowerCase().startsWith("en") ? "en" : "fr";
 }
+void browserDefaultLang;
 
 const stored = typeof localStorage !== "undefined" ? localStorage.getItem("bi-escales-lang") : null;
-const fallbackLng = stored === "en" || stored === "fr" ? stored : browserDefaultLang();
+const fallbackLng =
+  stored === "en" || stored === "fr" ? stored : FIRST_VISIT_DEFAULT_LANG;
 
 export function normalizeAppLang(lang?: string): "fr" | "en" {
   return String(lang || "fr").toLowerCase().startsWith("en") ? "en" : "fr";

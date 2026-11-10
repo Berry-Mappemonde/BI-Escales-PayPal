@@ -2,23 +2,18 @@
  "chapters": [
   {
    "id": "leg-0",
-   "tA": "2026-05-15T08:00:00Z",
-   "tB": "2026-06-01T22:13:28Z",
-   "text": "L’expédition Berry-Mappemonde a quitté Saint-Maur le 15 mai 2026 par la route jusqu’à La Rochelle. Le jour même, départ vers Ajaccio : 1 819 milles, une vingtaine de jours de mer. Arrivée à Ajaccio (Corse) le 1er juin.",
+   "tA": "2026-11-12T08:00:00Z",
+   "tB": "2026-11-28T22:02:54Z",
+   "text": "L'expédition Berry-Mappemonde a quitté La Rochelle le 12 novembre, cap au sud-ouest. Départ vers Ajaccio : 1 819 milles, une quinzaine de jours de mer. Arrivée à Ajaccio (Corse) le 28 novembre.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-05-15T08:00:00Z",
+     "t": "2026-11-12T08:00:00Z",
      "kind": "depart"
     },
     {
-     "charIdx": 87,
-     "t": "2026-05-15T09:00:00Z",
-     "kind": "depart"
-    },
-    {
-     "charIdx": 201,
-     "t": "2026-06-01T00:00:00Z",
+     "charIdx": 152,
+     "t": "2026-11-28T22:02:54Z",
      "place": "Ajaccio (Corse)",
      "kind": "escale"
     }
@@ -28,24 +23,18 @@
   },
   {
    "id": "leg-1",
-   "tA": "2026-06-01T22:13:28Z",
-   "tB": "2026-07-14T17:57:14Z",
-   "text": "Le 4 juin, départ vers Fort-de-France : 5 153 milles, une quarantaine de jours de mer. Arrivée à Fort-de-France (Martinique) le 14 juillet.",
+   "tA": "2026-11-28T22:02:54Z",
+   "tB": "2026-12-30T04:34:48Z",
+   "text": "Le 1er décembre, départ vers Fort-de-France : 5 153 milles, une trentaine de jours de mer. Arrivée à Fort-de-France (Martinique) le 30 décembre.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-06-04T00:00:00Z",
+     "t": "2026-12-01T22:02:54Z",
      "kind": "depart"
     },
     {
-     "charIdx": 90,
-     "t": "2026-07-12T00:00:00Z",
-     "place": "Zone économique exclusive française (France métropolitaine)",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 146,
-     "t": "2026-07-14T00:00:00Z",
+     "charIdx": 91,
+     "t": "2026-12-30T04:34:48Z",
      "place": "Fort-de-France (Martinique)",
      "kind": "escale"
     }
@@ -55,30 +44,18 @@
   },
   {
    "id": "leg-2",
-   "tA": "2026-07-14T17:57:14Z",
-   "tB": "2026-07-18T19:40:22Z",
-   "text": "Le 17 juillet, départ vers Pointe-à-Pitre : 192 milles, un jour de mer. Puis, à vingt et un milles, le projet Restaurer les coraux préférés des poissons-demoiselles Année 1. Arrivée à Pointe-à-Pitre (Guadeloupe) le 18 juillet, à Port de Sainte-Rose.",
+   "tA": "2026-12-30T04:34:48Z",
+   "tB": "2027-01-02T19:37:23Z",
+   "text": "Le 2 janvier, départ vers Pointe-à-Pitre : 192 milles, moins d'un jour de mer. Puis, à vingt et un milles, le projet Restaurer les coraux préférés des poissons-demoiselles Année 1. Arrivée à Pointe-à-Pitre (Guadeloupe) le 2 janvier, à Port de Sainte-Rose.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-07-17T00:00:00Z",
+     "t": "2027-01-02T04:34:48Z",
      "kind": "depart"
     },
     {
-     "charIdx": 75,
-     "t": "2026-07-17T00:00:00Z",
-     "place": "Zone économique exclusive française (Martinique)",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 217,
-     "t": "2026-07-17T00:00:00Z",
-     "place": "Restaurer les coraux préférés des poissons-demoiselles Année 1",
-     "kind": "project"
-    },
-    {
-     "charIdx": 344,
-     "t": "2026-07-18T00:00:00Z",
+     "charIdx": 181,
+     "t": "2027-01-02T19:37:23Z",
      "place": "Pointe-à-Pitre (Guadeloupe)",
      "kind": "escale"
     }
@@ -88,24 +65,18 @@
   },
   {
    "id": "leg-3",
-   "tA": "2026-07-18T19:40:22Z",
-   "tB": "2026-07-23T11:23:54Z",
-   "text": "Le 21 juillet, départ vers Gustavia : 173 milles, un jour de mer. Arrivée à Gustavia (Saint-Barthélemy) le 23 juillet.",
+   "tA": "2027-01-02T19:37:23Z",
+   "tB": "2027-01-06T21:14:52Z",
+   "text": "Le 5 janvier, départ vers Gustavia : 173 milles, un jour de mer. Arrivée à Gustavia (Saint-Barthélemy) le 6 janvier.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-07-21T00:00:00Z",
+     "t": "2027-01-05T19:37:23Z",
      "kind": "depart"
     },
     {
-     "charIdx": 69,
-     "t": "2026-07-21T00:00:00Z",
-     "place": "Zone économique exclusive française (Guadeloupe)",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 365,
-     "t": "2026-07-23T00:00:00Z",
+     "charIdx": 65,
+     "t": "2027-01-06T21:14:52Z",
      "place": "Gustavia (Saint-Barthélemy)",
      "kind": "escale"
     }
@@ -115,24 +86,18 @@
   },
   {
    "id": "leg-4",
-   "tA": "2026-07-23T11:23:54Z",
-   "tB": "2026-07-27T08:58:13Z",
-   "text": "Le 26 juillet, départ vers Marigot : 41 milles, un jour de mer. Arrivée à Marigot (Saint-Martin) le 27 juillet.",
+   "tA": "2027-01-06T21:14:52Z",
+   "tB": "2027-01-10T05:44:43Z",
+   "text": "Le 9 janvier, départ vers Marigot : 41 milles, moins d'un jour de mer. Arrivée à Marigot (Saint-Martin) le 10 janvier.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-07-26T00:00:00Z",
+     "t": "2027-01-09T21:14:52Z",
      "kind": "depart"
     },
     {
-     "charIdx": 67,
-     "t": "2026-07-26T00:00:00Z",
-     "place": "Zone économique exclusive française (Saint-Barthélemy)",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 226,
-     "t": "2026-07-27T00:00:00Z",
+     "charIdx": 71,
+     "t": "2027-01-10T05:44:43Z",
      "place": "Marigot (Saint-Martin)",
      "kind": "escale"
     }
@@ -142,30 +107,18 @@
   },
   {
    "id": "leg-5",
-   "tA": "2026-07-27T08:58:13Z",
-   "tB": "2026-08-15T20:20:47Z",
-   "text": "Le 30 juillet, départ vers Cayenne : 1 200 milles, une quinzaine de jours de mer. Arrivée à Cayenne (Guyane) le 15 août, à la marina de Dégrad des Cannes.",
+   "tA": "2027-01-10T05:44:43Z",
+   "tB": "2027-01-19T13:41:36Z",
+   "text": "Le 13 janvier, départ vers Cayenne : 1 200 milles, six jours de mer. Arrivée à Cayenne (Guyane) le 19 janvier, à la marina de Dégrad des Cannes.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-07-30T00:00:00Z",
+     "t": "2027-01-13T05:44:43Z",
      "kind": "depart"
     },
     {
-     "charIdx": 3,
-     "t": "2026-07-30T00:00:00Z",
-     "place": "Haute mer",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 85,
-     "t": "2026-08-14T00:00:00Z",
-     "place": "Zone économique exclusive française (Saint-Martin)",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 237,
-     "t": "2026-08-15T00:00:00Z",
+     "charIdx": 69,
+     "t": "2027-01-19T13:41:36Z",
      "place": "Cayenne (Guyane)",
      "kind": "escale"
     }
@@ -175,13 +128,13 @@
   },
   {
    "id": "leg-6",
-   "tA": "2026-08-15T20:20:47Z",
-   "tB": "2026-08-19T04:28:25Z",
-   "text": "Le 18 août, l'équipage s'envole de Cayenne pour Halifax ; le catamaran attend à Cayenne.",
+   "tA": "2027-01-19T13:41:36Z",
+   "tB": "2027-01-20T07:42:44Z",
+   "text": "Le 19 janvier, l'équipage s'envole de Cayenne pour Halifax ; le catamaran attend à Cayenne.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-08-18T00:00:00Z",
+     "t": "2027-01-19T13:41:36Z",
      "kind": "depart"
     }
    ],
@@ -190,23 +143,18 @@
   },
   {
    "id": "leg-7",
-   "tA": "2026-08-19T04:28:25Z",
-   "tB": "2026-08-21T18:34:56Z",
-   "text": "Le 19 août, à Halifax (Nouvelle-Écosse), l'équipage embarque sur un second voilier pour Saint-Pierre (Saint-Pierre-et-Miquelon). 497 milles, trois jours de mer. Arrivée à Saint-Pierre (Saint-Pierre-et-Miquelon) le 21 août.",
+   "tA": "2027-01-20T07:42:44Z",
+   "tB": "2027-01-20T21:40:45Z",
+   "text": "Le 20 janvier, à Halifax (Nouvelle-Écosse), l'équipage embarque sur un second voilier pour Saint-Pierre (Saint-Pierre-et-Miquelon). 497 milles, trois jours de mer. Arrivée à Saint-Pierre (Saint-Pierre-et-Miquelon) le 20 janvier.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-08-19T04:28:25Z",
+     "t": "2027-01-20T07:42:44Z",
      "kind": "depart"
     },
     {
-     "charIdx": 117,
-     "t": "2026-08-19T04:28:25Z",
-     "kind": "depart"
-    },
-    {
-     "charIdx": 205,
-     "t": "2026-08-21T00:00:00Z",
+     "charIdx": 164,
+     "t": "2027-01-20T21:40:45Z",
      "place": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
      "kind": "escale"
     }
@@ -216,23 +164,18 @@
   },
   {
    "id": "leg-8",
-   "tA": "2026-08-21T18:34:56Z",
-   "tB": "2026-08-28T20:31:05Z",
-   "text": "Le 23 août, à Saint-Pierre (Saint-Pierre-et-Miquelon), l'équipage reprend un second voilier pour Halifax (Nouvelle-Écosse). 417 milles, cinq jours de mer. Arrivée à Halifax (Nouvelle-Écosse) le 28 août.",
+   "tA": "2027-01-20T21:40:45Z",
+   "tB": "2027-01-22T11:53:40Z",
+   "text": "Le 20 janvier, à Saint-Pierre (Saint-Pierre-et-Miquelon), l'équipage reprend un second voilier pour Halifax (Nouvelle-Écosse). 417 milles, cinq jours de mer. Arrivée à Halifax (Nouvelle-Écosse) le 22 janvier.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-08-23T00:00:00Z",
+     "t": "2027-01-20T21:40:45Z",
      "kind": "depart"
     },
     {
-     "charIdx": 112,
-     "t": "2026-08-23T21:33:31Z",
-     "kind": "depart"
-    },
-    {
-     "charIdx": 185,
-     "t": "2026-08-28T00:00:00Z",
+     "charIdx": 158,
+     "t": "2027-01-22T11:53:40Z",
      "place": "Halifax (Nouvelle-Écosse)",
      "kind": "escale"
     }
@@ -242,13 +185,13 @@
   },
   {
    "id": "leg-9",
-   "tA": "2026-08-28T20:31:05Z",
-   "tB": "2026-08-29T04:31:05Z",
-   "text": "Le 28 août, l'équipage s'envole d’Halifax pour Cayenne.",
+   "tA": "2027-01-22T11:53:40Z",
+   "tB": "2027-01-22T13:41:36Z",
+   "text": "Le 22 janvier, l'équipage s'envole d'Halifax pour Cayenne.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-08-28T20:31:05Z",
+     "t": "2027-01-22T11:53:40Z",
      "kind": "depart"
     }
    ],
@@ -257,23 +200,18 @@
   },
   {
    "id": "leg-10",
-   "tA": "2026-08-29T04:31:05Z",
-   "tB": "2026-10-14T03:34:42Z",
-   "text": "Le 29 août, le catamaran reprend la mer, départ vers Papeete (Polynésie française). 6 671 milles, 46 jours de mer, à 6 nœuds de moyenne. Arrivée à Papeete (Polynésie française) le 14 octobre.",
+   "tA": "2027-01-22T13:41:36Z",
+   "tB": "2027-03-12T11:01:18Z",
+   "text": "Le 22 janvier, le catamaran reprend la mer, départ vers Papeete (Polynésie française). 6 671 milles, 49 jours de mer, à 6 nœuds de moyenne. Arrivée à Papeete (Polynésie française) le 12 mars.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-08-29T04:31:05Z",
+     "t": "2027-01-22T13:41:36Z",
      "kind": "depart"
     },
     {
-     "charIdx": 72,
-     "t": "2026-08-29T04:31:05Z",
-     "kind": "depart"
-    },
-    {
-     "charIdx": 171,
-     "t": "2026-10-14T00:00:00Z",
+     "charIdx": 140,
+     "t": "2027-03-12T11:01:18Z",
      "place": "Papeete (Polynésie française)",
      "kind": "escale"
     }
@@ -283,30 +221,18 @@
   },
   {
    "id": "leg-11",
-   "tA": "2026-10-14T03:34:42Z",
-   "tB": "2026-10-27T13:55:18Z",
-   "text": "Le 17 octobre, départ vers Mata-Utu : 1 642 milles, une dizaine de jours de mer. Arrivée à Mata-Utu (Wallis-et-Futuna) le 27 octobre.",
+   "tA": "2027-03-12T11:01:18Z",
+   "tB": "2027-03-27T04:36:36Z",
+   "text": "Le 15 mars, départ vers Mata-Utu : 1 642 milles, une dizaine de jours de mer. Arrivée à Mata-Utu (Wallis-et-Futuna) le 27 mars.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-10-17T00:00:00Z",
+     "t": "2027-03-15T11:01:18Z",
      "kind": "depart"
     },
     {
-     "charIdx": 12,
-     "t": "2026-10-17T00:00:00Z",
-     "place": "Zone économique exclusive française (Polynésie française)",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 100,
-     "t": "2026-10-17T00:00:00Z",
-     "place": "Tia'i fenua / nana sac plastique",
-     "kind": "project"
-    },
-    {
-     "charIdx": 178,
-     "t": "2026-10-27T00:00:00Z",
+     "charIdx": 78,
+     "t": "2027-03-27T04:36:36Z",
      "place": "Mata-Utu (Wallis-et-Futuna)",
      "kind": "escale"
     }
@@ -316,30 +242,18 @@
   },
   {
    "id": "leg-12",
-   "tA": "2026-10-27T13:55:18Z",
-   "tB": "2026-11-07T15:57:44Z",
-   "text": "Le 30 octobre, départ vers Nouméa : 1 330 milles, une dizaine de jours de mer. Arrivée à Nouméa (Nouvelle-Calédonie) le 7 novembre, à la marina Cercle Nautique Calédonien.",
+   "tA": "2027-03-27T04:36:36Z",
+   "tB": "2027-04-08T21:47:56Z",
+   "text": "Le 30 mars, départ vers Nouméa : 1 330 milles, une dizaine de jours de mer. Arrivée à Nouméa (Nouvelle-Calédonie) le 8 avril, à la marina Cercle Nautique Calédonien.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-10-30T00:00:00Z",
+     "t": "2027-03-30T04:36:36Z",
      "kind": "depart"
     },
     {
-     "charIdx": 82,
-     "t": "2026-11-05T00:00:00Z",
-     "place": "Zone économique exclusive française (Wallis-et-Futuna)",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 139,
-     "t": "2026-11-07T00:00:00Z",
-     "place": "Programme Animlagon en Nouvelle-Calédonie",
-     "kind": "project"
-    },
-    {
-     "charIdx": 263,
-     "t": "2026-11-07T00:00:00Z",
+     "charIdx": 76,
+     "t": "2027-04-08T21:47:56Z",
      "place": "Nouméa (Nouvelle-Calédonie)",
      "kind": "escale"
     }
@@ -349,30 +263,18 @@
   },
   {
    "id": "leg-13",
-   "tA": "2026-11-07T15:57:44Z",
-   "tB": "2026-12-31T04:25:31Z",
-   "text": "Le 10 novembre, départ vers Dzaoudzi : 9 152 milles, 48 jours de mer. Arrivée à Dzaoudzi (Mayotte) le 31 décembre.",
+   "tA": "2027-04-08T21:47:56Z",
+   "tB": "2027-06-11T15:43:32Z",
+   "text": "Le 11 avril, départ vers Dzaoudzi : 9 152 milles, 61 jours de mer. Arrivée à Dzaoudzi (Mayotte) le 11 juin.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2026-11-10T00:00:00Z",
+     "t": "2027-04-11T21:47:56Z",
      "kind": "depart"
     },
     {
-     "charIdx": 73,
-     "t": "2026-12-29T00:00:00Z",
-     "place": "Zone économique exclusive française (Nouvelle-Calédonie)",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 172,
-     "t": "2026-12-29T00:00:00Z",
-     "place": "Marine Education Seychelles",
-     "kind": "project"
-    },
-    {
-     "charIdx": 191,
-     "t": "2026-12-31T00:00:00Z",
+     "charIdx": 67,
+     "t": "2027-06-11T15:43:32Z",
      "place": "Dzaoudzi (Mayotte)",
      "kind": "escale"
     }
@@ -382,24 +284,18 @@
   },
   {
    "id": "leg-14",
-   "tA": "2026-12-31T04:25:31Z",
-   "tB": "2027-01-21T11:19:02Z",
-   "text": "Le 3 janvier, départ vers Tromelin : 925 milles, une vingtaine de jours de mer. Arrivée à Tromelin (TAAF) le 21 janvier.",
+   "tA": "2027-06-11T15:43:32Z",
+   "tB": "2027-06-19T06:35:44Z",
+   "text": "Le 14 juin, départ vers Tromelin : cinq jours de mer. Arrivée à Tromelin (TAAF) le 19 juin.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2027-01-03T00:00:00Z",
+     "t": "2027-06-14T15:43:32Z",
      "kind": "depart"
     },
     {
-     "charIdx": 83,
-     "t": "2027-01-03T00:00:00Z",
-     "place": "Mayotte: France / Comores",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 127,
-     "t": "2027-01-21T00:00:00Z",
+     "charIdx": 54,
+     "t": "2027-06-19T06:35:44Z",
      "place": "Tromelin (TAAF)",
      "kind": "escale"
     }
@@ -409,30 +305,18 @@
   },
   {
    "id": "leg-15",
-   "tA": "2027-01-21T11:19:02Z",
-   "tB": "2027-01-27T07:32:22Z",
-   "text": "Le 24 janvier, départ vers Saint-Gilles : 322 milles, trois jours de mer. Arrivée à Saint-Gilles (La Réunion) le 27 janvier.",
+   "tA": "2027-06-19T06:35:44Z",
+   "tB": "2027-06-24T03:20:51Z",
+   "text": "Le 22 juin, départ vers Saint-Gilles : deux jours de mer. Arrivée à Saint-Gilles (La Réunion) le 24 juin.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2027-01-24T00:00:00Z",
+     "t": "2027-06-22T06:35:44Z",
      "kind": "depart"
     },
     {
-     "charIdx": 77,
-     "t": "2027-01-24T00:00:00Z",
-     "place": "Ile Tromelin: France / Madagascar / Republic of Mauritius (Terres australes et antarctiques françaises)",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 163,
-     "t": "2027-01-26T00:00:00Z",
-     "place": "Best Run",
-     "kind": "project"
-    },
-    {
-     "charIdx": 215,
-     "t": "2027-01-27T00:00:00Z",
+     "charIdx": 58,
+     "t": "2027-06-24T03:20:51Z",
      "place": "Saint-Gilles (La Réunion)",
      "kind": "escale"
     }
@@ -442,36 +326,18 @@
   },
   {
    "id": "leg-16",
-   "tA": "2027-01-27T07:32:22Z",
-   "tB": "2027-02-21T14:02:26Z",
-   "text": "Le 30 janvier, départ vers Europa : 1 457 milles, une vingtaine de jours de mer. Arrivée à Europa (TAAF) le 21 février.",
+   "tA": "2027-06-24T03:20:51Z",
+   "tB": "2027-07-03T16:04:24Z",
+   "text": "Le 27 juin, départ vers Europa : sept jours de mer. Arrivée à Europa (TAAF) le 3 juillet.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2027-01-30T00:00:00Z",
+     "t": "2027-06-27T03:20:51Z",
      "kind": "depart"
     },
     {
-     "charIdx": 83,
-     "t": "2027-02-02T00:00:00Z",
-     "place": "Haute mer",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 92,
-     "t": "2027-02-02T00:00:00Z",
-     "place": "Zone économique exclusive (Mauritian)",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 141,
-     "t": "2027-02-21T00:00:00Z",
-     "place": "Les Iles Éparses, sentinelles de l'évolution de l'océan (ISEO)",
-     "kind": "project"
-    },
-    {
-     "charIdx": 235,
-     "t": "2027-02-21T00:00:00Z",
+     "charIdx": 52,
+     "t": "2027-07-03T16:04:24Z",
      "place": "Europa (TAAF)",
      "kind": "escale"
     }
@@ -481,42 +347,20 @@
   },
   {
    "id": "leg-17",
-   "tA": "2027-02-21T14:02:26Z",
-   "tB": "2027-06-30T22:50:43Z",
-   "text": "Le 24 février, départ vers La Rochelle : 8 393 milles, 126 jours de mer. Le lendemain, le bateau passe près de l'aire marine protégée Pointe d'Arçay, à trois milles. Arrivée à La Rochelle le 30 juin, à Port de Saint-Denis d'Oléron. Aujourd’hui, le bateau est à La Rochelle.",
+   "tA": "2027-07-06T16:04:24Z",
+   "tB": "2027-08-27T04:23:32Z",
+   "text": "Le 6 juillet, départ vers La Rochelle : 8 393 milles, 52 jours de mer. Puis, le bateau passe près de l'aire marine protégée Pointe d'Arçay. Arrivée à La Rochelle le 27 août.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2027-02-24T00:00:00Z",
+     "t": "2027-07-06T16:04:24Z",
      "kind": "depart"
     },
     {
-     "charIdx": 75,
-     "t": "2027-04-01T00:00:00Z",
-     "place": "Zone économique exclusive française (Terres australes et antarctiques françaises)",
-     "kind": "zee-enter"
-    },
-    {
-     "charIdx": 162,
-     "t": "2027-04-15T00:00:00Z",
-     "place": "High Seas: New Hope Beyond National Boundaries",
-     "kind": "project"
-    },
-    {
-     "charIdx": 271,
-     "t": "2027-06-29T00:00:00Z",
-     "place": "Pointe d'Arçay",
-     "kind": "alert-on"
-    },
-    {
-     "charIdx": 358,
-     "t": "2027-06-30T00:00:00Z",
+     "charIdx": 140,
+     "t": "2027-08-27T04:23:32Z",
      "place": "La Rochelle",
      "kind": "escale"
-    },
-    {
-     "charIdx": 380,
-     "t": "2027-06-30T22:50:43Z"
     }
    ],
    "fromName": "Europa (TAAF)",

@@ -9,6 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from tests.schedule_clocks import mayotte_arrival_iso, mayotte_authorize_window_clock, near_mayotte_clock
 from app.escales.pledges import (
     RefundRequestKeyRequired,
     authorize_pledge,
@@ -26,7 +27,7 @@ from app.escales.pledges import (
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", mayotte_authorize_window_clock())
     reset_ledger()
     yield
     reset_ledger()
@@ -81,10 +82,10 @@ async def _captured(client: CountingPayPal, monkeypatch):
         client_key="c3-refund",
     )
     await authorize_pledge(created["_id"], client)
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     pledge = await get_ledger().get_pledge(created["_id"])
     assert pledge is not None
-    pledge["authorized_at"] = "2027-06-11T08:00:00+00:00"
+    pledge["authorized_at"] = mayotte_arrival_iso()
     await get_ledger().save_pledge(pledge)
     captured = await capture_pledge(created["_id"], client)
     assert captured["status"] == "captured"
@@ -192,7 +193,7 @@ def test_idempotency_key_header_dedupes_like_body_request_key(monkeypatch):
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
     monkeypatch.setenv("ESCALES_ADMIN_KEY", "c3-admin")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", mayotte_authorize_window_clock())
     reset_ledger()
     client_pp = CountingPayPal()
     set_paypal_client_factory(lambda: client_pp)
@@ -212,10 +213,10 @@ def test_idempotency_key_header_dedupes_like_body_request_key(monkeypatch):
             assert created.status_code == 200, created.text
             pledge_id = created.json()["id"]
             assert http.post(f"/api/escales/pledges/{pledge_id}/authorize").status_code == 200
-            monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+            monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
             pledge_doc = asyncio.run(get_ledger().get_pledge(pledge_id))
             assert pledge_doc is not None
-            pledge_doc["authorized_at"] = "2027-06-11T08:00:00+00:00"
+            pledge_doc["authorized_at"] = mayotte_arrival_iso()
             asyncio.run(get_ledger().save_pledge(pledge_doc))
             asyncio.run(approve_capture_review("dep-mayotte"))
             cap = http.post(

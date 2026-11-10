@@ -253,6 +253,13 @@
   color: var(--color-status-error);
 }
 
+/* The footer already has its rule; the tool trace inside it does not need a second one. */
+.captain-answered .captain-tool-trace {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
 .captain-answered {
   padding: 10px var(--space-4);
   border-top: 1px solid var(--color-line);

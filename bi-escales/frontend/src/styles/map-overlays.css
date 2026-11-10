@@ -150,3 +150,114 @@
 .ng-shell .leaflet-container .leaflet-control-attribution a {
   color: var(--color-fg-2);
 }
+
+/* Marina dots take the marina tokens, so the map and the legend cannot drift apart. */
+.leaflet-container .marina-dot {
+  color: var(--color-marina-default);
+}
+
+.leaflet-container .marina-dot--verified {
+  color: var(--color-marina-verified);
+}
+
+/*
+ * Layer control: under the zoom buttons and the sidebar toggle, in the same
+ * surface as them. A filled swatch is a layer that is drawn; a ring is one that
+ * is switched off.
+ */
+.ng-map-layer > .ng-layer-control {
+  position: absolute;
+  z-index: 1000;
+  top: calc(3 * var(--space-2) + 3 * var(--map-control-size) + var(--space-1));
+  left: var(--space-2);
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-raised);
+}
+
+.ng-layer-control .ng-layer-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 28px;
+  margin: 0;
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-fg-3);
+  font-family: var(--font-sans);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-weight: 500;
+  text-align: start;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ng-layer-control .ng-layer-toggle[aria-pressed="true"] {
+  color: var(--color-fg);
+}
+
+.ng-layer-control .ng-layer-toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* Swatch: one dot for projects, the two marina colours for marinas. */
+.ng-layer-swatch {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  justify-content: center;
+  width: 16px;
+}
+
+.ng-layer-swatch::before,
+.ng-layer-toggle[data-layer="marinas"] .ng-layer-swatch::after {
+  content: "";
+  box-sizing: border-box;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--swatch);
+  border-radius: 50%;
+}
+
+.ng-layer-toggle[data-layer="projects"] .ng-layer-swatch::before {
+  --swatch: var(--color-fg-3);
+}
+
+.ng-layer-toggle[data-layer="marinas"] .ng-layer-swatch::before {
+  --swatch: var(--color-marina-verified);
+}
+
+.ng-layer-toggle[data-layer="marinas"] .ng-layer-swatch::after {
+  --swatch: var(--color-marina-default);
+}
+
+.ng-layer-toggle[aria-pressed="true"] .ng-layer-swatch::before,
+.ng-layer-toggle[aria-pressed="true"][data-layer="marinas"] .ng-layer-swatch::after {
+  background: var(--swatch);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ng-layer-control .ng-layer-toggle:hover {
+    background: var(--color-selected);
+    color: var(--color-fg);
+  }
+}
+
+@media (pointer: coarse) {
+  .ng-layer-control .ng-layer-toggle {
+    min-height: 36px;
+  }
+}
+
+/* A phone's open drawer leaves one column of map: no room for the labels. */
+@media (max-width: 767.98px) {
+  .ng-shell[data-rail="open"] .ng-layer-control {
+    display: none;
+  }
+}

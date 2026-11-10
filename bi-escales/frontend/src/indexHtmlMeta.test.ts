@@ -19,6 +19,11 @@ describe("index.html site meta", () => {
     expect(indexHtml).toMatch(/rel="canonical"\s+href="https:\/\/escales\.naviguide\.fr\/"/i);
     expect(indexHtml).toMatch(/rel="icon"[^>]+href="\/favicon\.svg"/i);
     expect(indexHtml).not.toMatch(/reçu fiscal|déductib|tax receipt|tax.deduct/i);
+    expect(indexHtml).toMatch(/lang="en"/i);
+    expect(indexHtml).toMatch(/property="og:locale"\s+content="en_US"/i);
+    expect(indexHtml).toMatch(/property="og:locale:alternate"\s+content="fr_FR"/i);
+    expect(indexHtml).toMatch(/Pay only when we arrive/i);
+    expect(indexHtml).not.toMatch(/Pay Only If We Sail|si nous partons/i);
   });
 
   it("exposes social preview image tags with absolute URLs", () => {
@@ -30,7 +35,7 @@ describe("index.html site meta", () => {
 
   it("describes capture timing instead of pay-only-after-validation copy", () => {
     expect(indexHtml).not.toMatch(/only pay after|après validation de l'escale|arrivée validée/i);
-    expect(indexHtml).toMatch(/fonds commun et dons projet immédiatement/i);
+    expect(indexHtml).toMatch(/common fund and project gifts at once/i);
   });
 
   it("ships a 1200×630 og-image.png", () => {

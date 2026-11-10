@@ -1114,3 +1114,42 @@ body.ng-naviguide-shell {
 @media (hover: hover) {
   .leaflet-container .project-dot:hover { color: var(--color-fg); opacity: 1; }
 }
+
+/*
+ * Treasurer page: the queue and the Captain reviews use the page's full width.
+ * The card was capped at 640px for the sidebar it used to live in. On the page a
+ * wide card splits in two: the proposal and the decision on the left, the
+ * evidence it cites on the right, so nothing stretches into long lines.
+ */
+.treasurer-page .captain-card {
+  max-width: none;
+}
+
+@media (min-width: 900px) {
+  .treasurer-page .captain-card:has(.captain-claims) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto auto;
+    grid-template-areas:
+      "head head"
+      "proposal evidence"
+      "decision evidence"
+      "answered answered";
+  }
+
+  .treasurer-page .captain-card:has(.captain-claims) > .captain-card-head { grid-area: head; }
+  .treasurer-page .captain-card:has(.captain-claims) > .captain-card-head + .captain-section { grid-area: proposal; align-content: start; }
+  .treasurer-page .captain-card:has(.captain-claims) > .captain-decision { grid-area: decision; align-content: end; }
+  .treasurer-page .captain-card:has(.captain-claims) > .captain-answered { grid-area: answered; }
+
+  .treasurer-page .captain-card > .captain-section:has(.captain-claims) {
+    grid-area: evidence;
+    align-content: start;
+    border-inline-start: 1px solid var(--color-line);
+  }
+
+  /* Pledge and date are short; the description gets the room it was missing. */
+  .treasurer-page .treasurer-queue-table th:nth-child(1) { width: 8rem; }
+  .treasurer-page .treasurer-queue-table th:nth-child(2) { width: 11rem; }
+  .treasurer-page .treasurer-queue-table th:nth-child(4) { width: 14rem; }
+}

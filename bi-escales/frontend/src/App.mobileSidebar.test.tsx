@@ -90,10 +90,51 @@ describe("opening a stop on a narrow screen", () => {
     vi.unstubAllGlobals();
   });
 
-  it("collapses the left sidebar and moves focus to the stop panel", async () => {
+  it("starts map first: the sidebar and the pledge sheet are both closed", () => {
+    setViewport(390);
+    const { sidebar, tools } = renderApp();
+    expect(sidebar.className).toMatch(/ng-collapsed/);
+    expect(tools.className).toMatch(/ng-collapsed/);
+    expect(screen.getByTestId("ng-shell")).toHaveAttribute("data-rail", "closed");
+    expect(screen.getByTestId("ng-shell")).toHaveAttribute("data-sheet", "closed");
+  });
+
+  it("opens and closes the pledge sheet from its handle, named for what it opens", async () => {
     setViewport(390);
     const user = userEvent.setup();
-    const { sidebar, tools, openStop } = renderApp();
+    const { tools, openStop } = renderApp();
+    const handle = screen.getByTestId("ng-sheet-handle");
+    expect(handle).toHaveAccessibleName("Back a stop");
+    expect(handle).toHaveAttribute("aria-expanded", "false");
+    expect(handle).toHaveAttribute("aria-controls", tools.id);
+
+    await user.click(handle);
+    expect(tools.className).not.toMatch(/ng-collapsed/);
+    expect(handle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("ng-shell")).toHaveAttribute("data-sheet", "open");
+
+    await user.click(handle);
+    expect(tools.className).toMatch(/ng-collapsed/);
+
+    // With a stop selected, the closed sheet says which stop it holds.
+    await user.click(openStop);
+    await user.click(handle);
+    expect(tools.className).toMatch(/ng-collapsed/);
+    expect(handle).toHaveAccessibleName("Ajaccio (Corse)");
+  });
+
+  it("names the handle in French too", async () => {
+    setViewport(390);
+    await i18n.changeLanguage("fr");
+    renderApp();
+    expect(screen.getByTestId("ng-sheet-handle")).toHaveAccessibleName("Soutenir une escale");
+  });
+
+  it("opens the sidebar on demand, then collapses it and moves focus to the stop panel", async () => {
+    setViewport(390);
+    const user = userEvent.setup();
+    const { sidebar, tools, openStop, sidebarToggle } = renderApp();
+    await user.click(sidebarToggle);
     expect(sidebar.className).not.toMatch(/ng-collapsed/);
 
     await user.click(openStop);
@@ -106,8 +147,7 @@ describe("opening a stop on a narrow screen", () => {
   it("reopens a closed stop panel, so the stop is not hidden", async () => {
     setViewport(390);
     const user = userEvent.setup();
-    const { sidebar, tools, openStop, toolsToggle } = renderApp();
-    await user.click(toolsToggle);
+    const { sidebar, tools, openStop } = renderApp();
     expect(tools.className).toMatch(/ng-collapsed/);
 
     await user.click(openStop);
@@ -133,10 +173,9 @@ describe("opening a stop on a narrow screen", () => {
     await waitFor(() => expect(tools).toHaveFocus());
   });
 
-  it("does not touch the panels or focus until a stop is opened", () => {
+  it("does not move focus until a stop is opened", () => {
     setViewport(390);
-    const { sidebar, tools } = renderApp();
-    expect(sidebar.className).not.toMatch(/ng-collapsed/);
+    const { tools } = renderApp();
     expect(tools).not.toHaveFocus();
   });
 

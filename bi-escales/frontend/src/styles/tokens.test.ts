@@ -111,8 +111,12 @@ describe("naviguide-shell.css", () => {
   });
 
   it("keeps project titles plain, though they are buttons", () => {
-    const rule = shellCss.slice(shellCss.indexOf(".ng-sidebar .project-row > button:first-child {"));
+    // first-of-type, not first-child: a gear row starts with the item's picture.
+    const at = shellCss.indexOf(".ng-sidebar .project-row > button:first-of-type {");
+    expect(at).toBeGreaterThan(-1);
+    const rule = shellCss.slice(at);
     expect(rule.slice(0, rule.indexOf("}"))).toContain("background: none");
+    expect(shellCss).not.toContain(".project-row > button:first-child");
   });
 
   it("gives every shell colour a value in both themes", () => {

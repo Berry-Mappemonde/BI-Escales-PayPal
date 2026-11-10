@@ -9,6 +9,7 @@ import {
   removeTreasurerWishlistItem,
 } from "../api/escales";
 import type { Channel3CatalogItem, TreasurerWishlistDoc } from "../api/types";
+import { Channel3Thumb } from "../components/Channel3Thumb";
 import { catalogMapFromItems, linesFromTreasurerItems } from "./catalogMap";
 import { WishlistItemUnavailable } from "./WishlistItemCard";
 
@@ -226,6 +227,7 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
                   </li>
                 ) : (
                   <li key={line.item.channel3_product_id}>
+                    <Channel3Thumb src={line.item.image_url} title={line.item.name} size="sm" testId="treasurer-wishlist-photo" />
                     <span data-testid="treasurer-wishlist-line">
                       {line.item.name} × {line.quantity}
                     </span>

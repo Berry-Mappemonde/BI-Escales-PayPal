@@ -120,7 +120,10 @@
   },
   "map": {
     "boatMarker": "Boat / catamaran",
-    "stopMarker": "Open stop: {{name}}"
+    "stopMarker": "Open stop: {{name}}",
+    "layers": "Map layers",
+    "layerProjects": "Projects",
+    "layerMarinas": "Marinas"
   },
   "fund": {
     "heading": "Common fund",

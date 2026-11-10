@@ -25,10 +25,9 @@
   border-style: dashed;
 }
 
+/* The picture's size is fixed by the thumbnail itself; the card only places it. */
 .wishlist-item-image {
-  width: 100%;
-  max-height: 140px;
-  object-fit: contain;
+  margin-bottom: 0.5rem;
 }
 
 .treasurer-wishlists .wishlist-treasurer-items {

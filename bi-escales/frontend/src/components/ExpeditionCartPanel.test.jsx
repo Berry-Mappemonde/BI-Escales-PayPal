@@ -80,4 +80,31 @@ describe("ExpeditionCartPanel", () => {
       expect(screen.getByTestId("expedition-cart-price")).toHaveTextContent("price unavailable");
     });
   });
+  it("shows a gear line's Channel3 picture when the page knows it, and none otherwise", async () => {
+    vi.spyOn(escalesApi, "fetchExpeditionCart").mockResolvedValue({
+      gear_count: 2,
+      marina_count: 1,
+      lines: [
+        { kind: "gear", id: "gear-dive", description: "Dive computer", amount_eur: "250.00", currency: "EUR" },
+        { kind: "gear", id: "gear-bags", description: "Dry bags", amount_eur: "40.00", currency: "EUR" },
+        { kind: "marina", id: "gear-dive", description: "Marina B", amount_eur: "30.00", currency: "EUR", simulated: true },
+      ],
+    });
+    await i18n.changeLanguage("en");
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ExpeditionCartPanel images={{ "gear-dive": "https://img.example.test/dive.jpg" }} />
+      </I18nextProvider>,
+    );
+    const rows = await screen.findAllByTestId("expedition-cart-row");
+    expect(rows).toHaveLength(3);
+    const photos = screen.getAllByTestId("expedition-cart-photo");
+    // One picture: the gear line the page has a picture for. Not the other gear line, not the marina.
+    expect(photos).toHaveLength(1);
+    expect(rows[0]).toContainElement(photos[0]);
+    expect(photos[0]).toHaveAttribute("src", "https://img.example.test/dive.jpg");
+    expect(photos[0]).toHaveAttribute("alt", "Dive computer");
+    expect(photos[0]).toHaveAttribute("loading", "lazy");
+    expect(photos[0]).toHaveAttribute("width", "32");
+  });
 });

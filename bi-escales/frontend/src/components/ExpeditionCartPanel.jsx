@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchExpeditionCart } from "../api/escales";
+import { Channel3Thumb } from "./Channel3Thumb";
 
 function formatPrice(line, t) {
   const amount = String(line?.amount_eur || "").trim();
@@ -17,7 +18,11 @@ function formatPrice(line, t) {
   return t("cart.priceUnavailable");
 }
 
-export default function ExpeditionCartPanel() {
+/**
+ * `images` maps a gear line's id to its Channel3 picture. The cart payload has
+ * no picture of its own; the gear projects the page already loaded do.
+ */
+export default function ExpeditionCartPanel({ images = {} }) {
   const { t, i18n } = useTranslation();
   const lang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const [cart, setCart] = useState(null);
@@ -59,7 +64,14 @@ export default function ExpeditionCartPanel() {
                 data-testid="expedition-cart-row"
                 data-kind={line.kind}
               >
-                <td>{line.description}</td>
+                <td>
+                  <span className="channel3-line">
+                    {line.kind === "gear" ? (
+                      <Channel3Thumb src={images[line.id]} title={line.description} size="sm" testId="expedition-cart-photo" />
+                    ) : null}
+                    <span>{line.description}</span>
+                  </span>
+                </td>
                 <td data-testid="expedition-cart-price">{formatPrice(line, t)}</td>
               </tr>
             ))}

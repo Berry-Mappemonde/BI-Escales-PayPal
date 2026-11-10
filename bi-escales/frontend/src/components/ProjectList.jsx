@@ -13,6 +13,7 @@ import { visibleProjectFeatures } from "../projects/visibleProjectFeatures.js";
 import { gearPageHref } from "../gear/channel3ProductUrl.js";
 import { PledgeButton } from "./PledgeButton";
 import { ProjectFundProgress } from "./ProjectFundProgress";
+import { Channel3Thumb } from "./Channel3Thumb";
 
 /** Même plafond que ProjectList.js BI (slice 0, 100). */
 const LIST_CAP = 100;
@@ -50,8 +51,9 @@ function ProjectPledgeForm({ project, contributor, onAuthorized }) {
 
   return (
     <div className="project-pledge" data-testid="project-pledge" data-project-id={props.id}>
+      {/* The row above already shows the item's picture. */}
       {isGear && publicTotal ? (
-        <ProjectFundProgress properties={props} fund={publicTotal} />
+        <ProjectFundProgress properties={props} fund={publicTotal} showImage={!props.channel3_image_url} />
       ) : null}
       <label>
         {t("pledge.amount")}
@@ -169,6 +171,14 @@ export default function ProjectList({
           const open = selectedProjectId === props.id;
           return (
             <div key={props.id} className="project-row" data-testid={`project-row-${props.id}`}>
+              {isGearFeature(feature) ? (
+                <Channel3Thumb
+                  src={props.channel3_image_url}
+                  title={props.channel3_product_name || rowTitle}
+                  size="sm"
+                  testId="gear-row-photo"
+                />
+              ) : null}
               <button
                 type="button"
                 data-testid={`project-item-${props.id}`}

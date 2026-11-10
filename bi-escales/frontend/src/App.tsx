@@ -7,6 +7,8 @@ import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
 import type { CaptainChatResponse, FundView, Milestone, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
 import { EscalePopup } from "./components/EscalePopup.jsx";
+import { MapLayerControl } from "./components/MapLayerControl";
+import type { MapLayerId, MapLayers } from "./components/MapLayerControl";
 import MarinasPanel from "./components/MarinasPanel.jsx";
 import ExpeditionCartPanel from "./components/ExpeditionCartPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
@@ -65,6 +67,19 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const [tab, setTab] = useState<TabId>("voyage");
+  // One map: projects and marinas are layers the visitor switches, not a property of the tab.
+  const [layers, setLayers] = useState<MapLayers>({ projects: true, marinas: true });
+  const toggleLayer = useCallback(
+    (id: MapLayerId) => setLayers((current) => ({ ...current, [id]: !current[id] })),
+    [],
+  );
+  const selectTab = useCallback((next: TabId) => {
+    setTab(next);
+    // The Marinas list is about what the layer draws, so opening it shows the layer.
+    if (next === "marinas") {
+      setLayers((current) => (current.marinas ? current : { ...current, marinas: true }));
+    }
+  }, []);
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
   const [hash, setHash] = useState(() => window.location.hash);
   const [adminKey, setAdminKey] = useState("");
@@ -735,11 +750,18 @@ export default function App() {
     if (tab === "gear") {
       return { ...projects, features: all.filter((row) => isGear(row)) };
     }
-    if (tab === "voyage") {
-      return { ...projects, features: all.filter((row) => !isGear(row)) };
-    }
-    return { ...projects, features: [] };
+    return { ...projects, features: all.filter((row) => !isGear(row)) };
   }, [projects, tab]);
+
+  // Channel3 pictures by gear project id, for lists that only know the id (the cart).
+  const gearImages = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const row of Array.isArray(projects?.features) ? projects.features : []) {
+      const props = (row as { properties?: { id?: string; channel3_image_url?: string | null } })?.properties;
+      if (props?.id && props.channel3_image_url) out[props.id] = props.channel3_image_url;
+    }
+    return out;
+  }, [projects]);
 
   const treasurerPanel = (
     <TreasurerPanel
@@ -804,8 +826,8 @@ export default function App() {
           boat={sample && Number.isFinite(sample.lat) ? { lat: sample.lat, lon: sample.lon, bearing: sample.bearing } : null}
           projects={mapProjects}
           marinas={marinaFeatures}
-          showProjects={tab === "voyage" || tab === "gear"}
-          showMarinas={tab === "marinas"}
+          showProjects={layers.projects}
+          showMarinas={layers.marinas}
           flyTo={flyTo}
           theme={theme}
           onSelectStop={chooseStop}
@@ -830,6 +852,8 @@ export default function App() {
             <path d={sidebarOpen ? "m10 3.5-4.5 4.5 4.5 4.5" : "m6 3.5 4.5 4.5-4.5 4.5"} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
+
+        <MapLayerControl layers={layers} onToggle={toggleLayer} />
 
         <button
           type="button"
@@ -914,7 +938,7 @@ export default function App() {
           <button type="button" role="tab" aria-selected={tab === "voyage"} className={tab === "voyage" ? "active" : ""} onClick={() => setTab("voyage")}>
             {t("tabs.voyage")}
           </button>
-          <button type="button" role="tab" aria-selected={tab === "marinas"} className={tab === "marinas" ? "active" : ""} onClick={() => setTab("marinas")}>
+          <button type="button" role="tab" aria-selected={tab === "marinas"} className={tab === "marinas" ? "active" : ""} onClick={() => selectTab("marinas")}>
             {t("tabs.marinas")}
           </button>
           {GEAR_TAB_VISIBLE && wishlistsEnabled ? (
@@ -1002,7 +1026,7 @@ export default function App() {
               onFlyTo={onFlyTo}
               onAuthorized={onAuthorized}
             />
-            <ExpeditionCartPanel />
+            <ExpeditionCartPanel images={gearImages} />
           </>
         ) : null}
         {/* Secondary to backing a stop: membership, public total, treasurer entry. */}

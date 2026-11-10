@@ -1,7 +1,7 @@
 {
   "app": {
     "title": "BI Escales — Pay only when we arrive",
-    "subtitle": "Pay Only If We Sail",
+    "subtitle": "Pay only when we arrive",
     "tagline": "Stop pledges capture on boat arrival; cabins on leg departure; common fund at once.",
     "langFr": "Français",
     "langEn": "English",
@@ -17,7 +17,9 @@
     "toolsCollapse": "Hide the stop panel",
     "toolsExpand": "Show the stop panel",
     "metaDescription": "BI Escales — support the Berry-Mappemonde expedition. Stop pledges capture on boat arrival (voided if the stop is cancelled); cabins on leg departure; common fund and project gifts at once.",
-    "ogLocale": "en_US"
+    "ogLocale": "en_US",
+    "langFrSwitch": "FR, Français",
+    "langEnSwitch": "EN, English"
   },
   "common": {
     "showSecret": "Show",

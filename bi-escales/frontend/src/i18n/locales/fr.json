@@ -1,7 +1,7 @@
 {
   "app": {
     "title": "BI Escales — Payez seulement à notre arrivée",
-    "subtitle": "Payez seulement si nous partons",
+    "subtitle": "Payez seulement à notre arrivée",
     "tagline": "Promesses escale à l'arrivée du bateau ; cabines au départ de l'étape ; fonds commun immédiatement.",
     "langFr": "Français",
     "langEn": "English",
@@ -17,7 +17,9 @@
     "toolsCollapse": "Masquer le panneau d’escale",
     "toolsExpand": "Afficher le panneau d’escale",
     "metaDescription": "BI Escales — soutenez l'expédition Berry-Mappemonde. Promesses escale encaissées à l'arrivée du bateau (annulées si l'escale est annulée) ; cabines au départ de l'étape ; fonds commun et dons projet immédiatement.",
-    "ogLocale": "fr_FR"
+    "ogLocale": "fr_FR",
+    "langFrSwitch": "FR, Français",
+    "langEnSwitch": "EN, English"
   },
   "common": {
     "showSecret": "Afficher",

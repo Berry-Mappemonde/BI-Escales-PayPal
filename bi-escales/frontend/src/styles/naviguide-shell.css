@@ -51,7 +51,7 @@ body.ng-naviguide-shell {
   gap: 0;
   padding: var(--space-3) 0;
   box-sizing: border-box;
-  background: var(--shell-sidebar-gradient);
+  background: var(--color-shell);
   border-right: 1px solid var(--shell-border);
   overflow: auto;
   transition: transform 200ms ease;
@@ -61,11 +61,6 @@ body.ng-naviguide-shell {
 :root,
 :root[data-theme="dark"] {
   --shell-bg: var(--color-canvas);
-  --shell-sidebar-gradient: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--color-shell) 96%, transparent),
-    color-mix(in srgb, var(--color-shell) 88%, transparent)
-  );
   --shell-border: var(--color-line);
   --shell-control-bg: color-mix(in srgb, var(--color-panel) 90%, transparent);
   --shell-control-border: var(--color-line-strong);
@@ -77,11 +72,6 @@ body.ng-naviguide-shell {
 
 :root[data-theme="light"] {
   --shell-bg: var(--color-canvas);
-  --shell-sidebar-gradient: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--color-canvas) 98%, transparent),
-    color-mix(in srgb, var(--color-panel) 95%, transparent)
-  );
   --shell-border: var(--color-line);
   --shell-control-bg: color-mix(in srgb, var(--color-raised) 95%, transparent);
   --shell-control-border: var(--color-line-strong);
@@ -212,7 +202,6 @@ body.ng-naviguide-shell {
 
 .ng-tab-bar {
   display: flex;
-  border-bottom: 1px solid var(--color-line);
   flex-wrap: wrap;
   margin: 0;
 }
@@ -339,14 +328,6 @@ body.ng-naviguide-shell {
 
 .ng-sidebar .ng-shell-header {
   padding-inline: var(--space-5);
-}
-
-.ng-sidebar > .how-it-works,
-.ng-sidebar > [data-testid="escale-popup"],
-.ng-sidebar > .marinas-panel {
-  margin-top: var(--space-3);
-  border-top: 1px solid var(--color-line);
-  padding-top: var(--space-3);
 }
 
 .ng-tools-panel .treasurer-panel .treasurer-panel-body > .stack-form > button[type="submit"],
@@ -599,11 +580,6 @@ body.ng-naviguide-shell {
   background: none;
 }
 
-.ng-sidebar [data-testid="project-list"] {
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-line);
-}
-
 .ng-sidebar .captain-chat h2,
 .ng-sidebar [data-testid="project-list"] h2 {
   margin: 0 0 var(--space-2);
@@ -747,7 +723,6 @@ body.ng-naviguide-shell {
 .ng-shell-header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-1); }
 .voyage-emblem { box-sizing: content-box; padding: var(--space-1); background: var(--color-fg); color: var(--color-canvas); border-radius: var(--radius-panel); }
 .ng-shell-header h1 { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); margin: 0; }
-.ng-shell-header h1 small { font: 500 var(--text-meta)/var(--text-meta--line-height) var(--font-sans); color: var(--color-fg-2); }
 .ng-shell .ng-clock-line {
   display: flex;
   flex-direction: column;
@@ -831,14 +806,6 @@ body.ng-naviguide-shell {
   margin: 0;
 }
 
-.ng-sidebar > .captain-chat,
-.ng-sidebar > [data-testid="project-list"],
-.ng-sidebar > [data-testid="gear-list"] {
-  margin-top: var(--space-3);
-  border-top: 1px solid var(--color-line);
-  padding-top: var(--space-3);
-}
-
 .crew-supporter-heading {
   display: grid;
   gap: 2px;
@@ -864,8 +831,6 @@ body.ng-naviguide-shell {
 
 .crew-paypal-frame {
   overflow: hidden;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-control);
 }
 
 .crew-paypal-frame .crew-subscribe {

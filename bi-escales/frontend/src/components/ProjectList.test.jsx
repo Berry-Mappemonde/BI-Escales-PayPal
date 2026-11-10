@@ -260,7 +260,42 @@ describe("ProjectList", () => {
     fireEvent.click(screen.getByTestId("gear-list").querySelector("summary"));
     const link = screen.getByTestId("gear-page-link");
     expect(link).toHaveAttribute("href", "https://buy.trychannel3.com/full");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
+
+  it.each(["javascript:alert(1)", "http://buy.trychannel3.com/http-only"])(
+    "gear tab: no Page link for unsafe URL %s when fully funded",
+    async (badUrl) => {
+      await i18n.changeLanguage("en");
+      const gearProjects = {
+        features: [
+          {
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [57.65, -20.16] },
+            properties: {
+              id: "gear-unsafe",
+              title: "Unsafe gear",
+              funder: "Channel3",
+              project_kind: "gear_project",
+              funded_pct: 100,
+              fully_funded: true,
+              channel3_buy_url: badUrl,
+              url: badUrl,
+            },
+          },
+        ],
+      };
+      render(
+        <I18nextProvider i18n={i18n}>
+          <ProjectList projects={gearProjects} featureScope="gear" onFlyTo={() => {}} />
+        </I18nextProvider>,
+      );
+      fireEvent.click(screen.getByTestId("gear-list").querySelector("summary"));
+      expect(screen.getByText("Unsafe gear")).toBeInTheDocument();
+      expect(screen.queryByTestId("gear-page-link")).toBeNull();
+    },
+  );
 
   it("épinglé depuis la carte : formulaire visible malgré le filtre recherche", async () => {
     await i18n.changeLanguage("fr");

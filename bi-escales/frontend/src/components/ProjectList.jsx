@@ -197,14 +197,14 @@ export default function ProjectList({
                   <a
                     href={gearPageHref(props)}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     data-testid="gear-page-link"
                   >
                     {t("projects.open")}
                   </a>
                 ) : null
               ) : props.url ? (
-                <a href={props.url} target="_blank" rel="noreferrer">
+                <a href={props.url} target="_blank" rel="noopener noreferrer">
                   {t("projects.open")}
                 </a>
               ) : null}

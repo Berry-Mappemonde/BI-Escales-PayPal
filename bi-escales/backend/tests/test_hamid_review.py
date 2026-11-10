@@ -10,6 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from tests.schedule_clocks import mayotte_arrival_iso, mayotte_authorize_window_clock, near_mayotte_clock
 from app.escales.paypal_client import PayPalError
 from app.escales.pledges import (
     authorize_pledge,
@@ -27,7 +28,7 @@ from app.escales.rate_limit import client_ip, trusted_proxy_hops
 @pytest.fixture(autouse=True)
 def memory_ledger(monkeypatch):
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", mayotte_authorize_window_clock())
     reset_ledger()
     yield
     reset_ledger()
@@ -151,10 +152,10 @@ async def _authorized_pledge(client: RecordingPayPal, monkeypatch):
         client_key="hamid",
     )
     await authorize_pledge(created["_id"], client)
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
     pledge = await get_ledger().get_pledge(created["_id"])
     assert pledge is not None
-    pledge["authorized_at"] = "2027-06-11T08:00:00+00:00"
+    pledge["authorized_at"] = mayotte_arrival_iso()
     await get_ledger().save_pledge(pledge)
     return created["_id"]
 
@@ -257,7 +258,7 @@ def test_vault_charge_declined_then_retry_and_transport(monkeypatch):
         created["status"] = "vaulted"
         created["history"] = list(created.get("history") or []) + ["vaulted"]
         await get_ledger().save_pledge(created)
-        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
         with pytest.raises(ValueError, match="not COMPLETED or PENDING"):
             await capture_pledge(created["_id"], client)
         assert client.vault_keys == [f"capture-{created['_id']}-1"]
@@ -280,7 +281,7 @@ def test_vault_charge_declined_then_retry_and_transport(monkeypatch):
         created2["status"] = "vaulted"
         created2["history"] = list(created2.get("history") or []) + ["vaulted"]
         await get_ledger().save_pledge(created2)
-        monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-06-12T08:00:00Z")
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
         with pytest.raises(PayPalError):
             await capture_pledge(created2["_id"], client)
         assert client.vault_keys == [f"capture-{created2['_id']}-1"]

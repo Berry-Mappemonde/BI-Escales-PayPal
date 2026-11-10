@@ -57,7 +57,14 @@ test(`React ${scenario} checkout retains its v6 session while creation is pendin
   }
   await expect(page.locator("#checkout")).toHaveAttribute("data-authorized", scenario === "vault" ? "vaulted" : scenario === "project" ? "captured" : "authorized");
   expect(calls).toEqual(["create", scenario === "vault" ? "vault" : "authorize"]);
-  expect(await page.evaluate(() => (window as any).sdkEvents)).toEqual(scenario === "card" ? ["card-confirm"] : ["start", "created", "approved"]);
+  const events: string[] = await page.evaluate(() => (window as any).sdkEvents);
+  if (scenario === "card") expect(events).toEqual(["card-confirm"]);
+  else {
+    // Replacing an idle configuration before the user clicks is valid. An
+    // active session must survive from start through authoritative approval.
+    expect(events.filter(event => event === "start")).toHaveLength(1);
+    expect(events.slice(events.indexOf("start"))).toEqual(["start", "created", "approved"]);
+  }
 });
 
 }

@@ -1,8 +1,8 @@
+import { rememberAttempt, returnedAttempt, reconcileAttempt, type CheckoutAttempt } from "../paypal/checkoutAttempts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CabinLegPicker } from "./CabinLegPicker";
 import {
-  authorizePledge,
   createPledge,
   fetchFeatures,
   fetchPledgeMode,
@@ -53,6 +53,9 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   const { t, i18n } = useTranslation();
   const appLang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const [created, setCreated] = useState<PublicPledge | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  const [originalReceipt, setOriginalReceipt] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -139,7 +142,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
         cancelled = true;
       };
     }
-    void loadPayPalSdk(clientId, appLang, sdkIntent, walletPayEnabled, sdkCurrency, pledgeMode?.paymentMode === "VAULT" ? "VAULT_WITHOUT_PAYMENT" : "ONE_TIME_PAYMENT")
+    void loadPayPalSdk(clientId, appLang, sdkIntent, walletPayEnabled, sdkCurrency, pledgeMode?.paymentMode === "VAULT" ? "VAULT_WITHOUT_PAYMENT" : "ONE_TIME_PAYMENT", values.amount_eur)
       .then((ns) => {
         if (!cancelled) setPaypal(ns);
       })
@@ -149,7 +152,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     return () => {
       cancelled = true;
     };
-  }, [appLang, sdkIntent, sdkCurrency, walletPayEnabled, featuresKnown, pledgeMode?.paymentMode]);
+  }, [appLang, sdkIntent, sdkCurrency, walletPayEnabled, featuresKnown, pledgeMode?.paymentMode, values.amount_eur]);
 
   useEffect(() => {
     formRevisionRef.current += 1;
@@ -276,7 +279,25 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     host.innerHTML = "";
     if (!paypal || !shouldRenderSmartButtons || sdkCheckoutDisabled) return;
     const vaultSmartButtons = isCabinLeg && modeMatchesValues && pledgeMode?.paymentMode === "VAULT";
-    let pledgeId: string | null = null;
+    let attempt: CheckoutAttempt | undefined;
+    const remember = (pledge: PublicPledge, revision: number, v: PledgeFormValues, mode: "AUTHORIZE" | "VAULT") => {
+      attempt = rememberAttempt({ key: crypto.randomUUID(), revision, pledgeId: pledge.id, orderId: pledge.order_id || undefined, amount: v.amount_eur, currency: v.currency || "EUR", milestone: v.milestone_id, target: v.target_id || "", mode, path: location.pathname });
+    };
+    const approveOriginal = async (data?: { orderId?: string }) => {
+      const original = attempt || returnedAttempt(data?.orderId, vaultSmartButtons ? "VAULT" : "AUTHORIZE");
+      if (!original || (data?.orderId && original.orderId && data.orderId !== original.orderId)) throw new Error("Checkout return could not be correlated");
+      const current = () => original.revision === formRevisionRef.current && original.amount === valuesRef.current.amount_eur && original.currency === (valuesRef.current.currency || "EUR") && original.target === (valuesRef.current.target_id || "") && original.milestone === valuesRef.current.milestone_id;
+      if (current()) { setBusy(true); setError(null); }
+      try {
+        const done = await reconcileAttempt(original.pledgeId, original.mode === "VAULT");
+        if (!mountedRef.current) return;
+        if (!current()) { setOriginalReceipt(t("pledge.originalReceipt", { id: original.pledgeId, amount: original.amount, currency: original.currency, target: original.target || original.milestone })); return; }
+        if (original.mode === "VAULT") setCreated(done);
+        setStatus(t(original.mode === "VAULT" ? "pledge.vaultSaved" : isProjectPledge ? "pledge.returnPendingProject" : "pledge.returnPending"));
+        onAuthorized?.(done);
+      } catch (error) { if (mountedRef.current && current()) setError(error instanceof Error ? error.message : "Original checkout verification failed"); throw error; }
+      finally { if (mountedRef.current && current()) setBusy(false); }
+    };
     let closed = false;
     let buttons: PayPalSdkButtonInstance | null = null;
     const smartCallbacks = vaultSmartButtons
@@ -304,28 +325,13 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
               throw new Error("pledge form changed, order discarded");
             }
             if (!isVaultPledge(pledge) || !pledge.setup_token_id) throw new Error("setup_token_id missing");
-            pledgeId = pledge.id;
+            remember(pledge, revision, v, "VAULT");
             activePledgeIdRef.current = pledge.id;
             setCreated(pledge);
             setBusy(false);
             return pledge.setup_token_id;
           },
-          onApprove: async () => {
-            if (!pledgeId) return;
-            setBusy(true);
-            setError(null);
-            try {
-              setStatus(t("pledge.vaulting"));
-              const saved = await registerVault(pledgeId);
-              setCreated(saved);
-              setStatus(t("pledge.vaultSaved"));
-              onAuthorized?.(saved);
-            } catch (e) {
-              setError(e instanceof Error ? e.message : String(e));
-            } finally {
-              setBusy(false);
-            }
-          },
+          onApprove: approveOriginal,
         }
       : {
           createOrder: async () => {
@@ -351,24 +357,12 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
               throw new Error("pledge form changed, order discarded");
             }
             if (!pledge.order_id) throw new Error("order_id missing");
-            pledgeId = pledge.id;
+            remember(pledge, revision, v, "AUTHORIZE");
             activePledgeIdRef.current = pledge.id;
             setBusy(false);
             return pledge.order_id;
           },
-          onApprove: async () => {
-            if (!pledgeId) return;
-            setBusy(true);
-            try {
-              const done = await authorizePledge(pledgeId);
-              setStatus(isProjectPledge ? t("pledge.returnPendingProject") : t("pledge.returnPending"));
-              onAuthorized?.(done);
-            } catch (e) {
-              setError(e instanceof Error ? e.message : String(e));
-            } finally {
-              setBusy(false);
-            }
-          },
+          onApprove: approveOriginal,
         };
     void safePayPalRender(
       paypal.Buttons,
@@ -453,6 +447,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     <div className="pledge-button" data-testid="paypal-buttons" data-kind={values.kind || ""}>
       {intentLabel ? <p className="hint">{intentLabel}</p> : null}
       <p className="hint">{t("pledge.venmoNote")}</p>
+      {originalReceipt ? <p role="status">{originalReceipt}</p> : null}
       {isCabinLeg ? (
         <CabinLegPicker
           value={cabinLegId}

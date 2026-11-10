@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import weakref
+from decimal import Decimal, InvalidOperation
+
 import hashlib
 import json
 import secrets
@@ -342,13 +346,28 @@ def _subscription_create_response(
     }
 
 
+_creation_locks: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
 async def create_crew_subscription(
+    client: Any, *, return_url: str, cancel_url: str,
+    client_key: Optional[str] = None, lang: Optional[str] = None,
+    expected_plan_id: Optional[str] = None,
+) -> dict:
+    loop = asyncio.get_running_loop()
+    lock = _creation_locks.setdefault(loop, asyncio.Lock())
+    async with lock:
+        return await _create_crew_subscription(client, return_url=return_url, cancel_url=cancel_url, client_key=client_key, lang=lang, expected_plan_id=expected_plan_id)
+
+
+async def _create_crew_subscription(
     client: Any,
     *,
     return_url: str,
     cancel_url: str,
     client_key: Optional[str] = None,
     lang: Optional[str] = None,
+    expected_plan_id: Optional[str] = None,
 ) -> dict:
     """Public buyer checkout: ensure catalog + create PayPal subscription."""
     app_lang = normalize_app_lang(lang)
@@ -358,6 +377,25 @@ async def create_crew_subscription(
         plan_id = str(await resolve_crew_supporter_plan_id(client, lang=app_lang) or "")
     if not plan_id:
         raise ValueError("crew supporter plan is not configured")
+    if expected_plan_id is not None:
+        if expected_plan_id.strip() != plan_id:
+            raise ValueError("subscription plan does not match the displayed selection")
+        plan = client.get_billing_plan(plan_id)
+        cycles = plan.get("billing_cycles") or []
+        regular = [cycle for cycle in cycles if cycle.get("tenure_type") == "REGULAR"]
+        valid = plan.get("id") == plan_id and plan.get("status") == "ACTIVE" and len(regular) == 1 and len(cycles) == 1
+        if valid:
+            cycle = regular[0]
+            price = (cycle.get("pricing_scheme") or {}).get("fixed_price") or {}
+            frequency = cycle.get("frequency") or {}
+            try:
+                setup = (plan.get("payment_preferences") or {}).get("setup_fee") or {}
+                taxes = plan.get("taxes") or {}
+                valid = price.get("currency_code") == "EUR" and Decimal(str(price.get("value", "0"))) == Decimal("5.00") and frequency.get("interval_unit") == "MONTH" and frequency.get("interval_count") == 1 and Decimal(str(setup.get("value", "0"))) == 0 and Decimal(str(taxes.get("percentage", "0"))) == 0
+            except (InvalidOperation, TypeError, ValueError):
+                valid = False
+        if not valid:
+            raise ValueError("subscription plan pricing is not the permitted monthly EUR catalog price")
     replay_key = _client_key(client_key)
     body_hash = _subscription_create_body_hash(
         return_url=return_url,
@@ -367,6 +405,8 @@ async def create_crew_subscription(
     if replay_key:
         cached = await _subscription_create_cache_get(replay_key, body_hash)
         if cached:
+            if cached.get("plan_id") != plan_id:
+                raise ValueError("subscription attempt needs reconciliation after catalog change")
             return cached
     idempotency = replay_key[:127] if replay_key else secrets.token_hex(16)
     payload = client.create_billing_subscription(

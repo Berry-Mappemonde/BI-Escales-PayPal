@@ -1,7 +1,8 @@
+import { reconcileAttempt } from "./paypal/checkoutAttempts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatSettleCaptureNote } from "./api/settleCaptureNote";
-import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchGearProjects, fetchHealthRetrying, fetchPrices, fetchPublicCommonFund, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { approveCrewSubscription, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchGearProjects, fetchHealthRetrying, fetchPrices, fetchPublicCommonFund, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, settleClock } from "./api/escales";
 import { emitCrewSubscribeReturn } from "./paypal/crewSubscribeReturnEvents";
 import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
 import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
@@ -491,7 +492,7 @@ export default function App() {
       }
       if (!vaultParsed.pledgeId) return undefined;
       setPaypalNote("vaulting");
-      void registerVault(vaultParsed.pledgeId, vaultParsed.approvalTokenId)
+      void reconcileAttempt(vaultParsed.pledgeId, true, vaultParsed.approvalTokenId)
         .then((pledge) => {
           pledgeQueueRef.current.updatePledge(pledge);
           void pledgeQueueRef.current.refresh();
@@ -523,7 +524,7 @@ export default function App() {
     }
     if (!parsed.pledgeId) return;
     setPaypalNote("authorizing");
-    void authorizePledge(parsed.pledgeId)
+    void reconcileAttempt(parsed.pledgeId)
       .then((pledge) => {
         pledgeQueueRef.current.updatePledge(pledge);
         void pledgeQueueRef.current.refresh();

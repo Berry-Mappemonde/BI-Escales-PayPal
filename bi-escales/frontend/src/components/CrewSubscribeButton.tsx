@@ -146,6 +146,20 @@ export function CrewSubscribeButton(props: CrewSubscribeButtonProps) {
   );
 }
 
+const activeReceipts = new Map<string, Promise<Record<string, unknown>>>();
+function verifyActiveSubscription(subscription_id: string, plan_id: string) {
+  const key = `${subscription_id}:${plan_id}`;
+  let pending = activeReceipts.get(key);
+  if (!pending) {
+    pending = approveCrewSubscription({ subscription_id, plan_id }).then(receipt => {
+      if (receipt.status !== "ACTIVE" || receipt.plan_id !== plan_id) throw new Error("Subscription activation has not been verified");
+      return receipt;
+    }).catch(error => { activeReceipts.delete(key); throw error; });
+    activeReceipts.set(key, pending);
+  }
+  return pending;
+}
+
 function CrewSubscribeButtonInner({
   planId: planIdProp,
   adminKey,
@@ -200,28 +214,23 @@ function CrewSubscribeButtonInner({
         paypal.Buttons,
         {
           style: { label: "subscribe", layout: "vertical" },
+          subscriptionPlanId: planId,
           createSubscription: (
             _data: unknown,
             actions: { subscription: { create: (body: unknown) => Promise<string> } },
           ) => actions.subscription.create({ plan_id: planId }),
-          onApprove: (data: { subscriptionID?: string }) => {
+          onApprove: async (data: { subscriptionID?: string }) => {
             const subId = data.subscriptionID;
-            if (!subId) return;
-            void approveCrewSubscription({ subscription_id: subId, plan_id: planId })
-              .then(() => {
-                setStatus(t("pledge.crewSubscribeSaved"));
-              })
-              .catch((e) => {
-                setError(e instanceof Error ? e.message : String(e));
-              });
+            if (!subId) throw new Error("Subscription ID missing");
+            try {
+              await verifyActiveSubscription(subId, planId);
+              if (!closed) setStatus(t("pledge.crewSubscribeSaved"));
+            } catch (error) {
+              if (!closed) setError(error instanceof Error ? error.message : "Subscription verification failed");
+              throw error;
+            }
             if (adminKey?.trim()) {
-              void recordSubscription(adminKey.trim(), {
-                subscription_id: subId,
-                plan_id: planId,
-                status: "ACTIVE",
-              }).catch(() => {
-                /* webhook or public approve already recorded */
-              });
+              void recordSubscription(adminKey.trim(), { subscription_id: subId, plan_id: planId, status: "ACTIVE" }).catch(() => { /* Verified server receipt remains authoritative. */ });
             }
           },
         },

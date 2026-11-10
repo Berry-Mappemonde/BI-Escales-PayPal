@@ -145,7 +145,7 @@ describe("v6 payment session adapters", () => {
     };
     const fetchStub = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ subscription_id: "SUB-TEST-1" }),
+      json: async () => ({ subscription_id: "SUB-TEST-1", plan_id: "PLAN" }),
     });
     vi.stubGlobal("fetch", fetchStub);
     const adapter = buildV6Adapter(sdk as never, eligible);
@@ -257,7 +257,7 @@ describe("v6 lifecycle and legacy callback parity", () => {
     await button.close!();
   });
 
-  it("deduplicates concurrent clicks and ignores callbacks after close", async () => {
+  it("deduplicates concurrent clicks and preserves late approval for original-pledge reconciliation", async () => {
     let release!: () => void;
     let callbacks: any;
     const destroy = vi.fn();
@@ -273,7 +273,7 @@ describe("v6 lifecycle and legacy callback parity", () => {
     expect(start).toHaveBeenCalledOnce();
     await button.close!(); await button.close!();
     await callbacks.onApprove({ orderId: "ORDER" }); callbacks.onCancel();
-    expect(onApprove).not.toHaveBeenCalled(); expect(onCancel).not.toHaveBeenCalled(); expect(destroy).toHaveBeenCalledOnce();
+    expect(onApprove).toHaveBeenCalledOnce(); expect(onCancel).not.toHaveBeenCalled(); expect(destroy).toHaveBeenCalledOnce();
     release(); await expect(button.render(host)).rejects.toThrow(/closed/);
   });
 

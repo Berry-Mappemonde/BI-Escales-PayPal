@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [test/integration-2, main]
   push:
-    branches: [test/integration-2]
+    branches: [test/integration-2, feat/paypal-js-v6-general-migration]
   workflow_dispatch:
 
 concurrency:
@@ -32,7 +32,7 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m pip install mypy==2.4.1
       - run: python -m mypy --strict app/escales/paypal_sdk_gateway.py
-      - run: python -m pytest tests -q -rs
+      - run: python -m pytest tests -m "not live" -q -rs
 
   frontend:
     name: Frontend (tests + build)
@@ -52,3 +52,5 @@ jobs:
       - run: npm test
       - run: npm run typecheck:test
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

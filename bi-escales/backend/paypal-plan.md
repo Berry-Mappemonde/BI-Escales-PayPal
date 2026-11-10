@@ -149,3 +149,20 @@ Every call below is `HttpMethodEnum.GET` on `Server.DEFAULT`.
 Each distinct reason writes one warning on logger `escales.paypal.sdk` (`PayPal SDK read gateway unavailable; using the httpx client`) and does not raise. A later read with the same reason does not log again until `reset_client`. Direct calls to `build_sandbox_client` still raise. The gateway never passes `Environment.PRODUCTION`.
 
 Connection errors and timeouts from a read (`requests` `ConnectionError` and `Timeout`, including connect and read timeouts, plus urllib3 connection and timeout errors, including when chained as `__cause__`) become `PayPalError` with status 502. That replaces the bullet above that said those failures propagate. `ApiException` mapping is unchanged. These seven operations remain GETs. The flag default stays off.
+
+## PR 182 F03/F04 subscription selection and retry contract
+
+Before application edits: retain Server SDK 2.4.0 and the existing
+`create_billing_subscription(plan_id, return_url, cancel_url, idempotency_key, locale)`
+call. New UI requests send a displayed plan selection only as a constraint;
+`create_crew_subscription` resolves the server-owned catalog and rejects a
+mismatch before provider creation. For these requests, use the existing
+`get_billing_plan(id)` read to confirm ACTIVE, a regular one-month cycle, and
+fixed EUR 5.00 pricing. Do not treat the client selection as price authority.
+The existing response already includes server-resolved plan_id.
+Serialize same-process creation/cache work with a per-event-loop lock; keep the
+same provider idempotency key across uncertain retries and reject cache plan
+drift. Cross-worker exactly-once provider behavior still relies on PayPal's
+idempotency contract and needs a sandbox receipt; do not claim it from a mock.
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-testing and python-configuration-resilience (vendored repository pack).

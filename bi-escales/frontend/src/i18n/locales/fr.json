@@ -210,6 +210,7 @@
     "cardErrorInvalidExpiry": "Date d’expiration invalide. Vérifiez le mois et l’année.",
     "cardErrorInvalidCvv": "Cryptogramme (CVV) invalide.",
     "cardErrorInvalidNumber": "Numéro de carte invalide.",
+    "originalReceipt": "Le soutien initial {{id}} ({{amount}} {{currency}}, {{target}}) a été vérifié. Le formulaire modifié n’a pas été crédité.",
     "walletPayError": "Le paiement par portefeuille a été annulé ou n’a pas abouti. Veuillez réessayer.",
     "walletPayHint": "Google Pay (Chrome) ou Apple Pay (Safari), sandbox TEST EUR.",
     "error": "Erreur promesse",

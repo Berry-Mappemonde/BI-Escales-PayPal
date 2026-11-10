@@ -1,3 +1,4 @@
+import { resumeCheckout } from "./checkoutAttempts";
 import { walletFactories } from "./paypalWallets";
 import type { CardFieldComponent, CardFieldOptions, Components, PaymentFlow, EligiblePaymentMethodsOutput, PayPalV6Namespace, SdkInstance } from "@paypal/paypal-js/sdk-v6";
 
@@ -24,6 +25,7 @@ type ButtonCallbacks = {
   onError?: Callback;
   style?: { label?: string };
   offerPayLater?: boolean;
+  subscriptionPlanId?: string;
 };
 
 type CardCallbacks = {
@@ -129,23 +131,45 @@ function waitForCore(): Promise<V6Core> {
   return corePending;
 }
 
-async function createSubscriptionOnServer(appLang?: string): Promise<string> {
+const subscriptionRequests = new Map<string, Promise<string>>();
+const subscriptionResumes = new Map<string, Promise<void>>();
+async function createSubscriptionOnServer(appLang: string | undefined, selection: unknown): Promise<string> {
+  const plan = (selection as { plan_id?: unknown } | null)?.plan_id;
+  if (typeof plan !== "string" || !plan.trim()) throw new Error("Displayed subscription plan missing");
+  const scope = `escales-v6-subscription:${location.pathname}:${appLang || "fr"}:${plan}`;
+  const existing = subscriptionRequests.get(scope);
+  if (existing) return existing;
+  let key: string;
+  try { key = sessionStorage.getItem(scope) || crypto.randomUUID(); sessionStorage.setItem(scope, key); }
+  catch { throw new Error("Subscription retry storage unavailable"); }
+  const pending = postSubscription(appLang, plan, key).then(id => { sessionStorage.setItem(scope + ":subscriptionId", id); return id; });
+  subscriptionRequests.set(scope, pending);
+  try { return await pending; } catch (error) { subscriptionRequests.delete(scope); throw error; }
+}
+function finishSubscription(appLang: string | undefined, plan: string, id: string | undefined, key: string | undefined) {
+  const scope = `escales-v6-subscription:${location.pathname}:${appLang || "fr"}:${plan}`;
+  if (!id || !key || sessionStorage.getItem(scope) !== key || sessionStorage.getItem(scope + ":subscriptionId") !== id) return;
+  subscriptionRequests.delete(scope); sessionStorage.removeItem(scope); sessionStorage.removeItem(scope + ":subscriptionId");
+}
+async function postSubscription(appLang: string | undefined, plan: string, key: string): Promise<string> {
   const base = String(import.meta.env.VITE_API_BASE ?? "").trim().replace(/\/$/, "");
   const current = window.location.origin + (window.location.pathname || "/");
   const response = await fetch(base + "/api/escales/paypal/subscriptions/create", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "PayPal-Request-Id": crypto.randomUUID(),
+      "PayPal-Request-Id": key,
     },
     body: JSON.stringify({
       lang: appLang?.startsWith("en") ? "en" : "fr",
+      plan_id: plan,
       return_url: current + "?sub=return",
       cancel_url: current + "?sub=cancel",
     }),
   });
   if (!response.ok) throw new Error("PayPal subscription creation failed");
-  const data = await response.json() as { subscription_id?: string };
+  const data = await response.json() as { subscription_id?: string; plan_id?: string };
+  if (data.plan_id !== plan) throw new Error("Subscription plan does not match the displayed selection");
   if (!data.subscription_id) throw new Error("PayPal subscription ID missing");
   return data.subscription_id;
 }
@@ -191,8 +215,7 @@ export function buildV6Adapter(
       const vault = typeof config.createVaultSetupToken === "function";
       const callbacks = {
         onApprove: async (data: { orderId?: string; subscriptionId?: string; vaultSetupToken?: string }) => {
-          if (closed) return;
-          if (subscription) await config.onApprove?.({ subscriptionID: data.subscriptionId });
+          if (subscription) { await config.onApprove?.({ subscriptionID: data.subscriptionId }); if (selectedPlan) finishSubscription(appLang, selectedPlan, data.subscriptionId, selectedKey); }
           else await config.onApprove?.(data);
         },
         onCancel: (...args: unknown[]) => { if (!closed) void config.onCancel?.(...args); },
@@ -200,7 +223,9 @@ export function buildV6Adapter(
         // AUTHORIZE stops are not captured in browser; server approval remains authoritative.
         ...(!subscription && !vault ? { commit: intent === "capture" } : {}),
       };
-      let session: { destroy: () => void };
+      let selectedPlan = config.subscriptionPlanId || "";
+      let selectedKey: string | undefined;
+      let session: { destroy: () => void; hasReturned?: () => boolean; resume?: () => Promise<void> };
       let start: () => Promise<unknown>;
       const token = (value: unknown) => {
         if (typeof value !== "string" || !value.trim()) throw new Error("PayPal payment token missing");
@@ -211,7 +236,7 @@ export function buildV6Adapter(
         session = subscriptionSession;
         start = () => subscriptionSession.start({ presentationMode: "auto" },
           Promise.resolve().then(() => config.createSubscription!({}, {
-            subscription: { create: () => createSubscriptionOnServer(appLang) },
+            subscription: { create: (body: unknown) => { selectedPlan = String((body as { plan_id?: unknown })?.plan_id || ""); return createSubscriptionOnServer(appLang, body).then(id => { selectedKey = sessionStorage.getItem(`escales-v6-subscription:${location.pathname}:${appLang || "fr"}:${selectedPlan}`) || undefined; return id; }); } },
           })).then(value => ({ subscriptionId: token(value) })));
       } else if (vault) {
         const saveSession = sdk.createPayPalSavePaymentSession(callbacks);
@@ -228,6 +253,17 @@ export function buildV6Adapter(
         render: async (target) => {
           const host = typeof target === "string" ? document.querySelector<HTMLElement>(target) : target;
           if (closed) throw new Error("PayPal button session closed");
+          if (!subscription) await resumeCheckout(session, vault);
+          else if (selectedPlan && session.hasReturned?.() && session.resume) {
+            const scope = `escales-v6-subscription:${location.pathname}:${appLang || "fr"}:${selectedPlan}`;
+            const key = sessionStorage.getItem(scope);
+            if (key) {
+              selectedKey = key;
+              let pending = subscriptionResumes.get(key);
+              if (!pending) { pending = session.resume().catch(error => { subscriptionResumes.delete(key); throw error; }); subscriptionResumes.set(key, pending); }
+              await pending;
+            }
+          }
           if (!host) throw new Error("PayPal button host missing");
           if (!eligible.isEligible("paypal")) throw new Error("PayPal not eligible for this checkout");
           element = document.createElement("paypal-button");
@@ -324,10 +360,13 @@ export function buildV6Adapter(
   };
 }
 
-function loadConfigured(clientId: string, appLang: string | undefined, currency: string, walletPay: boolean, paymentFlow: PaymentFlow = "ONE_TIME_PAYMENT", intent: SdkIntent = "authorize"): Promise<PayPalNamespace> {
+function loadConfigured(clientId: string, appLang: string | undefined, currency: string, walletPay: boolean, paymentFlow: PaymentFlow = "ONE_TIME_PAYMENT", intent: SdkIntent = "authorize", amount?: string): Promise<PayPalNamespace> {
   const trimmed = clientId.trim();
   if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
-  const key = [trimmed, paypalLocale(appLang), currency.toUpperCase(), walletPay, paymentFlow, intent].join("|");
+  let normalizedAmount: string | undefined;
+  try { normalizedAmount = amount !== undefined && paymentFlow === "ONE_TIME_PAYMENT" ? normalizeEligibilityAmount(amount) : undefined; }
+  catch (error) { return Promise.reject(error); }
+  const key = [trimmed, paypalLocale(appLang), currency.toUpperCase(), walletPay, paymentFlow, intent, normalizedAmount].join("|");
   const existing = instances.get(key);
   if (existing) return existing;
   const promise = waitForCore().then(async (core) => {
@@ -343,7 +382,7 @@ function loadConfigured(clientId: string, appLang: string | undefined, currency:
         ...(walletPay ? ["googlepay-payments", "applepay-payments"] as const : []),
       ],
     });
-    const eligible = await sdk.findEligibleMethods({ currencyCode: currency.toUpperCase(), paymentFlow });
+    const eligible = await sdk.findEligibleMethods({ currencyCode: currency.toUpperCase(), paymentFlow, ...(normalizedAmount ? { amount: normalizedAmount } : {}) });
     return buildV6Adapter(sdk, eligible, walletPay, intent, appLang);
   }).catch((error: unknown) => {
     instances.delete(key);
@@ -360,8 +399,9 @@ export function loadPayPalSdk(
   walletPay = false,
   currency = "EUR",
   paymentFlow: PaymentFlow = "ONE_TIME_PAYMENT",
+  amount?: string,
 ): Promise<PayPalNamespace> {
-  return loadConfigured(clientId, appLang, currency, walletPay, paymentFlow, intent);
+  return loadConfigured(clientId, appLang, currency, walletPay, paymentFlow, intent, amount);
 }
 export function loadPayPalWalletPaySdk(
   clientId: string,
@@ -395,4 +435,10 @@ export function safePayPalClose(instance: PayPalSdkButtonInstance | null | undef
   try {
     if (typeof instance?.close === "function") void Promise.resolve(instance.close()).catch(() => undefined);
   } catch { /* unmounted */ }
+}
+
+function normalizeEligibilityAmount(raw: string): string {
+  const normalized = raw.trim().replace(",", ".");
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized) || !Number.isFinite(Number(normalized)) || Number(normalized) <= 0) throw new Error("Eligibility amount invalid");
+  return Number(normalized).toFixed(2);
 }

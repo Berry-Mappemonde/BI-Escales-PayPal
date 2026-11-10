@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../i18n";
-import { fetchCrewSupporterPlan } from "../api/escales";
+import { fetchCrewSupporterPlan, approveCrewSubscription } from "../api/escales";
 import { CrewSubscribeButton, CrewSupporterPublicSection } from "./CrewSubscribeButton";
 import { loadPayPalSubscriptionSdk } from "../paypal/paypalSdk";
 
@@ -175,4 +175,50 @@ describe("CrewSubscribeButton", () => {
     expect(stopoverButtons).not.toHaveBeenCalled();
     delete window.paypal;
   });
+});
+
+
+it("F06 keeps approval pending until the backend verifies ACTIVE", async () => {
+  vi.stubEnv("VITE_PAYPAL_CLIENT_ID", "audit-public-client");
+  let callbacks: Record<string, any> | undefined;
+  vi.mocked(loadPayPalSubscriptionSdk).mockResolvedValue({ Buttons: (config: Record<string, any>) => { callbacks = config; return { render: async () => {}, close: async () => {} }; } });
+  let finish!: (value: Record<string, unknown>) => void;
+  vi.mocked(approveCrewSubscription).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  render(<CrewSubscribeButton planId="PLAN" />);
+  await waitFor(() => expect(callbacks).toBeDefined());
+  const completion = callbacks!.onApprove({ subscriptionID: "SUB" });
+  expect(completion).toBeInstanceOf(Promise);
+  finish({ status: "ACTIVE", plan_id: "PLAN", subscription_id: "SUB" });
+  await completion;
+  vi.unstubAllEnvs();
+});
+
+
+it.each(["APPROVAL_PENDING", "CANCELLED"])("F06 refuses non-ACTIVE verification %s without an audit write", async status => {
+  vi.stubEnv("VITE_PAYPAL_CLIENT_ID", "audit-public-client");
+  let callbacks: Record<string, any> | undefined;
+  vi.mocked(loadPayPalSubscriptionSdk).mockResolvedValue({ Buttons: (config: Record<string, any>) => { callbacks = config; return { render: async () => {}, close: async () => {} }; } });
+  vi.mocked(approveCrewSubscription).mockResolvedValue({ status, plan_id: "PLAN" });
+  render(<CrewSubscribeButton planId="PLAN" />);
+  await waitFor(() => expect(callbacks).toBeDefined());
+  await expect(callbacks!.onApprove({ subscriptionID: `SUB-${status}` })).rejects.toThrow(/not been verified/);
+  expect(screen.queryByText(i18n.t("pledge.crewSubscribeSaved"))).toBeNull();
+  vi.unstubAllEnvs();
+});
+
+it("F06 transient verification failure can retry after remount", async () => {
+  vi.stubEnv("VITE_PAYPAL_CLIENT_ID", "audit-public-client");
+  let callbacks: Record<string, any> | undefined;
+  vi.mocked(loadPayPalSubscriptionSdk).mockResolvedValue({ Buttons: (config: Record<string, any>) => { callbacks = config; return { render: async () => {}, close: async () => {} }; } });
+  vi.mocked(approveCrewSubscription).mockReset();
+  vi.mocked(approveCrewSubscription).mockRejectedValueOnce(new TypeError("temporary unavailable")).mockResolvedValueOnce({ status: "ACTIVE", plan_id: "RETRY-PLAN" });
+  const first = render(<CrewSubscribeButton planId="RETRY-PLAN" />);
+  await waitFor(() => expect(callbacks).toBeDefined());
+  await expect(callbacks!.onApprove({ subscriptionID: "RETRY-SUB" })).rejects.toThrow(/temporary/);
+  first.unmount(); callbacks = undefined;
+  render(<CrewSubscribeButton planId="RETRY-PLAN" />);
+  await waitFor(() => expect(callbacks).toBeDefined());
+  await callbacks!.onApprove({ subscriptionID: "RETRY-SUB" });
+  expect(approveCrewSubscription).toHaveBeenCalledTimes(2);
+  vi.unstubAllEnvs();
 });

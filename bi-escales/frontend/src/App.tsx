@@ -57,6 +57,10 @@ function milestoneFundRequiresAdminKey(milestoneId: string): boolean {
   return token === "project" || token === "projet" || token.startsWith("projet-");
 }
 
+// Gear tab (Channel3 items placed on the map) stays hidden until local products tied to
+// stops are built (Clément, 10 Nov). The code is kept; the wishlist link stays visible.
+const GEAR_TAB_VISIBLE = false;
+
 export default function App() {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
@@ -913,7 +917,7 @@ export default function App() {
           <button type="button" role="tab" aria-selected={tab === "marinas"} className={tab === "marinas" ? "active" : ""} onClick={() => setTab("marinas")}>
             {t("tabs.marinas")}
           </button>
-          {wishlistsEnabled ? (
+          {GEAR_TAB_VISIBLE && wishlistsEnabled ? (
             <button type="button" role="tab" aria-selected={tab === "gear"} className={tab === "gear" ? "active" : ""} onClick={() => setTab("gear")}>
               {t("tabs.gear")}
             </button>
@@ -987,7 +991,7 @@ export default function App() {
             onAuthorized={onAuthorized}
           />
         ) : null}
-        {tab === "gear" && wishlistsEnabled ? (
+        {GEAR_TAB_VISIBLE && tab === "gear" && wishlistsEnabled ? (
           <>
             <ProjectList
               projects={projects}

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatSettleCaptureNote } from "./api/settleCaptureNote";
-import { approveCrewSubscription, authorizePledge, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchGearProjects, fetchHealthRetrying, fetchPrices, fetchPublicCommonFund, fetchSchedule, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
+import { approveCrewSubscription, authorizePledge, fetchClock, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchGearProjects, fetchHealthRetrying, fetchPrices, fetchPublicCommonFund, fetchSchedule, listMilestones, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { emitCrewSubscribeReturn } from "./paypal/crewSubscribeReturnEvents";
 import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
-import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } from "./api/types";
+import type { CaptainChatResponse, FundView, Milestone, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
 import { EscalePopup } from "./components/EscalePopup.jsx";
 import MarinasPanel from "./components/MarinasPanel.jsx";
@@ -22,6 +22,7 @@ import { setLanguage } from "./i18n";
 import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { resolveBoatStop } from "./voyage/boatStop.js";
+import { nextOpenStop } from "./voyage/nextStop.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
 import { isNarrowScreen } from "./utils/narrowScreen";
@@ -116,6 +117,9 @@ export default function App() {
   const [bryntumEnabled, setBryntumEnabled] = useState(false);
   const [wishlistsEnabled, setWishlistsEnabled] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
+  // The API's clock and milestones: what the stop sheet's status chip is built from.
+  const [apiNow, setApiNow] = useState<string | null>(null);
+  const [milestones, setMilestones] = useState<Milestone[] | null>(null);
 
   const prod = Boolean(import.meta.env.PROD);
   const t0 = resolveDepartureT0(prod, devT0 || undefined);
@@ -229,6 +233,32 @@ export default function App() {
       });
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sync = () => {
+      void fetchClock()
+        .then((clock) => {
+          if (!cancelled && clock?.now) setApiNow(clock.now);
+        })
+        .catch(() => {
+          /* keep the last answer; the wall clock stands in until the first one */
+        });
+      void listMilestones()
+        .then((rows) => {
+          if (!cancelled && Array.isArray(rows)) setMilestones(rows);
+        })
+        .catch(() => {
+          /* cancelled stops are then unknown here; the sheet still refuses them */
+        });
+    };
+    sync();
+    const id = window.setInterval(sync, 60000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
     };
   }, []);
 
@@ -365,10 +395,15 @@ export default function App() {
     }
   };
 
-  // The stop the boat is at, or heads for first: the default target of "back a stop".
+  // The default target of "back a stop": the first stop the boat has not reached and
+  // that is not cancelled, by the same clock and schedule as the sheet's status chip.
+  // Without a schedule there is no status to contradict, so the boat's stop stands in.
   const nextStop = useMemo(
-    () => resolveBoatStop(voyage?.stops, sample) as VoyageStop | null,
-    [voyage?.stops, sample],
+    () =>
+      (schedule
+        ? nextOpenStop(voyage?.stops, schedule, apiNow ?? now.toISOString(), milestones)
+        : resolveBoatStop(voyage?.stops, sample)) as VoyageStop | null,
+    [voyage?.stops, schedule, apiNow, now, milestones, sample],
   );
 
   const locateBoat = useCallback(() => {

@@ -351,8 +351,20 @@
   },
   "treasurer": {
     "panelTitle": "Treasurer",
+    "page": {
+      "enterKey": "Enter the treasurer key to see the queue and the admin tools. No key? Use “Demo treasurer” for a read-only view.",
+      "back": "← Back to the map",
+      "eyebrow": "How the treasurer works",
+      "proposeTitle": "1. The AI Captain proposes",
+      "proposeBody": "For each stop, the Captain reads the voyage evidence and proposes: capture, wait or release. It never moves money.",
+      "decideTitle": "2. A person decides",
+      "decideBody": "The treasurer approves the capture or voids the holds. Nothing is charged without this click.",
+      "settleTitle": "3. PayPal settles",
+      "settleBody": "Approved holds are captured, voided holds are released. A captured pledge can be refunded.",
+      "keyNote": "Demo treasurer is a read-only view of the queue and the Captain's reviews. Capture, void and refunds need the treasurer key (PayPal sandbox only)."
+    },
     "demoButton": "Demo treasurer",
-    "demoBanner": "Sandbox demo — queue, review, capture, and void only. No admin key on this device.",
+    "demoBanner": "Sandbox demo, read-only: you see the queue and the Captain's reviews. Capture, void and refunds need the treasurer key.",
     "demoStop": {
       "heading": "Judge moment — La Rochelle",
       "hint": "Sandbox only, treasurer key required: stop {{id}}. Simulate arrival captures authorized pledges (approval applies to this action only, nothing is stored); cancel voids authorizations; reset clears demo state without undoing captures.",

@@ -109,6 +109,7 @@ export default function App() {
     features: [],
   });
   const [treasurerOpen, setTreasurerOpen] = useState(false);
+  const treasurerBackRef = useRef<HTMLButtonElement>(null);
   const [bryntumEnabled, setBryntumEnabled] = useState(false);
   const [wishlistsEnabled, setWishlistsEnabled] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
@@ -331,6 +332,10 @@ export default function App() {
       cancelled = true;
     };
   }, [milestoneId, pledges, treasurerOpen, adminKey, demoTreasurer]);
+
+  useEffect(() => {
+    if (treasurerOpen) treasurerBackRef.current?.focus({ preventScroll: true });
+  }, [treasurerOpen]);
 
   const startDemoTreasurer = useCallback(() => {
     setAdminKey("");
@@ -855,9 +860,11 @@ export default function App() {
           <button type="button" role="tab" aria-selected={tab === "marinas"} className={tab === "marinas" ? "active" : ""} onClick={() => setTab("marinas")}>
             {t("tabs.marinas")}
           </button>
-          <button type="button" role="tab" aria-selected={tab === "gear"} className={tab === "gear" ? "active" : ""} onClick={() => setTab("gear")}>
-            {t("tabs.gear")}
-          </button>
+          {wishlistsEnabled ? (
+            <button type="button" role="tab" aria-selected={tab === "gear"} className={tab === "gear" ? "active" : ""} onClick={() => setTab("gear")}>
+              {t("tabs.gear")}
+            </button>
+          ) : null}
         </div>
         {wishlistsEnabled ? (
           <p className="wishlists-nav" data-testid="wishlists-nav-link">
@@ -940,7 +947,7 @@ export default function App() {
             onAuthorized={onAuthorized}
           />
         ) : null}
-        {tab === "gear" ? (
+        {tab === "gear" && wishlistsEnabled ? (
           <>
             <ProjectList
               projects={projects}
@@ -954,7 +961,7 @@ export default function App() {
             <ExpeditionCartPanel />
           </>
         ) : null}
-        {treasurerPanel}
+        {treasurerOpen ? null : treasurerPanel}
       </aside>
 
       <aside
@@ -991,6 +998,43 @@ export default function App() {
           <HowItWorks />
         )}
       </aside>
+
+      {treasurerOpen ? (
+        <div
+          className="treasurer-page"
+          data-testid="treasurer-page"
+          role="region"
+          aria-label={t("treasurer.panelTitle")}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") onTreasurerOpenChange(false);
+          }}
+        >
+          <div className="treasurer-page-inner">
+            <button
+              type="button"
+              ref={treasurerBackRef}
+              className="secondary treasurer-page-back"
+              data-testid="treasurer-page-back"
+              onClick={() => onTreasurerOpenChange(false)}
+            >
+              {t("treasurer.page.back")}
+            </button>
+            <section className="treasurer-page-intro" data-testid="treasurer-page-intro">
+              <p className="treasurer-page-eyebrow">{t("treasurer.page.eyebrow")}</p>
+              <ol className="treasurer-page-steps">
+                {(["propose", "decide", "settle"] as const).map((step) => (
+                  <li key={step}>
+                    <strong>{t(`treasurer.page.${step}Title`)}</strong>
+                    <span>{t(`treasurer.page.${step}Body`)}</span>
+                  </li>
+                ))}
+              </ol>
+              <p className="hint">{t("treasurer.page.keyNote")}</p>
+            </section>
+            {treasurerPanel}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -351,8 +351,20 @@
   },
   "treasurer": {
     "panelTitle": "Trésorier",
+    "page": {
+      "enterKey": "Saisissez la clé trésorier pour voir la file et les outils d’administration. Pas de clé ? Utilisez « Trésorier démo » pour une vue en lecture seule.",
+      "back": "← Retour à la carte",
+      "eyebrow": "Comment fonctionne la trésorerie",
+      "proposeTitle": "1. Le capitaine IA propose",
+      "proposeBody": "Pour chaque escale, le capitaine lit les preuves du voyage et propose : encaisser, attendre ou libérer. Il ne déplace jamais d’argent.",
+      "decideTitle": "2. Une personne décide",
+      "decideBody": "Le trésorier approuve l’encaissement ou annule les autorisations. Rien n’est débité sans ce clic.",
+      "settleTitle": "3. PayPal règle",
+      "settleBody": "Les autorisations approuvées sont encaissées, les autorisations annulées sont libérées. Une promesse encaissée peut être remboursée.",
+      "keyNote": "Le trésorier démo est une vue en lecture seule de la file et des revues du capitaine. Encaisser, annuler et rembourser demandent la clé trésorier (bac à sable PayPal uniquement)."
+    },
     "demoButton": "Trésorier démo",
-    "demoBanner": "Démo bac à sable — file, revue, capture et annulation seulement. Aucune clé admin sur cet appareil.",
+    "demoBanner": "Démo bac à sable, lecture seule : vous voyez la file et les revues du capitaine. Encaisser, annuler et rembourser demandent la clé trésorier.",
     "demoStop": {
       "heading": "Moment juge — La Rochelle",
       "hint": "Bac à sable uniquement, clé trésorier requise : escale {{id}}. Simuler l'arrivée capture les promesses autorisées (l'approbation ne vaut que pour cette action, rien n'est enregistré) ; annuler vide les autorisations ; réinitialiser efface l'état démo sans toucher aux captures.",

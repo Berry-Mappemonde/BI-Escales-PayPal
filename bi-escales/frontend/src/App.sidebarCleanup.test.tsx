@@ -153,7 +153,9 @@ describe("L-2 sidebar split", () => {
       </I18nextProvider>,
     );
     await user.click(screen.getByTestId("treasurer-panel-toggle"));
-    const treasurer = within(screen.getByTestId("ng-sidebar")).getByTestId("treasurer-panel");
+    // Opening the treasurer moves it out of the sidebar into its own full-width page.
+    expect(within(screen.getByTestId("ng-sidebar")).queryByTestId("treasurer-panel")).toBeNull();
+    const treasurer = within(screen.getByTestId("treasurer-page")).getByTestId("treasurer-panel");
     const treasurerHeadings = within(treasurer).getAllByRole("heading", { level: 2 });
     expect(treasurerHeadings).toHaveLength(1);
     expect(treasurerHeadings[0]).toHaveTextContent(/treasurer/i);

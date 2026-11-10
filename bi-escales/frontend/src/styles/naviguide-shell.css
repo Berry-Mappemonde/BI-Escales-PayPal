@@ -1065,3 +1065,49 @@ body.ng-naviguide-shell {
   flex-basis: 100%;
 }
 .ng-sidebar .treasurer-panel .treasurer-queue-table .treasurer-confirmation > p { flex-basis: 100%; margin: 0; }
+
+/* Treasurer page: the treasurer tools open full width over the map instead of
+   inside the 300px sidebar (queue, Captain reviews and AG Grid need the room). */
+.treasurer-page {
+  position: fixed;
+  inset: 0;
+  z-index: 35; /* above both sidebars (30, 25), below toasts (40) */
+  overflow-y: auto;
+  background: var(--color-canvas);
+  color: var(--color-fg);
+}
+.treasurer-page-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-5) var(--space-8, 48px);
+  display: grid;
+  gap: var(--space-4);
+}
+.treasurer-page-back { justify-self: start; }
+.treasurer-page-intro {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+}
+.treasurer-page-eyebrow {
+  margin: 0;
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.treasurer-page-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+.treasurer-page-steps li { display: grid; align-content: start; gap: var(--space-1); }
+.treasurer-page-steps span { color: var(--color-fg-2); font-size: var(--text-read); line-height: var(--text-read--line-height); }
+.treasurer-page-intro .hint { margin: 0; }
+.treasurer-page .treasurer-panel { padding: 0; border: 0; background: none; }

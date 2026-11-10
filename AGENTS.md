@@ -11,7 +11,7 @@ Instructions for coding agents (Codex and similar) working in this repository.
 - Hackathon deadline: **12 Nov 2026, 15:00 America/Toronto**
 - Simulated expedition / voyage clock reference date: **12 Nov 2026** (do not invent or mention any other departure month)
 
-A supporter's PayPal pledge is **authorized** (Orders v2 `intent=AUTHORIZE`) and **captured** only after the AI Captain reviews voyage-stop evidence and a human treasurer approves; otherwise it is **voided**. The AI Captain proposes; it never executes money movement.
+**Stop** pledges are **authorized** (Orders v2 `intent=AUTHORIZE`) and **captured when the boat arrives** (or **voided** if the stop is cancelled). **Cabins** capture at leg **departure**. **Common fund** and **project donations** are **charged immediately** — not gated by Captain review or treasurer capture. For held stop/cabin pledges, the AI Captain reviews evidence and proposes; a human treasurer captures or voids. The Captain never executes money movement.
 
 ## Source of truth
 
@@ -99,7 +99,6 @@ Default branch on GitHub is `main`. Active integration branch is **`test/integra
 - **PayPal stays sandbox** (`PAYPAL_ENV=sandbox`). No live/production PayPal money movement.
 - **No spending**: do not purchase upgrades, paid quota, or paid APIs on the owner's behalf.
 - **Never submit** or finalize the Devpost submission. Do not change the Devpost form unless the owner explicitly says to (e.g. only after an explicit “publish” / “update Devpost” instruction).
-- **Never mention HelloAsso** in docs, UI copy, PRs, or commits.
 - **Never mention a May departure date.** The expedition / voyage clock reference is **12 Nov 2026**. Do not invent other departure months.
 - **Docs, code comments, commit messages, and PR text in English.** Chat with Clément may be French elsewhere; repository artifacts stay English.
 - Do not capture or void real pledges, and do not perform Capture pledge / vault release demos that move or risk real funds, without an explicit per-action owner approval.

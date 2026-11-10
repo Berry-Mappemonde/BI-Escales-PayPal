@@ -423,6 +423,25 @@ export async function fetchGearProjects(): Promise<GearFeatureCollection | null>
   }
 }
 
+/** Public expedition cart (six gear lines + voyage marinas). */
+export async function fetchExpeditionCart(lang?: string): Promise<{
+  lines?: Array<{
+    kind?: string;
+    id?: string;
+    description?: string;
+    amount_eur?: string | null;
+    currency?: string;
+    price_label?: string | null;
+  }>;
+  gear_count?: number;
+  marina_count?: number;
+}> {
+  const qs = lang?.trim() ? `?lang=${encodeURIComponent(lang.trim())}` : "";
+  const res = await fetch(url(`/api/escales/expedition/cart${qs}`));
+  if (!res.ok) throw new Error(String(res.status));
+  return res.json();
+}
+
 /** Public project crowdfunding totals (pattern: ``fetchFund`` without admin key). */
 export async function fetchPublicProjectFund(projectId: string): Promise<PublicProjectDonationTotal | null> {
   const id = String(projectId || "").trim();

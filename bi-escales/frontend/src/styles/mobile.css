@@ -1,0 +1,207 @@
+/*
+ * Phone layout. Map first; the pledge rail is a bottom sheet with a handle; the
+ * left rail is a drawer. Nothing overlaps: the map ends where the sheet begins,
+ * and the sheet steps aside while the drawer is open.
+ *
+ * App.tsx starts both panels closed below 768px and sets data-rail / data-sheet
+ * on .ng-shell. Wide screens are untouched: every rule but the first is inside
+ * a max-width query.
+ */
+.ng-sheet-handle {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .ng-shell {
+    --sheet-handle: var(--space-8);
+    --sheet-peek: calc(var(--space-12) + var(--space-1) + env(safe-area-inset-bottom, 0px));
+    --sheet-body: min(58dvh, 34rem);
+    /* 100vh is the tallest the viewport gets; dvh follows the browser bars. */
+    height: 100dvh;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* No double-tap zoom on controls, so a tap answers at once. */
+  .ng-shell :is(button, a, summary, select, [role="tab"]) {
+    touch-action: manipulation;
+  }
+
+  /* The handle replaces the map's top-right toggle. */
+  .ng-shell .ng-map-layer > .ng-tools-toggle {
+    display: none;
+  }
+
+  /* The map stops at the sheet, so a selected stop is never under it. */
+  .ng-shell > .ng-map-layer {
+    bottom: calc(var(--sheet-body) + var(--sheet-handle));
+  }
+
+  .ng-shell[data-sheet="closed"] > .ng-map-layer {
+    bottom: var(--sheet-peek);
+  }
+
+  .ng-shell .ng-tools-panel {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: var(--sheet-body);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    border: 0;
+    /* Reaching the end of the sheet must not scroll or refresh the page behind it. */
+    overscroll-behavior: contain;
+    transition: none;
+  }
+
+  .ng-shell .ng-tools-panel.ng-collapsed {
+    display: none;
+  }
+
+  .ng-shell .ng-sheet-handle {
+    position: absolute;
+    z-index: 26;
+    right: 0;
+    bottom: var(--sheet-body);
+    left: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--space-3);
+    height: var(--sheet-handle);
+    margin: 0;
+    padding: 0 var(--space-5);
+    border: 0;
+    border-top: 1px solid var(--color-line);
+    border-radius: var(--radius-tray) var(--radius-tray) 0 0;
+    background: var(--color-shell);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: var(--text-read);
+    line-height: var(--text-read--line-height);
+    font-weight: 600;
+    text-align: start;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .ng-sheet-grabber {
+    position: absolute;
+    top: var(--space-2);
+    left: 50%;
+    width: var(--space-10);
+    height: var(--space-1);
+    margin-left: calc(var(--space-10) / -2);
+    border-radius: var(--space-1);
+    background: var(--color-line-strong);
+  }
+
+  .ng-sheet-label {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .ng-sheet-handle svg {
+    color: var(--color-fg-2);
+  }
+
+  /* Open: the handle is only the grabber. The label stays for assistive technology. */
+  .ng-shell[data-sheet="open"] .ng-sheet-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .ng-shell[data-sheet="open"] .ng-sheet-handle svg {
+    display: none;
+  }
+
+  /* Closed: the handle is the peek bar, with the stop's name or "Back a stop". */
+  .ng-shell[data-sheet="closed"] .ng-sheet-handle {
+    bottom: 0;
+    height: var(--sheet-peek);
+    padding-top: var(--space-3);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .ng-shell .ng-sheet-handle:active {
+    background: var(--color-raised);
+  }
+
+  .ng-shell .ng-sheet-handle:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -2px;
+  }
+
+  /* The handle already gives the sheet its top edge. */
+  .ng-shell .ng-tools-panel .how-it-works {
+    min-height: 0;
+    padding: var(--space-2) var(--space-5) var(--space-6);
+  }
+
+  .ng-shell .ng-tools-panel .escale-popup-card {
+    padding: var(--space-2) var(--space-5) var(--space-8);
+  }
+
+  .ng-shell .how-it-works-credit {
+    margin-top: var(--space-6);
+    padding-top: 0;
+  }
+
+  .ng-shell .ng-sidebar {
+    overscroll-behavior: contain;
+  }
+
+  /* The map credit stays, in the rail's tones and at the smallest text size. */
+  .ng-shell .leaflet-container .leaflet-control-attribution {
+    padding: 2px var(--space-2);
+    background: color-mix(in srgb, var(--color-shell) 80%, transparent);
+    color: var(--color-fg-2);
+    font-size: var(--text-micro);
+    line-height: var(--text-micro--line-height);
+  }
+
+  .ng-shell .leaflet-container .leaflet-control-attribution a {
+    color: var(--color-fg-2);
+  }
+
+  /* Toasts sit beside the map controls, not over them. */
+  .ng-shell .toast-container {
+    top: var(--space-2);
+    right: var(--space-2);
+    left: calc(var(--map-control-size) + 2 * var(--space-2));
+    width: auto;
+    max-width: none;
+  }
+}
+
+/* Between 768px and 900px the sidebar stays open, so the handle starts beside it, like the sheet. */
+@media (min-width: 768px) and (max-width: 900px) {
+  .ng-shell[data-rail="open"] .ng-sheet-handle {
+    left: min(var(--sidebar-width), 92vw);
+  }
+}
+
+@media (max-width: 767.98px) {
+  /* The drawer leaves one column of map for the controls that close it. */
+  .ng-shell {
+    --map-sidebar-width: min(var(--sidebar-width), calc(100vw - var(--map-control-size) - 2 * var(--space-2)));
+  }
+
+  /* While the drawer is open the sheet steps aside, so the two never overlap. */
+  .ng-shell[data-rail="open"] > :is(.ng-tools-panel, .ng-sheet-handle) {
+    display: none;
+  }
+
+  .ng-shell[data-rail="open"] > .ng-map-layer {
+    bottom: 0;
+  }
+
+  /* One column of map is too narrow for the credit; it returns when the drawer closes. */
+  .ng-shell[data-rail="open"] .leaflet-control-attribution {
+    display: none;
+  }
+}

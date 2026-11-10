@@ -11,6 +11,7 @@ from starlette.responses import FileResponse
 from app.bi_marinas_catalog import build_escale_fiche, get_all_escale_marinas_geojson, get_escale_marinas_geojson
 from app.bi_projects_catalog import get_bi_projects_geojson
 from app.escales.config import cors_origins, resolve_apple_pay_domain_association_path
+from app.middleware.security_headers import install_security_headers
 
 app = FastAPI(title="BI Escales — Pay Only If We Sail")
 
@@ -38,6 +39,7 @@ def _log_nim_ids() -> None:
 
 _log_nim_ids()
 install_cors(app)
+install_security_headers(app)
 
 
 @app.get("/api/health")

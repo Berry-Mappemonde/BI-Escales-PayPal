@@ -1,23 +1,26 @@
 {
   "app": {
     "title": "BI Escales — Pay only when we arrive",
-    "subtitle": "Pay Only If We Sail",
+    "subtitle": "Pay only when we arrive",
     "tagline": "Stop pledges capture on boat arrival; cabins on leg departure; common fund at once.",
     "langFr": "Français",
     "langEn": "English",
     "language": "Language",
     "themeLight": "Light",
     "themeDark": "Dark",
-    "healthFail": "Backend unreachable",
+    "healthFail": "The service is not responding. Try again in a moment.",
     "escalesOff": "ESCALES_ENABLED is off: /api/escales returns 404.",
     "sidebarCollapse": "Collapse sidebar",
     "sidebarExpand": "Expand sidebar",
     "dismissNotice": "Dismiss",
     "dismissNoticeAria": "Dismiss",
-    "toolsCollapse": "Hide tools",
-    "toolsExpand": "Show settings",
+    "toolsCollapse": "Hide the stop panel",
+    "toolsExpand": "Show the stop panel",
     "metaDescription": "BI Escales — support the Berry-Mappemonde expedition. Stop pledges capture on boat arrival (voided if the stop is cancelled); cabins on leg departure; common fund and project gifts at once.",
-    "ogLocale": "en_US"
+    "ogLocale": "en_US",
+    "langFrSwitch": "FR, Français",
+    "langEnSwitch": "EN, English",
+    "sheetLabel": "Back a stop"
   },
   "common": {
     "showSecret": "Show",
@@ -39,7 +42,15 @@
       "gear-dive-computer-expedition": "Expedition dive computer",
       "gear-dry-bag-expedition": "Dry bags (expedition lot)",
       "gear-marine-binoculars": "Marine binoculars"
-    }
+    },
+    "fundedPctInline": "{{pct}}% funded"
+  },
+  "cart": {
+    "heading": "Cart",
+    "loading": "Loading cart…",
+    "item": "Item",
+    "price": "Price",
+    "priceUnavailable": "price unavailable"
   },
   "clock": {
     "waiting": "Departure in {{days}}d {{hours}}h",
@@ -48,12 +59,12 @@
     "simulated": "Demo clock"
   },
   "sheet": {
-    "title": "Port of call sheet",
+    "title": "Stop",
     "close": "Close",
     "loading": "Loading the sheet…",
     "empty": "No list for this stop.",
     "pick": "Pick a stop on the map for the sheet and the PayPal button.",
-    "logbookTitle": "Navigation logbook (read-only)",
+    "logbookTitle": "Logbook",
     "marina": {
       "website": "Website",
       "maps": "Google Maps",
@@ -79,7 +90,7 @@
   },
   "projects": {
     "heading": "Explore projects",
-    "empty": "No project in the snapshot.",
+    "empty": "No project found.",
     "open": "Page",
     "pledge": "Pledge",
     "search": "Search projects…",
@@ -88,7 +99,7 @@
     "invalidAmount": "Invalid amount (use at most 2 decimal places).",
     "pledgeDescription": "Project pledge — {{title}}",
     "visitSite": "Project website",
-    "noDescription": "No description in the snapshot.",
+    "noDescription": "No description yet.",
     "publicTotal": "{{amount}} {{currency}} collected · {{count}} donations",
     "goalProgress": "{{amount}} {{amountCurrency}} / {{goal}} {{goalCurrency}} funded ({{pct}}%)",
     "buyViaChannel3": "Buy via Channel3 (goal reached)"
@@ -103,12 +114,13 @@
     "reservePrice": "Reserve — 30.00 EUR / night (simulation)",
     "reserveDescription": "Berth (simulation) — {{name}}",
     "legendHeading": "Map legend",
-    "legendVerified": "Verified Google place (within 1 km, marina name)",
-    "legendDefault": "Marina — red on the map (Maps search link)",
-    "legendRejected": "Rejected Google place — red on the map"
+    "legendVerified": "Location verified on Google Maps",
+    "legendDefault": "Marina, location not verified yet",
+    "legendRejected": "Marina, location could not be confirmed"
   },
   "map": {
-    "boatMarker": "Boat / catamaran"
+    "boatMarker": "Boat / catamaran",
+    "stopMarker": "Open stop: {{name}}"
   },
   "fund": {
     "heading": "Common fund",
@@ -124,7 +136,7 @@
     "openHeading": "Totals with no stopover",
     "projectTotals": "Project pledges",
     "boatTotals": "Common fund",
-    "publicCommon": "Community fund · {{balance}}"
+    "publicCommon": "Common fund · {{balance}}"
   },
   "cabinLegPicker": {
     "label": "Choose a voyage leg",
@@ -164,7 +176,7 @@
     "quantity": "Quantity",
     "amount": "Amount (EUR)",
     "description": "Description",
-    "kind": "Kind",
+    "kind": "What you fund",
     "kinds": {
       "mile": "Sponsored miles (simulation)",
       "berth": "Berth reservation (simulation)",
@@ -172,34 +184,36 @@
       "meal": "Meal (simulation)",
       "care": "Wellness programme (simulation)",
       "cabin_leg": "Cabin on a leg (simulation)",
-      "common_fund": "Common fund"
+      "common_fund": "Common fund (charged immediately)"
     },
     "milestone": "Milestone",
-    "contributor": "Contributor (optional)",
+    "contributor": "Your name (optional)",
     "simulatedPrice": "simulated price",
-    "returnPending": "Approve on PayPal. On return, authorization runs by itself.",
-    "returnPendingProject": "Approve on PayPal. Your project contribution is charged when you return.",
+    "returnPending": "Approve in PayPal. Your pledge is confirmed when you come back.",
+    "returnPendingProject": "Approve in PayPal. Your project gift is charged when you come back.",
     "cancelled": "Approval cancelled. Nothing is authorized.",
-    "intentVault": "Saved with PayPal · charged only if we sail",
-    "intent": "PayPal authorisation hold — you are not charged until we arrive (sandbox).",
-    "intentProject": "Immediate charge — your project contribution is collected after approval (PayPal sandbox).",
-    "create": "Create the PayPal order",
-    "approve": "Approve on the PayPal page",
+    "intentVault": "PayPal sandbox: no real money moves. PayPal saves your payment method; nothing is charged now.",
+    "intent": "PayPal sandbox: no real money moves.",
+    "intentProject": "Charged immediately when you approve in PayPal (sandbox: no real money moves).",
+    "create": "Continue with PayPal",
+    "approve": "Approve in PayPal",
     "authorize": "I approved — authorize",
-    "creating": "Creating pledge…",
-    "authorizing": "Authorizing on server…",
+    "creating": "Preparing your pledge…",
+    "createTimeout": "Pledge creation timed out. Check your connection and try again.",
+    "retry": "Retry",
+    "authorizing": "Confirming your pledge with PayPal…",
     "authorized": "Pledge authorized",
-    "vaultHint": "Approve the saved payment method on PayPal, then confirm. Nothing is captured until we sail.",
+    "vaultHint": "Approve the payment method in PayPal, then confirm. Nothing is charged until the boat arrives (or the leg departs, for cabins) and the treasurer approves.",
     "vaultApprove": "Approve the payment method",
     "vaultConfirm": "I approved — save it",
     "vaulting": "Saving the payment method…",
     "vaulted": "Payment method saved",
-    "vaultSaved": "Saved — charged only if we sail",
+    "vaultSaved": "Payment method saved. Charged on arrival (leg departure for cabins), after the treasurer approves.",
     "vaultFailed": "Could not save the payment method. Try again from the pledge button.",
     "vaultRedirect": "Redirecting to PayPal to save your payment method…",
     "vaultRetry": "Payment method setup cancelled. You can try again from the pledge button.",
     "vaultCancelled": "Payment method setup cancelled. Nothing was saved.",
-    "venmoNote": "PayPal wallet or card (EUR). Venmo is not available — USD only.",
+    "venmoNote": "Pay in euros with a PayPal account or a card.",
     "cardFieldsHint": "Card (sandbox): saved payment method or authorisation hold, depending on departure date.",
     "cardPay": "Pay with card",
     "cardConfirmAuthorizeTitle": "Card payment confirmed — pledge authorized",
@@ -212,17 +226,17 @@
     "cardErrorInvalidNumber": "Card number is invalid.",
     "walletPayHint": "Google Pay (Chrome) or Apple Pay (Safari), TEST sandbox EUR.",
     "error": "Pledge error",
-    "crewSubscribeHint": "Support the crew monthly",
-    "crewSubscribeSandbox": "PayPal sandbox",
-    "crewSubscribeSaved": "Crew supporter subscription recorded. Thank you.",
+    "crewSubscribeHint": "Crew membership",
+    "crewSubscribeSandbox": "Monthly support · PayPal sandbox",
+    "crewSubscribeSaved": "Crew membership recorded. Thank you.",
     "crewSubscribeLoading": "Loading Crew supporter plan…",
     "crewSubscribePlanTimeout": "Could not load the Crew supporter plan. Try again in a moment.",
     "crewSubscribePlanMissing": "Crew supporter plan is not set up yet. Ask the treasurer to run setup.",
     "crewSubscribePlanTreasurerHint": "Crew supporter plan is not configured yet. Open Treasurer tools → PayPal and use \"Ensure Crew supporter plan (sandbox)\".",
-    "crewSubscribeConfirmed": "Crew supporter subscription confirmed. Thank you.",
-    "crewSubscribeVerifying": "Verifying Crew supporter subscription with PayPal…",
-    "crewSubscribePending": "Subscription is not active yet. Finish approval in PayPal or try again shortly.",
-    "crewSubscribeCancelled": "Crew supporter subscription cancelled. Nothing was charged."
+    "crewSubscribeConfirmed": "Crew membership confirmed. Thank you.",
+    "crewSubscribeVerifying": "Verifying your Crew membership with PayPal…",
+    "crewSubscribePending": "Your Crew membership is not active yet. Finish approval in PayPal or try again shortly.",
+    "crewSubscribeCancelled": "Crew membership cancelled. Nothing was charged."
   },
   "howItWorks": {
     "credit": "Sandbox payments by PayPal · AI by NVIDIA Nemotron",
@@ -237,7 +251,9 @@
     "capturedDetail": "PayPal captures the authorised payment.",
     "cancelled": "Cancelled stop? The authorisation is voided. No charge.",
     "cabin": "Cabins are captured when their leg departs, not on arrival.",
-    "pick": "Select a stop on the map to see its details and make a pledge."
+    "pick": "Select a stop on the map to see its details and make a pledge.",
+    "backNext": "Back the next stop",
+    "backNextNamed": "Back the next stop: {{name}}"
   },
   "stopPanel": {
     "status": {
@@ -248,20 +264,21 @@
     },
     "scheduledArrival": "Scheduled arrival",
     "scheduledDeparture": "Scheduled departure",
-    "held": "{{amount}} held for this stop · not charged",
+    "held": "{{amount}} pledged for this stop · not charged yet",
     "captured": "{{amount}} captured",
-    "backThisLeg": "Back this leg",
-    "ruleHeld": "Held by PayPal, not charged.",
-    "ruleCaptured": "The treasurer can approve capture once the boat arrives at this stop.",
-    "ruleCabin": "The treasurer can approve capture once this leg departs.",
-    "ruleReleased": "Released if we don't sail.",
+    "backThisLeg": "Back this stop",
+    "ruleHeld": "Authorised now. Nothing is charged yet.",
+    "ruleCaptured": "Captured when the boat arrives at this stop, after the treasurer approves.",
+    "ruleCabin": "Captured when this leg departs, after the treasurer approves.",
+    "ruleReleased": "Voided if the stop is cancelled. You pay nothing.",
     "checkout": "PayPal checkout",
-    "moneyHeading": "What happens to my money?",
-    "ruleCommonFund": "Common fund gifts are charged as soon as you approve in PayPal.",
-    "cancelledNote": "This stop is cancelled, new pledges aren't accepted. Existing holds are released.",
+    "moneyHeading": "When am I charged?",
+    "ruleCommonFund": "The common fund is charged immediately, as soon as you approve in PayPal. It does not wait for the boat.",
+    "cancelledNote": "This stop is cancelled. New pledges are closed and existing authorisations are voided: nobody is charged.",
     "logbookNote": "Computed from the schedule, not the boat's live position.",
     "logbookEmpty": "No entries yet.",
-    "portInfo": "Marinas and port info"
+    "portInfo": "Marinas and port info",
+    "ruleReleasedCabin": "Voided if the leg is cancelled. You pay nothing."
   },
   "captainTrace": {
     "fixedRule": "Fixed rule from code (by design)",
@@ -341,8 +358,20 @@
   },
   "treasurer": {
     "panelTitle": "Treasurer",
+    "page": {
+      "enterKey": "Enter the treasurer key to see the queue and the admin tools. No key? Use “Demo treasurer” for a read-only view.",
+      "back": "← Back to the map",
+      "eyebrow": "How the treasurer works",
+      "proposeTitle": "1. The AI Captain proposes",
+      "proposeBody": "For each stop, the Captain reads the voyage evidence and proposes: capture, wait or release. It never moves money.",
+      "decideTitle": "2. A person decides",
+      "decideBody": "The treasurer approves the capture or voids the holds. Nothing is charged without this click.",
+      "settleTitle": "3. PayPal settles",
+      "settleBody": "Approved holds are captured, voided holds are released. A captured pledge can be refunded.",
+      "keyNote": "Demo treasurer is a read-only view of the queue and the Captain's reviews. Capture, void and refunds need the treasurer key (PayPal sandbox only)."
+    },
     "demoButton": "Demo treasurer",
-    "demoBanner": "Sandbox demo — queue, review, capture, and void only. No admin key on this device.",
+    "demoBanner": "Sandbox demo, read-only: you see the queue and the Captain's reviews. Capture, void and refunds need the treasurer key.",
     "demoStop": {
       "heading": "Judge moment — La Rochelle",
       "hint": "Sandbox only, treasurer key required: stop {{id}}. Simulate arrival captures authorized pledges (approval applies to this action only, nothing is stored); cancel voids authorizations; reset clears demo state without undoing captures.",
@@ -355,7 +384,7 @@
       "emptyActions": "Done. No authorized pledges to process."
     },
     "heading": "Treasurer queue",
-    "adminKey": "Treasurer key (x-admin-key)",
+    "adminKey": "Treasurer key",
     "adminKeyHint": "Held in memory only — never stored.",
     "refresh": "Refresh queue",
     "capture": "Capture",

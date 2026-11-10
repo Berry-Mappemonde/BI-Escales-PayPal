@@ -81,15 +81,16 @@ describe("departure-day settle", () => {
       </I18nextProvider>,
     );
 
-    const button = await waitFor(() => screen.getByTestId("departure-settle"));
-    expect(button).toHaveTextContent("Run departure-day settle");
-    expect(button).toBeDisabled();
-    await user.click(button);
+    // Without a key the settle controls are not shown at all (admin tools hidden).
+    const key = await waitFor(() => screen.getByTestId("admin-key-input"));
+    expect(screen.queryByTestId("departure-settle")).toBeNull();
+    expect(screen.getByTestId("treasurer-enter-key")).toBeInTheDocument();
     expect(settleClock).not.toHaveBeenCalled();
 
-    const key = screen.getByTestId("admin-key-input");
     expect(key).toHaveAttribute("type", "password");
     await user.type(key, "secret-admin");
+    const button = screen.getByTestId("departure-settle");
+    expect(button).toHaveTextContent("Run departure-day settle");
     expect(button).toBeEnabled();
     await user.click(button);
     expect(settleClock).toHaveBeenCalledTimes(1);
@@ -105,12 +106,12 @@ describe("departure-day settle", () => {
         <App />
       </I18nextProvider>,
     );
+    await user.type(await waitFor(() => screen.getByTestId("admin-key-input")), "secret-admin");
     await waitFor(() => {
       expect(screen.getByTestId("settle-at-input")).toBeInTheDocument();
     });
     const atButton = screen.getByTestId("settle-at-chosen-button");
     expect(atButton).toBeDisabled();
-    await user.type(screen.getByTestId("admin-key-input"), "secret-admin");
     await user.type(screen.getByTestId("settle-at-input"), "2026-11-20T08:00");
     expect(atButton).toBeEnabled();
     await user.click(atButton);

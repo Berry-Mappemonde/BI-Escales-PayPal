@@ -127,6 +127,15 @@ describe("L-2 sidebar split", () => {
     expect(within(sidebar).getByRole("group", { name: "Language" })).toBeInTheDocument();
     expect(within(pledgeRail).queryByTestId("treasurer-panel")).toBeNull();
 
+    // Crew membership and the treasurer entry are secondary: they close the rail, after the Captain.
+    const footer = within(sidebar).getByTestId("rail-footer");
+    expect(within(footer).getByTestId("crew-supporter-public")).toBeInTheDocument();
+    expect(within(footer).getByTestId("treasurer-panel")).toBeInTheDocument();
+    expect(
+      within(sidebar).getByTestId("captain-panel").compareDocumentPosition(footer)
+        & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
     await user.click(screen.getByRole("tab", { name: /marinas/i }));
     expect(within(sidebar).getByTestId("marinas-panel")).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: /stop/i })).toBeNull();
@@ -153,7 +162,9 @@ describe("L-2 sidebar split", () => {
       </I18nextProvider>,
     );
     await user.click(screen.getByTestId("treasurer-panel-toggle"));
-    const treasurer = within(screen.getByTestId("ng-sidebar")).getByTestId("treasurer-panel");
+    // Opening the treasurer moves it out of the sidebar into its own full-width page.
+    expect(within(screen.getByTestId("ng-sidebar")).queryByTestId("treasurer-panel")).toBeNull();
+    const treasurer = within(screen.getByTestId("treasurer-page")).getByTestId("treasurer-panel");
     const treasurerHeadings = within(treasurer).getAllByRole("heading", { level: 2 });
     expect(treasurerHeadings).toHaveLength(1);
     expect(treasurerHeadings[0]).toHaveTextContent(/treasurer/i);

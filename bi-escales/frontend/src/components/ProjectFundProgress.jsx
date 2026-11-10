@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { normalizeChannel3ProductUrl } from "../gear/channel3ProductUrl.js";
 
 /**
  * Public crowdfunding progress toward a gear/project goal (CAPTURE donations).
@@ -23,9 +24,9 @@ export function ProjectFundProgress({ properties, fund }) {
   const pct = pctRaw == null ? null : Number(pctRaw);
   const amount = fund?.amount_eur ?? "0.00";
   const amountCurrency = fund?.currency ?? "EUR";
-  const buyUrl = String(fund?.channel3_buy_url || properties?.channel3_buy_url || "").trim();
+  const buyUrl = normalizeChannel3ProductUrl(fund?.channel3_buy_url || properties?.channel3_buy_url);
   const imageUrl = String(fund?.channel3_image_url || properties?.channel3_image_url || "").trim();
-  const fullyFunded = Boolean(fund?.fully_funded) || (pct != null && pct >= 100);
+  const fullyFunded = Boolean(fund?.fully_funded);
 
   return (
     <div className="project-fund-progress" data-testid="project-fund-progress">

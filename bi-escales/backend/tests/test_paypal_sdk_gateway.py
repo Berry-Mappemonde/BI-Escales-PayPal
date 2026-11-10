@@ -475,7 +475,7 @@ def test_non_sandbox_host_read_falls_back_with_one_log_line(
         "app.escales.paypal_sdk_gateway.SANDBOX_BASE",
         "https://example.invalid",
     )
-    _assert_httpx_fallback(caplog, "non-sandbox host")
+    _assert_httpx_fallback(caplog, "SDK client build failed: RuntimeError")
 
 
 def test_missing_credentials_read_falls_back_with_one_log_line(
@@ -485,7 +485,7 @@ def test_missing_credentials_read_falls_back_with_one_log_line(
     _enable(monkeypatch)
     monkeypatch.delenv("PAYPAL_CLIENT_ID")
     monkeypatch.delenv("PAYPAL_CLIENT_SECRET")
-    _assert_httpx_fallback(caplog, "PAYPAL_CLIENT_ID")
+    _assert_httpx_fallback(caplog, "SDK client build failed: RuntimeError")
 
 
 def test_sdk_flag_defaults_off(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -647,3 +647,105 @@ def test_non_sandbox_env_read_imports_no_sdk() -> None:
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_sdk_read_budget_refuses_the_fourth_call_like_httpx(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.escales.paypal_limits import PayPalCallBudget, PayPalCallLimitExceeded
+
+    def drive(use_sdk: bool) -> str:
+        reset_client()
+        monkeypatch.delenv("ESCALES_PAYPAL_SDK_ENABLED", raising=False)
+        catcher: ResponseCatcher | None = None
+        if use_sdk:
+            _enable(monkeypatch)
+            catcher = _install(ORDER)
+        client = _httpx_client(ORDER)
+        client.captain_budget = PayPalCallBudget(remaining=3)
+        for _ in range(3):
+            assert client.get_order("ORDER1")["id"] == "ORDER1"
+        before = len(catcher.requests) if catcher is not None else 0
+        with pytest.raises(PayPalCallLimitExceeded) as excinfo:
+            client.get_order("ORDER1")
+        if catcher is not None:
+            assert len(catcher.requests) == before
+        assert client.captain_budget is not None
+        assert client.captain_budget.remaining == 0
+        return f"{type(excinfo.value).__name__}: {excinfo.value}"
+
+    httpx_refusal = drive(False)
+    sdk_refusal = drive(True)
+    assert sdk_refusal == httpx_refusal
+    assert sdk_refusal == "PayPalCallLimitExceeded: PayPal read limit reached for this turn (3 calls)"
+
+
+@pytest.mark.parametrize("exc_type", [ModuleNotFoundError, AttributeError, TypeError])
+def test_sdk_build_exception_falls_back_to_httpx(
+    exc_type: type[Exception],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _enable(monkeypatch)
+
+    def boom(*_args: Any, **_kwargs: Any) -> Any:
+        raise exc_type("sdk build failed")
+
+    monkeypatch.setattr("app.escales.paypal_sdk_gateway.client", boom)
+    _assert_httpx_fallback(caplog, f"SDK client build failed: {exc_type.__name__}")
+
+
+@pytest.mark.parametrize("operation", [
+    lambda c: c.get_order("ORDER1"),
+    lambda c: c.authorize_order("ORDER1"),
+    lambda c: c.capture_order("ORDER1", idempotency_key="stable-request"),
+    lambda c: c.capture_authorization("AUTH1", idempotency_key="stable-request"),
+    lambda c: c.void_authorization("AUTH1"),
+    lambda c: c.refund_capture("CAP1", idempotency_key="stable-request"),
+])
+def test_oauth_failure_is_sanitized_and_does_not_send_resource_requests(
+    operation: Callable[[PayPalClient], dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _enable(monkeypatch)
+    calls: list[str] = []
+
+    class DeniedToken(HTTPAdapter):
+        def send(self, request: requests.PreparedRequest, **kwargs: Any) -> requests.Response:
+            path = urlparse(request.url or "").path
+            calls.append(path)
+            assert path == "/v1/oauth2/token"
+            response = requests.Response()
+            response.status_code = 401
+            response.headers["Content-Type"] = "application/json"
+            response._content = json.dumps({"error": "invalid_client"}).encode()
+            response.request = request
+            return response
+
+    session = requests.Session()
+    session.mount("https://", DeniedToken())
+    install_client(build_sandbox_client(http_client_instance=session))
+    with pytest.raises(PayPalError) as caught:
+        operation(_httpx_client(ORDER))
+    assert caught.value.status == 502  # SDK does not preserve token-endpoint status.
+    assert caught.value.body == "PayPal SDK authentication unavailable"
+    assert caught.value.__suppress_context__
+    assert calls == ["/v1/oauth2/token"]
+    assert "invalid_client" not in caplog.text
+    assert "test-secret" not in caplog.text
+
+
+@pytest.mark.parametrize("error_type", [RuntimeError, ModuleNotFoundError, AttributeError, TypeError])
+def test_sdk_constructor_message_is_never_logged(
+    error_type: type[Exception], monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+) -> None:
+    _enable(monkeypatch)
+    sentinel = "synthetic-private-constructor-detail"
+
+    def refused() -> None:
+        raise error_type(sentinel)
+
+    monkeypatch.setattr("app.escales.paypal_sdk_gateway.client", refused)
+    _assert_httpx_fallback(caplog, f"SDK client build failed: {error_type.__name__}")
+    assert sentinel not in caplog.text

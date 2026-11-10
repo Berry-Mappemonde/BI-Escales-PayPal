@@ -8,6 +8,7 @@ import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } fr
 import { EscalesPanel } from "./components/EscalesPanel";
 import { EscalePopup } from "./components/EscalePopup.jsx";
 import MarinasPanel from "./components/MarinasPanel.jsx";
+import ExpeditionCartPanel from "./components/ExpeditionCartPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
 import { TreasurerPanel } from "./components/TreasurerPanel";
 import { CrewSupporterPublicSection } from "./components/CrewSubscribeButton";
@@ -33,6 +34,8 @@ import {
 } from "./pledge/stopPledgeAmount.js";
 import "./styles/app.css";
 import "./styles/naviguide-shell.css";
+import "./styles/rails.css";
+import "./styles/mobile.css";
 
 type TabId = "voyage" | "marinas" | "gear";
 
@@ -99,8 +102,9 @@ export default function App() {
   const [boatFund, setBoatFund] = useState<FundView | null | undefined>(undefined);
   const [publicCommonFund, setPublicCommonFund] = useState<FundView | null>(null);
   const [crewSubscribeNote, setCrewSubscribeNote] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [toolsOpen, setToolsOpen] = useState(true);
+  // On a phone the map comes first: both panels start closed and open on demand.
+  const [sidebarOpen, setSidebarOpen] = useState(() => !isNarrowScreen());
+  const [toolsOpen, setToolsOpen] = useState(() => !isNarrowScreen());
   const toolsPanelRef = useRef<HTMLElement>(null);
   const [panelFocusRequest, setPanelFocusRequest] = useState(0);
   const [allMarinas, setAllMarinas] = useState<{ type: string; features?: unknown[] }>({
@@ -108,6 +112,7 @@ export default function App() {
     features: [],
   });
   const [treasurerOpen, setTreasurerOpen] = useState(false);
+  const treasurerBackRef = useRef<HTMLButtonElement>(null);
   const [bryntumEnabled, setBryntumEnabled] = useState(false);
   const [wishlistsEnabled, setWishlistsEnabled] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
@@ -331,6 +336,10 @@ export default function App() {
     };
   }, [milestoneId, pledges, treasurerOpen, adminKey, demoTreasurer]);
 
+  useEffect(() => {
+    if (treasurerOpen) treasurerBackRef.current?.focus({ preventScroll: true });
+  }, [treasurerOpen]);
+
   const startDemoTreasurer = useCallback(() => {
     setAdminKey("");
     setDemoTreasurer(true);
@@ -355,6 +364,12 @@ export default function App() {
       setFlyTo({ lat: next.lat, lon: next.lon, ts: Date.now() });
     }
   };
+
+  // The stop the boat is at, or heads for first: the default target of "back a stop".
+  const nextStop = useMemo(
+    () => resolveBoatStop(voyage?.stops, sample) as VoyageStop | null,
+    [voyage?.stops, sample],
+  );
 
   const locateBoat = useCallback(() => {
     const target = resolveBoatStop(voyage?.stops, sample);
@@ -736,7 +751,12 @@ export default function App() {
   );
 
   return (
-    <div className="ng-shell" data-testid="ng-shell">
+    <div
+      className="ng-shell"
+      data-testid="ng-shell"
+      data-rail={sidebarOpen ? "open" : "closed"}
+      data-sheet={toolsOpen ? "open" : "closed"}
+    >
       <div className="ng-map-layer">
         <MapScene
           segments={voyage?.segments || []}
@@ -766,7 +786,9 @@ export default function App() {
           aria-label={sidebarOpen ? t("app.sidebarCollapse") : t("app.sidebarExpand")}
           onClick={() => setSidebarOpen((open) => !open)}
         >
-          {sidebarOpen ? "◀" : "▶"}
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+            <path d={sidebarOpen ? "m10 3.5-4.5 4.5 4.5 4.5" : "m6 3.5 4.5 4.5-4.5 4.5"} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </button>
 
         <button
@@ -777,7 +799,9 @@ export default function App() {
           aria-label={toolsOpen ? t("app.toolsCollapse") : t("app.toolsExpand")}
           onClick={() => setToolsOpen((open) => !open)}
         >
-          {toolsOpen ? "▶" : "⚙"}
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+            <path d={toolsOpen ? "m6 3.5 4.5 4.5-4.5 4.5" : "m10 3.5-4.5 4.5 4.5 4.5"} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </button>
       </div>
 
@@ -785,26 +809,24 @@ export default function App() {
 
 
       <aside
-        className={`ng-sidebar panel${sidebarOpen ? "" : " ng-collapsed"}`}
+        className={`ng-sidebar${sidebarOpen ? "" : " ng-collapsed"}`}
         data-testid="ng-sidebar"
       >
-        <div className="rail-masthead">
+        <header className="rail-masthead">
           <div className="ng-shell-header">
-            <svg className="voyage-emblem" width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <svg className="voyage-emblem" width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true">
               <path d="M16 3v19H5L16 3Z" fill="currentColor" />
               <path d="m19 8 8 14h-8V8Z" fill="currentColor" opacity=".6" />
               <path d="M4 25h24l-5 4H9l-5-4Z" fill="currentColor" />
             </svg>
-            <h1 aria-label={t("app.title")}>
-              BI Escales <small>{t("app.subtitle")}</small>
-            </h1>
+            <h1 aria-label={t("app.title")}>BI Escales</h1>
           </div>
           <div className="ng-controls">
             <div className="lang-switch" role="group" aria-label={t("app.language")}>
               <button
                 type="button"
                 className={i18n.language === "fr" ? "active" : ""}
-                aria-label={t("app.langFr")}
+                aria-label={t("app.langFrSwitch")}
                 aria-pressed={i18n.language === "fr"}
                 onClick={() => setLanguage("fr")}
               >
@@ -813,7 +835,7 @@ export default function App() {
               <button
                 type="button"
                 className={i18n.language === "en" ? "active" : ""}
-                aria-label={t("app.langEn")}
+                aria-label={t("app.langEnSwitch")}
                 aria-pressed={i18n.language === "en"}
                 onClick={() => setLanguage("en")}
               >
@@ -846,7 +868,8 @@ export default function App() {
               </button>
             </div>
           </div>
-        </div>
+          <p className="rail-tagline">{t("app.subtitle")}</p>
+        </header>
         <div className="ng-tab-bar" role="tablist">
           <button type="button" role="tab" aria-selected={tab === "voyage"} className={tab === "voyage" ? "active" : ""} onClick={() => setTab("voyage")}>
             {t("tabs.voyage")}
@@ -854,9 +877,11 @@ export default function App() {
           <button type="button" role="tab" aria-selected={tab === "marinas"} className={tab === "marinas" ? "active" : ""} onClick={() => setTab("marinas")}>
             {t("tabs.marinas")}
           </button>
-          <button type="button" role="tab" aria-selected={tab === "gear"} className={tab === "gear" ? "active" : ""} onClick={() => setTab("gear")}>
-            {t("tabs.gear")}
-          </button>
+          {wishlistsEnabled ? (
+            <button type="button" role="tab" aria-selected={tab === "gear"} className={tab === "gear" ? "active" : ""} onClick={() => setTab("gear")}>
+              {t("tabs.gear")}
+            </button>
+          ) : null}
         </div>
         {wishlistsEnabled ? (
           <p className="wishlists-nav" data-testid="wishlists-nav-link">
@@ -898,19 +923,6 @@ export default function App() {
               onAuthorized={onAuthorized}
               onLocateBoat={locateBoat}
             />
-            <CrewSupporterPublicSection adminKey={adminKey.trim() || undefined} />
-            {publicCommonFund ? (
-              <p className="hint public-common-fund" data-testid="public-common-fund">
-                {t("fund.publicCommon", {
-                  balance: Number.isFinite(Number(publicCommonFund.balance_eur))
-                    ? new Intl.NumberFormat(lang, {
-                        style: "currency",
-                        currency: publicCommonFund.currency,
-                      }).format(Number(publicCommonFund.balance_eur))
-                    : `${publicCommonFund.balance_eur} ${publicCommonFund.currency}`,
-                })}
-              </p>
-            ) : null}
             <ProjectList
               projects={projects}
               featureScope="projects"
@@ -939,22 +951,62 @@ export default function App() {
             onAuthorized={onAuthorized}
           />
         ) : null}
-        {tab === "gear" ? (
-          <ProjectList
-            projects={projects}
-            featureScope="gear"
-            selectedProjectId={selectedProjectId}
-            onSelectProject={setSelectedProjectId}
-            contributor={contributor}
-            onFlyTo={onFlyTo}
-            onAuthorized={onAuthorized}
-          />
+        {tab === "gear" && wishlistsEnabled ? (
+          <>
+            <ProjectList
+              projects={projects}
+              featureScope="gear"
+              selectedProjectId={selectedProjectId}
+              onSelectProject={setSelectedProjectId}
+              contributor={contributor}
+              onFlyTo={onFlyTo}
+              onAuthorized={onAuthorized}
+            />
+            <ExpeditionCartPanel />
+          </>
         ) : null}
-        {treasurerPanel}
+        {/* Secondary to backing a stop: membership, public total, treasurer entry. */}
+        <div className="rail-footer" data-testid="rail-footer">
+          {tab === "voyage" ? (
+            <>
+              <CrewSupporterPublicSection adminKey={adminKey.trim() || undefined} />
+              {publicCommonFund ? (
+                <p className="hint public-common-fund" data-testid="public-common-fund">
+                  {t("fund.publicCommon", {
+                    balance: Number.isFinite(Number(publicCommonFund.balance_eur))
+                      ? new Intl.NumberFormat(lang, {
+                          style: "currency",
+                          currency: publicCommonFund.currency,
+                        }).format(Number(publicCommonFund.balance_eur))
+                      : `${publicCommonFund.balance_eur} ${publicCommonFund.currency}`,
+                  })}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+          {treasurerOpen ? null : treasurerPanel}
+        </div>
       </aside>
+
+      {/* Phone only (hidden by CSS on wide screens): the bottom sheet's handle. */}
+      <button
+        type="button"
+        className="ng-sheet-handle"
+        data-testid="ng-sheet-handle"
+        aria-expanded={toolsOpen}
+        aria-controls="ng-tools-panel"
+        onClick={() => setToolsOpen((open) => !open)}
+      >
+        <span className="ng-sheet-grabber" aria-hidden="true" />
+        <span className="ng-sheet-label">{stop ? stop.name : t("app.sheetLabel")}</span>
+        <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+          <path d="m3.5 10 4.5-4.5 4.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
 
       <aside
         ref={toolsPanelRef}
+        id="ng-tools-panel"
         tabIndex={-1}
         className={`ng-tools-panel${toolsOpen ? "" : " ng-collapsed"}`}
         data-testid="ng-tools-panel"
@@ -984,9 +1036,49 @@ export default function App() {
             onPledgeAuthorized={onAuthorized}
           />
         ) : (
-          <HowItWorks />
+          <HowItWorks
+            nextStopName={nextStop?.name}
+            onBackNextStop={nextStop ? () => chooseStop(nextStop) : undefined}
+          />
         )}
       </aside>
+
+      {treasurerOpen ? (
+        <div
+          className="treasurer-page"
+          data-testid="treasurer-page"
+          role="region"
+          aria-label={t("treasurer.panelTitle")}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") onTreasurerOpenChange(false);
+          }}
+        >
+          <div className="treasurer-page-inner">
+            <button
+              type="button"
+              ref={treasurerBackRef}
+              className="secondary treasurer-page-back"
+              data-testid="treasurer-page-back"
+              onClick={() => onTreasurerOpenChange(false)}
+            >
+              {t("treasurer.page.back")}
+            </button>
+            <section className="treasurer-page-intro" data-testid="treasurer-page-intro">
+              <p className="treasurer-page-eyebrow">{t("treasurer.page.eyebrow")}</p>
+              <ol className="treasurer-page-steps">
+                {(["propose", "decide", "settle"] as const).map((step) => (
+                  <li key={step}>
+                    <strong>{t(`treasurer.page.${step}Title`)}</strong>
+                    <span>{t(`treasurer.page.${step}Body`)}</span>
+                  </li>
+                ))}
+              </ol>
+              <p className="hint">{t("treasurer.page.keyNote")}</p>
+            </section>
+            {treasurerPanel}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

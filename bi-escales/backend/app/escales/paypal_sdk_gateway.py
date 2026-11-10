@@ -1,13 +1,16 @@
-"""Read-only PayPal Server SDK gateway. Sandbox only.
+"""PayPal Server SDK gateway. Sandbox only.
 
 The process keeps one ``PaypalServersdkClient``. ``paypalserversdk`` is imported
 inside :func:`build_sandbox_client`, and only when ``ESCALES_PAYPAL_SDK_ENABLED``
 is truthy and ``PAYPAL_ENV`` is ``sandbox``.
 
-``PayPalClient._sdk_reads`` calls :func:`paypal_sdk_reads_enabled` in this
-module. A false result keeps the httpx client. Build refusal logs one warning
-and does not raise. Connection errors and timeouts from a read become
-``PayPalError`` with status 502.
+Reads and writes share that flag. ``PayPalClient`` calls
+:func:`paypal_sdk_reads_enabled` before either path. A false result keeps the
+httpx client. Build refusal logs one warning and does not raise. Connection
+errors and timeouts become ``PayPalError`` with status 502.
+
+Write bodies are generated models. The HTTP path and the ``PayPal-Request-Id``
+stay the values ``PayPalClient`` already used. See ``paypal-plan.md``.
 """
 
 from __future__ import annotations
@@ -43,6 +46,8 @@ _CLIENT_LOCK = threading.Lock()
 _API_EXCEPTION: Any = None
 _API_HELPER: Any = None
 _FALLBACK_REASONS: set[str] = set()
+_UNSET: Any = object()
+_PREFER_REPRESENTATION = "return=representation"
 
 
 def reset_client() -> None:
@@ -154,8 +159,9 @@ def _httpx_fallback_reason() -> str | None:
         return "PAYPAL_ENV is not sandbox"
     try:
         client()
-    except RuntimeError as exc:
-        return str(exc)
+    except (RuntimeError, ModuleNotFoundError, AttributeError, TypeError) as exc:
+        # Constructor exceptions can contain request configuration. Never log it.
+        return f"SDK client build failed: {type(exc).__name__}"
     return None
 
 
@@ -234,10 +240,38 @@ def _execute(controller_name: str, operation: str, *args: Any) -> dict[str, Any]
     try:
         result = operation_fn(*args)
     except Exception as exc:
+        # OAuth failures are not ApiException and do not preserve an HTTP status.
+        # Do not replay a write through another transport or expose auth details.
+        auth_errors = importlib.import_module("apimatic_core.exceptions.auth_validation_exception")
+        if isinstance(exc, auth_errors.AuthValidationException):
+            try:
+                _raise_paypal_error(502, "PayPal SDK authentication unavailable")
+            except Exception as mapped:
+                raise mapped from None
         _reraise_api_error(exc)
         _reraise_transport_error(exc)
         raise
     return _body_dict(getattr(result, "body", None))
+
+
+def _sdk_reads(captain_budget: Any, method: str, *args: Any, **kwargs: Any) -> dict[str, Any]:
+    """Charge the Captain budget, then run one SDK read.
+
+    Matches ``PayPalClient._request_with_retry``: one unit per resource read.
+    ``PayPalCallLimitExceeded`` leaves PayPal uncalled. OAuth stays inside the
+    SDK client and is not charged. A missing budget stays unlimited.
+    """
+    if captain_budget is not None:
+        captain_budget.consume()
+    if method.startswith("_"):
+        _raise_paypal_error(502, "PayPal SDK response was not an object")
+    operation = globals().get(method)
+    if not callable(operation):
+        _raise_paypal_error(502, "PayPal SDK response was not an object")
+    result = operation(*args, **kwargs)
+    if not isinstance(result, dict):
+        _raise_paypal_error(502, "PayPal SDK response was not an object")
+    return {str(key): value for key, value in result.items()}
 
 
 def get_order(order_id: str) -> dict[str, Any]:
@@ -286,4 +320,247 @@ def search_transactions(*, start_date: str, end_date: str) -> dict[str, Any]:
             "fields": "all",
             "page_size": 100,
         },
+    )
+
+
+def _model(module: str, name: str) -> Any:
+    loaded = importlib.import_module(f"paypalserversdk.models.{module}")
+    return getattr(loaded, name)
+
+
+def _skip() -> Any:
+    helper = importlib.import_module("paypalserversdk.api_helper")
+    return helper.APIHelper.SKIP
+
+
+def _request_id(idempotency_key: str) -> str:
+    text = str(idempotency_key or "").strip()
+    if not text:
+        raise RuntimeError("PayPal SDK write requires a PayPal-Request-Id")
+    return text[:127]
+
+
+def _write_options(
+    *,
+    idempotency_key: str,
+    mock_response: str | None = None,
+    body: Any = _UNSET,
+    prefer: bool = True,
+    **path: Any,
+) -> dict[str, Any]:
+    options: dict[str, Any] = {key: value for key, value in path.items() if value is not None}
+    options["paypal_request_id"] = _request_id(idempotency_key)
+    if prefer:
+        options["prefer"] = _PREFER_REPRESENTATION
+    mock = (mock_response or "").strip()
+    if mock:
+        options["paypal_mock_response"] = mock
+    if body is not _UNSET:
+        options["body"] = body
+    return options
+
+
+def authorize_order(
+    order_id: str,
+    *,
+    idempotency_key: str,
+    mock_response: str | None = None,
+) -> dict[str, Any]:
+    body = _model("order_authorize_request", "OrderAuthorizeRequest")()
+    return _execute(
+        "orders",
+        "authorize_order",
+        _write_options(
+            id=order_id,
+            idempotency_key=idempotency_key,
+            mock_response=mock_response,
+            body=body,
+        ),
+    )
+
+
+def capture_order(
+    order_id: str,
+    *,
+    idempotency_key: str,
+    mock_response: str | None = None,
+) -> dict[str, Any]:
+    body = _model("order_capture_request", "OrderCaptureRequest")()
+    return _execute(
+        "orders",
+        "capture_order",
+        _write_options(
+            id=order_id,
+            idempotency_key=idempotency_key,
+            mock_response=mock_response,
+            body=body,
+        ),
+    )
+
+
+def capture_authorized_payment(
+    authorization_id: str,
+    *,
+    final_capture: bool,
+    idempotency_key: str,
+    mock_response: str | None = None,
+) -> dict[str, Any]:
+    body = _model("capture_request", "CaptureRequest")(final_capture=bool(final_capture))
+    return _execute(
+        "payments",
+        "capture_authorized_payment",
+        _write_options(
+            authorization_id=authorization_id,
+            idempotency_key=idempotency_key,
+            mock_response=mock_response,
+            body=body,
+        ),
+    )
+
+
+def void_payment(
+    authorization_id: str,
+    *,
+    idempotency_key: str,
+    mock_response: str | None = None,
+) -> dict[str, Any]:
+    return _execute(
+        "payments",
+        "void_payment",
+        _write_options(
+            authorization_id=authorization_id,
+            idempotency_key=idempotency_key,
+            mock_response=mock_response,
+        ),
+    )
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return {str(key): item for key, item in value.items()}
+    return {}
+
+
+def _vault_experience(context: dict[str, Any]) -> Any:
+    experience = _model("vault_experience_context", "VaultExperienceContext")
+    skip = _skip()
+    return experience(
+        brand_name=context.get("brand_name") or skip,
+        locale=context.get("locale") or skip,
+        return_url=context.get("return_url") or skip,
+        cancel_url=context.get("cancel_url") or skip,
+        shipping_preference=context.get("shipping_preference") or "NO_SHIPPING",
+        user_action=context.get("user_action") or "CONTINUE",
+    )
+
+
+def create_setup_token(
+    body: dict[str, Any],
+    *,
+    idempotency_key: str,
+) -> dict[str, Any]:
+    """Map the httpx setup-token JSON onto ``SetupTokenRequest``."""
+    customer = _as_dict(body.get("customer"))
+    source = _as_dict(body.get("payment_source"))
+    paypal = _as_dict(source.get("paypal"))
+    context = _as_dict(paypal.get("experience_context"))
+    skip = _skip()
+    wallet = _model("vault_paypal_wallet_request", "VaultPaypalWalletRequest")(
+        usage_pattern=paypal.get("usage_pattern") or skip,
+        usage_type=paypal.get("usage_type") or skip,
+        permit_multiple_payment_tokens=bool(paypal.get("permit_multiple_payment_tokens")),
+        experience_context=_vault_experience(context),
+    )
+    payment_source = _model(
+        "setup_token_request_payment_source",
+        "SetupTokenRequestPaymentSource",
+    )(paypal=wallet)
+    request = _model("setup_token_request", "SetupTokenRequest")(
+        payment_source=payment_source,
+        customer=_model("customer", "Customer")(id=str(customer.get("id") or "")),
+    )
+    return _execute(
+        "vault",
+        "create_setup_token",
+        _write_options(idempotency_key=idempotency_key, body=request, prefer=False),
+    )
+
+
+def create_payment_token(
+    body: dict[str, Any],
+    *,
+    idempotency_key: str,
+) -> dict[str, Any]:
+    """Map the httpx payment-token JSON onto ``PaymentTokenRequest``."""
+    source = _as_dict(body.get("payment_source"))
+    token = _as_dict(source.get("token"))
+    vault_token = _model("vault_token_request", "VaultTokenRequest")(
+        id=token.get("id"),
+        mtype=token.get("type"),
+    )
+    payment_source = _model(
+        "payment_token_request_payment_source",
+        "PaymentTokenRequestPaymentSource",
+    )(token=vault_token)
+    request = _model("payment_token_request", "PaymentTokenRequest")(payment_source=payment_source)
+    return _execute(
+        "vault",
+        "create_payment_token",
+        _write_options(idempotency_key=idempotency_key, body=request, prefer=False),
+    )
+
+
+def refund_captured_payment(
+    capture_id: str,
+    *,
+    idempotency_key: str,
+    amount: dict[str, Any] | None = None,
+    mock_response: str | None = None,
+) -> dict[str, Any]:
+    refund = _model("refund_request", "RefundRequest")
+    body: Any = _UNSET
+    if isinstance(amount, dict) and amount.get("value") and amount.get("currency_code"):
+        money = _model("money", "Money")(
+            currency_code=str(amount["currency_code"]),
+            value=str(amount["value"]),
+        )
+        body = refund(amount=money)
+    return _execute(
+        "payments",
+        "refund_captured_payment",
+        _write_options(
+            capture_id=capture_id,
+            idempotency_key=idempotency_key,
+            mock_response=mock_response,
+            body=body,
+        ),
+    )
+
+
+def create_subscription(
+    body: dict[str, Any],
+    *,
+    idempotency_key: str,
+) -> dict[str, Any]:
+    """Map the httpx subscription JSON. Omit deprecated ``auto_renewal``."""
+    context_body = _as_dict(body.get("application_context"))
+    skip = _skip()
+    context = _model("subscription_application_context", "SubscriptionApplicationContext")(
+        return_url=context_body.get("return_url"),
+        cancel_url=context_body.get("cancel_url"),
+        brand_name=context_body.get("brand_name") or skip,
+        locale=context_body.get("locale") or skip,
+        shipping_preference=context_body.get("shipping_preference") or "NO_SHIPPING",
+        user_action=context_body.get("user_action") or "SUBSCRIBE_NOW",
+    )
+    request = _model("create_subscription_request", "CreateSubscriptionRequest")(
+        plan_id=body.get("plan_id"),
+        application_context=context,
+    )
+    if hasattr(request, "auto_renewal"):
+        del request.auto_renewal
+    return _execute(
+        "subscriptions",
+        "create_subscription",
+        _write_options(idempotency_key=idempotency_key, body=request, prefer=True),
     )

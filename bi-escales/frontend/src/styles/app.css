@@ -19,7 +19,7 @@
   --map-fallback: var(--color-map-fallback);
   --border: var(--color-line-strong);
   --input-bg: var(--color-canvas);
-  --body-gradient: linear-gradient(160deg, var(--color-rail), var(--color-shell) 45%, var(--color-rail));
+  --body-gradient: var(--color-canvas);
   --panel-border: var(--color-line);
   --panel-bg: var(--color-panel);
   --secondary-bg: var(--color-selected);

@@ -32,10 +32,10 @@ describe("PledgeButton", () => {
   });
 
   it.each([
-    ["en", "VAULT", "Saved with PayPal · charged only if we sail"],
-    ["fr", "VAULT", "Moyen de paiement enregistré auprès de PayPal · débité uniquement si nous partons"],
-    ["en", "AUTHORIZE", "PayPal authorisation hold — you are not charged until we arrive (sandbox)."],
-    ["fr", "AUTHORIZE", "Autorisation PayPal — vous n’êtes pas débité tant que nous n’arrivons pas (bac à sable)."],
+    ["en", "VAULT", "PayPal sandbox: no real money moves. PayPal saves your payment method; nothing is charged now."],
+    ["fr", "VAULT", "Mode test PayPal : aucun argent réel ne circule. PayPal enregistre votre moyen de paiement ; rien n’est débité maintenant."],
+    ["en", "AUTHORIZE", "PayPal sandbox: no real money moves."],
+    ["fr", "AUTHORIZE", "Mode test PayPal : aucun argent réel ne circule."],
   ] as const)("shows %s %s checkout copy from the fetched mode", async (lang, payment_mode, expected) => {
     await i18n.changeLanguage(lang);
     vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode });
@@ -56,12 +56,12 @@ describe("PledgeButton", () => {
       .mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }))
       .mockResolvedValueOnce({ payment_mode: "VAULT" });
     const { rerender } = render(<PledgeButton values={{ ...values, milestone_id: "dep-ajaccio-corse" }} />);
-    expect(screen.queryByText(/AUTHORIZE|Saved with PayPal/)).toBeNull();
+    expect(screen.queryByText(/AUTHORIZE|PayPal saves your payment method/)).toBeNull();
     rerender(<PledgeButton values={values} />);
-    expect(await screen.findByText("Saved with PayPal · charged only if we sail")).toBeInTheDocument();
+    expect(await screen.findByText("PayPal sandbox: no real money moves. PayPal saves your payment method; nothing is charged now.")).toBeInTheDocument();
     await act(async () => { finishOld({ payment_mode: "AUTHORIZE" }); });
     expect(screen.queryByText(/AUTHORIZE/)).toBeNull();
-    expect(screen.getByText("Saved with PayPal · charged only if we sail")).toBeInTheDocument();
+    expect(screen.getByText("PayPal sandbox: no real money moves. PayPal saves your payment method; nothing is charged now.")).toBeInTheDocument();
   });
 
   it("clears the mode label when the kind changes and the lookup fails", async () => {
@@ -70,9 +70,9 @@ describe("PledgeButton", () => {
       .mockResolvedValueOnce({ payment_mode: "VAULT" })
       .mockRejectedValueOnce(new Error("offline"));
     const { rerender } = render(<PledgeButton values={values} />);
-    await screen.findByText("Saved with PayPal · charged only if we sail");
+    await screen.findByText("PayPal sandbox: no real money moves. PayPal saves your payment method; nothing is charged now.");
     await act(async () => { rerender(<PledgeButton values={{ ...values, kind: "cabin" }} />); });
-    expect(screen.queryByText(/AUTHORIZE|Saved with PayPal/)).toBeNull();
+    expect(screen.queryByText(/AUTHORIZE|PayPal saves your payment method/)).toBeNull();
     expect(createPledge).not.toHaveBeenCalled();
   });
 
@@ -181,7 +181,7 @@ describe("PledgeButton", () => {
       </I18nextProvider>,
     );
 
-    expect(screen.getByText(/Débit immédiat/)).toBeInTheDocument();
+    expect(screen.getByText(/Débité immédiatement/)).toBeInTheDocument();
     expect(screen.queryByText(/Autorisation PayPal/)).toBeNull();
     expect(screen.queryByText(/arrivée/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Créer l’ordre PayPal" }));

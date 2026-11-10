@@ -436,3 +436,16 @@
     min-height: 44px;
   }
 }
+
+/*
+ * Crew membership: PayPal draws its button to the width it is given, so the host
+ * is kept to the width of a secondary control instead of the whole rail.
+ */
+.ng-shell .rail-footer .crew-subscribe [data-testid="crew-subscribe-host"] {
+  max-width: 12.5rem;
+  /* PayPal's frame is white behind its rounded button; clip the corners. */
+  overflow: hidden;
+  border-radius: var(--radius-chip);
+  /* No inline gap under the frame, or the bottom corners are clipped too low. */
+  line-height: 0;
+}

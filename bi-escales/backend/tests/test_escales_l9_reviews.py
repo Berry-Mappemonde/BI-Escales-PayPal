@@ -24,10 +24,12 @@ from app.escales.config import (
     channel3_enabled,
     wishlists_enabled,
     elastic_evidence_enabled,
+    email_enabled,
     escales_enabled,
     kernel_evidence_enabled,
     limits_enabled,
     naviguide_bridge_enabled,
+    onboard_after_payment_enabled,
     paypal_sdk_reads_enabled,
     toolkit_enabled,
     vault_enabled,
@@ -69,6 +71,8 @@ FLAG_GETTERS = {
     "ESCALES_RATE_LIMIT_ENABLED": limits_enabled,
     "ESCALES_MARINA_PAYOUTS_ENABLED": marina_payouts_enabled,
     "ESCALES_PLATFORM_FEES_ENABLED": platform_fees_enabled,
+    "ESCALES_ONBOARD_AFTER_PAYMENT_ENABLED": onboard_after_payment_enabled,
+    "ESCALES_EMAIL_ENABLED": email_enabled,
 }
 
 

@@ -1,0 +1,152 @@
+/*
+ * What floats over the map: tooltips, popups and the credit. Leaflet's defaults
+ * are white bubbles with its own blue links; here they take the overlay surface
+ * and the type scale of the rails, in both themes. Floating layers are the one
+ * place a shadow belongs.
+ */
+.ng-shell .leaflet-container {
+  font-family: var(--font-sans);
+}
+
+/* Tooltip: the stop's or project's name on hover. */
+.ng-shell .leaflet-container .leaflet-tooltip {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-overlay);
+  color: var(--color-fg);
+  box-shadow: var(--shadow-float);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-weight: 500;
+}
+
+/* The arrow is a white border triangle; a name next to its marker needs none. */
+.ng-shell .leaflet-container .leaflet-tooltip::before {
+  display: none;
+}
+
+/* Popups: project and marina. */
+.ng-shell .leaflet-container .leaflet-popup-content-wrapper {
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-panel);
+  background: var(--color-overlay);
+  color: var(--color-fg);
+  box-shadow: var(--shadow-float);
+}
+
+.ng-shell .leaflet-container .leaflet-popup-tip {
+  background: var(--color-overlay);
+  box-shadow: none;
+}
+
+.ng-shell .leaflet-container .leaflet-popup-content {
+  margin: var(--space-4);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+}
+
+/*
+ * Leaflet sizes a popup before React has filled it, so the marina popup came out
+ * at Leaflet's 50px minimum, one word per line.
+ */
+.ng-shell .leaflet-container .leaflet-popup-content:has(.marina-map-popup-inner) {
+  width: min(17rem, 78vw) !important;
+}
+
+.ng-shell .leaflet-container a.leaflet-popup-close-button {
+  top: var(--space-1);
+  right: var(--space-1);
+  color: var(--color-fg-2);
+}
+
+.ng-shell .leaflet-container .leaflet-popup-content a {
+  color: var(--color-accent-fg);
+}
+
+.ng-shell :is(.project-map-popup-inner, .marina-map-popup-inner) {
+  gap: var(--space-3);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+}
+
+.ng-shell :is(.project-map-popup-title, .marina-map-popup-title) {
+  margin: 0;
+  padding-right: var(--space-5);
+  font-size: var(--text-title);
+  line-height: var(--text-title--line-height);
+  font-weight: 600;
+}
+
+.ng-shell .leaflet-popup-content p {
+  margin: 0;
+}
+
+.ng-shell .leaflet-popup-content .hint {
+  margin: 0 0 var(--space-2);
+}
+
+.ng-shell .leaflet-popup-content :is(.project-map-popup-desc, .hint) {
+  color: var(--color-fg-2);
+}
+
+.ng-shell .leaflet-popup-content .hint,
+.ng-shell .leaflet-popup-content label {
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.ng-shell .leaflet-popup-content label {
+  gap: var(--space-1);
+  margin-top: 0;
+  color: var(--color-fg-2);
+}
+
+.ng-shell .marina-map-popup-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+.ng-shell .project-map-popup-pledge {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.ng-shell .project-map-popup-pledge input {
+  min-height: 32px;
+  padding: var(--space-1) 10px;
+  border-color: var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+}
+
+@media (hover: hover) {
+  .ng-shell .leaflet-container a.leaflet-popup-close-button:hover {
+    color: var(--color-fg);
+  }
+}
+
+@media (pointer: coarse) {
+  /* Below 16px, iOS zooms the page on focus. */
+  .ng-shell .project-map-popup-pledge input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+
+/* The map credit stays, in the rail's tones and at the smallest text size. */
+.ng-shell .leaflet-container .leaflet-control-attribution {
+  padding: 2px var(--space-2);
+  background: color-mix(in srgb, var(--color-shell) 80%, transparent);
+  color: var(--color-fg-2);
+  font-size: var(--text-micro);
+  line-height: var(--text-micro--line-height);
+}
+
+.ng-shell .leaflet-container .leaflet-control-attribution a {
+  color: var(--color-fg-2);
+}

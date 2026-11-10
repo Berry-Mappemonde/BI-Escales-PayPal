@@ -68,6 +68,46 @@ describe("CrewSubscribeButton", () => {
     });
   });
 
+  it("asks PayPal for its quietest button and follows the theme", async () => {
+    vi.stubEnv("VITE_PAYPAL_CLIENT_ID", "sandbox-client-id");
+    vi.mocked(fetchCrewSupporterPlan).mockResolvedValue({ plan_id: "PLAN-PUBLIC" });
+    const closeFn = vi.fn().mockResolvedValue(undefined);
+    const buttonsFactory = vi.fn((_config: { style?: Record<string, unknown>; createSubscription?: unknown; onApprove?: unknown }) => ({
+      render: vi.fn().mockResolvedValue(undefined),
+      close: closeFn,
+    }));
+    sdkNamespace = { Buttons: buttonsFactory };
+    document.documentElement.dataset.theme = "dark";
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CrewSubscribeButton planId="PLAN-PUBLIC" />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(buttonsFactory).toHaveBeenCalledTimes(1));
+    const config = buttonsFactory.mock.calls[0][0];
+    // One 32px row: no stacked card button, no tagline, PayPal's black on the dark rail.
+    expect(config.style).toEqual({
+      label: "subscribe",
+      layout: "horizontal",
+      tagline: false,
+      height: 32,
+      shape: "rect",
+      color: "black",
+    });
+    // The subscription flow itself is still wired.
+    expect(typeof config.createSubscription).toBe("function");
+    expect(typeof config.onApprove).toBe("function");
+
+    // Switching to the light theme redraws the button in silver and closes the old one.
+    document.documentElement.dataset.theme = "light";
+    await waitFor(() => expect(buttonsFactory).toHaveBeenCalledTimes(2));
+    expect(buttonsFactory.mock.calls[1][0].style).toMatchObject({ color: "silver", height: 32, layout: "horizontal" });
+    expect(closeFn).toHaveBeenCalled();
+    delete document.documentElement.dataset.theme;
+  });
+
   it("loads plan id from the read-only plan route", async () => {
     vi.mocked(fetchCrewSupporterPlan).mockResolvedValue({ plan_id: "PLAN-PUBLIC" });
 

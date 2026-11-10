@@ -1,0 +1,26 @@
+.project-onboarding-page {
+  max-width: 40rem;
+  margin: 1rem auto;
+  padding: 0 1rem;
+}
+
+.project-onboarding-page .sandbox-banner {
+  background: #fff3cd;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+}
+
+.project-onboarding-donations {
+  list-style: none;
+  padding: 0;
+}
+
+.project-onboarding-donate label {
+  display: block;
+  margin: 0.5rem 0;
+}
+
+.wallet-only {
+  font-size: 0.9rem;
+  color: #555;
+}

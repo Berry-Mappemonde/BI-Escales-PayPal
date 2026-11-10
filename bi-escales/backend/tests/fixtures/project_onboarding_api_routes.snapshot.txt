@@ -1,0 +1,11 @@
+GET /api/escales/project-onboarding/status
+POST /api/escales/project-onboarding/seed
+GET /api/escales/project-onboarding/projects/{project_id}
+POST /api/escales/project-onboarding/projects/{project_id}/donations
+POST /api/escales/project-onboarding/donations/{donation_id}/capture
+POST /api/escales/project-onboarding/projects/{project_id}/onboarding-link
+GET /api/escales/project-onboarding/projects/{project_id}/onboarding-link/copy
+GET /api/escales/project-onboarding/projects/{project_id}/email/preview
+POST /api/escales/project-onboarding/projects/{project_id}/email/send
+GET /api/escales/project-onboarding/projects/{project_id}/onboarding/return
+POST /api/escales/project-onboarding/webhooks/paypal-merchant

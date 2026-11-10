@@ -1114,3 +1114,81 @@ body.ng-naviguide-shell {
 @media (hover: hover) {
   .leaflet-container .project-dot:hover { color: var(--color-fg); opacity: 1; }
 }
+
+/*
+ * Treasurer page: the queue and the Captain reviews use the page's full width.
+ * The card was capped at 640px for the sidebar it used to live in. On the page a
+ * wide card splits in two: the proposal and the decision on the left, the
+ * evidence it cites on the right, so nothing stretches into long lines.
+ */
+.treasurer-page .captain-card {
+  max-width: none;
+}
+
+@media (min-width: 900px) {
+  .treasurer-page .captain-card:has(.captain-claims) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto auto;
+    grid-template-areas:
+      "head head"
+      "proposal evidence"
+      "decision evidence"
+      "answered answered";
+  }
+
+  .treasurer-page .captain-card:has(.captain-claims) > .captain-card-head { grid-area: head; }
+  .treasurer-page .captain-card:has(.captain-claims) > .captain-card-head + .captain-section { grid-area: proposal; align-content: start; }
+  .treasurer-page .captain-card:has(.captain-claims) > .captain-decision { grid-area: decision; align-content: end; }
+  .treasurer-page .captain-card:has(.captain-claims) > .captain-answered { grid-area: answered; }
+
+  .treasurer-page .captain-card > .captain-section:has(.captain-claims) {
+    grid-area: evidence;
+    align-content: start;
+    border-inline-start: 1px solid var(--color-line);
+  }
+
+  /* Pledge and date are short; the description gets the room it was missing. */
+  .treasurer-page .treasurer-queue-table th:nth-child(1) { width: 8rem; }
+  .treasurer-page .treasurer-queue-table th:nth-child(2) { width: 11rem; }
+  .treasurer-page .treasurer-queue-table th:nth-child(4) { width: 14rem; }
+}
+
+/*
+ * Treasurer page: one level of framing. The Captain review is the object on this
+ * page, so it keeps its frame; the intro and the queue around it lose theirs
+ * (a card inside a card inside the page said nothing extra).
+ */
+.treasurer-page .treasurer-page-intro,
+.treasurer-page .treasurer-panel .treasurer-panel-body .treasurer-queue {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.treasurer-page .treasurer-page-inner {
+  gap: var(--space-6);
+}
+
+.treasurer-page .treasurer-panel .treasurer-panel-body .treasurer-queue {
+  margin-top: var(--space-6);
+}
+
+/*
+ * In the demo view the page said "read-only, the key is needed" three times: in
+ * the intro, in the banner and above the queue. The banner says it once, as a
+ * plain note without the accent bar; the accent is for backing a stop.
+ */
+.treasurer-page .demo-treasurer-banner {
+  margin: 0;
+  border: 0;
+  color: var(--color-fg-2);
+}
+
+.treasurer-page:has(.demo-treasurer-banner) .treasurer-page-intro > .hint,
+.treasurer-page:has(.demo-treasurer-banner) [data-testid="treasurer-demo-readonly"],
+/* Already in the demo: the button that starts it has nothing left to do. */
+.treasurer-page:has(.demo-treasurer-banner) .demo-treasurer-entry {
+  display: none;
+}

@@ -183,11 +183,38 @@
   border-top: 1px solid var(--color-line-strong);
 }
 
+/* A chevron at the end of the row, like the project list, not the browser's triangle. */
 .stop-more summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
   min-height: 40px;
   padding: 10px 0;
   cursor: pointer;
   font-weight: 500;
+  list-style: none;
+}
+
+.stop-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.stop-more summary::after {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: -3px 3px 0 0;
+  border-right: 1.5px solid var(--color-fg-2);
+  border-bottom: 1.5px solid var(--color-fg-2);
+  transform: rotate(45deg);
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.stop-more[open] > summary::after {
+  margin-top: 3px;
+  transform: rotate(225deg);
 }
 
 .stop-more-body {

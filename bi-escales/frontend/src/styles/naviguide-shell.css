@@ -1153,3 +1153,42 @@ body.ng-naviguide-shell {
   .treasurer-page .treasurer-queue-table th:nth-child(2) { width: 11rem; }
   .treasurer-page .treasurer-queue-table th:nth-child(4) { width: 14rem; }
 }
+
+/*
+ * Treasurer page: one level of framing. The Captain review is the object on this
+ * page, so it keeps its frame; the intro and the queue around it lose theirs
+ * (a card inside a card inside the page said nothing extra).
+ */
+.treasurer-page .treasurer-page-intro,
+.treasurer-page .treasurer-panel .treasurer-panel-body .treasurer-queue {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.treasurer-page .treasurer-page-inner {
+  gap: var(--space-6);
+}
+
+.treasurer-page .treasurer-panel .treasurer-panel-body .treasurer-queue {
+  margin-top: var(--space-6);
+}
+
+/*
+ * In the demo view the page said "read-only, the key is needed" three times: in
+ * the intro, in the banner and above the queue. The banner says it once, as a
+ * plain note without the accent bar; the accent is for backing a stop.
+ */
+.treasurer-page .demo-treasurer-banner {
+  margin: 0;
+  border: 0;
+  color: var(--color-fg-2);
+}
+
+.treasurer-page:has(.demo-treasurer-banner) .treasurer-page-intro > .hint,
+.treasurer-page:has(.demo-treasurer-banner) [data-testid="treasurer-demo-readonly"],
+/* Already in the demo: the button that starts it has nothing left to do. */
+.treasurer-page:has(.demo-treasurer-banner) .demo-treasurer-entry {
+  display: none;
+}

@@ -155,19 +155,6 @@
     overscroll-behavior: contain;
   }
 
-  /* The map credit stays, in the rail's tones and at the smallest text size. */
-  .ng-shell .leaflet-container .leaflet-control-attribution {
-    padding: 2px var(--space-2);
-    background: color-mix(in srgb, var(--color-shell) 80%, transparent);
-    color: var(--color-fg-2);
-    font-size: var(--text-micro);
-    line-height: var(--text-micro--line-height);
-  }
-
-  .ng-shell .leaflet-container .leaflet-control-attribution a {
-    color: var(--color-fg-2);
-  }
-
   /* Toasts sit beside the map controls, not over them. */
   .ng-shell .toast-container {
     top: var(--space-2);

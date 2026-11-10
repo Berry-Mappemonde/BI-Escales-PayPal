@@ -36,6 +36,7 @@ import {
 import "./styles/app.css";
 import "./styles/naviguide-shell.css";
 import "./styles/rails.css";
+import "./styles/map-overlays.css";
 import "./styles/mobile.css";
 
 type TabId = "voyage" | "marinas" | "gear";

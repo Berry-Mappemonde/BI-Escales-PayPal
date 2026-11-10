@@ -33,9 +33,9 @@ describe("PledgeButton", () => {
 
   it.each([
     ["en", "VAULT", "PayPal sandbox: no real money moves. PayPal saves your payment method; nothing is charged now."],
-    ["fr", "VAULT", "Mode test PayPal : aucun argent réel ne circule. PayPal enregistre votre moyen de paiement ; rien n’est débité maintenant."],
+    ["fr", "VAULT", "Bac à sable PayPal : vous n’êtes pas débité en argent réel. PayPal enregistre votre moyen de paiement ; rien n’est débité maintenant."],
     ["en", "AUTHORIZE", "PayPal sandbox: no real money moves."],
-    ["fr", "AUTHORIZE", "Mode test PayPal : aucun argent réel ne circule."],
+    ["fr", "AUTHORIZE", "Autorisation PayPal (bac à sable) : vous n’êtes pas débité en argent réel."],
   ] as const)("shows %s %s checkout copy from the fetched mode", async (lang, payment_mode, expected) => {
     await i18n.changeLanguage(lang);
     vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode });

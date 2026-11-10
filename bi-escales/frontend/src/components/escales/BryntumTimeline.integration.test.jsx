@@ -4,21 +4,75 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const applyLocaleSpy = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+const schedulerMountCount = vi.hoisted(() => ({ n: 0 }));
+
+function setMockTimeAxisLabels(localeName) {
+  const labels =
+    localeName === "FrFr"
+      ? ["nov. 2026", "08 nov.", "15 nov.", "16 nov."]
+      : ["Nov 2026", "08 Nov", "15 Nov", "16 Nov"];
+  mockWidget.timeAxisHeaderLabels = labels;
+  for (const cell of document.querySelectorAll("[data-header-label]")) {
+    const idx = Number(cell.getAttribute("data-header-index"));
+    if (!Number.isNaN(idx)) {
+      cell.textContent = labels[idx];
+      cell.setAttribute("data-header-label", labels[idx]);
+    }
+  }
+}
+
 const mockWidget = vi.hoisted(() => ({
   columns: { first: { text: "" } },
   localeManager: { applyLocale: applyLocaleSpy },
+  isPainted: true,
+  isHorizontal: true,
+  infiniteScroll: false,
+  timeAxisSubGrid: { scrollable: { element: { getBoundingClientRect: () => ({ width: 400 }) } } },
+  timeAxisViewModel: {
+    update: vi.fn(() => {
+      const localeName = applyLocaleSpy.mock.calls.at(-1)?.[0] ?? "FrFr";
+      setMockTimeAxisLabels(localeName);
+    }),
+  },
+  timeAxisColumn: {
+    refreshHeader: vi.fn(() => {
+      const localeName = applyLocaleSpy.mock.calls.at(-1)?.[0] ?? "FrFr";
+      setMockTimeAxisLabels(localeName);
+    }),
+  },
+  currentOrientation: { doUpdateTimeView: vi.fn() },
+  onLocaleChange: vi.fn(),
+  viewPreset: { id: "weekAndMonth" },
+  presets: { getById: () => ({ id: "weekAndMonth", options: {} }) },
+  startDate: new Date("2026-11-08"),
+  endDate: new Date("2026-11-17"),
+  timeAxisHeaderLabels: ["nov. 2026", "08 nov.", "15 nov.", "16 nov."],
 }));
 
 vi.mock("@bryntum/scheduler-react-community", () => ({
   BryntumScheduler: forwardRef(function MockBryntumScheduler({ columns }, ref) {
     useLayoutEffect(() => {
+      schedulerMountCount.n += 1;
       mockWidget.columns.first.text = columns?.[0]?.text ?? "";
       if (ref && typeof ref === "object") {
         // Real browsers may not expose `.instance` on the React ref (see resolveSchedulerWidget).
         ref.current = {};
       }
     }, [columns, ref]);
-    return <div className="b-scheduler" data-testid="bryntum-scheduler-mock" />;
+    return (
+      <div className="b-scheduler" data-testid="bryntum-scheduler-mock">
+        {mockWidget.timeAxisHeaderLabels.map((label, index) => (
+          <span
+            key={`${index}-${label}`}
+            className="b-sch-header-timeaxis-cell"
+            data-header-index={index}
+            data-header-label={label}
+          >
+            {label}
+          </span>
+        ))}
+      </div>
+    );
   }),
 }));
 
@@ -53,7 +107,11 @@ describe("BryntumTimeline (scheduler-react-community)", () => {
 
   beforeEach(async () => {
     applyLocaleSpy.mockClear();
+    mockWidget.timeAxisViewModel.update.mockClear();
+    mockWidget.timeAxisColumn.refreshHeader.mockClear();
+    schedulerMountCount.n = 0;
     mockWidget.columns.first.text = "";
+    setMockTimeAxisLabels("FrFr");
     resetBryntumTimelineModulesForTests();
     globalThis.bryntum = {
       fromElement: vi.fn(() => mockWidget),
@@ -123,12 +181,27 @@ describe("BryntumTimeline (scheduler-react-community)", () => {
     await waitFor(() => {
       expect(document.querySelectorAll(".b-scheduler")).toHaveLength(1);
       expect(applyLocaleSpy.mock.calls.some((call) => call[0] === "En")).toBe(true);
+      expect(mockWidget.timeAxisHeaderLabels).toEqual(["Nov 2026", "08 Nov", "15 Nov", "16 Nov"]);
+      const domLabels = [...document.querySelectorAll("[data-header-label]")].map((el) => el.textContent);
+      expect(domLabels).toEqual(["Nov 2026", "08 Nov", "15 Nov", "16 Nov"]);
+      expect(domLabels.some((label) => /\d{1,2}\s+nov\./i.test(label))).toBe(false);
+    });
+
+    await act(async () => {
+      await i18n.changeLanguage("fr");
+    });
+
+    await waitFor(() => {
+      expect(applyLocaleSpy.mock.calls.at(-1)?.[0]).toBe("FrFr");
+      expect(mockWidget.timeAxisHeaderLabels.at(-1)).toBe("16 nov.");
     });
 
     const localeCalls = applyLocaleSpy.mock.calls.map((call) => call[0]);
     expect(localeCalls).toContain("FrFr");
     expect(localeCalls).toContain("En");
     expect(localeCalls.indexOf("FrFr")).toBeLessThan(localeCalls.lastIndexOf("En"));
+    expect(mockWidget.timeAxisColumn.refreshHeader.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(schedulerMountCount.n).toBeGreaterThanOrEqual(2);
 
     view.unmount();
     expect(errorSpy).not.toHaveBeenCalled();

@@ -1,8 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../../i18n";
-import BryntumTimeline, { bryntumLocaleForLanguage } from "./BryntumTimeline.jsx";
+import BryntumTimeline, {
+  TIMELINE_LOCALE_SYNC_MAX_ATTEMPTS,
+  TIMELINE_LOCALE_SYNC_RETRY_MS,
+  bryntumLocaleForLanguage,
+  rebuildTimelineTimeAxisHeaders,
+  resolveSchedulerWidget,
+  runTimelineLocaleSyncWithRetries,
+  syncTimelineLocale,
+} from "./BryntumTimeline.jsx";
 
 const events = [
   {
@@ -20,6 +28,144 @@ describe("bryntumLocaleForLanguage", () => {
     expect(bryntumLocaleForLanguage("fr-FR")).toBe("FrFr");
     expect(bryntumLocaleForLanguage("en")).toBe("En");
     expect(bryntumLocaleForLanguage("en-US")).toBe("En");
+  });
+});
+
+describe("resolveSchedulerWidget", () => {
+  it("logs a warning when bryntum.fromElement throws", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const host = document.createElement("div");
+    host.innerHTML = '<div class="b-scheduler"></div>';
+    globalThis.bryntum = {
+      fromElement: vi.fn(() => {
+        throw new Error("widget not ready");
+      }),
+    };
+    const widget = resolveSchedulerWidget({ current: {} }, { current: host });
+    expect(widget).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("bryntum.fromElement failed"),
+      expect.objectContaining({ hasSchedulerElement: true }),
+    );
+    warnSpy.mockRestore();
+    delete globalThis.bryntum;
+  });
+});
+
+describe("syncTimelineLocale time axis", () => {
+  it("applies locale and rebuilds axis headers for FR, EN, then FR", async () => {
+    const applyLocale = vi.fn(() => Promise.resolve());
+    const refreshHeader = vi.fn();
+    const tvmUpdate = vi.fn();
+    const host = document.createElement("div");
+    host.innerHTML = '<div class="b-scheduler"></div>';
+    const widget = {
+      columns: { first: { text: "" } },
+      localeManager: { applyLocale },
+      isPainted: true,
+      isHorizontal: true,
+      infiniteScroll: false,
+      timeAxisSubGrid: { scrollable: { element: { getBoundingClientRect: () => ({ width: 100 }) } } },
+      timeAxisViewModel: { update: tvmUpdate },
+      timeAxisColumn: { refreshHeader },
+      currentOrientation: { doUpdateTimeView: vi.fn() },
+      onLocaleChange: vi.fn(),
+      viewPreset: { id: "weekAndMonth" },
+      presets: { getById: () => ({ id: "weekAndMonth", options: {} }) },
+      startDate: new Date("2026-11-12"),
+      endDate: new Date("2026-11-16"),
+    };
+    globalThis.bryntum = { fromElement: vi.fn(() => widget) };
+
+    for (const lng of ["fr", "en", "fr"]) {
+      const { localeName } = await syncTimelineLocale({
+        schedulerRef: { current: {} },
+        hostRef: { current: host },
+        modules: { LocaleManager: { applyLocale: vi.fn() } },
+        i18n,
+        lng,
+      });
+      expect(localeName).toBe(lng === "fr" ? "FrFr" : "En");
+    }
+
+    expect(applyLocale).toHaveBeenCalledTimes(3);
+    expect(refreshHeader).toHaveBeenCalledTimes(3);
+    expect(tvmUpdate).toHaveBeenCalled();
+    delete globalThis.bryntum;
+  });
+
+  it("regenerates headers via timeAxisViewModel and refreshHeader", () => {
+    const refreshHeader = vi.fn();
+    const update = vi.fn();
+    rebuildTimelineTimeAxisHeaders({
+      isPainted: true,
+      isHorizontal: true,
+      infiniteScroll: false,
+      timeAxisSubGrid: { scrollable: { element: { getBoundingClientRect: () => ({ width: 120 }) } } },
+      timeAxisViewModel: { update },
+      timeAxisColumn: { refreshHeader },
+      currentOrientation: { doUpdateTimeView: vi.fn() },
+      onLocaleChange: vi.fn(),
+    });
+    expect(update).toHaveBeenCalled();
+    expect(refreshHeader).toHaveBeenCalledWith();
+  });
+});
+
+describe("runTimelineLocaleSyncWithRetries", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it(`retries up to ${TIMELINE_LOCALE_SYNC_MAX_ATTEMPTS} times when the widget is not mounted`, async () => {
+    const applyLocale = vi.fn(() => Promise.resolve());
+    const refreshHeader = vi.fn();
+    const host = document.createElement("div");
+    host.innerHTML = '<div class="b-scheduler"></div>';
+    const widget = {
+      columns: { first: { text: "" } },
+      localeManager: { applyLocale },
+      isPainted: true,
+      isHorizontal: true,
+      infiniteScroll: false,
+      timeAxisSubGrid: { scrollable: { element: { getBoundingClientRect: () => ({ width: 100 }) } } },
+      timeAxisViewModel: { update: vi.fn() },
+      timeAxisColumn: { refreshHeader },
+      currentOrientation: { doUpdateTimeView: vi.fn() },
+      onLocaleChange: vi.fn(),
+      viewPreset: { id: "weekAndMonth" },
+      presets: { getById: () => ({ id: "weekAndMonth", options: {} }) },
+      startDate: new Date("2026-11-12"),
+      endDate: new Date("2026-11-16"),
+    };
+    let mountAttempt = 0;
+    const fromElement = vi.fn(() => {
+      mountAttempt += 1;
+      return mountAttempt >= 3 ? widget : null;
+    });
+    globalThis.bryntum = { fromElement };
+
+    const cancel = runTimelineLocaleSyncWithRetries({
+      schedulerRef: { current: {} },
+      hostRef: { current: host },
+      modules: { LocaleManager: { applyLocale } },
+      i18n,
+      lng: "en",
+    });
+
+    await vi.advanceTimersByTimeAsync(TIMELINE_LOCALE_SYNC_RETRY_MS * (TIMELINE_LOCALE_SYNC_MAX_ATTEMPTS - 1));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fromElement.mock.calls.length).toBe(3);
+    expect(applyLocale).toHaveBeenCalledWith("En");
+    expect(refreshHeader).toHaveBeenCalled();
+    cancel();
+    delete globalThis.bryntum;
   });
 });
 

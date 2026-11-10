@@ -9,7 +9,14 @@ from typing import Any, Optional
 
 import httpx
 
+from app.channel3_catalog import get_catalog_item
+from app.channel3_urls import normalize_channel3_product_url
+
 _SEED = Path(__file__).resolve().parents[1] / "static" / "gear-projects.seed.json"
+_SEED_CATALOG_PRODUCT: dict[str, str] = {
+    "gear-dry-bag-expedition": "zRl9jHd",
+    "gear-marine-binoculars": "ySwJYWZ",
+}
 _BUNDLED = Path(__file__).resolve().parents[2] / "frontend" / "public" / "bi-projects.geojson"
 
 _cache: dict[str, Any] = {"at": 0.0, "payload": None}
@@ -17,28 +24,67 @@ _CACHE_TTL = 900.0
 
 
 def _gear_props(props: dict) -> dict[str, Any]:
+    kind = str(props.get("project_kind") or "").strip()
+    if kind != "gear_project":
+        return {}
     goal = str(props.get("goal_eur") or props.get("channel3_price_eur") or "").strip()
     channel3_price = str(props.get("channel3_price") or "").strip()
     channel3_currency = str(
         props.get("channel3_currency") or props.get("goal_currency") or ""
     ).strip().upper()
     goal_currency = "EUR" if goal else (channel3_currency or None)
+    buy_source = props.get("channel3_buy_url") or props.get("channel3_url")
+    if kind == "gear_project":
+        buy_source = buy_source or props.get("url")
     return {
-        "project_kind": str(props.get("project_kind") or "").strip() or None,
+        "project_kind": kind or None,
         "goal_eur": goal or None,
         "goal_currency": goal_currency,
         "channel3_price": channel3_price or None,
         "channel3_currency": channel3_currency or None,
         "channel3_image_url": str(props.get("channel3_image_url") or props.get("channel3_photo") or "").strip() or None,
-        "channel3_buy_url": str(props.get("channel3_buy_url") or props.get("channel3_url") or "").strip() or None,
+        "channel3_buy_url": normalize_channel3_product_url(buy_source),
         "channel3_product_name": str(props.get("channel3_product_name") or "").strip() or None,
     }
 
 
+def _enrich_seed_props(props: dict) -> dict:
+    """Merge catalogue prices and product URLs onto sandbox gear seed rows."""
+    out = dict(props)
+    if str(out.get("project_kind") or "").strip() != "gear_project":
+        return out
+    project_id = str(out.get("id") or "").strip()
+    product_id = str(out.get("channel3_product_id") or _SEED_CATALOG_PRODUCT.get(project_id) or "").strip()
+    if product_id:
+        out["channel3_product_id"] = product_id
+        catalog = get_catalog_item(product_id, public_only=True)
+        if catalog:
+            buy = normalize_channel3_product_url(catalog.get("channel3_buy_url"))
+            if buy:
+                out["channel3_buy_url"] = buy
+                out["url"] = buy
+            price = str(catalog.get("price_display") or "").strip()
+            currency = str(catalog.get("price_currency") or "").strip().upper()
+            if price:
+                out["channel3_price"] = price
+                out["channel3_currency"] = currency
+                if currency == "EUR" and not out.get("channel3_price_eur"):
+                    out["channel3_price_eur"] = price
+                elif currency != "EUR":
+                    out.setdefault("goal_currency", currency)
+    for key in ("url", "channel3_buy_url"):
+        cleaned = normalize_channel3_product_url(out.get(key))
+        if cleaned:
+            out[key] = cleaned
+        else:
+            out.pop(key, None)
+    return out
+
+
 def merge_gear_properties(props: dict) -> dict[str, Any]:
     """Attach gear / Channel3 fields when present on a GeoJSON feature."""
-    out = dict(props)
-    for key, value in _gear_props(props).items():
+    out = _enrich_seed_props(props)
+    for key, value in _gear_props(out).items():
         if value is not None:
             out[key] = value
     return out
@@ -227,7 +273,7 @@ def reset_gear_catalog_cache() -> None:
 
 
 async def sanitize_public_gear_collection(payload: dict[str, Any]) -> dict[str, Any]:
-    """Strip Channel3 buy URLs on public gear unless the item is fully funded."""
+    """Attach funding progress; strip buy/Page URLs unless fully funded (never the Channel3 homepage)."""
     from app.channel3_funding import fund_snapshot_for_project
     from app.channel3_public import apply_buy_link_policy
 
@@ -237,8 +283,9 @@ async def sanitize_public_gear_collection(payload: dict[str, Any]) -> dict[str, 
             continue
         props = dict(feature.get("properties") or {})
         pid = str(props.get("id") or "").strip()
-        buy_url = str(props.get("channel3_buy_url") or "").strip() or None
-        if buy_url and pid:
+        raw_buy = normalize_channel3_product_url(props.get("channel3_buy_url") or props.get("url"))
+        props.pop("url", None)
+        if pid:
             fund = await fund_snapshot_for_project(pid)
             goal = str(props.get("goal_eur") or props.get("channel3_price") or "").strip()
             goal_ccy = (
@@ -248,13 +295,25 @@ async def sanitize_public_gear_collection(payload: dict[str, Any]) -> dict[str, 
             )
             fund_ccy = str(fund.get("currency") or "EUR").upper()
             captured = str(fund.get("captured_eur") or fund.get("amount_eur") or "0")
+            pct = (
+                funded_percent(captured, goal, amount_currency=fund_ccy, goal_currency=goal_ccy)
+                if goal
+                else None
+            )
             fully = bool(goal) and is_fully_funded_amount(
                 captured,
                 goal,
                 amount_currency=fund_ccy,
                 goal_currency=goal_ccy,
             )
-            props = apply_buy_link_policy(props, fully_funded=fully, buy_url=buy_url)
+            if pct is not None:
+                props["funded_pct"] = pct
+            props["fully_funded"] = fully
+            props = apply_buy_link_policy(props, fully_funded=fully, buy_url=raw_buy)
+            if fully and props.get("channel3_buy_url"):
+                props["url"] = props["channel3_buy_url"]
+        else:
+            props = apply_buy_link_policy(props, fully_funded=False, buy_url=raw_buy)
         feature_out = {**feature, "properties": props}
         features_out.append(feature_out)
     return {**payload, "features": features_out}

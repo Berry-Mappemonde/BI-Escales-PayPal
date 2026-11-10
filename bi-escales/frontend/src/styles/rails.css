@@ -1,0 +1,451 @@
+/*
+ * Rails: the two quiet surfaces either side of the map.
+ *
+ * The map is the subject, so the rails carry no frames of their own. Sections are
+ * separated by space and by type, never by a box or a rule:
+ *   - one strong title per rail (the brand on the left, the stop on the right),
+ *   - section titles one step down (13px, semibold),
+ *   - labels and metadata in the muted tones,
+ *   - body copy at --color-fg-2 or stronger.
+ * The only accent is backing a stop (see stop-panel.css).
+ *
+ * Loaded after naviguide-shell.css. Every rule is scoped under .ng-shell.
+ */
+
+/* Surfaces ---------------------------------------------------------------- */
+
+.ng-shell .ng-sidebar,
+.ng-shell .ng-tools-panel {
+  background: var(--color-shell);
+}
+
+.ng-shell .ng-sidebar {
+  gap: 0;
+  padding: var(--space-5) 0 var(--space-4);
+  border: 0;
+  border-right: 1px solid var(--color-line);
+  border-radius: 0;
+}
+
+.ng-shell .ng-tools-panel {
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--color-line);
+}
+
+@media (max-width: 900px) {
+  .ng-shell .ng-tools-panel {
+    border-left: 0;
+    border-top: 1px solid var(--color-line);
+  }
+}
+
+.ng-shell .ng-sidebar > * {
+  padding-inline: var(--space-5);
+}
+
+/* No section in a rail has a frame. */
+.ng-shell .ng-sidebar .panel,
+.ng-shell .ng-tools-panel .panel,
+.ng-shell .ng-tools-panel .escale-popup-card,
+.ng-shell .crew-paypal-frame {
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.ng-shell .ng-sidebar > :is(.captain-chat, [data-testid="project-list"], [data-testid="gear-list"], .marinas-panel, .escales-scheduler, .wishlists-nav) {
+  margin-top: var(--space-8);
+  padding-block: 0;
+}
+
+/* Body copy reads at the second text level; the third is for metadata only. */
+.ng-shell :is(.ng-sidebar, .ng-tools-panel) .hint {
+  color: var(--color-fg-2);
+}
+
+/* Masthead: brand, then language and theme, small ------------------------- */
+
+.ng-shell .rail-masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin: 0 0 var(--space-5);
+}
+
+.ng-shell .rail-masthead .ng-shell-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 0;
+}
+
+.ng-shell .rail-masthead .voyage-emblem {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--color-fg);
+}
+
+.ng-shell .rail-masthead h1 {
+  display: block;
+  margin: 0;
+  font-size: var(--text-panel-heading);
+  line-height: var(--text-panel-heading--line-height);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.ng-shell .rail-tagline {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.ng-shell .rail-masthead .ng-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.ng-shell .ng-sidebar .lang-switch {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  min-height: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+}
+
+.ng-shell .ng-sidebar :is(.lang-switch, .theme-switch) button {
+  flex: none;
+  width: auto;
+  min-width: 28px;
+  height: 24px;
+  min-height: 24px;
+  margin: 0;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: transparent;
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-weight: 500;
+}
+
+.ng-shell .ng-sidebar .lang-switch button[aria-pressed="true"] {
+  background: var(--color-selected);
+  color: var(--color-fg);
+}
+
+.ng-shell .ng-sidebar .theme-switch button {
+  width: 28px;
+  padding: 0;
+}
+
+.ng-shell .ng-sidebar .theme-switch svg {
+  width: 14px;
+  height: 14px;
+}
+
+@media (hover: hover) {
+  .ng-shell .ng-sidebar :is(.lang-switch, .theme-switch) button:hover {
+    box-shadow: none;
+    color: var(--color-fg);
+  }
+
+  .ng-shell .ng-sidebar :is(.lang-switch button:not([aria-pressed="true"]), .theme-switch button):hover {
+    background: var(--color-raised);
+  }
+}
+
+@media (pointer: coarse) {
+  .ng-shell .ng-sidebar :is(.lang-switch, .theme-switch) button {
+    min-width: 34px;
+    height: 34px;
+  }
+
+  .ng-shell .ng-sidebar .theme-switch button {
+    width: 34px;
+  }
+}
+
+/* Tabs: text with one underline, no rule across the rail ------------------ */
+
+.ng-shell .ng-tab-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-4);
+  margin: 0 0 var(--space-5);
+  border: 0;
+}
+
+.ng-shell .ng-tab-bar button {
+  flex: none;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 0 var(--space-1);
+  border-bottom: 2px solid transparent;
+  color: var(--color-fg-3);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 500;
+}
+
+.ng-shell .ng-tab-bar button[aria-selected="true"] {
+  border-bottom-color: var(--color-fg);
+  color: var(--color-fg);
+}
+
+@media (pointer: coarse) {
+  .ng-shell .ng-tab-bar button {
+    min-height: 40px;
+  }
+}
+
+/* Section titles, one step under the brand -------------------------------- */
+
+.ng-shell .ng-sidebar :is(.captain-chat, [data-testid="project-list"], [data-testid="gear-list"], .marinas-panel, .escales-scheduler) h2 {
+  margin: 0 0 var(--space-3);
+  color: var(--color-fg);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.ng-shell .ng-sidebar .project-summary h2 {
+  margin: 0;
+}
+
+.ng-shell .ng-sidebar .project-summary {
+  min-height: 28px;
+}
+
+.ng-shell .rail-title svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Example questions are small buttons that fill the field. */
+.ng-shell .captain-prompts {
+  margin: 0;
+}
+
+.ng-shell .captain-prompts li {
+  padding: 0;
+  border-color: var(--color-line-strong);
+  border-radius: var(--radius-control);
+  color: var(--color-fg-2);
+}
+
+.ng-shell .captain-prompts button.captain-prompt-chip {
+  min-height: 28px;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-weight: 400;
+  text-align: start;
+}
+
+@media (hover: hover) {
+  .ng-shell .captain-prompts button.captain-prompt-chip:hover {
+    color: var(--color-fg);
+  }
+}
+
+@media (pointer: coarse) {
+  .ng-shell .captain-prompts button.captain-prompt-chip {
+    min-height: 40px;
+  }
+}
+
+.ng-shell .ng-sidebar .captain-chat .captain-draft {
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+/* Right rail: the stop sheet, flat ---------------------------------------- */
+
+.ng-shell .ng-tools-panel .escale-popup-card {
+  padding: var(--space-6) var(--space-6) var(--space-8);
+}
+
+.ng-shell .escale-sheet .escale-sheet-head {
+  align-items: flex-start;
+  padding-bottom: 0;
+}
+
+.ng-shell .escale-sheet .stop-identity {
+  margin-bottom: var(--space-1);
+}
+
+.ng-shell .stop-title h2 {
+  font-weight: 600;
+}
+
+.ng-shell .escale-sheet .stop-section {
+  padding: var(--space-5) 0 0;
+  border: 0;
+}
+
+.ng-shell .escale-sheet .stop-summary {
+  border-radius: 0;
+  background: none;
+}
+
+.ng-shell .escale-sheet .stop-next {
+  padding-top: var(--space-8);
+}
+
+.ng-shell .escale-sheet .pledge-calculation {
+  align-items: flex-end;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.ng-shell .escale-sheet .stop-checkout {
+  margin-top: var(--space-3);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.ng-shell .escale-sheet .pledge-form .hint,
+.ng-shell .escale-sheet .stop-note {
+  color: var(--color-fg-2);
+}
+
+.ng-shell .escale-sheet .money-heading {
+  margin: var(--space-6) 0 var(--space-3);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 600;
+}
+
+.ng-shell .escale-sheet .money-steps li {
+  color: var(--color-fg-2);
+  font-size: var(--text-support);
+  line-height: var(--text-support--line-height);
+}
+
+.ng-shell .escale-sheet .stop-more {
+  border: 0;
+}
+
+.ng-shell .escale-sheet > :not(.stop-more) + .stop-more {
+  margin-top: var(--space-6);
+}
+
+.ng-shell .how-it-works-notes p {
+  color: var(--color-fg-2);
+}
+
+/* The three money steps are a plain list of dots; no connector on the first only. */
+.ng-shell .escale-sheet .money-steps li,
+.ng-shell .escale-sheet .money-steps li:first-child {
+  margin-inline-start: var(--space-1);
+  border: 0;
+}
+
+/* Marinas: a list of rows, not a stack of buttons ------------------------- */
+
+.ng-shell .marinas-panel > .escale-sheet-head {
+  align-items: baseline;
+  margin-bottom: var(--space-4);
+}
+
+.ng-shell .ng-sidebar .marinas-panel > .escale-sheet-head h2 {
+  margin: 0;
+}
+
+.ng-shell .marinas-panel [data-testid="marinas-count"],
+.ng-shell .ng-sidebar .marina-row .marina-coords {
+  flex: none;
+  margin: 0;
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-variant-numeric: tabular-nums;
+}
+
+.ng-shell .marinas-legend-title {
+  margin: 0 0 var(--space-2);
+}
+
+.ng-shell .marinas-legend-list li {
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.ng-shell .marinas-panel > input {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+.ng-shell .ng-sidebar .marina-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: var(--space-2) 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-line);
+  border-radius: 0;
+  background: none;
+  color: var(--color-fg);
+  font-weight: 400;
+  text-align: start;
+}
+
+.ng-shell .ng-sidebar .marina-row strong {
+  min-width: 0;
+  font-weight: 500;
+}
+
+@media (hover: hover) {
+  .ng-shell .ng-sidebar .marina-row:hover strong {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+@media (pointer: coarse) {
+  .ng-shell .ng-sidebar .marina-row {
+    min-height: 44px;
+  }
+}
+
+/*
+ * Crew membership: PayPal draws its button to the width it is given, so the host
+ * is kept to the width of a secondary control instead of the whole rail.
+ */
+.ng-shell .rail-footer .crew-subscribe [data-testid="crew-subscribe-host"] {
+  max-width: 12.5rem;
+  /* PayPal's frame is white behind its rounded button; clip the corners. */
+  overflow: hidden;
+  border-radius: var(--radius-chip);
+  /* No inline gap under the frame, or the bottom corners are clipped too low. */
+  line-height: 0;
+}

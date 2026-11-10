@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  checkoutSdkUseVault,
   getPayPalNamespace,
   loadPayPalSdk,
   loadPayPalSubscriptionSdk,
@@ -12,15 +13,24 @@ import {
 } from "./paypalSdk";
 
 describe("paypalSdkUrl", () => {
-  it("loads authorize EUR vault SDK and disables Venmo", () => {
+  it("loads near-stop authorize checkout without vault and disables Venmo", () => {
     const url = paypalSdkUrl("test-client-id");
     expect(url).toContain("client-id=test-client-id");
     expect(url).toContain("intent=authorize");
     expect(url).toContain("currency=EUR");
-    expect(url).toContain("vault=true");
+    expect(url).not.toContain("vault=");
+    expect(url).not.toContain("intent=subscription");
     expect(url).toContain("disable-funding=venmo");
     expect(url).toContain("enable-funding=paylater");
     expect(url).toContain("locale=fr_FR");
+  });
+
+  it("adds vault only when the checkout flow requires saved payment methods", () => {
+    const vault = paypalSdkUrl("cid", "en", "authorize", false, "EUR", true);
+    const plain = paypalSdkUrl("cid", "en", "authorize", false, "EUR", false);
+    expect(vault).toContain("vault=true");
+    expect(vault).not.toContain("intent=subscription");
+    expect(plain).not.toContain("vault=");
   });
 
   it("maps English app language to en_US locale", () => {
@@ -192,5 +202,38 @@ describe("loadPayPalSdk locale cache", () => {
   it("uses different script URLs per locale", () => {
     expect(paypalSdkUrl("locale-client", "fr")).toContain("locale=fr_FR");
     expect(paypalSdkUrl("locale-client", "en")).toContain("locale=en_US");
+  });
+});
+
+describe("checkout SDK URL per flow (QA-C-02)", () => {
+  const cid = "sandbox-client";
+
+  it("project donation: capture, no vault, not subscription", () => {
+    const url = paypalSdkUrl(cid, "fr", "capture", false, "EUR", false);
+    expect(url).toContain("intent=capture");
+    expect(url).not.toContain("vault=");
+    expect(url).not.toContain("intent=subscription");
+  });
+
+  it("near stop pledge: authorize, no vault", () => {
+    expect(checkoutSdkUseVault({ isProjectPledge: false, paymentMode: "AUTHORIZE" })).toBe(false);
+    const url = paypalSdkUrl(cid, "en", "authorize", false, "EUR", false);
+    expect(url).toContain("intent=authorize");
+    expect(url).not.toContain("vault=");
+  });
+
+  it("far stop / cabin vault: authorize checkout with vault=true", () => {
+    expect(checkoutSdkUseVault({ isProjectPledge: false, paymentMode: "VAULT" })).toBe(true);
+    const url = paypalSdkUrl(cid, "fr", "authorize", false, "EUR", true);
+    expect(url).toContain("vault=true");
+    expect(url).not.toContain("intent=subscription");
+  });
+
+  it("Crew subscription uses subscription intent in an isolated URL", () => {
+    const url = paypalSubscriptionSdkUrl(cid, "fr");
+    expect(url).toContain("intent=subscription");
+    expect(url).toContain("vault=true");
+    expect(url).not.toContain("intent=authorize");
+    expect(url).not.toContain("intent=capture");
   });
 });

@@ -32,6 +32,7 @@ from app.escales.rate_limit import (
     reset_judging_cache,
     trusted_proxy_hops,
 )
+from tests.schedule_clocks import mayotte_authorize_window_clock
 from app.escales.captain import chat
 from app.routers.escales import router, set_paypal_client_factory
 from test_llm_cascade import _openai, _transport
@@ -54,7 +55,7 @@ def _reset_judging_rate_cache():
 def api(monkeypatch):
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
-    monkeypatch.setenv("ESCALES_CLOCK_NOW", "2027-05-15T08:00:00Z")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", mayotte_authorize_window_clock())
     monkeypatch.delenv("ESCALES_ENV", raising=False)
     monkeypatch.delenv("ESCALES_RATE_LIMIT_ENABLED", raising=False)
     monkeypatch.delenv("ESCALES_LLM_ENABLED", raising=False)

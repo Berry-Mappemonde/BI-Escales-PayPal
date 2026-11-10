@@ -91,8 +91,12 @@ describe("NAVIGUIDE shell wiring", () => {
     expect(screen.getByTestId("crew-supporter-public")).toBeInTheDocument();
     expect(screen.getByText("PayPal sandbox")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Language" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Français" })).toHaveTextContent("FR");
-    expect(screen.getByRole("button", { name: "English" })).toHaveTextContent("EN");
+    // Header: brand, one tagline that matches the arrival rule, then language and theme.
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^BI Escales$/);
+    expect(screen.getByText("Pay only when we arrive")).toBeInTheDocument();
+    expect(screen.queryByText(/if we sail/i)).toBeNull();
+    expect(screen.getByRole("button", { name: "FR, Français" })).toHaveTextContent("FR");
+    expect(screen.getByRole("button", { name: "EN, English" })).toHaveTextContent("EN");
   });
 
   it("shows the voyage clock in three concise lines", async () => {
@@ -132,6 +136,28 @@ describe("NAVIGUIDE shell wiring", () => {
     expect(screen.getByTestId("marinas-panel")).toBeInTheDocument();
   });
 
+  it("hides the Gear tab while Channel3 wishlists are off", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole("tab", { name: /voyage/i })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /gear|matériel/i })).toBeNull();
+  });
+
+  it("keeps the Gear tab hidden but shows the wishlist link when wishlists are on", async () => {
+    vi.mocked(escalesApi.fetchFeatures).mockResolvedValue({ clock_pinned: false, wishlists: true } as never);
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+    expect(await screen.findByTestId("wishlists-nav-link")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /gear|matériel/i })).toBeNull();
+    vi.mocked(escalesApi.fetchFeatures).mockResolvedValue({ clock_pinned: false } as never);
+  });
+
   it("switches language from the compact FR/EN control", async () => {
     const user = userEvent.setup();
     render(
@@ -139,9 +165,9 @@ describe("NAVIGUIDE shell wiring", () => {
         <App />
       </I18nextProvider>,
     );
-    await user.click(screen.getByRole("button", { name: "Français" }));
-    expect(screen.getByRole("button", { name: "Français" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "English" })).toHaveTextContent("EN");
+    await user.click(screen.getByRole("button", { name: "FR, Français" }));
+    expect(screen.getByRole("button", { name: "FR, Français" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "EN, English" })).toHaveTextContent("EN");
   });
 
   it("treasurer hash keeps settle control wired", async () => {
@@ -157,8 +183,12 @@ describe("NAVIGUIDE shell wiring", () => {
       </I18nextProvider>,
     );
     await waitFor(() => {
-      expect(screen.getByTestId("departure-settle")).toBeDisabled();
+      expect(screen.getByTestId("treasurer-page")).toBeInTheDocument();
     });
+    // Admin tools stay hidden until the treasurer key is entered.
+    expect(screen.queryByTestId("departure-settle")).toBeNull();
+    await userEvent.setup().type(screen.getByTestId("admin-key-input"), "treasurer-key");
+    expect(screen.getByTestId("departure-settle")).toBeEnabled();
     expect(screen.getByTestId("ng-shell")).toBeInTheDocument();
   });
 

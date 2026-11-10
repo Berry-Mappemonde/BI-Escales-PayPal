@@ -22,6 +22,41 @@ export interface CrewSubscribeButtonProps {
 
 const PLAN_LOAD_TIMEOUT_MS = 20_000;
 
+type ShellTheme = "light" | "dark";
+
+/**
+ * The membership is secondary to backing a stop, so its PayPal button is the
+ * quietest one PayPal offers: a single 32px row, no stacked card button, no
+ * tagline, in the PayPal colour closest to the rail (black on the dark theme,
+ * silver on the light one). Appearance only; the subscription flow is unchanged.
+ */
+export function crewButtonStyle(theme: ShellTheme) {
+  return {
+    label: "subscribe",
+    layout: "horizontal",
+    tagline: false,
+    height: 32,
+    shape: "rect",
+    color: theme === "light" ? "silver" : "black",
+  } as const;
+}
+
+function readShellTheme(): ShellTheme {
+  return document.documentElement.dataset.theme === "light" ? "light" : "dark";
+}
+
+/** The theme lives on <html data-theme>; follow it so the button is redrawn on a switch. */
+function useShellTheme(): ShellTheme {
+  const [theme, setTheme] = useState<ShellTheme>(readShellTheme);
+  useEffect(() => {
+    if (typeof MutationObserver === "undefined") return undefined;
+    const observer = new MutationObserver(() => setTheme(readShellTheme()));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
+  return theme;
+}
+
 type PlanLoadIssue = "missing" | "timeout" | null;
 
 function useCrewSupporterPlanId(planIdProp?: string) {
@@ -159,6 +194,7 @@ function CrewSubscribeButtonInner({
   const [paypal, setPaypal] = useState<PayPalNamespace | null>(null);
   const ready = paypal !== null;
   const [status, setStatus] = useState<string | null>(null);
+  const theme = useShellTheme();
 
   useEffect(() => {
     return subscribeCrewSubscribeReturn(() => {
@@ -199,7 +235,7 @@ function CrewSubscribeButtonInner({
       void safePayPalRender(
         paypal.Buttons,
         {
-          style: { label: "subscribe", layout: "vertical" },
+          style: crewButtonStyle(theme),
           createSubscription: (
             _data: unknown,
             actions: { subscription: { create: (body: unknown) => Promise<string> } },
@@ -244,7 +280,7 @@ function CrewSubscribeButtonInner({
       safePayPalClose(buttons);
       host.current?.replaceChildren();
     };
-  }, [paypal, planId, adminKey, appLang, t]);
+  }, [paypal, planId, adminKey, appLang, t, theme]);
 
   if (!treasurerContext && !planId && (planLoading || planLoadIssue || fetchError)) {
     return null;

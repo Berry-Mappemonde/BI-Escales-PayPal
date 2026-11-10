@@ -37,6 +37,12 @@ describe("EscalesPanel cart", () => {
     expect(screen.getByText(lang === "en" ? "Where is the boat?" : "Où est le bateau ?")).toBeInTheDocument();
     const prompts = screen.getByRole("list", { name: lang === "en" ? "Example questions" : "Exemples de questions" });
     expect(prompts.querySelectorAll("li")).toHaveLength(3);
+    // Every example is a real control: the first two fill the field without sending.
+    expect(prompts.querySelectorAll("li > button")).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: lang === "en" ? "When am I charged?" : "Quand suis-je débité ?" }));
+    expect(input).toHaveValue(lang === "en" ? "When am I charged?" : "Quand suis-je débité ?");
+    expect(captainChat).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: "" } });
     const button = screen.getByRole("button", { name: action });
     expect(input).toHaveValue("");
     expect(input).toHaveAttribute("placeholder", placeholder);

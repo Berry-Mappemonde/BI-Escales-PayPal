@@ -116,6 +116,10 @@ export function TreasurerPanel({
   useEffect(() => {
     void fetchOnboardingFeatureStatus().then((status) => setOnboardFeature(status.enabled));
   }, []);
+  // Admin tools stay hidden until a key is entered: public visitors only see the key
+  // field and the read-only demo entry, never the settle / webhook / spend controls.
+  const hasKey = Boolean(adminKey.trim());
+  const showQueue = demoMode || hasKey;
 
   return (
     <section className="treasurer-panel panel" data-testid="treasurer-panel">
@@ -153,6 +157,10 @@ export function TreasurerPanel({
             testId="admin-key-input"
             autoComplete="off"
           />
+          {!hasKey ? (
+            <p className="hint" data-testid="treasurer-enter-key">{t("treasurer.page.enterKey")}</p>
+          ) : (
+          <>
           <p className="hint" data-testid="treasurer-milestone-hint">
             {t("treasurer.milestoneFromStop", { id: milestoneId.trim() || "—" })}
           </p>
@@ -203,8 +211,11 @@ export function TreasurerPanel({
             <OpenFundTotals title={t("fund.projectTotals")} fund={projectFund} testId="project-fund-totals" />
             <OpenFundTotals title={t("fund.boatTotals")} fund={boatFund} testId="common-fund-totals" />
           </section>
+          </>
+          )}
             </>
           )}
+          {showQueue ? (
           <TreasurerQueue
             pledges={pledges}
             loading={loading}
@@ -215,7 +226,8 @@ export function TreasurerPanel({
             onRefresh={onRefreshQueue}
             onUpdated={onPledgeUpdated}
           />
-          {!demoMode ? (
+          ) : null}
+          {!demoMode && hasKey ? (
             <>
           <TreasurerWishlistsPanel adminKey={adminKey} />
           <TreasurerPayPalPanel adminKey={adminKey} />

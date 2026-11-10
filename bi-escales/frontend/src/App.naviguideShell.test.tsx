@@ -146,6 +146,18 @@ describe("NAVIGUIDE shell wiring", () => {
     expect(screen.queryByRole("tab", { name: /gear|matériel/i })).toBeNull();
   });
 
+  it("keeps the Gear tab hidden but shows the wishlist link when wishlists are on", async () => {
+    vi.mocked(escalesApi.fetchFeatures).mockResolvedValue({ clock_pinned: false, wishlists: true } as never);
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+    expect(await screen.findByTestId("wishlists-nav-link")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /gear|matériel/i })).toBeNull();
+    vi.mocked(escalesApi.fetchFeatures).mockResolvedValue({ clock_pinned: false } as never);
+  });
+
   it("switches language from the compact FR/EN control", async () => {
     const user = userEvent.setup();
     render(

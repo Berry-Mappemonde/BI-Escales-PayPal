@@ -116,7 +116,8 @@
     "legendRejected": "Marina, location could not be confirmed"
   },
   "map": {
-    "boatMarker": "Boat / catamaran"
+    "boatMarker": "Boat / catamaran",
+    "stopMarker": "Open stop: {{name}}"
   },
   "fund": {
     "heading": "Common fund",

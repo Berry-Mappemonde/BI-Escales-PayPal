@@ -1135,3 +1135,17 @@ body.ng-naviguide-shell {
 @media (hover: hover) {
   .rail-footer .treasurer-panel-heading .treasurer-panel-toggle:hover { color: var(--color-fg); }
 }
+
+/*
+ * Map: the route and the stops are the subject. Project dots are context, in one
+ * neutral tone that stays under the route; they come forward only when pointed at.
+ */
+.leaflet-container .project-dot {
+  color: var(--color-fg-3);
+  opacity: 0.34;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+:root[data-theme="light"] .leaflet-container .project-dot { opacity: 0.42; }
+@media (hover: hover) {
+  .leaflet-container .project-dot:hover { color: var(--color-fg); opacity: 1; }
+}

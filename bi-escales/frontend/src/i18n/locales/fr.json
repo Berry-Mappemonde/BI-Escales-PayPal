@@ -116,7 +116,8 @@
     "legendRejected": "Marina, emplacement non confirmé"
   },
   "map": {
-    "boatMarker": "Bateau / catamaran"
+    "boatMarker": "Bateau / catamaran",
+    "stopMarker": "Ouvrir l’escale : {{name}}"
   },
   "fund": {
     "heading": "Caisse commune",

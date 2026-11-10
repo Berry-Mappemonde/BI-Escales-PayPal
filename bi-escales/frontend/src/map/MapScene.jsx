@@ -18,7 +18,6 @@ import { MarinaMapPopup } from "../components/MarinaMapPopup.jsx";
 import { SceneLayerRegistry } from "../../../../naviguide-escales/src/map/SceneLayerRegistry.js";
 import { createPanes } from "../../../../naviguide-escales/src/layers/layerOrder.js";
 import {
-  FALLBACK_COLORS,
   ROUTE_CASING_COLOR,
   ROUTE_CASING_WEIGHT,
   ROUTE_MAIN_WEIGHT,
@@ -32,10 +31,18 @@ import { applyMarkerRotation } from "../../../../naviguide-escales/src/utils/mar
 import { mapTileUrlForTheme } from "./mapTileUrl.js";
 import { dedupeStopsByMilestone } from "../voyage/stopsForMap.js";
 import {
+  BOAT_ANCHOR,
+  BOAT_ICON,
   boatMarkerAnchorOffset,
   computeStopOffsets,
   offsetToIconAnchor,
 } from "./stopMarkerLayout.js";
+
+/** Leaflet makes a marker a focusable button; this gives that button its name. */
+function nameMarker(marker, label) {
+  const element = marker.getElement?.();
+  if (element && label) element.setAttribute("aria-label", label);
+}
 
 const WORLD_CENTER = [22, 5];
 
@@ -193,6 +200,7 @@ export function MapScene({
           stopData: stop,
         }).addTo(group);
         marker.bindTooltip(stop.name, { direction: "top" });
+        nameMarker(marker, t("map.stopMarker", { name: stop.name }));
         marker.on("click", (event) => {
           L.DomEvent.stopPropagation(event);
           const target = event?.target?.options?.stopData || stop;
@@ -208,7 +216,7 @@ export function MapScene({
       map.off("zoomend", renderStops);
       map.off("moveend", renderStops);
     };
-  }, [stops, segments]);
+  }, [stops, segments, i18nInstance.language, t]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -231,12 +239,12 @@ export function MapScene({
         ? stopOffsetsRef.current
         : computeStopOffsets(uniqueStops, segments, project, []);
       const boatOffset = boatMarkerAnchorOffset(boat, uniqueStops, offsets, project);
-      const iconAnchor = offsetToIconAnchor([32, 32], boatOffset);
+      const iconAnchor = offsetToIconAnchor(BOAT_ANCHOR, boatOffset);
       const marker = L.marker([boat.lat, boat.lon], {
         icon: L.divIcon({
           className: "boat-divicon",
-          html: `<div role="img" aria-label="${escapeAttr(boatLabel)}">${catamaranSvg(boat.bearing || 0)}</div>`,
-          iconSize: [64, 64],
+          html: `<div role="img" aria-label="${escapeAttr(boatLabel)}">${catamaranSvg(boat.bearing || 0, { size: BOAT_ICON })}</div>`,
+          iconSize: [BOAT_ICON, BOAT_ICON],
           iconAnchor,
         }),
         pane: "boat",
@@ -245,6 +253,7 @@ export function MapScene({
         zIndexOffset: 1200,
       }).addTo(group);
       applyMarkerRotation(marker, boat.bearing || 0);
+      nameMarker(marker, boatLabel);
       marker.on("click", (event) => {
         L.DomEvent.stopPropagation(event);
         onSelectBoatRef.current?.();
@@ -272,15 +281,14 @@ export function MapScene({
     (projects?.features || []).forEach((feature) => {
       const [lon, lat] = feature.geometry?.coordinates || [];
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-      const groupName = feature.properties?.category_group;
-      const color = FALLBACK_COLORS[groupName] || FALLBACK_COLORS.Other;
+      // One neutral tone for every project, set by .project-dot from the tokens: the
+      // dots are context for the voyage, and must stay quieter than the route.
       const marker = L.circleMarker([lat, lon], {
         radius: 2,
-        color,
-        weight: 1,
-        opacity: 0.32,
-        fillColor: color,
-        fillOpacity: 0.24,
+        stroke: false,
+        fillColor: "currentColor",
+        fillOpacity: 1,
+        className: "project-dot",
         pane: "overlayPane",
       }).addTo(group);
       if (feature.properties?.title) marker.bindTooltip(feature.properties.title, { direction: "top" });

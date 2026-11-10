@@ -18,8 +18,9 @@ export function computeStopOffsets(stops, segments, project, previous = []) {
   return computeMarkerOffsets(stops || [], project, routeSegs, previous);
 }
 
-const BOAT_ICON = 64;
-const BOAT_ANCHOR = [32, 32];
+/** Boat marker edge in px. Smaller than a flag pair, so it reads as "the boat is here", not as the map's subject. */
+export const BOAT_ICON = 40;
+export const BOAT_ANCHOR = [BOAT_ICON / 2, BOAT_ICON / 2];
 const BOAT_PAD = 4;
 
 function rectsOverlap(a, b, pad = FLAG_GAP) {
@@ -86,10 +87,10 @@ const BOAT_DIRS = [
   [0, 1],
 ];
 
-const BOAT_RADII = [40, 56, 72, 88, 104];
+const BOAT_RADII = [28, 40, 56, 72, 88, 104];
 
 /**
- * Place the catamaran icon so its 64×64 hit box never covers a stop flag at the current zoom.
+ * Place the catamaran icon so its hit box never covers a stop flag at the current zoom.
  */
 export function boatMarkerAnchorOffset(boat, stops, stopOffsets, project) {
   if (!boat || !Number.isFinite(boat.lat) || !Number.isFinite(boat.lon) || typeof project !== "function") {

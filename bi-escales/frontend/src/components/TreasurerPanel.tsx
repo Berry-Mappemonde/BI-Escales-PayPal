@@ -1,5 +1,7 @@
-import { FormEvent, type ReactNode } from "react";
+import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { fetchOnboardingFeatureStatus } from "../api/projectOnboarding";
+import { ProjectOnboardingTreasurerSection } from "../projectOnboarding/ProjectOnboardingTreasurerSection";
 import type { FundView, PublicPledge } from "../api/types";
 import { MaskedSecretInput } from "./MaskedSecretInput";
 import { TreasurerPayPalPanel } from "./TreasurerPayPalPanel";
@@ -74,6 +76,8 @@ export interface TreasurerPanelProps {
   children?: ReactNode;
 }
 
+const DEMO_ONBOARD_PROJECT_ID = "projet-demo-recif-vivant";
+
 export function TreasurerPanel({
   open,
   onOpenChange,
@@ -108,6 +112,10 @@ export function TreasurerPanel({
   children,
 }: TreasurerPanelProps) {
   const { t } = useTranslation();
+  const [onboardFeature, setOnboardFeature] = useState(false);
+  useEffect(() => {
+    void fetchOnboardingFeatureStatus().then((status) => setOnboardFeature(status.enabled));
+  }, []);
   // Admin tools stay hidden until a key is entered: public visitors only see the key
   // field and the read-only demo entry, never the settle / webhook / spend controls.
   const hasKey = Boolean(adminKey.trim());
@@ -224,6 +232,9 @@ export function TreasurerPanel({
           <TreasurerWishlistsPanel adminKey={adminKey} />
           <TreasurerPayPalPanel adminKey={adminKey} />
           <TreasurerWebhookPanel adminKey={adminKey} />
+          {onboardFeature ? (
+            <ProjectOnboardingTreasurerSection adminKey={adminKey} projectId={DEMO_ONBOARD_PROJECT_ID} />
+          ) : null}
           <TreasurerGrid
             pledges={pledges}
             milestones={[]}

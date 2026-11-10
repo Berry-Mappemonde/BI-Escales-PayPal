@@ -576,6 +576,37 @@
       "addSubmit": "Ajouter à la liste"
     }
   },
+  "projectOnboarding": {
+    "featureOff": "Le parcours « onboard after payment » est désactivé (ESCALES_ONBOARD_AFTER_PAYMENT_ENABLED).",
+    "loading": "Chargement du projet démo…",
+    "sandboxBanner": "Test bac à sable — projet fictif, aucun mouvement réel de fonds.",
+    "walletOnly": "Paiement PayPal uniquement (pas de saisie carte sur ce projet).",
+    "donatePayPal": "Donner via PayPal",
+    "donationError": "Impossible de créer le don.",
+    "captureDone": "Don traité — consultez le statut ci-dessous.",
+    "captureError": "La capture PayPal a échoué ; le statut peut rester « inscription requise ».",
+    "missingApproveLink": "Lien d’approbation PayPal manquant.",
+    "deadline": "(échéance {{date}})",
+    "openOnboardingLink": "Ouvrir le lien d’inscription PayPal Business",
+    "returnTitle": "Retour depuis PayPal",
+    "backToProject": "Retour au projet démo",
+    "treasurerHeading": "Onboard after payment (démo fictive)",
+    "emailPreview": "Prévisualiser l’e-mail d’inscription",
+    "copyOnboardingLink": "Copier le lien d’inscription",
+    "copied": "Lien copié dans le presse-papiers.",
+    "copyError": "Impossible de copier le lien (clé trésorier requise).",
+    "projectStatus": {
+      "pending": "En attente d’inscription du projet",
+      "onboarded": "Inscrit",
+      "error": "Erreur de lecture du statut"
+    },
+    "status": {
+      "held_pending_onboarding": "En attente d’inscription du projet",
+      "onboarding_required_before_payment": "Inscription requise avant paiement",
+      "onboarded": "Inscrit",
+      "created": "Créé"
+    }
+  },
   "certificate": {
     "heading": "Télécharger mon certificat",
     "downloadPng": "PNG",

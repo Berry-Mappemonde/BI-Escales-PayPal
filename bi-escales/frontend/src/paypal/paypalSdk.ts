@@ -53,19 +53,30 @@ export function paypalSdkUrl(
   intent: SdkIntent = "authorize",
   walletPay = false,
   currency = "EUR",
+  vaultCheckout = false,
 ): string {
   const components = walletPay
     ? "buttons,card-fields,messages,applepay,googlepay"
     : "buttons,card-fields,messages";
-  const params = sdkParams(clientId, paypalLocale(appLang), {
+  const extra: Record<string, string> = {
     components,
     intent,
     currency: String(currency || "EUR").trim().toUpperCase() || "EUR",
-    vault: "true",
     "disable-funding": "venmo",
     "enable-funding": "paylater",
-  });
+  };
+  if (vaultCheckout) extra.vault = "true";
+  const params = sdkParams(clientId, paypalLocale(appLang), extra);
   return `https://www.paypal.com/sdk/js?${params.toString()}`;
+}
+
+/** Vault SDK only for far-stop VAULT, cabin VAULT, and Crew subscription (never project/near-stop checkout). */
+export function checkoutSdkUseVault(options: {
+  isProjectPledge: boolean;
+  paymentMode?: "AUTHORIZE" | "VAULT" | null;
+}): boolean {
+  if (options.isProjectPledge) return false;
+  return options.paymentMode === "VAULT";
 }
 
 /** Card Fields + wallet buttons when the matching ESCALES_* flags are on (paypalSdk.ts pattern). */
@@ -207,10 +218,11 @@ export function loadPayPalSdk(
   intent: SdkIntent = "authorize",
   walletPay = false,
   currency = "EUR",
+  vaultCheckout = false,
 ): Promise<PayPalNamespace> {
   const trimmed = clientId.trim();
   if (!trimmed) return Promise.reject(new Error("PayPal client id missing"));
-  return loadNamespacedSdk(paypalSdkUrl(trimmed, appLang, intent, walletPay, currency));
+  return loadNamespacedSdk(paypalSdkUrl(trimmed, appLang, intent, walletPay, currency, vaultCheckout));
 }
 
 export function loadPayPalWalletPaySdk(

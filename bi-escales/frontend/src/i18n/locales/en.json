@@ -187,6 +187,8 @@
     "approve": "Approve on the PayPal page",
     "authorize": "I approved — authorize",
     "creating": "Creating pledge…",
+    "createTimeout": "Pledge creation timed out. Check your connection and try again.",
+    "retry": "Retry",
     "authorizing": "Authorizing on server…",
     "authorized": "Pledge authorized",
     "vaultHint": "Approve the saved payment method on PayPal, then confirm. Nothing is captured until we sail.",

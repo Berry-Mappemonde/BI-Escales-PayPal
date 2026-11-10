@@ -188,6 +188,8 @@
     "approve": "Approuver sur la page PayPal",
     "authorize": "J’ai approuvé — autoriser",
     "creating": "Création de la promesse…",
+    "createTimeout": "Délai dépassé lors de la création de la promesse. Vérifiez votre connexion et réessayez.",
+    "retry": "Réessayer",
     "authorized": "Promesse autorisée",
     "vaultHint": "Enregistrez le moyen de paiement sur PayPal, puis confirmez. Rien n’est encaissé tant que nous ne partons pas.",
     "vaultApprove": "Approuver le moyen de paiement",

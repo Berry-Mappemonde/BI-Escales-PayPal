@@ -95,14 +95,14 @@ describe("PledgeButton", () => {
     );
 
     expect(screen.queryByTestId("pledge-authorize")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Créer l’ordre PayPal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuer avec PayPal" }));
     const link = await screen.findByTestId("paypal-approve-link");
     expect(link).toHaveAttribute("href", "https://www.sandbox.paypal.com/checkoutnow?token=ORDER1");
     expect(link).not.toHaveAttribute("target");
     expect(createPledge).toHaveBeenCalledWith({ ...values, lang: "fr" }, expect.any(String));
     fireEvent.click(link);
     expect(screen.queryByTestId("pledge-authorize")).toBeNull();
-    expect(screen.getByText(/Au retour, l’autorisation/)).toBeInTheDocument();
+    expect(screen.getByText(/Votre promesse est confirmée à votre retour/)).toBeInTheDocument();
   });
 
   it("affiche le bouton d’enregistrement Vault", async () => {
@@ -128,7 +128,7 @@ describe("PledgeButton", () => {
       </I18nextProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Créer l’ordre PayPal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuer avec PayPal" }));
     expect(await screen.findByTestId("pledge-authorize")).toBeInTheDocument();
     expect(screen.getByText(/Redirection vers PayPal/)).toBeInTheDocument();
   });
@@ -151,14 +151,14 @@ describe("PledgeButton", () => {
       </I18nextProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Créer l’ordre PayPal" }));
-    expect(await screen.findByText(/Au retour, l’autorisation/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continuer avec PayPal" }));
+    expect(await screen.findByText(/Votre promesse est confirmée à votre retour/)).toBeInTheDocument();
 
     await act(async () => {
       emitPledgeReturn({ pledgeId: "pledge-return-1", outcome: "authorized" });
     });
-    expect(screen.queryByText(/Au retour, l’autorisation/)).toBeNull();
-    expect(screen.queryByText(/Création de la promesse/)).toBeNull();
+    expect(screen.queryByText(/Votre promesse est confirmée à votre retour/)).toBeNull();
+    expect(screen.queryByText(/Préparation de votre promesse/)).toBeNull();
     expect(screen.queryByTestId("paypal-approve-link")).toBeNull();
   });
 
@@ -184,7 +184,7 @@ describe("PledgeButton", () => {
     expect(screen.getByText(/Débité immédiatement/)).toBeInTheDocument();
     expect(screen.queryByText(/Autorisation PayPal/)).toBeNull();
     expect(screen.queryByText(/arrivée/i)).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Créer l’ordre PayPal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuer avec PayPal" }));
     expect(await screen.findByText(/contribution projet est débitée au retour/)).toBeInTheDocument();
   });
 
@@ -206,14 +206,14 @@ describe("PledgeButton", () => {
       </I18nextProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Créer l’ordre PayPal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continuer avec PayPal" }));
     expect(await screen.findByTestId("paypal-approve-link")).toBeInTheDocument();
 
     await act(async () => {
       emitPledgeReturn({ pledgeId: "pledge-return-2", outcome: "error", message: "order not approved" });
     });
     expect(screen.queryByTestId("paypal-approve-link")).toBeNull();
-    expect(screen.queryByText(/Au retour, l’autorisation/)).toBeNull();
+    expect(screen.queryByText(/Votre promesse est confirmée à votre retour/)).toBeNull();
     expect(screen.getByText(/order not approved/)).toBeInTheDocument();
   });
 });

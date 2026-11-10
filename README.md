@@ -21,15 +21,20 @@ PayPal **sandbox only** — no live money moves. The voyage departs on 12 Nov 20
 1. **Near stop — AUTHORIZE:** On the demo clock, **La Rochelle** (`dep-la-rochelle`) is within PayPal’s ~29-day authorization window. Open the cart and pay with the yellow **PayPal** button; checkout uses Orders v2 **`intent=AUTHORIZE`** (hold until treasurer capture after Captain review). Confirm with `GET /api/escales/pledges/mode?milestone_id=dep-la-rochelle&kind=mile` (expect `AUTHORIZE` on prod and test2).
 2. **Card Fields (when enabled):** On the same or another checkout, use **Card Fields** with PayPal’s sandbox Visa **4111 1111 1111 1111**, any future expiry, CVV **123**, instead of logging into a wallet.
 3. **Far stop — VAULT:** On the demo clock, **Mayotte** (`dep-dzaoudzi-mayotte`) is beyond that window — miles there use **Vault** when enabled (confirm with `GET /api/escales/pledges/mode?milestone_id=dep-dzaoudzi-mayotte&kind=mile`, expect `VAULT`). **Cabins** on a far leg use **Vault** too; settlement follows leg **departure** rules.
-4. **Treasurer:** Open **Demo treasurer** for a read-only queue and Captain reviews. Capture / void / settle need the treasurer key supplied privately (`x-admin-key`), or use demo treasurer where the host allows it in sandbox.
+4. **Treasurer:** Open **Demo treasurer** for a read-only queue and Captain reviews (GitHub #145). Capture, void, and refund need the private treasurer key (`x-admin-key`); judges on the public demo do not use **Run departure-day settle** or operator settle tools.
 5. **Refund / void:** From the treasurer view, **void** an authorization when a stop is cancelled, or exercise **refund** / release flows on an eligible sandbox capture — still sandbox-only, with human approval on the money path.
 
 ### Payment rules (summary)
 
 - **Stop pledges** (miles, nights, meals, care, berths): **captured** when the boat **arrives**; **voided** if the stop is **cancelled**.
 - **Cabins:** **captured** at leg **departure**.
-- **Common fund** and **project donations:** **captured immediately**.
+- **Common fund** and **project donations:** **captured immediately** (no Captain/treasurer gate on those paths).
+
+**No tax receipts:** BI Escales does not issue tax receipts for pledges, cabins, fund contributions or project donations.
+
 - Authorizations are not opened more than **29 days** before the relevant arrival or departure; farther horizons use PayPal **Vault** when `ESCALES_VAULT_ENABLED=1`.
+- **Abonnement Crew** (English UI: **Crew subscription**) is the association **membership** — one PayPal subscription product, not a second membership SKU.
+- The expedition **crew is six people** (capacity checks on safety gear in the Channel3 seed catalogue; see [CHANNEL3_WISHLISTS.md](bi-escales/docs/CHANNEL3_WISHLISTS.md)).
 
 ### Sandbox buyer
 
@@ -43,15 +48,15 @@ A default local setup uses **placeholder** `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_S
 
 ## Quick start
 
-Target time: under 10 minutes from clone to a running local shell. CI (`.github/workflows/ci.yml`) uses **Python 3.12** and **Node.js 22**; **Python 3.11+** is fine if `python -m pytest tests -q` passes (e.g. via `uv` or `pyenv`). Python **3.13** is not supported today (`paypal-agent-toolkit` dependencies fail on 3.13).
+CI (`.github/workflows/ci.yml`) uses **Python 3.12** and **Node.js 22**. Use **python3.12** for backend commands below. Python **3.13** is not supported (`paypal-agent-toolkit` dependencies fail on 3.13).
 
 ### 1. Backend
 
 ```bash
 cd bi-escales/backend
-python3 -m venv .venv && . .venv/bin/activate
+python3.12 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
-python -m pytest tests -q
+python3.12 -m pytest tests -q
 ```
 
 Copy the example environment file:
@@ -73,7 +78,7 @@ In `.env`, set at minimum:
 Replace PayPal placeholders with your own **sandbox** REST app credentials only if you need real checkout locally.
 
 ```bash
-python -m uvicorn app.main:app --reload --port 8000 --env-file .env
+python3.12 -m uvicorn app.main:app --reload --port 8000 --env-file .env
 ```
 
 Verify: `http://127.0.0.1:8000/api/health`.
@@ -95,9 +100,9 @@ Open `http://localhost:5173`.
 
 ## How it works
 
-A supporter's PayPal pledge is **authorized** (Orders v2 `intent=AUTHORIZE`), and **captured** only after the AI Captain has reviewed voyage-stop evidence and a human treasurer has approved; otherwise it is **voided**. The AI Captain proposes; it never executes money movement.
+PayPal checkout is **sandbox only**. **Stop** pledges use Orders v2 **`intent=AUTHORIZE`** and are **captured when the boat arrives** (or **voided** if the stop is cancelled). **Cabins** are captured at leg **departure**. **Common fund** and **project donations** are **charged immediately** after the supporter approves in PayPal — they do not wait on Captain review or treasurer capture. For held stop and cabin pledges, the AI Captain reviews voyage-stop evidence and proposes; a human treasurer executes capture or void. The Captain never moves money.
 
-For milestone pledges, approval records the verdict, its proposal time, and the approval time on the simulated voyage clock. Only the latest approved **capture** review permits capture, and both times must be at or after the stop's arrival (the leg's departure for cabins). Approving **wait** never permits capture. Settlement returns `await_review_approval` and direct capture returns HTTP 409 until a qualifying review is approved.
+For stop and cabin milestone pledges, an approved **capture** review (and simulated clock at or after arrival or departure, as applicable) can gate treasurer capture. Approving **wait** never permits capture. Settlement and direct capture return HTTP 409 or `await_review_approval` until the clock and review rules allow capture.
 
 | Path | Role |
 | --- | --- |

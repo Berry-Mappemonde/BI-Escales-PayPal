@@ -11,7 +11,7 @@ Instructions for coding agents (Codex and similar) working in this repository.
 - Hackathon deadline: **12 Nov 2026, 15:00 America/Toronto**
 - Simulated expedition / voyage clock reference date: **12 Nov 2026** (do not invent or mention any other departure month)
 
-A supporter's PayPal pledge is **authorized** (Orders v2 `intent=AUTHORIZE`) and **captured** only after the AI Captain reviews voyage-stop evidence and a human treasurer approves; otherwise it is **voided**. The AI Captain proposes; it never executes money movement.
+**Stop** pledges are **authorized** (Orders v2 `intent=AUTHORIZE`) and **captured when the boat arrives** (or **voided** if the stop is cancelled). **Cabins** capture at leg **departure**. **Common fund** and **project donations** are **charged immediately** — not gated by Captain review or treasurer capture. For held stop/cabin pledges, the AI Captain reviews evidence and proposes; a human treasurer captures or voids. The Captain never executes money movement.
 
 ## Source of truth
 

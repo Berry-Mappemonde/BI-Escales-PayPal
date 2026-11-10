@@ -753,6 +753,16 @@ export default function App() {
     return { ...projects, features: all.filter((row) => !isGear(row)) };
   }, [projects, tab]);
 
+  // Channel3 pictures by gear project id, for lists that only know the id (the cart).
+  const gearImages = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const row of Array.isArray(projects?.features) ? projects.features : []) {
+      const props = (row as { properties?: { id?: string; channel3_image_url?: string | null } })?.properties;
+      if (props?.id && props.channel3_image_url) out[props.id] = props.channel3_image_url;
+    }
+    return out;
+  }, [projects]);
+
   const treasurerPanel = (
     <TreasurerPanel
       open={treasurerOpen}
@@ -1016,7 +1026,7 @@ export default function App() {
               onFlyTo={onFlyTo}
               onAuthorized={onAuthorized}
             />
-            <ExpeditionCartPanel />
+            <ExpeditionCartPanel images={gearImages} />
           </>
         ) : null}
         {/* Secondary to backing a stop: membership, public total, treasurer entry. */}

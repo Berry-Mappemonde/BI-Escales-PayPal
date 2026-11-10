@@ -1,10 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { normalizeChannel3ProductUrl } from "../gear/channel3ProductUrl.js";
+import { Channel3Thumb } from "./Channel3Thumb";
 
 /**
  * Public crowdfunding progress toward a gear/project goal (CAPTURE donations).
  */
-export function ProjectFundProgress({ properties, fund }) {
+export function ProjectFundProgress({ properties, fund, showImage = true }) {
   const { t } = useTranslation();
   const goal = String(
     fund?.goal_eur ||
@@ -30,29 +31,31 @@ export function ProjectFundProgress({ properties, fund }) {
 
   return (
     <div className="project-fund-progress" data-testid="project-fund-progress">
-      {imageUrl ? (
-        <img
+      {showImage ? (
+        <Channel3Thumb
           src={imageUrl}
-          alt={properties?.channel3_product_name || properties?.title || ""}
+          title={properties?.channel3_product_name || properties?.title}
           className="gear-channel3-photo"
-          data-testid="gear-channel3-photo"
+          testId="gear-channel3-photo"
         />
       ) : null}
-      <p className="hint" data-testid="project-fund-goal">
-        {t("projects.goalProgress", {
-          amount,
-          amountCurrency,
-          goal,
-          goalCurrency: goalCurrency || "EUR",
-          pct: pct == null ? "—" : pct,
-        })}
-      </p>
-      <div className="gauge">
-        <div className="gauge-track">
-          <div
-            className="gauge-fill tone-cap"
-            style={{ width: `${pct == null ? 0 : Math.min(100, pct)}%` }}
-          />
+      <div className="project-fund-progress-body">
+        <p className="hint" data-testid="project-fund-goal">
+          {t("projects.goalProgress", {
+            amount,
+            amountCurrency,
+            goal,
+            goalCurrency: goalCurrency || "EUR",
+            pct: pct == null ? "—" : pct,
+          })}
+        </p>
+        <div className="gauge">
+          <div className="gauge-track">
+            <div
+              className="gauge-fill tone-cap"
+              style={{ width: `${pct == null ? 0 : Math.min(100, pct)}%` }}
+            />
+          </div>
         </div>
       </div>
       {fullyFunded && buyUrl ? (

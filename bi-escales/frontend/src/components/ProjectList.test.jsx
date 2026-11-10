@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
@@ -199,6 +199,60 @@ describe("ProjectList", () => {
     expect(screen.getByText("Dry bags (expedition lot)")).toBeInTheDocument();
     expect(screen.getByText("Marine binoculars")).toBeInTheDocument();
     expect(screen.queryByText("Ordinateur de plongée expedition")).toBeNull();
+  });
+
+  it("gear tab: a Channel3 item's picture leads its row; a row without one has no picture", async () => {
+    await i18n.changeLanguage("en");
+    const gear = (id, extra) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [55.45, -20.88] },
+      properties: { id, funder: "Channel3", project_kind: "gear_project", ...extra },
+    });
+    const gearProjects = {
+      features: [
+        gear("gear-with-photo", { title: "Dive computer", channel3_image_url: "https://img.example.test/dive.jpg" }),
+        gear("gear-no-photo", { title: "Dry bags", channel3_image_url: "" }),
+      ],
+    };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProjectList projects={gearProjects} featureScope="gear" onFlyTo={() => {}} />
+      </I18nextProvider>,
+    );
+    fireEvent.click(screen.getByTestId("gear-list").querySelector("summary"));
+
+    const withPhoto = within(screen.getByTestId("project-row-gear-with-photo"));
+    const photo = withPhoto.getByTestId("gear-row-photo");
+    expect(photo).toHaveAttribute("src", "https://img.example.test/dive.jpg");
+    expect(photo).toHaveAttribute("alt", "Dive computer");
+    expect(photo).toHaveAttribute("loading", "lazy");
+    expect(photo).toHaveAttribute("width", "32");
+    expect(photo).toHaveAttribute("height", "32");
+    // The picture is beside the row's button, not inside it, so the button's name is the title once.
+    expect(withPhoto.getByTestId("project-item-gear-with-photo")).toHaveAccessibleName(/^Dive computer/);
+    expect(within(withPhoto.getByTestId("project-item-gear-with-photo")).queryByRole("img")).toBeNull();
+
+    expect(within(screen.getByTestId("project-row-gear-no-photo")).queryByRole("img")).toBeNull();
+  });
+
+  it("projects tab: a project row never has a picture", async () => {
+    await i18n.changeLanguage("en");
+    const projects = {
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [1, 2] },
+          properties: { id: "p-1", title: "Reef survey", funder: "The Ocean Foundation", channel3_image_url: "https://img.example.test/x.jpg" },
+        },
+      ],
+    };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProjectList projects={projects} onFlyTo={() => {}} />
+      </I18nextProvider>,
+    );
+    fireEvent.click(screen.getByTestId("project-list").querySelector("summary"));
+    expect(within(screen.getByTestId("project-row-p-1")).queryByRole("img")).toBeNull();
   });
 
   it("gear tab: funded % visible, Page link hidden until fully funded", async () => {

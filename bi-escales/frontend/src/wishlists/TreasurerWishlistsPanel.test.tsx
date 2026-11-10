@@ -66,6 +66,28 @@ describe("TreasurerWishlistsPanel", () => {
     );
   });
 
+  it("shows each line's picture beside its name, and none for an item without one", async () => {
+    vi.spyOn(escalesApi, "fetchChannel3Catalog").mockResolvedValue({ item_count: 1, items: [fixtureCatalogEur] });
+    vi.spyOn(escalesApi, "fetchTreasurerWishlists").mockResolvedValue({ wishlists: [fixtureTreasurerWishlist] });
+    const { unmount } = render(<TreasurerWishlistsPanel adminKey="test-key" />);
+    const line = await screen.findByTestId("treasurer-wishlist-line");
+    const photo = screen.getByTestId("treasurer-wishlist-photo");
+    expect(line.parentElement).toContainElement(photo);
+    expect(photo).toHaveAttribute("src", fixtureCatalogEur.image_url);
+    expect(photo).toHaveAttribute("alt", fixtureCatalogEur.name);
+    expect(photo).toHaveAttribute("loading", "lazy");
+    expect(photo).toHaveAttribute("width", "32");
+    unmount();
+
+    vi.spyOn(escalesApi, "fetchChannel3Catalog").mockResolvedValue({
+      item_count: 1,
+      items: [{ ...fixtureCatalogEur, image_url: null }],
+    });
+    render(<TreasurerWishlistsPanel adminKey="test-key" />);
+    await screen.findByTestId("treasurer-wishlist-line");
+    expect(screen.queryByTestId("treasurer-wishlist-photo")).toBeNull();
+  });
+
   it("shows unavailable line when catalogue lacks a stored product id", async () => {
     vi.spyOn(escalesApi, "fetchChannel3Catalog").mockResolvedValue({ item_count: 1, items: [fixtureCatalogEur] });
     vi.spyOn(escalesApi, "fetchTreasurerWishlists").mockResolvedValue({ wishlists: [fixtureTreasurerWishlist] });

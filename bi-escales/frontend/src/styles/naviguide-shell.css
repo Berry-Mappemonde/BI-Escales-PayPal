@@ -605,7 +605,7 @@ body.ng-naviguide-shell {
   color: var(--color-fg-2);
 }
 
-.ng-sidebar .project-row > button:first-child {
+.ng-sidebar .project-row > button:first-of-type {
   display: grid;
   flex: 1 1 0;
   gap: 2px;
@@ -620,7 +620,7 @@ body.ng-naviguide-shell {
   font-weight: 400;
 }
 
-.ng-sidebar .project-row > button:first-child strong {
+.ng-sidebar .project-row > button:first-of-type strong {
   display: -webkit-box;
   overflow: hidden;
   font-weight: 500;
@@ -630,7 +630,7 @@ body.ng-naviguide-shell {
   line-clamp: 2;
 }
 
-.ng-sidebar .project-row > button:first-child .hint {
+.ng-sidebar .project-row > button:first-of-type .hint {
   display: block;
   overflow: hidden;
   margin: 0;
@@ -638,7 +638,7 @@ body.ng-naviguide-shell {
   text-overflow: ellipsis;
 }
 
-.ng-sidebar .project-row > button:not(:first-child),
+.ng-sidebar .project-row > button:not(:first-of-type),
 .ng-sidebar .project-row > a {
   display: inline-flex;
   flex: none;
@@ -685,7 +685,7 @@ body.ng-naviguide-shell {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .ng-sidebar .project-row > button:not(:first-child):hover,
+  .ng-sidebar .project-row > button:not(:first-of-type):hover,
   .ng-sidebar .project-row > a:hover {
     background: var(--color-selected);
   }
@@ -694,7 +694,7 @@ body.ng-naviguide-shell {
 @media (pointer: coarse) {
   .ng-shell { --map-control-size: calc(var(--space-10) + var(--space-1)); }
 
-  .ng-sidebar .project-row > button:not(:first-child),
+  .ng-sidebar .project-row > button:not(:first-of-type),
   .ng-sidebar .project-row > a {
     min-height: 44px;
   }

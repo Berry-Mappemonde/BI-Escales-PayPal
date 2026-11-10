@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Channel3CatalogItem, PublicPledge } from "../api/types";
+import { Channel3Thumb } from "../components/Channel3Thumb";
 import { PledgeButton } from "../components/PledgeButton";
 import { currencyUsesWholeUnits, parseWishlistPledgeAmount } from "./channel3Money";
 import { formatMinorMoney, formatNativePrice, fundingPct } from "./channel3Format";
@@ -40,9 +41,7 @@ export function WishlistItemCard({ item, contributor = "", onAuthorized }: Wishl
 
   return (
     <article className="wishlist-item-card panel" data-testid="wishlist-item-card" data-currency={currency}>
-      {item.image_url ? (
-        <img src={item.image_url} alt={title} className="wishlist-item-image" data-testid="wishlist-item-image" />
-      ) : null}
+      <Channel3Thumb src={item.image_url} title={title} size="lg" className="wishlist-item-image" testId="wishlist-item-image" />
       <h3 data-testid="wishlist-item-name">{title}</h3>
       <p className="wishlist-item-merchant" data-testid="wishlist-item-merchant">
         {item.merchant}

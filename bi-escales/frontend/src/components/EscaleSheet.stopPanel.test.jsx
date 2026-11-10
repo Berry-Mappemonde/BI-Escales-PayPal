@@ -147,13 +147,13 @@ describe("stop panel", () => {
   describe("money line", () => {
     it("shows the held total", async () => {
       await show();
-      expect(screen.getByTestId("stop-money")).toHaveTextContent("€120.50 held for this stop · not charged");
+      expect(screen.getByTestId("stop-money")).toHaveTextContent("€120.50 pledged for this stop · not charged yet");
     });
 
     it("adds captured when it is not zero", async () => {
       vi.mocked(fetchFund).mockResolvedValue({ authorized_eur: "120.50", captured_eur: "30.00" });
       await show();
-      expect(screen.getByTestId("stop-money")).toHaveTextContent("€120.50 held for this stop · not charged · €30 captured");
+      expect(screen.getByTestId("stop-money")).toHaveTextContent("€120.50 pledged for this stop · not charged yet · €30 captured");
     });
 
     it("shows captured alone when nothing is held", async () => {
@@ -192,7 +192,7 @@ describe("stop panel", () => {
       render(tree({ stop: { ...stop, milestoneId: "dep-other", name: "Other" } }));
       expect(screen.queryByTestId("stop-money")).toBeNull();
       await act(async () => finish({ authorized_eur: "5.00" }));
-      expect(screen.getByTestId("stop-money")).toHaveTextContent("€5 held");
+      expect(screen.getByTestId("stop-money")).toHaveTextContent("€5 pledged");
     });
   });
 
@@ -274,20 +274,35 @@ describe("stop panel", () => {
     it("wraps the existing form, with the agreed wording under it", async () => {
       await show();
       const block = within(screen.getByTestId("stop-next-step"));
-      expect(block.getByRole("heading", { name: "Back this leg" })).toBeInTheDocument();
+      expect(block.getByRole("heading", { name: "Back this stop" })).toBeInTheDocument();
       expect(block.getByTestId("pledge-kind")).toBeInTheDocument();
       expect(block.getByTestId("pledge-amount")).toBeInTheDocument();
       expect(block.getByTestId("pledge-values")).toBeInTheDocument();
       expect(block.getByTestId("stop-money-rule").textContent).toBe(
-        "Held by PayPal, not charged. The treasurer can approve capture once the boat arrives at this stop. Released if we don't sail.",
+        "Authorised now. Nothing is charged yet. Captured when the boat arrives at this stop, after the treasurer approves. Voided if the stop is cancelled. You pay nothing.",
       );
     });
 
     it("says the common fund is charged at once, never held", async () => {
       await show({ pledge: pledge("common_fund") });
       const rule = screen.getByTestId("stop-money-rule").textContent;
-      expect(rule).toBe("Common fund gifts are charged as soon as you approve in PayPal.");
+      expect(rule).toBe("The common fund is charged immediately, as soon as you approve in PayPal. It does not wait for the boat.");
       expect(rule).not.toMatch(/held|arrival/i);
+    });
+
+    it("says a cabin is captured at leg departure and voided with its leg", async () => {
+      await show({ pledge: pledge("cabin_leg") });
+      expect(screen.getByTestId("stop-money-rule").textContent).toBe(
+        "Authorised now. Nothing is charged yet. Captured when this leg departs, after the treasurer approves. Voided if the leg is cancelled. You pay nothing.",
+      );
+    });
+
+    it("labels the common fund as charged immediately in the Kind list, in both languages", async () => {
+      await show();
+      const option = () => within(screen.getByTestId("pledge-kind")).getByRole("option", { name: /common fund|caisse commune/i });
+      expect(option()).toHaveTextContent("Common fund (charged immediately)");
+      await act(async () => { await i18n.changeLanguage("fr"); });
+      expect(option()).toHaveTextContent("Caisse commune (débitée immédiatement)");
     });
 
     it("sends the same values as before", async () => {
@@ -314,7 +329,7 @@ describe("stop panel", () => {
       const done = { id: "p-1" };
       await act(async () => buttonProps.at(-1).onAuthorized(done));
       expect(onPledgeAuthorized).toHaveBeenCalledWith(done);
-      expect(screen.getByTestId("stop-money")).toHaveTextContent("€140.50 held");
+      expect(screen.getByTestId("stop-money")).toHaveTextContent("€140.50 pledged");
     });
 
     it("hides the form on a cancelled stop and explains why", async () => {
@@ -323,7 +338,7 @@ describe("stop panel", () => {
       expect(screen.queryByTestId("stop-next-step")).toBeNull();
       expect(screen.queryByTestId("pledge-kind")).toBeNull();
       expect(screen.getByTestId("stop-cancelled-note").textContent).toBe(
-        "This stop is cancelled, new pledges aren't accepted. Existing holds are released.",
+        "This stop is cancelled. New pledges are closed and existing authorisations are voided: nobody is charged.",
       );
     });
 

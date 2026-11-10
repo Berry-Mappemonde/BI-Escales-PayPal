@@ -1,23 +1,25 @@
 {
   "app": {
     "title": "BI Escales — Payez seulement à notre arrivée",
-    "subtitle": "Payez seulement si nous partons",
+    "subtitle": "Payez seulement à notre arrivée",
     "tagline": "Promesses escale à l'arrivée du bateau ; cabines au départ de l'étape ; fonds commun immédiatement.",
     "langFr": "Français",
     "langEn": "English",
     "language": "Langue",
     "themeLight": "Clair",
     "themeDark": "Sombre",
-    "healthFail": "Backend indisponible",
+    "healthFail": "Le service ne répond pas. Réessayez dans un instant.",
     "escalesOff": "ESCALES_ENABLED est désactivé : l’API /api/escales renvoie 404.",
     "sidebarCollapse": "Replier le panneau latéral",
     "sidebarExpand": "Déplier le panneau latéral",
     "dismissNotice": "Fermer",
     "dismissNoticeAria": "Fermer",
-    "toolsCollapse": "Masquer les outils",
-    "toolsExpand": "Afficher les réglages",
+    "toolsCollapse": "Masquer le panneau d’escale",
+    "toolsExpand": "Afficher le panneau d’escale",
     "metaDescription": "BI Escales — soutenez l'expédition Berry-Mappemonde. Promesses escale encaissées à l'arrivée du bateau (annulées si l'escale est annulée) ; cabines au départ de l'étape ; fonds commun et dons projet immédiatement.",
-    "ogLocale": "fr_FR"
+    "ogLocale": "fr_FR",
+    "langFrSwitch": "FR, Français",
+    "langEnSwitch": "EN, English"
   },
   "common": {
     "showSecret": "Afficher",
@@ -56,12 +58,12 @@
     "simulated": "Horloge de démonstration"
   },
   "sheet": {
-    "title": "Fiche d’escale",
+    "title": "Escale",
     "close": "Fermer",
     "loading": "Chargement de la fiche…",
     "empty": "Pas de liste pour cette escale.",
     "pick": "Choisissez une escale sur la carte pour la fiche et le bouton PayPal.",
-    "logbookTitle": "Carnet de navigation (lecture seule)",
+    "logbookTitle": "Carnet de bord",
     "marina": {
       "website": "Site web",
       "maps": "Google Maps",
@@ -87,7 +89,7 @@
   },
   "projects": {
     "heading": "Explorer les projets",
-    "empty": "Aucun projet dans l’instantané.",
+    "empty": "Aucun projet trouvé.",
     "open": "Page",
     "pledge": "Promettre",
     "search": "Rechercher des projets…",
@@ -96,7 +98,7 @@
     "invalidAmount": "Montant invalide (deux décimales maximum).",
     "pledgeDescription": "Promesse projet — {{title}}",
     "visitSite": "Site du projet",
-    "noDescription": "Pas de description dans l’instantané.",
+    "noDescription": "Pas encore de description.",
     "publicTotal": "{{amount}} {{currency}} collectés · {{count}} dons",
     "goalProgress": "{{amount}} {{amountCurrency}} / {{goal}} {{goalCurrency}} financés ({{pct}} %)",
     "buyViaChannel3": "Acheter via Channel3 (objectif atteint)"
@@ -111,12 +113,13 @@
     "reservePrice": "Réserver — 30,00 EUR / nuit (simulation)",
     "reserveDescription": "Amarrage (simulation) — {{name}}",
     "legendHeading": "Légende carte",
-    "legendVerified": "Fiche Google vérifiée (≤ 1 km, nom marina)",
-    "legendDefault": "Marina — rouge sur la carte (lien recherche Maps)",
-    "legendRejected": "Fiche Google rejetée — rouge sur la carte"
+    "legendVerified": "Emplacement vérifié sur Google Maps",
+    "legendDefault": "Marina, emplacement pas encore vérifié",
+    "legendRejected": "Marina, emplacement non confirmé"
   },
   "map": {
-    "boatMarker": "Bateau / catamaran"
+    "boatMarker": "Bateau / catamaran",
+    "stopMarker": "Ouvrir l’escale : {{name}}"
   },
   "fund": {
     "heading": "Caisse commune",
@@ -132,7 +135,7 @@
     "openHeading": "Totaux hors escale",
     "projectTotals": "Promesses projet",
     "boatTotals": "Fonds commun",
-    "publicCommon": "Fonds communautaire · {{balance}}"
+    "publicCommon": "Caisse commune · {{balance}}"
   },
   "cabinLegPicker": {
     "label": "Choisir une jambe de voyage",
@@ -172,7 +175,7 @@
     "quantity": "Quantité",
     "amount": "Montant (EUR)",
     "description": "Description",
-    "kind": "Type",
+    "kind": "Ce que vous financez",
     "kinds": {
       "mile": "Milles parrainés (simulation)",
       "berth": "Poste de port / amarrage (simulation)",
@@ -180,36 +183,36 @@
       "meal": "Repas (simulation)",
       "care": "Programme bien-être (simulation)",
       "cabin_leg": "Cabine sur un leg (simulation)",
-      "common_fund": "Caisse commune"
+      "common_fund": "Caisse commune (débitée immédiatement)"
     },
     "milestone": "Jalon",
-    "contributor": "Contributeur (optionnel)",
+    "contributor": "Votre nom (facultatif)",
     "simulatedPrice": "prix simulé",
-    "returnPending": "Approuvez sur PayPal. Au retour, l’autorisation part seule.",
-    "returnPendingProject": "Approuvez sur PayPal. Votre contribution projet est débitée au retour.",
+    "returnPending": "Approuvez dans PayPal. Votre promesse est confirmée à votre retour.",
+    "returnPendingProject": "Approuvez dans PayPal. Votre contribution projet est débitée au retour.",
     "cancelled": "Approbation annulée. Rien n’est autorisé.",
-    "authorizing": "Autorisation côté serveur…",
-    "intentVault": "Moyen de paiement enregistré auprès de PayPal · débité uniquement si nous partons",
-    "intent": "Autorisation PayPal — vous n’êtes pas débité tant que nous n’arrivons pas (bac à sable).",
-    "intentProject": "Débit immédiat — votre contribution projet est encaissée après approbation (bac à sable PayPal).",
-    "create": "Créer l’ordre PayPal",
-    "approve": "Approuver sur la page PayPal",
+    "authorizing": "Confirmation de votre promesse auprès de PayPal…",
+    "intentVault": "Bac à sable PayPal : vous n’êtes pas débité en argent réel. PayPal enregistre votre moyen de paiement ; rien n’est débité maintenant.",
+    "intent": "Autorisation PayPal (bac à sable) : vous n’êtes pas débité en argent réel.",
+    "intentProject": "Débité immédiatement lors de votre approbation dans PayPal (bac à sable : aucun argent réel ne circule).",
+    "create": "Continuer avec PayPal",
+    "approve": "Approuver dans PayPal",
     "authorize": "J’ai approuvé — autoriser",
-    "creating": "Création de la promesse…",
+    "creating": "Préparation de votre promesse…",
     "createTimeout": "Délai dépassé lors de la création de la promesse. Vérifiez votre connexion et réessayez.",
     "retry": "Réessayer",
     "authorized": "Promesse autorisée",
-    "vaultHint": "Enregistrez le moyen de paiement sur PayPal, puis confirmez. Rien n’est encaissé tant que nous ne partons pas.",
+    "vaultHint": "Approuvez le moyen de paiement dans PayPal, puis confirmez. Rien n’est débité avant l’arrivée du bateau (ou le départ de l’étape, pour les cabines) et l’approbation du trésorier.",
     "vaultApprove": "Approuver le moyen de paiement",
     "vaultConfirm": "J’ai approuvé — enregistrer",
     "vaulting": "Enregistrement du moyen de paiement…",
     "vaulted": "Moyen de paiement enregistré",
-    "vaultSaved": "Enregistré — débit seulement si nous appareillons",
+    "vaultSaved": "Moyen de paiement enregistré. Débité à l’arrivée (au départ de l’étape pour les cabines), après l’approbation du trésorier.",
     "vaultFailed": "Impossible d’enregistrer le moyen de paiement. Réessayez depuis le bouton de promesse.",
     "vaultRedirect": "Redirection vers PayPal pour enregistrer le moyen de paiement…",
     "vaultRetry": "Enregistrement du moyen de paiement annulé. Vous pouvez réessayer via le bouton Promettre.",
     "vaultCancelled": "Enregistrement du moyen de paiement annulé. Rien n’a été enregistré.",
-    "venmoNote": "PayPal ou carte (EUR). Venmo indisponible — USD uniquement.",
+    "venmoNote": "Payez en euros avec un compte PayPal ou une carte.",
     "cardFieldsHint": "Carte bancaire (bac à sable) : enregistrement du moyen de paiement ou autorisation selon l’échéance.",
     "cardPay": "Payer par carte",
     "cardConfirmAuthorizeTitle": "Paiement carte confirmé — promesse autorisée",
@@ -222,16 +225,16 @@
     "cardErrorInvalidNumber": "Numéro de carte invalide.",
     "walletPayHint": "Google Pay (Chrome) ou Apple Pay (Safari), sandbox TEST EUR.",
     "error": "Erreur promesse",
-    "crewSubscribeHint": "Soutenir l’équipage chaque mois",
-    "crewSubscribeSandbox": "Bac à sable PayPal",
+    "crewSubscribeHint": "Abonnement Crew",
+    "crewSubscribeSandbox": "Soutien mensuel · bac à sable PayPal",
     "crewSubscribeSaved": "Abonnement Crew enregistré. Merci.",
     "crewSubscribeLoading": "Chargement du plan Abonnement Crew…",
     "crewSubscribePlanTimeout": "Impossible de charger le plan Abonnement Crew. Réessayez dans un instant.",
     "crewSubscribePlanMissing": "Le plan Abonnement Crew n'est pas encore configuré. Demandez au trésorier de lancer la configuration.",
     "crewSubscribePlanTreasurerHint": "Le plan Abonnement Crew n'est pas encore configuré. Dans les outils Trésorier → PayPal, utilisez « Préparer le plan Abonnement Crew (bac à sable) ».",
     "crewSubscribeConfirmed": "Abonnement Crew confirmé. Merci.",
-    "crewSubscribeVerifying": "Vérification de l'abonnement Crew auprès de PayPal…",
-    "crewSubscribePending": "L'abonnement Crew n'est pas encore actif. Terminez l'approbation PayPal ou réessayez.",
+    "crewSubscribeVerifying": "Vérification de votre Abonnement Crew auprès de PayPal…",
+    "crewSubscribePending": "Votre Abonnement Crew n’est pas encore actif. Terminez l’approbation PayPal ou réessayez.",
     "crewSubscribeCancelled": "Abonnement Crew annulé. Aucun prélèvement."
   },
   "howItWorks": {
@@ -247,7 +250,9 @@
     "capturedDetail": "PayPal encaisse le paiement autorisé.",
     "cancelled": "Escale annulée ? L’autorisation est annulée. Aucun débit.",
     "cabin": "Les cabines sont encaissées au départ de leur étape, pas à l’arrivée.",
-    "pick": "Sélectionnez une escale sur la carte pour voir ses détails et faire une promesse."
+    "pick": "Sélectionnez une escale sur la carte pour voir ses détails et faire une promesse.",
+    "backNext": "Soutenir la prochaine escale",
+    "backNextNamed": "Soutenir la prochaine escale : {{name}}"
   },
   "stopPanel": {
     "status": {
@@ -258,20 +263,21 @@
     },
     "scheduledArrival": "Arrivée prévue",
     "scheduledDeparture": "Départ prévu",
-    "held": "{{amount}} retenus pour cette escale · non débités",
+    "held": "{{amount}} promis pour cette escale · pas encore débités",
     "captured": "{{amount}} encaissés",
-    "backThisLeg": "Soutenir cette étape",
-    "ruleHeld": "Retenu par PayPal, non débité.",
-    "ruleCaptured": "Le trésorier peut approuver l’encaissement une fois le bateau arrivé à cette escale.",
-    "ruleCabin": "Le trésorier peut approuver l’encaissement une fois le bateau parti pour cette étape.",
-    "ruleReleased": "Libéré si nous ne partons pas.",
+    "backThisLeg": "Soutenir cette escale",
+    "ruleHeld": "Autorisé maintenant. Rien n’est débité pour l’instant.",
+    "ruleCaptured": "Encaissé à l’arrivée du bateau à cette escale, après l’approbation du trésorier.",
+    "ruleCabin": "Encaissé au départ de cette étape, après l’approbation du trésorier.",
+    "ruleReleased": "Annulé si l’escale est annulée. Vous ne payez rien.",
     "checkout": "Paiement PayPal",
-    "moneyHeading": "Que devient mon argent ?",
-    "ruleCommonFund": "Les dons au fonds commun sont débités dès votre approbation dans PayPal.",
-    "cancelledNote": "Cette escale est annulée, les nouvelles promesses ne sont pas acceptées. Les retenues existantes sont libérées.",
+    "moneyHeading": "Quand suis-je débité ?",
+    "ruleCommonFund": "La caisse commune est débitée immédiatement, dès votre approbation dans PayPal. Elle n’attend pas le bateau.",
+    "cancelledNote": "Cette escale est annulée. Les nouvelles promesses sont fermées et les autorisations existantes sont annulées : personne n’est débité.",
     "logbookNote": "Calculé à partir du calendrier, pas de la position réelle du bateau.",
     "logbookEmpty": "Aucune entrée pour l’instant.",
-    "portInfo": "Marinas et infos du port"
+    "portInfo": "Marinas et infos du port",
+    "ruleReleasedCabin": "Annulé si l’étape est annulée. Vous ne payez rien."
   },
   "captainTrace": {
     "fixedRule": "Règle fixe du code (voulu)",
@@ -377,7 +383,7 @@
       "emptyActions": "Action terminée. Aucune promesse autorisée à traiter."
     },
     "heading": "File trésorier",
-    "adminKey": "Clé trésorier (x-admin-key)",
+    "adminKey": "Clé trésorier",
     "adminKeyHint": "Saisie en mémoire uniquement — jamais enregistrée.",
     "refresh": "Actualiser la file",
     "capture": "Encaisser",

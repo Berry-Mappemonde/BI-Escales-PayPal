@@ -34,6 +34,7 @@ import {
 } from "./pledge/stopPledgeAmount.js";
 import "./styles/app.css";
 import "./styles/naviguide-shell.css";
+import "./styles/rails.css";
 
 type TabId = "voyage" | "marinas" | "gear";
 
@@ -361,6 +362,12 @@ export default function App() {
       setFlyTo({ lat: next.lat, lon: next.lon, ts: Date.now() });
     }
   };
+
+  // The stop the boat is at, or heads for first: the default target of "back a stop".
+  const nextStop = useMemo(
+    () => resolveBoatStop(voyage?.stops, sample) as VoyageStop | null,
+    [voyage?.stops, sample],
+  );
 
   const locateBoat = useCallback(() => {
     const target = resolveBoatStop(voyage?.stops, sample);
@@ -772,7 +779,9 @@ export default function App() {
           aria-label={sidebarOpen ? t("app.sidebarCollapse") : t("app.sidebarExpand")}
           onClick={() => setSidebarOpen((open) => !open)}
         >
-          {sidebarOpen ? "◀" : "▶"}
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+            <path d={sidebarOpen ? "m10 3.5-4.5 4.5 4.5 4.5" : "m6 3.5 4.5 4.5-4.5 4.5"} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </button>
 
         <button
@@ -783,7 +792,9 @@ export default function App() {
           aria-label={toolsOpen ? t("app.toolsCollapse") : t("app.toolsExpand")}
           onClick={() => setToolsOpen((open) => !open)}
         >
-          {toolsOpen ? "▶" : "⚙"}
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+            <path d={toolsOpen ? "m6 3.5 4.5 4.5-4.5 4.5" : "m10 3.5-4.5 4.5 4.5 4.5"} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </button>
       </div>
 
@@ -791,26 +802,24 @@ export default function App() {
 
 
       <aside
-        className={`ng-sidebar panel${sidebarOpen ? "" : " ng-collapsed"}`}
+        className={`ng-sidebar${sidebarOpen ? "" : " ng-collapsed"}`}
         data-testid="ng-sidebar"
       >
-        <div className="rail-masthead">
+        <header className="rail-masthead">
           <div className="ng-shell-header">
-            <svg className="voyage-emblem" width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <svg className="voyage-emblem" width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true">
               <path d="M16 3v19H5L16 3Z" fill="currentColor" />
               <path d="m19 8 8 14h-8V8Z" fill="currentColor" opacity=".6" />
               <path d="M4 25h24l-5 4H9l-5-4Z" fill="currentColor" />
             </svg>
-            <h1 aria-label={t("app.title")}>
-              BI Escales <small>{t("app.subtitle")}</small>
-            </h1>
+            <h1 aria-label={t("app.title")}>BI Escales</h1>
           </div>
           <div className="ng-controls">
             <div className="lang-switch" role="group" aria-label={t("app.language")}>
               <button
                 type="button"
                 className={i18n.language === "fr" ? "active" : ""}
-                aria-label={t("app.langFr")}
+                aria-label={t("app.langFrSwitch")}
                 aria-pressed={i18n.language === "fr"}
                 onClick={() => setLanguage("fr")}
               >
@@ -819,7 +828,7 @@ export default function App() {
               <button
                 type="button"
                 className={i18n.language === "en" ? "active" : ""}
-                aria-label={t("app.langEn")}
+                aria-label={t("app.langEnSwitch")}
                 aria-pressed={i18n.language === "en"}
                 onClick={() => setLanguage("en")}
               >
@@ -852,7 +861,8 @@ export default function App() {
               </button>
             </div>
           </div>
-        </div>
+          <p className="rail-tagline">{t("app.subtitle")}</p>
+        </header>
         <div className="ng-tab-bar" role="tablist">
           <button type="button" role="tab" aria-selected={tab === "voyage"} className={tab === "voyage" ? "active" : ""} onClick={() => setTab("voyage")}>
             {t("tabs.voyage")}
@@ -906,19 +916,6 @@ export default function App() {
               onAuthorized={onAuthorized}
               onLocateBoat={locateBoat}
             />
-            <CrewSupporterPublicSection adminKey={adminKey.trim() || undefined} />
-            {publicCommonFund ? (
-              <p className="hint public-common-fund" data-testid="public-common-fund">
-                {t("fund.publicCommon", {
-                  balance: Number.isFinite(Number(publicCommonFund.balance_eur))
-                    ? new Intl.NumberFormat(lang, {
-                        style: "currency",
-                        currency: publicCommonFund.currency,
-                      }).format(Number(publicCommonFund.balance_eur))
-                    : `${publicCommonFund.balance_eur} ${publicCommonFund.currency}`,
-                })}
-              </p>
-            ) : null}
             <ProjectList
               projects={projects}
               featureScope="projects"
@@ -961,7 +958,27 @@ export default function App() {
             <ExpeditionCartPanel />
           </>
         ) : null}
-        {treasurerOpen ? null : treasurerPanel}
+        {/* Secondary to backing a stop: membership, public total, treasurer entry. */}
+        <div className="rail-footer" data-testid="rail-footer">
+          {tab === "voyage" ? (
+            <>
+              <CrewSupporterPublicSection adminKey={adminKey.trim() || undefined} />
+              {publicCommonFund ? (
+                <p className="hint public-common-fund" data-testid="public-common-fund">
+                  {t("fund.publicCommon", {
+                    balance: Number.isFinite(Number(publicCommonFund.balance_eur))
+                      ? new Intl.NumberFormat(lang, {
+                          style: "currency",
+                          currency: publicCommonFund.currency,
+                        }).format(Number(publicCommonFund.balance_eur))
+                      : `${publicCommonFund.balance_eur} ${publicCommonFund.currency}`,
+                  })}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+          {treasurerOpen ? null : treasurerPanel}
+        </div>
       </aside>
 
       <aside
@@ -995,7 +1012,10 @@ export default function App() {
             onPledgeAuthorized={onAuthorized}
           />
         ) : (
-          <HowItWorks />
+          <HowItWorks
+            nextStopName={nextStop?.name}
+            onBackNextStop={nextStop ? () => chooseStop(nextStop) : undefined}
+          />
         )}
       </aside>
 

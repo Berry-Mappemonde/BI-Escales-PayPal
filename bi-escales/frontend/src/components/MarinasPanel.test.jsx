@@ -54,7 +54,7 @@ describe("MarinasPanel", () => {
       </I18nextProvider>,
     );
     expect(screen.getByTestId("marinas-legend")).toBeInTheDocument();
-    expect(screen.getByText(/Fiche Google vérifiée/)).toBeInTheDocument();
+    expect(screen.getByText(/Emplacement vérifié sur Google Maps/)).toBeInTheDocument();
     expect(screen.getByText(/\(1\)/)).toBeInTheDocument();
   });
 
@@ -80,8 +80,8 @@ describe("MarinasPanel", () => {
         <MarinasPanel marinas={rejected} milestoneId="dep-pointe-a-pitre" onFlyTo={() => {}} />
       </I18nextProvider>,
     );
-    expect(screen.getByText(/Rejected Google place — red on the map/)).toBeInTheDocument();
-    expect(screen.getByText(/Marina — red on the map/)).toBeInTheDocument();
+    expect(screen.getByText(/Marina, location could not be confirmed/)).toBeInTheDocument();
+    expect(screen.getByText(/Marina, location not verified yet/)).toBeInTheDocument();
     expect(screen.getAllByText(/\(1\)/).length).toBeGreaterThanOrEqual(1);
   });
 });

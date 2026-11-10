@@ -105,4 +105,31 @@ describe("MapScene boat and stop markers", () => {
     const boat = boatMarker();
     expect(boat.options.icon.options.html).toContain(`aria-label="${label}"`);
   });
+  it.each([
+    ["en", "Open stop: La Rochelle"],
+    ["fr", "Ouvrir l’escale : La Rochelle"],
+  ])("names each stop flag as a focusable button in %s", async (lang, label) => {
+    await i18n.changeLanguage(lang);
+    await renderScene();
+    const laRochelle = created.filter((row) => row.options?.stopData?.milestoneId === "dep-la-rochelle").at(-1);
+    const element = laRochelle.marker.getElement();
+    expect(element).toHaveAttribute("aria-label", label);
+    expect(element).toHaveAttribute("role", "button");
+    expect(element).toHaveAttribute("tabindex", "0");
+  });
+
+  it("leaves no stop marker without an accessible name", async () => {
+    const { stops } = await renderScene();
+    const named = document.querySelectorAll(".leaflet-marker-icon.flag-divicon[aria-label]");
+    expect(named.length).toBeGreaterThanOrEqual(stops.length);
+    expect(document.querySelectorAll(".leaflet-marker-icon.flag-divicon:not([aria-label])")).toHaveLength(0);
+  });
+
+  it("draws the boat at 40px, smaller than a pair of flags, and names its button", async () => {
+    await renderScene();
+    const boat = created.filter((row) => row.options?.pane === "boat").at(-1);
+    expect(boat.options.icon.options.iconSize).toEqual([40, 40]);
+    expect(boat.options.icon.options.html).toContain('width="40"');
+    expect(boat.marker.getElement()).toHaveAttribute("aria-label", "Boat / catamaran");
+  });
 });

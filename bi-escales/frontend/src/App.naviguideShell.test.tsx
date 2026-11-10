@@ -91,8 +91,12 @@ describe("NAVIGUIDE shell wiring", () => {
     expect(screen.getByTestId("crew-supporter-public")).toBeInTheDocument();
     expect(screen.getByText("PayPal sandbox")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Language" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Français" })).toHaveTextContent("FR");
-    expect(screen.getByRole("button", { name: "English" })).toHaveTextContent("EN");
+    // Header: brand, one tagline that matches the arrival rule, then language and theme.
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^BI Escales$/);
+    expect(screen.getByText("Pay only when we arrive")).toBeInTheDocument();
+    expect(screen.queryByText(/if we sail/i)).toBeNull();
+    expect(screen.getByRole("button", { name: "FR, Français" })).toHaveTextContent("FR");
+    expect(screen.getByRole("button", { name: "EN, English" })).toHaveTextContent("EN");
   });
 
   it("shows the voyage clock in three concise lines", async () => {
@@ -149,9 +153,9 @@ describe("NAVIGUIDE shell wiring", () => {
         <App />
       </I18nextProvider>,
     );
-    await user.click(screen.getByRole("button", { name: "Français" }));
-    expect(screen.getByRole("button", { name: "Français" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "English" })).toHaveTextContent("EN");
+    await user.click(screen.getByRole("button", { name: "FR, Français" }));
+    expect(screen.getByRole("button", { name: "FR, Français" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "EN, English" })).toHaveTextContent("EN");
   });
 
   it("treasurer hash keeps settle control wired", async () => {

@@ -46,6 +46,14 @@ function nameMarker(marker, label) {
 
 const WORLD_CENTER = [22, 5];
 
+/**
+ * The two optional layers get their own panes under the route (380) and the stop
+ * flags (600), so the voyage stays readable with both switched on. Marinas sit
+ * above projects: there are fewer of them and each belongs to a stop.
+ */
+export const LAYER_PANES = { projects: "bi-projects", marinas: "bi-marinas" };
+const LAYER_PANE_Z = { [LAYER_PANES.projects]: 372, [LAYER_PANES.marinas]: 376 };
+
 function addRouteLine(group, coords, { color, weight, dash }) {
   if (!coords || coords.length < 2) return;
   worldCopyLineCoords(coords).forEach((copy) => {
@@ -126,6 +134,9 @@ export function MapScene({
     }).addTo(map);
     baseLayerRef.current = tileLayer;
     createPanes(map);
+    Object.entries(LAYER_PANE_Z).forEach(([name, zIndex]) => {
+      map.createPane(name).style.zIndex = String(zIndex);
+    });
     mapRef.current = map;
     layersRef.current = new SceneLayerRegistry();
     // Hard reload can mount before layout; force Leaflet to measure the pane.
@@ -289,7 +300,7 @@ export function MapScene({
         fillColor: "currentColor",
         fillOpacity: 1,
         className: "project-dot",
-        pane: "overlayPane",
+        pane: LAYER_PANES.projects,
       }).addTo(group);
       if (feature.properties?.title) marker.bindTooltip(feature.properties.title, { direction: "top" });
       const popupContainer = document.createElement("div");
@@ -351,13 +362,15 @@ export function MapScene({
       const props = feature.properties || {};
       const verified = Boolean(props.safe_google_place);
       const rejected = Boolean(props.maps_place_rejected);
-      const markerColor = verified ? "#00c8ff" : "#ff4a4a";
+      // Colours come from the marina tokens through .marina-dot, the same ones the legend uses.
       const marker = L.circleMarker([lat, lon], {
-        radius: 5,
-        color: markerColor,
+        radius: 4,
+        color: "currentColor",
         weight: rejected && !verified ? 2 : 1,
-        fillColor: markerColor,
+        fillColor: "currentColor",
         fillOpacity: 0.85,
+        className: `marina-dot${verified ? " marina-dot--verified" : ""}`,
+        pane: LAYER_PANES.marinas,
       }).addTo(group);
       if (props.name) marker.bindTooltip(props.name, { direction: "top" });
       const container = document.createElement("div");

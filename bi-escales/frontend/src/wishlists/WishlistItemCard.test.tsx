@@ -25,6 +25,23 @@ describe("WishlistItemCard", () => {
     capturedPledgeValues = null;
   });
 
+  it("shows the item's picture as a fixed-size, lazy thumbnail named after the item", () => {
+    render(<WishlistItemCard item={fixtureCatalogEur} />);
+    const photo = screen.getByTestId("wishlist-item-image");
+    expect(photo).toHaveAttribute("src", fixtureCatalogEur.image_url);
+    expect(photo).toHaveAttribute("alt", fixtureCatalogEur.name);
+    expect(photo).toHaveAttribute("loading", "lazy");
+    expect(photo).toHaveAttribute("width", "64");
+    expect(photo).toHaveAttribute("height", "64");
+  });
+
+  it.each([null, "", undefined])("shows no picture when image_url is %j", (image_url) => {
+    render(<WishlistItemCard item={{ ...fixtureCatalogEur, image_url }} />);
+    expect(screen.getByTestId("wishlist-item-name")).toBeInTheDocument();
+    expect(screen.queryByTestId("wishlist-item-image")).toBeNull();
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+
   it("renders funding bar when funded_pct is set", () => {
     render(<WishlistItemCard item={fixtureCatalogEur} />);
     expect(screen.getByTestId("wishlist-funding-bar")).toBeInTheDocument();

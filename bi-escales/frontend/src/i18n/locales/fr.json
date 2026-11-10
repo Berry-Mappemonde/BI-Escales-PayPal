@@ -19,7 +19,8 @@
     "metaDescription": "BI Escales — soutenez l'expédition Berry-Mappemonde. Promesses escale encaissées à l'arrivée du bateau (annulées si l'escale est annulée) ; cabines au départ de l'étape ; fonds commun et dons projet immédiatement.",
     "ogLocale": "fr_FR",
     "langFrSwitch": "FR, Français",
-    "langEnSwitch": "EN, English"
+    "langEnSwitch": "EN, English",
+    "sheetLabel": "Soutenir une escale"
   },
   "common": {
     "showSecret": "Afficher",

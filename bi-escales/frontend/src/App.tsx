@@ -35,6 +35,7 @@ import {
 import "./styles/app.css";
 import "./styles/naviguide-shell.css";
 import "./styles/rails.css";
+import "./styles/mobile.css";
 
 type TabId = "voyage" | "marinas" | "gear";
 
@@ -101,8 +102,9 @@ export default function App() {
   const [boatFund, setBoatFund] = useState<FundView | null | undefined>(undefined);
   const [publicCommonFund, setPublicCommonFund] = useState<FundView | null>(null);
   const [crewSubscribeNote, setCrewSubscribeNote] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [toolsOpen, setToolsOpen] = useState(true);
+  // On a phone the map comes first: both panels start closed and open on demand.
+  const [sidebarOpen, setSidebarOpen] = useState(() => !isNarrowScreen());
+  const [toolsOpen, setToolsOpen] = useState(() => !isNarrowScreen());
   const toolsPanelRef = useRef<HTMLElement>(null);
   const [panelFocusRequest, setPanelFocusRequest] = useState(0);
   const [allMarinas, setAllMarinas] = useState<{ type: string; features?: unknown[] }>({
@@ -749,7 +751,12 @@ export default function App() {
   );
 
   return (
-    <div className="ng-shell" data-testid="ng-shell">
+    <div
+      className="ng-shell"
+      data-testid="ng-shell"
+      data-rail={sidebarOpen ? "open" : "closed"}
+      data-sheet={toolsOpen ? "open" : "closed"}
+    >
       <div className="ng-map-layer">
         <MapScene
           segments={voyage?.segments || []}
@@ -981,8 +988,25 @@ export default function App() {
         </div>
       </aside>
 
+      {/* Phone only (hidden by CSS on wide screens): the bottom sheet's handle. */}
+      <button
+        type="button"
+        className="ng-sheet-handle"
+        data-testid="ng-sheet-handle"
+        aria-expanded={toolsOpen}
+        aria-controls="ng-tools-panel"
+        onClick={() => setToolsOpen((open) => !open)}
+      >
+        <span className="ng-sheet-grabber" aria-hidden="true" />
+        <span className="ng-sheet-label">{stop ? stop.name : t("app.sheetLabel")}</span>
+        <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+          <path d="m3.5 10 4.5-4.5 4.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
       <aside
         ref={toolsPanelRef}
+        id="ng-tools-panel"
         tabIndex={-1}
         className={`ng-tools-panel${toolsOpen ? "" : " ng-collapsed"}`}
         data-testid="ng-tools-panel"

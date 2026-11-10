@@ -132,6 +132,16 @@ describe("NAVIGUIDE shell wiring", () => {
     expect(screen.getByTestId("marinas-panel")).toBeInTheDocument();
   });
 
+  it("hides the Gear tab while Channel3 wishlists are off", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole("tab", { name: /voyage/i })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /gear|matériel/i })).toBeNull();
+  });
+
   it("switches language from the compact FR/EN control", async () => {
     const user = userEvent.setup();
     render(
@@ -157,8 +167,12 @@ describe("NAVIGUIDE shell wiring", () => {
       </I18nextProvider>,
     );
     await waitFor(() => {
-      expect(screen.getByTestId("departure-settle")).toBeDisabled();
+      expect(screen.getByTestId("treasurer-page")).toBeInTheDocument();
     });
+    // Admin tools stay hidden until the treasurer key is entered.
+    expect(screen.queryByTestId("departure-settle")).toBeNull();
+    await userEvent.setup().type(screen.getByTestId("admin-key-input"), "treasurer-key");
+    expect(screen.getByTestId("departure-settle")).toBeEnabled();
     expect(screen.getByTestId("ng-shell")).toBeInTheDocument();
   });
 

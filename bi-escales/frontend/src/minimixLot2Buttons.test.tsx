@@ -38,7 +38,7 @@ describe("minimix lot 2 removed controls", () => {
         <TreasurerPanel
           open
           onOpenChange={() => {}}
-          adminKey=""
+          adminKey="tk"
           onAdminKeyChange={() => {}}
           settleBusy={false}
           settleNote={null}

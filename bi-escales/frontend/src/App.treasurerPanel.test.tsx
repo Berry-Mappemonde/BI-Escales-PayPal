@@ -195,8 +195,25 @@ describe("Treasurer panel (mini-mix lot 1)", () => {
     await waitFor(() => {
       expect(screen.getByTestId("treasurer-panel-toggle")).toHaveAttribute("aria-expanded", "true");
     });
+    expect(screen.getByTestId("treasurer-page")).toBeInTheDocument();
+    expect(screen.getByTestId("treasurer-page-intro")).toBeInTheDocument();
     expect(screen.getByTestId("admin-key-input")).toBeInTheDocument();
-    expect(screen.getByTestId("departure-settle")).toBeDisabled();
+    expect(screen.queryByTestId("departure-settle")).toBeNull();
+  });
+
+  it("goes back to the map from the treasurer page", async () => {
+    const user = userEvent.setup();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <App />
+      </I18nextProvider>,
+    );
+    await user.click(screen.getByTestId("treasurer-panel-toggle"));
+    expect(screen.getByTestId("treasurer-page")).toBeInTheDocument();
+    expect(screen.getByTestId("treasurer-page-back")).toHaveFocus();
+    await user.click(screen.getByTestId("treasurer-page-back"));
+    expect(screen.queryByTestId("treasurer-page")).toBeNull();
+    expect(screen.getByTestId("treasurer-panel-toggle")).toHaveAttribute("aria-expanded", "false");
   });
 
   it("does not call treasurer-only fund endpoints until the admin key is set", async () => {

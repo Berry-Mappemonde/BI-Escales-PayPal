@@ -201,6 +201,67 @@ describe("ProjectList", () => {
     expect(screen.queryByText("Ordinateur de plongée expedition")).toBeNull();
   });
 
+  it("gear tab: funded % visible, Page link hidden until fully funded", async () => {
+    await i18n.changeLanguage("fr");
+    const gearProjects = {
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [55.45, -20.88] },
+          properties: {
+            id: "gear-partial",
+            title: "Partial gear",
+            funder: "Channel3",
+            project_kind: "gear_project",
+            funded_pct: 42,
+            fully_funded: false,
+            channel3_buy_url: "https://buy.trychannel3.com/partial",
+            url: "https://buy.trychannel3.com/partial",
+          },
+        },
+      ],
+    };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProjectList projects={gearProjects} featureScope="gear" onFlyTo={() => {}} />
+      </I18nextProvider>,
+    );
+    fireEvent.click(screen.getByTestId("gear-list").querySelector("summary"));
+    expect(screen.getByTestId("gear-funded-pct")).toHaveTextContent(/42\s*% financés/);
+    expect(screen.queryByTestId("gear-page-link")).toBeNull();
+    expect(screen.queryByText("https://trychannel3.com")).toBeNull();
+  });
+
+  it("gear tab: shows Page link only when fully funded with a product URL", async () => {
+    await i18n.changeLanguage("en");
+    const gearProjects = {
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [57.65, -20.16] },
+          properties: {
+            id: "gear-full",
+            title: "Funded gear",
+            funder: "Channel3",
+            project_kind: "gear_project",
+            funded_pct: 100,
+            fully_funded: true,
+            channel3_buy_url: "https://buy.trychannel3.com/full",
+            url: "https://buy.trychannel3.com/full",
+          },
+        },
+      ],
+    };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProjectList projects={gearProjects} featureScope="gear" onFlyTo={() => {}} />
+      </I18nextProvider>,
+    );
+    fireEvent.click(screen.getByTestId("gear-list").querySelector("summary"));
+    const link = screen.getByTestId("gear-page-link");
+    expect(link).toHaveAttribute("href", "https://buy.trychannel3.com/full");
+  });
+
   it("épinglé depuis la carte : formulaire visible malgré le filtre recherche", async () => {
     await i18n.changeLanguage("fr");
     render(

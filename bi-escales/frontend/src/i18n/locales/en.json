@@ -39,7 +39,15 @@
       "gear-dive-computer-expedition": "Expedition dive computer",
       "gear-dry-bag-expedition": "Dry bags (expedition lot)",
       "gear-marine-binoculars": "Marine binoculars"
-    }
+    },
+    "fundedPctInline": "{{pct}}% funded"
+  },
+  "cart": {
+    "heading": "Cart",
+    "loading": "Loading cart…",
+    "item": "Item",
+    "price": "Price",
+    "priceUnavailable": "price unavailable"
   },
   "clock": {
     "waiting": "Departure in {{days}}d {{hours}}h",

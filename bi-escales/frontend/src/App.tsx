@@ -8,6 +8,7 @@ import type { CaptainChatResponse, FundView, PublicPledge, ScheduleResponse } fr
 import { EscalesPanel } from "./components/EscalesPanel";
 import { EscalePopup } from "./components/EscalePopup.jsx";
 import MarinasPanel from "./components/MarinasPanel.jsx";
+import ExpeditionCartPanel from "./components/ExpeditionCartPanel.jsx";
 import ProjectList from "./components/ProjectList.jsx";
 import { TreasurerPanel } from "./components/TreasurerPanel";
 import { CrewSupporterPublicSection } from "./components/CrewSubscribeButton";
@@ -940,15 +941,18 @@ export default function App() {
           />
         ) : null}
         {tab === "gear" ? (
-          <ProjectList
-            projects={projects}
-            featureScope="gear"
-            selectedProjectId={selectedProjectId}
-            onSelectProject={setSelectedProjectId}
-            contributor={contributor}
-            onFlyTo={onFlyTo}
-            onAuthorized={onAuthorized}
-          />
+          <>
+            <ProjectList
+              projects={projects}
+              featureScope="gear"
+              selectedProjectId={selectedProjectId}
+              onSelectProject={setSelectedProjectId}
+              contributor={contributor}
+              onFlyTo={onFlyTo}
+              onAuthorized={onAuthorized}
+            />
+            <ExpeditionCartPanel />
+          </>
         ) : null}
         {treasurerPanel}
       </aside>

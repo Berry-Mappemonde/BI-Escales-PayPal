@@ -43,8 +43,9 @@ services:
         value: https://bi-escales-api.onrender.com/?paypal=cancel
       - key: ESCALES_CORS_ORIGINS
         value: http://localhost:5173,http://127.0.0.1:5173
+      # Production database on the BlueIntelligence Atlas cluster (test2 uses bi_escales_test2).
       - key: DB_NAME
-        value: bi_escales
+        value: bi_escales_prod
       - key: ESCALES_TOOLKIT_ENABLED
         sync: false
       - key: ESCALES_ZAPIER_ENABLED

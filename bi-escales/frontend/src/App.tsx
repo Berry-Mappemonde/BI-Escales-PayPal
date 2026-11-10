@@ -362,6 +362,12 @@ export default function App() {
     }
   };
 
+  // The stop the boat is at, or heads for first: the default target of "back a stop".
+  const nextStop = useMemo(
+    () => resolveBoatStop(voyage?.stops, sample) as VoyageStop | null,
+    [voyage?.stops, sample],
+  );
+
   const locateBoat = useCallback(() => {
     const target = resolveBoatStop(voyage?.stops, sample);
     if (!target) return;
@@ -906,19 +912,6 @@ export default function App() {
               onAuthorized={onAuthorized}
               onLocateBoat={locateBoat}
             />
-            <CrewSupporterPublicSection adminKey={adminKey.trim() || undefined} />
-            {publicCommonFund ? (
-              <p className="hint public-common-fund" data-testid="public-common-fund">
-                {t("fund.publicCommon", {
-                  balance: Number.isFinite(Number(publicCommonFund.balance_eur))
-                    ? new Intl.NumberFormat(lang, {
-                        style: "currency",
-                        currency: publicCommonFund.currency,
-                      }).format(Number(publicCommonFund.balance_eur))
-                    : `${publicCommonFund.balance_eur} ${publicCommonFund.currency}`,
-                })}
-              </p>
-            ) : null}
             <ProjectList
               projects={projects}
               featureScope="projects"
@@ -961,7 +954,27 @@ export default function App() {
             <ExpeditionCartPanel />
           </>
         ) : null}
-        {treasurerOpen ? null : treasurerPanel}
+        {/* Secondary to backing a stop: membership, public total, treasurer entry. */}
+        <div className="rail-footer" data-testid="rail-footer">
+          {tab === "voyage" ? (
+            <>
+              <CrewSupporterPublicSection adminKey={adminKey.trim() || undefined} />
+              {publicCommonFund ? (
+                <p className="hint public-common-fund" data-testid="public-common-fund">
+                  {t("fund.publicCommon", {
+                    balance: Number.isFinite(Number(publicCommonFund.balance_eur))
+                      ? new Intl.NumberFormat(lang, {
+                          style: "currency",
+                          currency: publicCommonFund.currency,
+                        }).format(Number(publicCommonFund.balance_eur))
+                      : `${publicCommonFund.balance_eur} ${publicCommonFund.currency}`,
+                  })}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+          {treasurerOpen ? null : treasurerPanel}
+        </div>
       </aside>
 
       <aside
@@ -995,7 +1008,10 @@ export default function App() {
             onPledgeAuthorized={onAuthorized}
           />
         ) : (
-          <HowItWorks />
+          <HowItWorks
+            nextStopName={nextStop?.name}
+            onBackNextStop={nextStop ? () => chooseStop(nextStop) : undefined}
+          />
         )}
       </aside>
 

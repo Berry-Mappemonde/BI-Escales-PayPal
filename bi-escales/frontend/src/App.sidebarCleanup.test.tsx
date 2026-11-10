@@ -127,6 +127,15 @@ describe("L-2 sidebar split", () => {
     expect(within(sidebar).getByRole("group", { name: "Language" })).toBeInTheDocument();
     expect(within(pledgeRail).queryByTestId("treasurer-panel")).toBeNull();
 
+    // Crew membership and the treasurer entry are secondary: they close the rail, after the Captain.
+    const footer = within(sidebar).getByTestId("rail-footer");
+    expect(within(footer).getByTestId("crew-supporter-public")).toBeInTheDocument();
+    expect(within(footer).getByTestId("treasurer-panel")).toBeInTheDocument();
+    expect(
+      within(sidebar).getByTestId("captain-panel").compareDocumentPosition(footer)
+        & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
     await user.click(screen.getByRole("tab", { name: /marinas/i }));
     expect(within(sidebar).getByTestId("marinas-panel")).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: /stop/i })).toBeNull();

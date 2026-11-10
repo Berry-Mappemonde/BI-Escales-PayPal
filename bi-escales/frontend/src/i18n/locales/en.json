@@ -132,7 +132,7 @@
     "openHeading": "Totals with no stopover",
     "projectTotals": "Project pledges",
     "boatTotals": "Common fund",
-    "publicCommon": "Community fund · {{balance}}"
+    "publicCommon": "Common fund · {{balance}}"
   },
   "cabinLegPicker": {
     "label": "Choose a voyage leg",
@@ -222,17 +222,17 @@
     "cardErrorInvalidNumber": "Card number is invalid.",
     "walletPayHint": "Google Pay (Chrome) or Apple Pay (Safari), TEST sandbox EUR.",
     "error": "Pledge error",
-    "crewSubscribeHint": "Support the crew monthly",
-    "crewSubscribeSandbox": "PayPal sandbox",
-    "crewSubscribeSaved": "Crew supporter subscription recorded. Thank you.",
+    "crewSubscribeHint": "Crew membership",
+    "crewSubscribeSandbox": "Monthly support · PayPal sandbox",
+    "crewSubscribeSaved": "Crew membership recorded. Thank you.",
     "crewSubscribeLoading": "Loading Crew supporter plan…",
     "crewSubscribePlanTimeout": "Could not load the Crew supporter plan. Try again in a moment.",
     "crewSubscribePlanMissing": "Crew supporter plan is not set up yet. Ask the treasurer to run setup.",
     "crewSubscribePlanTreasurerHint": "Crew supporter plan is not configured yet. Open Treasurer tools → PayPal and use \"Ensure Crew supporter plan (sandbox)\".",
-    "crewSubscribeConfirmed": "Crew supporter subscription confirmed. Thank you.",
-    "crewSubscribeVerifying": "Verifying Crew supporter subscription with PayPal…",
-    "crewSubscribePending": "Subscription is not active yet. Finish approval in PayPal or try again shortly.",
-    "crewSubscribeCancelled": "Crew supporter subscription cancelled. Nothing was charged."
+    "crewSubscribeConfirmed": "Crew membership confirmed. Thank you.",
+    "crewSubscribeVerifying": "Verifying your Crew membership with PayPal…",
+    "crewSubscribePending": "Your Crew membership is not active yet. Finish approval in PayPal or try again shortly.",
+    "crewSubscribeCancelled": "Crew membership cancelled. Nothing was charged."
   },
   "howItWorks": {
     "credit": "Sandbox payments by PayPal · AI by NVIDIA Nemotron",
@@ -247,7 +247,9 @@
     "capturedDetail": "PayPal captures the authorised payment.",
     "cancelled": "Cancelled stop? The authorisation is voided. No charge.",
     "cabin": "Cabins are captured when their leg departs, not on arrival.",
-    "pick": "Select a stop on the map to see its details and make a pledge."
+    "pick": "Select a stop on the map to see its details and make a pledge.",
+    "backNext": "Back the next stop",
+    "backNextNamed": "Back the next stop: {{name}}"
   },
   "stopPanel": {
     "status": {

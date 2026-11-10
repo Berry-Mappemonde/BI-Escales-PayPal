@@ -307,15 +307,6 @@ body.ng-naviguide-shell {
   box-sizing: border-box;
 }
 
-.ng-sidebar > .treasurer-panel {
-  padding: var(--space-3) var(--space-5) 0;
-  margin-top: var(--space-3);
-  border: 0;
-  border-top: 1px solid var(--color-line);
-  border-radius: 0;
-  background: none;
-}
-
 .ng-settings-body {
   display: flex;
   flex-direction: column;
@@ -404,8 +395,9 @@ body.ng-naviguide-shell {
 /* :where keeps this light, so project rows and the Treasurer can still set their own. */
 .ng-sidebar .panel button:where(:not(.captain-card button, .secondary, .treasurer-panel-toggle)) {
   min-height: 32px;
-  background: var(--color-fg);
-  color: var(--color-canvas);
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-raised);
+  color: var(--color-fg);
   font-size: var(--text-ui);
   line-height: var(--text-ui--line-height);
   font-weight: 500;
@@ -708,10 +700,10 @@ body.ng-naviguide-shell {
   min-height: 32px;
   margin: 0;
   padding: 0 var(--space-3);
-  border: 0;
+  border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-control);
-  background: var(--color-fg);
-  color: var(--color-canvas);
+  background: var(--color-raised);
+  color: var(--color-fg);
   text-align: center;
   font-weight: 500;
 }
@@ -839,8 +831,6 @@ body.ng-naviguide-shell {
   margin: 0;
 }
 
-.ng-sidebar > .crew-supporter-public,
-.ng-sidebar > [data-testid="public-common-fund"],
 .ng-sidebar > .captain-chat,
 .ng-sidebar > [data-testid="project-list"],
 .ng-sidebar > [data-testid="gear-list"] {
@@ -849,24 +839,20 @@ body.ng-naviguide-shell {
   padding-top: var(--space-3);
 }
 
-.ng-sidebar > .crew-supporter-public {
-  display: block;
-}
-
 .crew-supporter-heading {
   display: grid;
-  gap: var(--space-1);
-  margin-bottom: var(--space-3);
+  gap: 2px;
+  margin-bottom: var(--space-2);
 }
 
+/* A label, not a panel title: the membership is secondary to backing a stop. */
 .crew-supporter-heading h2 {
   min-width: 0;
   margin: 0;
-  color: var(--color-fg);
-  font-size: var(--text-panel-heading);
-  line-height: var(--text-panel-heading--line-height);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  color: var(--color-fg-2);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 500;
 }
 
 .crew-supporter-heading .crew-sandbox-note {
@@ -898,12 +884,6 @@ body.ng-naviguide-shell {
   background: none;
 }
 
-.ng-sidebar > [data-testid="public-common-fund"] {
-  color: var(--color-fg);
-  font-size: var(--text-support);
-  line-height: var(--text-support--line-height);
-}
-
 .ng-sidebar .captain-chat,
 .ng-sidebar [data-testid="project-list"],
 .ng-sidebar [data-testid="gear-list"] {
@@ -930,10 +910,8 @@ body.ng-naviguide-shell {
 .rail-masthead .voyage-emblem { width: var(--space-6); height: var(--space-6); }
 .rail-title, .captain-prompts li { display: flex; align-items: center; gap: var(--space-2); }
 .rail-title svg, .captain-prompts svg { flex: none; color: var(--color-fg-2); }
-.ng-sidebar > .crew-supporter-public { padding-bottom: 0; }
 .crew-paypal-frame { display: flow-root; }
 .crew-paypal-frame .crew-subscribe > :last-child { margin-bottom: 0; }
-.ng-sidebar > .public-common-fund { margin-bottom: 0; }
 .ng-sidebar .project-summary { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; list-style: none; }
 .project-summary::-webkit-details-marker { display: none; }
 .ng-sidebar .project-summary h2 { margin: 0; }
@@ -1111,3 +1089,49 @@ body.ng-naviguide-shell {
 .treasurer-page-steps span { color: var(--color-fg-2); font-size: var(--text-read); line-height: var(--text-read--line-height); }
 .treasurer-page-intro .hint { margin: 0; }
 .treasurer-page .treasurer-panel { padding: 0; border: 0; background: none; }
+
+/*
+ * Rail footer: what is secondary to backing a stop. Crew membership, the public
+ * common-fund total and the way into the treasurer page sit at the foot of the
+ * rail, in label-sized type, with no frame of their own.
+ */
+.ng-sidebar > .rail-footer {
+  display: grid;
+  gap: var(--space-5);
+  margin-top: auto;
+  padding-top: var(--space-8);
+  padding-bottom: var(--space-2);
+}
+.rail-footer:not(:has(> *)) { display: none; }
+.rail-footer > .crew-supporter-public,
+.rail-footer > .treasurer-panel {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.ng-sidebar .rail-footer > .public-common-fund {
+  margin: 0;
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-variant-numeric: tabular-nums;
+}
+.ng-sidebar .rail-footer .treasurer-panel-heading h2 {
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-weight: 500;
+}
+.rail-footer .treasurer-panel-heading .treasurer-panel-toggle {
+  width: auto;
+  min-height: 0;
+  color: var(--color-fg-2);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--color-line-strong);
+  text-underline-offset: 3px;
+}
+@media (hover: hover) {
+  .rail-footer .treasurer-panel-heading .treasurer-panel-toggle:hover { color: var(--color-fg); }
+}

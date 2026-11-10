@@ -132,7 +132,7 @@
     "openHeading": "Totaux hors escale",
     "projectTotals": "Promesses projet",
     "boatTotals": "Fonds commun",
-    "publicCommon": "Fonds communautaire · {{balance}}"
+    "publicCommon": "Caisse commune · {{balance}}"
   },
   "cabinLegPicker": {
     "label": "Choisir une jambe de voyage",
@@ -222,16 +222,16 @@
     "cardErrorInvalidNumber": "Numéro de carte invalide.",
     "walletPayHint": "Google Pay (Chrome) ou Apple Pay (Safari), sandbox TEST EUR.",
     "error": "Erreur promesse",
-    "crewSubscribeHint": "Soutenir l’équipage chaque mois",
-    "crewSubscribeSandbox": "Bac à sable PayPal",
+    "crewSubscribeHint": "Abonnement Crew",
+    "crewSubscribeSandbox": "Soutien mensuel · bac à sable PayPal",
     "crewSubscribeSaved": "Abonnement Crew enregistré. Merci.",
     "crewSubscribeLoading": "Chargement du plan Abonnement Crew…",
     "crewSubscribePlanTimeout": "Impossible de charger le plan Abonnement Crew. Réessayez dans un instant.",
     "crewSubscribePlanMissing": "Le plan Abonnement Crew n'est pas encore configuré. Demandez au trésorier de lancer la configuration.",
     "crewSubscribePlanTreasurerHint": "Le plan Abonnement Crew n'est pas encore configuré. Dans les outils Trésorier → PayPal, utilisez « Préparer le plan Abonnement Crew (bac à sable) ».",
     "crewSubscribeConfirmed": "Abonnement Crew confirmé. Merci.",
-    "crewSubscribeVerifying": "Vérification de l'abonnement Crew auprès de PayPal…",
-    "crewSubscribePending": "L'abonnement Crew n'est pas encore actif. Terminez l'approbation PayPal ou réessayez.",
+    "crewSubscribeVerifying": "Vérification de votre Abonnement Crew auprès de PayPal…",
+    "crewSubscribePending": "Votre Abonnement Crew n’est pas encore actif. Terminez l’approbation PayPal ou réessayez.",
     "crewSubscribeCancelled": "Abonnement Crew annulé. Aucun prélèvement."
   },
   "howItWorks": {
@@ -247,7 +247,9 @@
     "capturedDetail": "PayPal encaisse le paiement autorisé.",
     "cancelled": "Escale annulée ? L’autorisation est annulée. Aucun débit.",
     "cabin": "Les cabines sont encaissées au départ de leur étape, pas à l’arrivée.",
-    "pick": "Sélectionnez une escale sur la carte pour voir ses détails et faire une promesse."
+    "pick": "Sélectionnez une escale sur la carte pour voir ses détails et faire une promesse.",
+    "backNext": "Soutenir la prochaine escale",
+    "backNextNamed": "Soutenir la prochaine escale : {{name}}"
   },
   "stopPanel": {
     "status": {

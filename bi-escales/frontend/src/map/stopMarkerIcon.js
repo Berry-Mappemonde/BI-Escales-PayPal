@@ -13,18 +13,21 @@ const FLAG_IMG_STYLE =
 /**
  * Leaflet divIcon HTML for a voyage stop: flag stack or drawing pin, with stop name for assistive tech.
  * @param {{ name?: string; flags?: string[] }} stop
+ * @param {string} [accessibleLabel] Localized accessible name (defaults to stop.name).
  */
-export function stopMarkerIconHtml(stop) {
-  const label = escapeAttr(stop?.name || "");
+export function stopMarkerIconHtml(stop, accessibleLabel) {
+  const label = escapeAttr(accessibleLabel ?? stop?.name ?? "");
+  const interactive = label
+    ? ` role="button" tabindex="0" aria-label="${label}" data-stop-marker="true"`
+    : ` data-stop-marker="true"`;
   const srcs = stop?.flags || [];
   if (srcs.length) {
     const imgs = srcs
       .map((src) => `<img src="${src}" alt="" style="${FLAG_IMG_STYLE}" />`)
       .join("");
-    return `<div class="flag-stack" role="img" aria-label="${label}">${imgs}</div>`;
+    return `<div class="flag-stack"${interactive}>${imgs}</div>`;
   }
-  const aria = label ? ` role="img" aria-label="${label}"` : "";
-  return drawingPinHtml(0, aria);
+  return drawingPinHtml(0, interactive);
 }
 
 export function stopMarkerIconSize(stop) {

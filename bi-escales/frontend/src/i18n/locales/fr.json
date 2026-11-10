@@ -5,6 +5,8 @@
     "tagline": "Promesses escale à l'arrivée du bateau ; cabines au départ de l'étape ; fonds commun immédiatement.",
     "langFr": "Français",
     "langEn": "English",
+    "langFrSwitch": "FR, Français",
+    "langEnSwitch": "EN, Anglais",
     "language": "Langue",
     "themeLight": "Clair",
     "themeDark": "Sombre",
@@ -108,7 +110,8 @@
     "legendRejected": "Fiche Google rejetée — rouge sur la carte"
   },
   "map": {
-    "boatMarker": "Bateau / catamaran"
+    "boatMarker": "Bateau / catamaran",
+    "stopMarker": "Escale : {{name}}"
   },
   "fund": {
     "heading": "Caisse commune",

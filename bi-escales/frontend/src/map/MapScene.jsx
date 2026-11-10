@@ -27,6 +27,7 @@ import {
 import { worldCopyLineCoords } from "../../../../naviguide-escales/src/utils/geo.js";
 import { officialAirRouteStyles } from "../../../../naviguide-escales/src/utils/berryLegs.js";
 import { catamaranSvg } from "../../../../naviguide-escales/src/engine/catamaranIcon.js";
+import { bindStopMarkerKeyboard } from "./stopMarkerA11y.js";
 import { escapeAttr, stopMarkerIconHtml, stopMarkerIconSize } from "./stopMarkerIcon.js";
 import { applyMarkerRotation } from "../../../../naviguide-escales/src/utils/markerRotation.js";
 import { mapTileUrlForTheme } from "./mapTileUrl.js";
@@ -181,9 +182,10 @@ export function MapScene({
       uniqueStops.forEach((stop, index) => {
         const { iconSize, iconAnchor } = stopMarkerIconSize(stop);
         const anchor = offsetToIconAnchor(iconAnchor, offsets[index] || [0, 0]);
+        const stopLabel = t("map.stopMarker", { name: stop.name });
         const icon = L.divIcon({
           className: "flag-divicon",
-          html: stopMarkerIconHtml(stop),
+          html: stopMarkerIconHtml(stop, stopLabel),
           iconSize,
           iconAnchor: anchor,
         });
@@ -191,7 +193,9 @@ export function MapScene({
           icon,
           pane: "markerPane",
           stopData: stop,
-        }).addTo(group);
+        });
+        bindStopMarkerKeyboard(marker, stop, (target) => onSelectRef.current?.(target));
+        marker.addTo(group);
         marker.bindTooltip(stop.name, { direction: "top" });
         marker.on("click", (event) => {
           L.DomEvent.stopPropagation(event);
@@ -208,7 +212,7 @@ export function MapScene({
       map.off("zoomend", renderStops);
       map.off("moveend", renderStops);
     };
-  }, [stops, segments]);
+  }, [stops, segments, i18nInstance.language, t]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -230,7 +234,7 @@ export function MapScene({
       const offsets = stopOffsetsRef.current.length
         ? stopOffsetsRef.current
         : computeStopOffsets(uniqueStops, segments, project, []);
-      const boatOffset = boatMarkerAnchorOffset(boat, uniqueStops, offsets);
+      const boatOffset = boatMarkerAnchorOffset(boat, uniqueStops, offsets, project);
       const iconAnchor = offsetToIconAnchor([32, 32], boatOffset);
       const marker = L.marker([boat.lat, boat.lon], {
         icon: L.divIcon({

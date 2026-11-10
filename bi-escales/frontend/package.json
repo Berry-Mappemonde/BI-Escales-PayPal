@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run && node --test src/components/escales/advisoryLabel.test.js",
+    "test:a11y": "vitest run src/a11y/axeShellControls.test.tsx",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "test:watch": "vitest"
   },
@@ -36,6 +37,7 @@
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.1.0",
+    "axe-core": "~4.10.2",
     "jsdom": "^27.0.1",
     "typescript": "^5.9.3",
     "vite": "^7.1.12",

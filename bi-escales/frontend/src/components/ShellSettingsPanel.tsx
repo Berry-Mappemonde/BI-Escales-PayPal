@@ -35,7 +35,7 @@ export function ShellSettingsPanel({
           <button
             type="button"
             className={i18n.language === "fr" ? "active" : ""}
-            aria-label={t("app.langFr")}
+            aria-label={t("app.langFrSwitch")}
             aria-pressed={i18n.language === "fr"}
             onClick={() => setLanguage("fr")}
           >
@@ -44,7 +44,7 @@ export function ShellSettingsPanel({
           <button
             type="button"
             className={i18n.language === "en" ? "active" : ""}
-            aria-label={t("app.langEn")}
+            aria-label={t("app.langEnSwitch")}
             aria-pressed={i18n.language === "en"}
             onClick={() => setLanguage("en")}
           >

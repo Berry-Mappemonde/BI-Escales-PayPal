@@ -168,6 +168,7 @@
     "cancelledStop": "What happens if a stop is cancelled?",
     "whereIsBoat": "Where is the boat?",
     "yourMessage": "Your question",
+    "youAsked": "You asked: {{question}}",
     "chatPlaceholder": "Sponsor 20 miles near Mayotte",
     "sendChat": "Ask the Captain",
     "agenticConfirmInvoice": "Confirm — create PayPal invoice (sandbox)",

@@ -9,7 +9,8 @@ vi.mock("../api/projectOnboarding", () => ({
   fetchProjectOnboarding: vi.fn().mockResolvedValue({
     id: "projet-berry-mappemonde",
     title: "Berry-Mappemonde association",
-    description: "The association behind the Berry-Mappemonde sailing expedition.",
+    description:
+      "A French non-profit based in Saint-Maur (Indre), Berry-Mappemonde is organising a 36-month sailing expedition on production sailboats, linking the Berry, a landlocked region in the heart of France, to France's 13 overseas territories. The association builds lasting ties between these places (twinnings, exchanges, partnerships), runs school programmes, raises awareness of maritime, farming and environmental issues, and documents the journey through a book, a documentary series and a travelling exhibition.",
     image_url: "/static/onboarding/berry-mappemonde-logo.webp",
     location_label: "Saint-Maur (Indre), France",
     onboarding_status: "pending",
@@ -51,5 +52,6 @@ describe("ProjectOnboardingPage", () => {
       "/static/onboarding/berry-mappemonde-logo.webp",
     );
     expect(screen.getByTestId("project-onboarding-location")).toHaveTextContent("Saint-Maur (Indre), France");
+    expect(screen.getByText(/travelling exhibition\./)).toBeInTheDocument();
   });
 });

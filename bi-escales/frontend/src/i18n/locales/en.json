@@ -618,5 +618,25 @@
     "downloadPdf": "PDF",
     "preparing": "Preparing your certificate…",
     "error": "Could not prepare the certificate. Try again in a moment."
+  },
+  "publicTotals": {
+    "heading": "Where the money goes",
+    "stops": "Stops",
+    "cabins": "Cabins",
+    "projects": "Projects",
+    "commonFund": "Common fund",
+    "commonFundRow": "Shared boat costs",
+    "pledged": "{{amount}} pledged",
+    "captured": "{{amount}} captured",
+    "refunded": "{{amount}} refunded",
+    "donations_one": "{{count}} donation",
+    "donations_other": "{{count}} donations",
+    "leg": "{{from}} → {{to}}",
+    "nothing": "Nothing yet",
+    "openStop": "Open {{name}}",
+    "note": "Pledged: authorised, not charged yet. Captured: charged.",
+    "loading": "Loading totals…",
+    "error": "The totals are not available right now.",
+    "empty": "No pledge yet. Totals appear here as soon as someone backs a stop."
   }
 }

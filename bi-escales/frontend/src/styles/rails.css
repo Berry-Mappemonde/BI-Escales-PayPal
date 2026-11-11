@@ -54,7 +54,7 @@
   background: none;
 }
 
-.ng-shell .ng-sidebar > :is(.captain-chat, [data-testid="project-list"], [data-testid="gear-list"], .marinas-panel, .escales-scheduler, .wishlists-nav) {
+.ng-shell .ng-sidebar > :is(.captain-chat, [data-testid="project-list"], [data-testid="gear-list"], .public-totals, .marinas-panel, .escales-scheduler, .wishlists-nav) {
   margin-top: var(--space-8);
   padding-block: 0;
 }
@@ -215,7 +215,7 @@
 
 /* Section titles, one step under the brand -------------------------------- */
 
-.ng-shell .ng-sidebar :is(.captain-chat, [data-testid="project-list"], [data-testid="gear-list"], .marinas-panel, .escales-scheduler) h2 {
+.ng-shell .ng-sidebar :is(.captain-chat, [data-testid="project-list"], [data-testid="gear-list"], .public-totals, .marinas-panel, .escales-scheduler) h2 {
   margin: 0 0 var(--space-3);
   color: var(--color-fg);
   font-size: var(--text-ui);

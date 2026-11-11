@@ -53,6 +53,7 @@ from app.escales.config import (
     webhooks_enabled,
 )
 from app.escales.ledger import (
+    _leg_id,
     _project_fund_target,
     _unplaced_bucket,
     fund_for_milestone,
@@ -1257,6 +1258,115 @@ async def get_public_common_fund():
         return to_public_fund(await fund_for_milestone("fonds-commun"))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Common fund not found") from exc
+
+
+# Upper bound on the funds one public summary reads, so the cost stays bounded.
+_PUBLIC_FUNDS_MAX = 60
+_PUBLIC_TOTAL_FIELDS = ("authorized_eur", "captured_eur", "refunded_eur")
+
+
+def _has_money(row: dict, fields: tuple[str, ...]) -> bool:
+    for field in fields:
+        try:
+            if float(str(row.get(field) or "0").replace(",", ".")) != 0:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+@router.get("/funds/public")
+async def get_public_funds():
+    """Every public total in one read: stopovers, cabin legs, donated-to projects, common fund.
+
+    Read-only, no key. It adds nothing that is not already public one fund at a
+    time: each row is built by the same code as ``GET /milestones/{id}/fund``
+    (``to_public_fund``), ``GET /projects/{id}/fund`` and ``GET /common-fund/fund``,
+    and carries amounts only: no pledge id, no name, no journal line. Only funds
+    that a pledge refers to are read, so the cost follows activity, not the
+    length of the route; funds with no money in them are left out.
+    """
+    stop_ids: list[str] = []
+    leg_ids: list[str] = []
+    project_ids: list[str] = []
+    for row in await get_ledger().list_pledges():
+        if not row:
+            continue
+        if str(row.get("kind") or "") == "project_pledge":
+            target = str(row.get("target_id") or "").strip()
+            if target and target not in project_ids:
+                project_ids.append(target)
+            continue
+        milestone = str(row.get("milestone_id") or "").strip()
+        if not milestone or _unplaced_bucket(milestone):
+            continue  # the common fund is always listed below
+        if milestone in stop_ids or milestone in leg_ids:
+            continue
+        (leg_ids if _leg_id(milestone) else stop_ids).append(milestone)
+
+    budget = _PUBLIC_FUNDS_MAX
+    truncated = False
+
+    async def fund_rows(ids: list[str]) -> list[dict]:
+        nonlocal budget, truncated
+        rows: dict[str, dict] = {}
+        for milestone in ids:
+            if budget <= 0:
+                truncated = True
+                break
+            # The single-fund route keeps a project fund behind the key; so does this one.
+            if await _project_fund_target(milestone):
+                continue
+            budget -= 1
+            try:
+                public = to_public_fund(await fund_for_milestone(milestone))
+            except LookupError:
+                continue
+            fund_id = str(public.get("milestone_id") or milestone)
+            if fund_id in rows or not _has_money(public, _PUBLIC_TOTAL_FIELDS):
+                continue  # two spellings of one stopover are one fund
+            rows[fund_id] = {
+                "milestone_id": milestone,
+                "fund_id": fund_id,
+                **{field: public[field] for field in _PUBLIC_TOTAL_FIELDS},
+            }
+        return sorted(rows.values(), key=lambda item: item["fund_id"])
+
+    stops = await fund_rows(stop_ids)
+    legs = await fund_rows(leg_ids)
+
+    projects: list[dict] = []
+    for project_id in project_ids:
+        if budget <= 0:
+            truncated = True
+            break
+        budget -= 1
+        try:
+            public = await get_public_project_fund(project_id)
+        except HTTPException:
+            continue
+        row = {
+            "project_id": project_id,
+            "amount_eur": str(public.get("amount_eur") or "0.00"),
+            "donation_count": int(public.get("donation_count") or 0),
+            "refunded_eur": str(public.get("refunded_eur") or "0.00"),
+        }
+        if row["donation_count"] or _has_money(row, ("amount_eur", "refunded_eur")):
+            projects.append(row)
+    projects.sort(key=lambda item: item["project_id"])
+
+    try:
+        common = to_public_fund(await fund_for_milestone("fonds-commun"))
+    except LookupError:
+        common = {}
+    return {
+        "currency": "EUR",
+        "stops": stops,
+        "legs": legs,
+        "projects": projects,
+        "common_fund": {field: str(common.get(field) or "0.00") for field in _PUBLIC_TOTAL_FIELDS},
+        "truncated": truncated,
+    }
 
 
 @router.post("/projects/{project_id}/payouts")

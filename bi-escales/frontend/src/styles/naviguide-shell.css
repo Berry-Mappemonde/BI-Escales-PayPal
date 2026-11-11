@@ -589,6 +589,77 @@ body.ng-naviguide-shell {
   font-weight: 600;
 }
 
+/* "Where the money goes": the same disclosure as the project list (its section
+   spacing and title come from rails.css), with rows of name and amount.
+   Tokens only; no new colour or type size. */
+.ng-sidebar .public-totals {
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.public-totals-body { display: grid; gap: var(--space-3); }
+.ng-shell .ng-sidebar .public-totals-body h3 {
+  margin: 0 0 var(--space-1);
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-weight: 500;
+}
+.public-totals-body ul { margin: 0; padding: 0; list-style: none; }
+.public-totals-body li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-line);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+}
+.public-totals-body li:last-child { border-bottom: 0; }
+.public-totals-body li > :first-child { min-width: 0; overflow-wrap: anywhere; text-align: start; }
+/* A stop's name opens the stop: a text button, not a boxed one. */
+.ng-shell .ng-sidebar .public-totals-body li > button {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: none;
+  box-shadow: none;
+  color: var(--color-fg);
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  text-decoration: underline;
+  text-decoration-color: var(--color-line-strong);
+  text-underline-offset: 3px;
+}
+.ng-shell .ng-sidebar .public-totals-body li > button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .ng-shell .ng-sidebar .public-totals-body li > button:hover { background: none; text-decoration-color: currentColor; }
+}
+/* One amount per line, right-aligned, so two amounts never wrap mid-phrase. */
+.public-totals-amount {
+  flex: none;
+  display: grid;
+  justify-items: end;
+  color: var(--color-fg-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* The separator between two amounts is read out, not drawn. */
+.public-totals-amount .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.public-totals-note { margin: 0; }
+
 .ng-sidebar .project-list-total {
   color: var(--color-fg-3);
   font-size: var(--text-meta);

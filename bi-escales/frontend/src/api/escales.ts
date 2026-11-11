@@ -468,6 +468,43 @@ export async function fetchPublicCommonFund(): Promise<FundView | null> {
   }
 }
 
+/** One stopover or cabin-leg row of GET /funds/public. Amounts only. */
+export interface PublicFundRow {
+  milestone_id: string;
+  fund_id: string;
+  authorized_eur: string;
+  captured_eur: string;
+  refunded_eur: string;
+}
+
+export interface PublicProjectRow {
+  project_id: string;
+  amount_eur: string;
+  donation_count: number;
+  refunded_eur: string;
+}
+
+export interface PublicFunds {
+  currency: string;
+  stops: PublicFundRow[];
+  legs: PublicFundRow[];
+  projects: PublicProjectRow[];
+  common_fund: { authorized_eur: string; captured_eur: string; refunded_eur: string };
+  truncated?: boolean;
+}
+
+/** Public GET /funds/public: every public total in one read. Throws when it cannot be read. */
+export async function fetchPublicFunds(): Promise<PublicFunds> {
+  const res = await fetch(url("/api/escales/funds/public"));
+  if (!res.ok) throw new Error(await parseError(res));
+  const body = await res.json();
+  // An answer of another shape (an older API, a proxy page) is "not available", not a crash.
+  if (!body || !Array.isArray(body.stops) || !Array.isArray(body.legs) || !Array.isArray(body.projects)) {
+    throw new Error("Unexpected public funds answer");
+  }
+  return { ...body, common_fund: body.common_fund ?? { authorized_eur: "0.00", captured_eur: "0.00", refunded_eur: "0.00" } };
+}
+
 export interface DemoStopAction {
   pledge_id: string;
   action: string;

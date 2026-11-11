@@ -630,5 +630,25 @@
     "downloadPdf": "PDF",
     "preparing": "Préparation du certificat…",
     "error": "Impossible de préparer le certificat. Réessayez dans un instant."
+  },
+  "publicTotals": {
+    "heading": "Où va l’argent",
+    "stops": "Escales",
+    "cabins": "Cabines",
+    "projects": "Projets",
+    "commonFund": "Caisse commune",
+    "commonFundRow": "Frais communs du bateau",
+    "pledged": "{{amount}} promis",
+    "captured": "{{amount}} encaissés",
+    "refunded": "{{amount}} remboursés",
+    "donations_one": "{{count}} don",
+    "donations_other": "{{count}} dons",
+    "leg": "{{from}} → {{to}}",
+    "nothing": "Rien pour l’instant",
+    "openStop": "Ouvrir {{name}}",
+    "note": "Promis : autorisé, pas encore débité. Encaissé : débité.",
+    "loading": "Chargement des totaux…",
+    "error": "Les totaux ne sont pas disponibles pour l’instant.",
+    "empty": "Aucune promesse pour l’instant. Les totaux apparaissent ici dès qu’une escale est soutenue."
   }
 }

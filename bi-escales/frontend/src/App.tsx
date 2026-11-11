@@ -18,6 +18,7 @@ import { TreasurerPanel } from "./components/TreasurerPanel";
 import { CrewSupporterPublicSection } from "./components/CrewSubscribeButton";
 import { HowItWorks } from "./components/stop/HowItWorks.jsx";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
+import { PublicTotals } from "./components/PublicTotals";
 import { ToastContainer } from "./components/Toast";
 import type { ToastItem } from "./components/Toast";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
@@ -474,9 +475,12 @@ export default function App() {
     });
   };
 
+  // Bumped after each pledge, so "Where the money goes" reads its totals again if it is open.
+  const [totalsRefresh, setTotalsRefresh] = useState(0);
   const onAuthorized = useCallback((pledge: PublicPledge) => {
     updatePledge(pledge);
     setPaypalNote("authorized");
+    setTotalsRefresh((count) => count + 1);
     void refresh();
   }, [refresh, updatePledge]);
 
@@ -793,6 +797,21 @@ export default function App() {
   // The treasurer reads stop names, not milestone ids; the voyage already has them.
   const stopNames = useMemo(() => stopNamesFromStops(voyage?.stops), [voyage?.stops]);
 
+  // For the public totals: a project's title by id, and a stop's sheet by milestone id.
+  const projectTitles = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const row of Array.isArray(projects?.features) ? projects.features : []) {
+      const props = (row as { properties?: { id?: string; title?: string } })?.properties;
+      if (props?.id && props.title) out.set(String(props.id), String(props.title));
+    }
+    return out;
+  }, [projects]);
+  const projectTitle = useCallback((id: string) => projectTitles.get(id), [projectTitles]);
+  const openStopById = (id: string) => {
+    const match = (voyage?.stops || []).find((row: VoyageStop) => row.milestoneId === id);
+    if (match) chooseStop(match);
+  };
+
   const treasurerPanel = (
     <TreasurerPanel
       open={treasurerOpen}
@@ -1036,6 +1055,12 @@ export default function App() {
               contributor={contributor}
               onFlyTo={onFlyTo}
               onAuthorized={onAuthorized}
+            />
+            <PublicTotals
+              stopNames={stopNames}
+              projectTitle={projectTitle}
+              onSelectStop={openStopById}
+              refreshToken={totalsRefresh}
             />
             {bryntumEnabled && schedule ? (
               <EscalesScheduler

@@ -2,7 +2,7 @@
  * Mini-mix lot 2 — button cleanup (plan canvas P2 remaining lots, 18-row inventory).
  * Source: Escales mini-mix plan Page, section “Buttons and sign-ups inventory”.
  */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
 import i18n from "./i18n";
@@ -123,6 +123,11 @@ describe("minimix lot 2 removed controls", () => {
         />
       </I18nextProvider>,
     );
+    // Still offered when Bryntum is on, one step away: behind "Book a cabin on a leg".
+    expect(screen.queryByTestId("schedule-leg")).toBeNull();
+    const cabins = screen.getByTestId("schedule-cabins") as HTMLDetailsElement;
+    cabins.open = true;
+    fireEvent(cabins, new Event("toggle"));
     expect(screen.getByTestId("schedule-leg")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "pledge" })).toBeInTheDocument();
   });

@@ -4,7 +4,7 @@
  * Nettoyage calendrier : PR #27 chore/ui-audit (libellés morts retirés).
  * Lot 2 (plan canvas P2) : boutons de planification seulement si `planningEnabled` (Bryntum).
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PledgeButton } from "../PledgeButton";
 import BryntumTimeline from "./BryntumTimeline.jsx";
@@ -25,15 +25,35 @@ function shownEscaleName(row) {
   return withoutStoragePrefix(row.milestone_id || named);
 }
 
-function buildEvents(escales) {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The leg that leaves this stop: its departure is when the boat's stay ends. */
+function legLeaving(row, legs) {
+  const slug = String(row.slug || withoutStoragePrefix(row.milestone_id) || "").trim();
+  return (legs || []).find(
+    (leg) => (slug && leg.from_slug === slug) || (row.name && leg.from_name === row.name),
+  );
+}
+
+/**
+ * One bar per stop, from arrival to departure: how long the boat stays.
+ * The departure is the schedule's (the leg that leaves the stop). A stop with no
+ * known departure, or one the boat leaves within the day, is drawn one day wide so
+ * that it stays visible; `departureKnown` says which case it is.
+ */
+function buildEvents(escales, legs) {
   return (escales || []).map((row, index) => {
     const start = toDate(row.arrival_iso) || new Date();
-    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    const departure = toDate(row.departure_iso) || toDate(legLeaving(row, legs)?.departure_iso);
+    const departureKnown = Boolean(departure && departure.getTime() >= start.getTime());
+    const minEnd = new Date(start.getTime() + DAY_MS);
+    const end = departureKnown && departure.getTime() > minEnd.getTime() ? departure : minEnd;
     return {
       id: row.milestone_id || row.slug || `escale-${index}`,
       name: shownEscaleName(row),
       startDate: start,
       endDate: end,
+      departureDate: departureKnown ? departure : null,
       milestoneId: row.milestone_id,
       lat: row.lat,
       lon: row.lon,
@@ -84,7 +104,10 @@ function LocalScheduleList({ events, onSelect }) {
         <li key={event.id}>
           <button type="button" onClick={() => onSelect?.(event)}>
             <strong>{event.name}</strong>
-            <span>{event.startDate.toISOString().slice(0, 10)}</span>
+            <span>
+              {event.startDate.toISOString().slice(0, 10)}
+              {event.departureDate ? ` → ${event.departureDate.toISOString().slice(0, 10)}` : ""}
+            </span>
             {event.milestoneId ? (
               <code>{withoutStoragePrefix(event.milestoneId)}</code>
             ) : null}
@@ -100,11 +123,16 @@ export default function EscalesScheduler({
   onSelectEscale,
   onAuthorized,
   planningEnabled = false,
+  showCabins = true,
+  wide = false,
 }) {
   const { t } = useTranslation();
   const escales = schedule?.export?.escales || schedule?.escales || localFallbackEscales();
-  const events = useMemo(() => buildEvents(escales), [escales]);
   const legs = schedule?.legs || [];
+  const events = useMemo(() => buildEvents(escales, legs), [escales, legs]);
+  // The cabin checkouts are mounted only once the visitor asks for them: one PayPal
+  // checkout per leg is a long list, and the calendar is the point of this section.
+  const [cabinsOpen, setCabinsOpen] = useState(false);
 
   if (!planningEnabled) {
     return null;
@@ -115,12 +143,34 @@ export default function EscalesScheduler({
       <header>
         <h2>{t("scheduler.heading")}</h2>
       </header>
-      <LegList legs={legs} amount={cabinAmount(schedule?.prices)} onAuthorized={onAuthorized} />
+      <p className="hint escales-scheduler-lead">
+        {t("scheduler.lead")}
+        {onSelectEscale ? ` ${t("scheduler.leadSelect")}` : ""}
+      </p>
       <BryntumTimeline
         events={events}
         onSelect={onSelectEscale}
         fallback={<LocalScheduleList events={events} onSelect={onSelectEscale} />}
+        // On a wide surface every stop's name and row fits; in the rail the list scrolls.
+        {...(wide ? { nameWidth: 220, maxHeight: Number.POSITIVE_INFINITY } : {})}
       />
+      {showCabins && legs.length ? (
+        <details
+          className="project-disclosure escales-cabins"
+          data-testid="schedule-cabins"
+          onToggle={(event) => setCabinsOpen(event.currentTarget.open)}
+        >
+          <summary className="project-summary">
+            <h3>{t("scheduler.cabins")}</h3>
+            <span aria-hidden="true">·</span>
+            <span className="project-list-total" data-testid="schedule-cabins-count">{legs.length}</span>
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true"><path d="m5 6 3 3 3-3" stroke="currentColor" strokeWidth="1.5" /></svg>
+          </summary>
+          {cabinsOpen ? (
+            <LegList legs={legs} amount={cabinAmount(schedule?.prices)} onAuthorized={onAuthorized} />
+          ) : null}
+        </details>
+      ) : null}
     </section>
   );
 }

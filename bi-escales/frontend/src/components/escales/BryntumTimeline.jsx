@@ -27,7 +27,69 @@ export const BRYNTUM_TIMELINE_IMPORTS = [
   "@bryntum/scheduler-community/locales/scheduler.locale.FrFr.js",
   "@bryntum/scheduler-community/scheduler.css",
   "@bryntum/scheduler-community/svalbard-light.css",
+  // Loaded on its own, only while the shell is dark (loadBryntumDarkThemeCss).
+  "@bryntum/scheduler-community/svalbard-dark.css?inline",
 ];
+
+/**
+ * A Bryntum theme is a set of variables for the whole page, so the light and the
+ * dark set cannot both apply. The light set is loaded with the widget; the dark
+ * one is added after it as its own style element while the shell is dark, and
+ * removed again for the light shell.
+ */
+const DARK_THEME_STYLE = "style[data-bryntum-theme=\"dark\"]";
+let darkThemeCss;
+
+export function loadBryntumDarkThemeCss() {
+  darkThemeCss ??= import("@bryntum/scheduler-community/svalbard-dark.css?inline")
+    .then((mod) => String(mod.default || ""))
+    .catch(() => {
+      darkThemeCss = undefined;
+      return "";
+    });
+  return darkThemeCss;
+}
+
+/** Puts the page's Bryntum theme in line with the shell theme. Returns when it is applied. */
+export async function applyBryntumTheme(theme, loadCss = loadBryntumDarkThemeCss) {
+  if (typeof document === "undefined") return;
+  const existing = document.head.querySelector(DARK_THEME_STYLE);
+  if (theme !== "dark") {
+    existing?.remove();
+    return;
+  }
+  if (existing) return;
+  const css = await loadCss();
+  // The shell may have switched back while the file was on its way.
+  if (!css || document.documentElement.dataset.theme === "light" || document.head.querySelector(DARK_THEME_STYLE)) return;
+  const style = document.createElement("style");
+  style.dataset.bryntumTheme = "dark";
+  style.textContent = css;
+  document.head.appendChild(style);
+}
+
+function shellTheme() {
+  return typeof document !== "undefined" && document.documentElement.dataset.theme === "light" ? "light" : "dark";
+}
+
+/** The shell theme lives on <html data-theme>; follow it. */
+function useShellTheme() {
+  const [theme, setTheme] = useState(shellTheme);
+  useEffect(() => {
+    if (typeof MutationObserver === "undefined") return undefined;
+    const observer = new MutationObserver(() => setTheme(shellTheme()));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
+  return theme;
+}
+
+/** Row and header heights of the timeline, and the tallest it may grow before it scrolls. */
+const ROW_HEIGHT = 32;
+const HEADER_HEIGHT = 64;
+const MAX_HEIGHT = 420;
+/** Width of the stop-name column where the timeline is narrow (the rail). */
+const NAME_WIDTH = 132;
 
 export function loadBryntumTimelineModules() {
   if (!timelineModulesPromise) {
@@ -166,7 +228,7 @@ export function runTimelineLocaleSyncWithRetries(ctx) {
   };
 }
 
-export default function BryntumTimeline({ events, onSelect, fallback }) {
+export default function BryntumTimeline({ events, onSelect, fallback, nameWidth = NAME_WIDTH, maxHeight = MAX_HEIGHT }) {
   const { t, i18n } = useTranslation();
   const [modules, setModules] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -211,14 +273,21 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
     };
   }, [modules, i18n]);
 
-  const resources = useMemo(() => [{ id: "route", name: "BI Escales" }], []);
+  // The widget takes the shell's theme, and follows a switch.
+  const theme = useShellTheme();
+  useEffect(() => {
+    if (modules) void applyBryntumTheme(theme);
+  }, [modules, theme]);
+
+  // One row per stop, in route order: its name on the left, its stay as a bar.
+  const resources = useMemo(() => events.map((event) => ({ id: event.id, name: event.name })), [events]);
 
   const timelineEvents = useMemo(
     () =>
       events.map((event) => ({
         id: event.id,
         name: event.name,
-        resourceId: "route",
+        resourceId: event.id,
         startDate: event.startDate,
         endDate: event.endDate,
         milestoneId: event.milestoneId,
@@ -251,8 +320,8 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
   );
 
   const columns = useMemo(
-    () => [{ text: t("scheduler.heading"), field: "name", width: 160 }],
-    [i18n.language, t],
+    () => [{ text: t("scheduler.heading"), field: "name", width: nameWidth }],
+    [i18n.language, t, nameWidth],
   );
 
   const bryntumLocaleKey = bryntumLocaleForLanguage(i18n.language);
@@ -260,16 +329,20 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
   const schedulerProps = useMemo(
     () => ({
       readOnly: true,
-      height: 220,
+      rowHeight: ROW_HEIGHT,
+      height: Math.min(maxHeight, HEADER_HEIGHT + ROW_HEIGHT * Math.max(1, events.length)),
+      // Solid bars: a stay of a day or two is only a few pixels wide at this scale.
+      eventStyle: "filled",
       startDate,
       endDate,
-      viewPreset: "weekAndMonth",
+      // Months over years: the voyage lasts most of a year.
+      viewPreset: "monthAndYear",
       columns,
       resources,
       events: timelineEvents,
       listeners,
     }),
-    [startDate, endDate, columns, resources, timelineEvents, listeners],
+    [startDate, endDate, columns, resources, timelineEvents, listeners, events.length, maxHeight],
   );
 
   if (!events.length) return fallback;

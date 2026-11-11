@@ -1027,6 +1027,11 @@ body.ng-naviguide-shell {
   display: grid;
   gap: var(--space-4);
 }
+/* The panel may shrink below its widest table, which then scrolls inside its own
+   section instead of widening the whole page on a phone. */
+.treasurer-page-inner > .treasurer-panel {
+  min-width: 0;
+}
 .treasurer-page-back { justify-self: start; }
 .treasurer-page-intro {
   display: grid;

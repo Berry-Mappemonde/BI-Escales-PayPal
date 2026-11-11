@@ -149,8 +149,8 @@
 }
 
 /* Crew memberships: a sub-list of the PayPal section, same table as the others.
-   The section may shrink below its table, which then scrolls inside its own box. */
-.treasurer-page-inner > .treasurer-panel,
+   The section may shrink below its table, which then scrolls inside its own box
+   (the panel itself is allowed to shrink in naviguide-shell.css). */
 .treasurer-panel .treasurer-panel-body .treasurer-paypal {
   min-width: 0;
 }

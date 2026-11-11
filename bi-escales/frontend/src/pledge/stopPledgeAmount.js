@@ -32,6 +32,18 @@ export function defaultAmountForKind(kind, catalog) {
   return null;
 }
 
+/**
+ * Unit price to show beside a kind: the fixed catalogue price, 1.00 for a mile,
+ * null when the supporter chooses the amount (common fund, project donation).
+ * @param {string} kind @param {PriceCatalog | null | undefined} catalog
+ */
+export function unitPriceForKind(kind, catalog) {
+  const key = String(kind || "").trim();
+  const row = (catalog?.prices || []).find((item) => item.kind === key);
+  if (row?.free_amount) return null;
+  return catalogExactPrice(key, catalog) || (key === "mile" ? "1.00" : null);
+}
+
 /** Montant réellement envoyé à l'API (tarif fixe prioritaire). */
 export function pledgeOrderAmount(kind, userAmount, catalog, quantity) {
   if (quantity !== undefined) {

@@ -180,6 +180,17 @@
     "amount": "Montant (EUR)",
     "description": "Description",
     "kind": "Ce que vous financez",
+    "kindWithPrice": "{{kind}} — {{price}}",
+    "kindPrice": "{{kind}} {{price}}",
+    "fixedPrices": "Tarifs fixes :",
+    "kindShort": {
+      "mile": "mille",
+      "berth": "place de port",
+      "night": "nuit",
+      "meal": "repas",
+      "care": "bien-être",
+      "cabin_leg": "cabine"
+    },
     "kinds": {
       "mile": "Milles parrainés (simulation)",
       "berth": "Poste de port / amarrage (simulation)",
@@ -273,6 +284,7 @@
     "scheduledDeparture": "Départ prévu",
     "held": "{{amount}} promis pour cette escale · pas encore débités",
     "captured": "{{amount}} encaissés",
+    "nothingPledged": "Aucune promesse pour cette escale pour l’instant",
     "backThisLeg": "Soutenir cette escale",
     "ruleHeld": "Autorisé maintenant. Rien n’est débité pour l’instant.",
     "ruleCaptured": "Encaissé à l’arrivée du bateau à cette escale, après l’approbation du trésorier.",

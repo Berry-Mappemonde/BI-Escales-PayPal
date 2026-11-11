@@ -782,6 +782,7 @@ body.ng-naviguide-shell {
 .treasurer-queue-table td { overflow-wrap: anywhere; }
 .treasurer-queue-table td > strong, .treasurer-queue-table td > small { display: block; }
 .treasurer-queue-table td > small { font: var(--text-micro)/var(--text-meta--line-height) var(--font-mono); color: var(--color-fg-2); }
+.treasurer-queue-table td > small.queue-stop-primary { font: inherit; color: var(--color-fg); }
 .treasurer-queue-table .queue-value { text-align: end; font-variant-numeric: tabular-nums; }
 .queue-value > button { display: block; margin-inline: auto 0; max-width: 100%; white-space: normal; }
 .treasurer-queue .captain-decision { background: var(--color-raised); border-block-start: 1px solid var(--color-line-strong); }

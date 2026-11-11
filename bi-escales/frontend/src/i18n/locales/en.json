@@ -259,6 +259,7 @@
     "cabin": "Cabins are captured when their leg departs, not on arrival.",
     "pick": "Select a stop on the map to see its details and make a pledge.",
     "backNext": "Back the next stop",
+    "backNextLoading": "Finding the next stop…",
     "backNextNamed": "Back the next stop: {{name}}"
   },
   "stopPanel": {

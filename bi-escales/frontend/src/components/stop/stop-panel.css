@@ -158,7 +158,7 @@
 }
 
 .escale-sheet .pledge-form button:active:not(:disabled),
-.how-it-works-cta:active {
+.how-it-works-cta:active:not(:disabled) {
   transform: scale(0.97);
 }
 
@@ -270,7 +270,7 @@
   }
 
   .escale-sheet .pledge-form button:hover:not(:disabled),
-  .how-it-works-cta:hover {
+  .how-it-works-cta:hover:not(:disabled) {
     background: color-mix(in oklab, var(--color-accent) 86%, var(--color-fg));
   }
 
@@ -528,6 +528,12 @@
   transition: transform var(--duration-fast) var(--ease-out);
 }
 .how-it-works-cta > span { display: block; }
+/* Waiting for the schedule: the same button, not yet usable. */
+.how-it-works-cta:disabled {
+  opacity: 0.6;
+  cursor: progress;
+  transform: none;
+}
 .how-it-works-cta-stop { font-weight: 400; }
 .how-it-works-cta:focus-visible {
   outline: 2px solid var(--color-accent);

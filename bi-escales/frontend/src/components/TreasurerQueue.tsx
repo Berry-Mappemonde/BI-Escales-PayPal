@@ -302,12 +302,20 @@ export function TreasurerQueue({
                   </time>
                 </td>
                 <td>
-                  <strong>{p.description}</strong>
-                  {/* The stop's name; the raw id stays one hover away, like the pledge reference. */}
-                  <small data-testid={`pledge-milestone-${p.id}`} title={p.milestone_id || undefined}>
+                  {p.description ? <strong>{p.description}</strong> : null}
+                  {/* The stop's name; the raw id stays one hover away, like the pledge reference.
+                      With no description it is the row's main line, not a footnote. */}
+                  <small
+                    className={p.description ? undefined : "queue-stop-primary"}
+                    data-testid={`pledge-milestone-${p.id}`}
+                    title={p.milestone_id || undefined}
+                  >
                     {milestoneLabel(stopNames, p.milestone_id, t)}
                   </small>
-                  <small data-testid={`capture-id-${p.id}`} aria-label={t("treasurer.captureId")}>{p.capture_id || "—"}</small>
+                  {/* Shown once PayPal has captured; a held pledge has no capture id to show. */}
+                  {p.capture_id ? (
+                    <small data-testid={`capture-id-${p.id}`} aria-label={t("treasurer.captureId")}>{p.capture_id}</small>
+                  ) : null}
                 </td>
                 <td className="actions queue-value">
                   <strong>{p.amount_eur} {p.currency}</strong>

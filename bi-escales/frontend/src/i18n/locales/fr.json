@@ -186,7 +186,7 @@
       "night": "Nuit à bord (simulation)",
       "meal": "Repas (simulation)",
       "care": "Programme bien-être (simulation)",
-      "cabin_leg": "Cabine sur un leg (simulation)",
+      "cabin_leg": "Cabine sur une étape (simulation)",
       "common_fund": "Caisse commune (débitée immédiatement)"
     },
     "milestone": "Jalon",
@@ -259,6 +259,7 @@
     "cabin": "Les cabines sont encaissées au départ de leur étape, pas à l’arrivée.",
     "pick": "Sélectionnez une escale sur la carte pour voir ses détails et faire une promesse.",
     "backNext": "Soutenir la prochaine escale",
+    "backNextLoading": "Recherche de la prochaine escale…",
     "backNextNamed": "Soutenir la prochaine escale : {{name}}"
   },
   "stopPanel": {

@@ -11,7 +11,7 @@ const STEPS = [
  * What the right panel shows until a stop is picked. The one primary action is
  * backing the next stop; the map stays the way to pick any other.
  */
-export function HowItWorks({ nextStopName, onBackNextStop }) {
+export function HowItWorks({ nextStopName, onBackNextStop, nextStopPending = false }) {
   const { t } = useTranslation();
   return (
     <section className="how-it-works" data-testid="how-it-works">
@@ -28,6 +28,19 @@ export function HowItWorks({ nextStopName, onBackNextStop }) {
         >
           <span>{t("howItWorks.backNext")}</span>
           <span className="how-it-works-cta-stop">{nextStopName}</span>
+        </button>
+      ) : nextStopPending ? (
+        // Same button, same size, not yet usable: the next stop is named only once
+        // the schedule has answered, so the label never changes under the pointer.
+        <button
+          type="button"
+          className="how-it-works-cta"
+          data-testid="back-next-stop-pending"
+          aria-busy="true"
+          disabled
+        >
+          <span>{t("howItWorks.backNext")}</span>
+          <span className="how-it-works-cta-stop">{t("howItWorks.backNextLoading")}</span>
         </button>
       ) : null}
       <p className="how-it-works-pick">

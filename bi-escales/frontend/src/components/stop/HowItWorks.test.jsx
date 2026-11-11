@@ -89,4 +89,32 @@ describe("HowItWorks", () => {
       expect(JSON.stringify(block)).not.toMatch(/20\d\d/);
     }
   });
+
+  it("shows the main button as not yet usable while the next stop is unknown", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <HowItWorks nextStopPending />
+      </I18nextProvider>,
+    );
+    const pending = screen.getByTestId("back-next-stop-pending");
+    expect(pending).toBeDisabled();
+    expect(pending).toHaveAttribute("aria-busy", "true");
+    expect(pending).toHaveTextContent(en.howItWorks.backNext);
+    expect(pending).toHaveTextContent(en.howItWorks.backNextLoading);
+    expect(screen.queryByTestId("back-next-stop")).toBeNull();
+  });
+
+  it("prefers the named button over the waiting one", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <HowItWorks nextStopName="La Rochelle" onBackNextStop={() => undefined} nextStopPending />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("back-next-stop")).toBeEnabled();
+    expect(screen.queryByTestId("back-next-stop-pending")).toBeNull();
+  });
+
+  it("has the waiting label in French too", () => {
+    expect(fr.howItWorks.backNextLoading).toBe("Recherche de la prochaine escale…");
+  });
 });

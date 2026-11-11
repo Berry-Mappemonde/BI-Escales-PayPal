@@ -172,7 +172,35 @@
   }
 }
 
+/* The product name on the map: phone only, while the rail (which carries the
+   masthead) is closed. Sized and framed like the map controls it sits beside. */
+.ng-map-brand {
+  display: none;
+}
+
 @media (max-width: 767.98px) {
+  .ng-shell[data-rail="closed"] .ng-map-brand {
+    position: absolute;
+    z-index: 1000;
+    top: var(--space-2);
+    left: calc(var(--map-control-size) + 2 * var(--space-2));
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    box-sizing: border-box;
+    height: var(--map-control-size);
+    margin: 0;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--color-line-strong);
+    border-radius: var(--radius-control);
+    background: var(--color-raised);
+    color: var(--color-fg);
+    font-size: var(--text-ui);
+    line-height: 1;
+    font-weight: 600;
+    pointer-events: none;
+  }
+
   /* The drawer leaves one column of map for the controls that close it. */
   .ng-shell {
     --map-sidebar-width: min(var(--sidebar-width), calc(100vw - var(--map-control-size) - 2 * var(--space-2)));

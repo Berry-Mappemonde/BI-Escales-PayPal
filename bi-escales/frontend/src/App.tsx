@@ -54,7 +54,7 @@ type VoyageStop = {
   flags?: string[];
 };
 
-type FlyTarget = { lat: number; lon: number; ts: number };
+type FlyTarget = { id?: string; lat: number; lon: number; ts: number };
 
 /** Matches GET /milestones/{id}/fund treasurer gate (aggregate project + per-project ids). */
 function milestoneFundRequiresAdminKey(milestoneId: string): boolean {
@@ -140,6 +140,9 @@ export default function App() {
   const [bryntumEnabled, setBryntumEnabled] = useState(false);
   const [wishlistsEnabled, setWishlistsEnabled] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
+  // False until the schedule request has answered or failed: until then the next
+  // open stop is not known, and "Back the next stop" must not name one.
+  const [scheduleSettled, setScheduleSettled] = useState(false);
   // The API's clock and milestones: what the stop sheet's status chip is built from.
   const [apiNow, setApiNow] = useState<string | null>(null);
   const [milestones, setMilestones] = useState<Milestone[] | null>(null);
@@ -151,9 +154,15 @@ export default function App() {
     () => (routeFc ? voyageFromRoute(routeFc, t0) : null),
     [routeFc, t0],
   );
+  // The left rail follows the API's clock once it is known, so it cannot contradict
+  // the stop statuses, which are computed from that same clock.
+  const voyageNow = useMemo(() => {
+    const fromApi = apiNow ? new Date(apiNow) : null;
+    return fromApi && Number.isFinite(fromApi.getTime()) ? fromApi : now;
+  }, [apiNow, now]);
   const sample = useMemo(
-    () => (voyage ? sampleAt(voyage.clock, now) : null),
-    [voyage, now],
+    () => (voyage ? sampleAt(voyage.clock, voyageNow) : null),
+    [voyage, voyageNow],
   );
   const cumNm = Number(sample?.sailNm ?? sample?.cumNm ?? 0);
   const countdownHours =
@@ -202,6 +211,8 @@ export default function App() {
     void fetchJson("/bi-projects.geojson")
       .then((base) => {
         if (cancelled) return;
+        // Show the base projects at once; the gear projects join them when they arrive.
+        setProjects(base as { features?: unknown[] });
         void fetchGearProjects().then((gear) => {
           if (cancelled) return;
           const baseFeatures = Array.isArray((base as { features?: unknown[] })?.features)
@@ -256,6 +267,9 @@ export default function App() {
       })
       .catch(() => {
         if (!cancelled) setSchedule(null);
+      })
+      .finally(() => {
+        if (!cancelled) setScheduleSettled(true);
       });
     return () => {
       cancelled = true;
@@ -423,13 +437,17 @@ export default function App() {
 
   // The default target of "back a stop": the first stop the boat has not reached and
   // that is not cancelled, by the same clock and schedule as the sheet's status chip.
-  // Without a schedule there is no status to contradict, so the boat's stop stands in.
+  // If the schedule request failed there is no status to contradict, so the boat's
+  // stop stands in. While it is still on its way, no stop is named at all: the boat's
+  // stop is often one the schedule says is already reached.
   const nextStop = useMemo(
     () =>
       (schedule
         ? nextOpenStop(voyage?.stops, schedule, apiNow ?? now.toISOString(), milestones)
-        : resolveBoatStop(voyage?.stops, sample)) as VoyageStop | null,
-    [voyage?.stops, schedule, apiNow, now, milestones, sample],
+        : scheduleSettled
+          ? resolveBoatStop(voyage?.stops, sample)
+          : null) as VoyageStop | null,
+    [voyage?.stops, schedule, scheduleSettled, apiNow, now, milestones, sample],
   );
 
   const locateBoat = useCallback(() => {
@@ -700,8 +718,8 @@ export default function App() {
     Array.isArray(allMarinas?.features) && allMarinas.features.length > 0
       ? allMarinas
       : stopMarinaFeatures;
-  const onFlyTo = (_id: string, lat: number, lon: number) => {
-    setFlyTo({ lat, lon, ts: Date.now() });
+  const onFlyTo = (id: string, lat: number, lon: number) => {
+    setFlyTo({ id, lat, lon, ts: Date.now() });
   };
 
   const dismissToast = useCallback((id: string) => {
@@ -853,6 +871,16 @@ export default function App() {
             if (props?.id) setSelectedProjectId(props.id);
           }}
         />
+        {/* Phone only, while the rail is closed (CSS): the first screen is the map, and
+            without this nothing on it says which product this is. */}
+        <p className="ng-map-brand" data-testid="ng-map-brand">
+          <svg width="16" height="16" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M16 3v19H5L16 3Z" fill="currentColor" />
+            <path d="m19 8 8 14h-8V8Z" fill="currentColor" opacity=".6" />
+            <path d="M4 25h24l-5 4H9l-5-4Z" fill="currentColor" />
+          </svg>
+          <span>BI Escales</span>
+        </p>
         <button
           type="button"
           className={`ng-sidebar-toggle ng-sidebar-toggle--left${sidebarOpen ? " is-open" : ""}`}
@@ -1115,6 +1143,7 @@ export default function App() {
         ) : (
           <HowItWorks
             nextStopName={nextStop?.name}
+            nextStopPending={!scheduleSettled}
             onBackNextStop={nextStop ? () => chooseStop(nextStop) : undefined}
           />
         )}

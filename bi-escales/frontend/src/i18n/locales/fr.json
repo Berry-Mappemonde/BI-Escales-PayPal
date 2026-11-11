@@ -410,6 +410,7 @@
     "createdAt": "Créée le",
     "milestoneFromStop": "La caisse et les dépenses utilisent le jalon de l’escale sélectionnée : {{id}}",
     "milestone": "Jalon",
+    "cabinLeg": "Cabine : {{from}} → {{to}}",
     "actions": "Actions",
     "back": "Retour à la carte",
     "screen": "Écran trésorier",

@@ -38,7 +38,8 @@ describe("TreasurerGrid fallback", () => {
     expect(screen.queryByRole("button", { name: /avis du capitaine|captain review/i })).toBeNull();
   });
 
-  it("names the stop in the Milestone column, and falls back to the id", () => {
+  it("names the stop in the Milestone column, and falls back to the id", async () => {
+    await i18n.changeLanguage("en");
     vi.stubEnv("VITE_ENABLE_AG_GRID", "0");
     const hold = (id: string, milestone_id: string) => ({
       id,
@@ -51,14 +52,14 @@ describe("TreasurerGrid fallback", () => {
     });
     wrap(
       <TreasurerGrid
-        pledges={[hold("p1", "dep-mayotte"), hold("p2", "leg-unknown")]}
+        pledges={[hold("p1", "dep-mayotte"), hold("p2", "leg-unknown"), hold("p3", "leg-mayotte-to-la-reunion")]}
         milestones={[]}
         adminKey=""
         selectedMilestoneId="dep-mayotte"
         onSelectMilestone={() => {}}
         onMilestonesChange={() => {}}
         onPledgeUpdated={() => {}}
-        stopNames={{ "dep-mayotte": "Mamoudzou (Mayotte)" }}
+        stopNames={{ "dep-mayotte": "Mamoudzou (Mayotte)", "dep-la-reunion": "Le Port (La Réunion)" }}
       />,
     );
     const table = screen.getByTestId("treasurer-fallback-table");
@@ -66,5 +67,7 @@ describe("TreasurerGrid fallback", () => {
     expect(named).toHaveAttribute("title", "dep-mayotte");
     expect(within(table).queryByText("dep-mayotte")).toBeNull();
     expect(within(table).getByRole("cell", { name: "leg-unknown" })).toBeInTheDocument();
+    const cabin = within(table).getByRole("cell", { name: "Cabin: Mamoudzou (Mayotte) → Le Port (La Réunion)" });
+    expect(cabin).toHaveAttribute("title", "leg-mayotte-to-la-reunion");
   });
 });

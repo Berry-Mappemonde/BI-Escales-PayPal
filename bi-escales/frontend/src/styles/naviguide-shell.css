@@ -1104,6 +1104,15 @@ body.ng-naviguide-shell {
   min-width: 0;
 }
 .treasurer-page-back { justify-self: start; }
+/* Top bar of the treasurer page: the way back on one side, the app settings on the other. */
+.treasurer-page-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.treasurer-page-bar .ng-controls { flex: none; }
+.treasurer-page-bar .lang-switch { flex: none; }
 .treasurer-page-intro {
   display: grid;
   gap: var(--space-3);

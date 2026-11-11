@@ -589,37 +589,6 @@ body.ng-naviguide-shell {
   font-weight: 600;
 }
 
-/* Stopover calendar (Bryntum, flag on only): the widget keeps its own theme, taken
-   from the shell's; around it, the rail's own type and spacing. */
-.escales-scheduler-lead { margin: 0 0 var(--space-2); }
-.escales-scheduler-bryntum {
-  overflow: hidden;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-control);
-}
-.escales-scheduler .escales-cabins { margin-top: var(--space-3); }
-.escales-scheduler .escales-cabins h3 {
-  margin: 0;
-  color: var(--color-fg);
-  font-size: var(--text-ui);
-  line-height: var(--text-ui--line-height);
-  font-weight: 600;
-}
-.escales-scheduler .escales-legs {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.escales-scheduler .escales-legs > li {
-  display: grid;
-  gap: var(--space-2);
-  padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--color-line);
-}
-.escales-scheduler .escales-legs > li:last-child { padding-bottom: 0; border-bottom: 0; }
-
 .ng-sidebar .project-list-total {
   color: var(--color-fg-3);
   font-size: var(--text-meta);
@@ -1059,17 +1028,6 @@ body.ng-naviguide-shell {
   gap: var(--space-4);
 }
 .treasurer-page-back { justify-self: start; }
-/* The stopover calendar on the treasurer page: a panel like the others, as wide as the page. */
-.treasurer-page-inner > .escales-scheduler {
-  min-width: 0;
-  padding: var(--space-3);
-}
-.treasurer-page-inner > .escales-scheduler h2 {
-  margin: 0 0 var(--space-1);
-  font-size: var(--text-panel-heading);
-  line-height: var(--text-panel-heading--line-height);
-  font-weight: 600;
-}
 .treasurer-page-intro {
   display: grid;
   gap: var(--space-3);
@@ -1234,4 +1192,47 @@ body.ng-naviguide-shell {
 /* Already in the demo: the button that starts it has nothing left to do. */
 .treasurer-page:has(.demo-treasurer-banner) .demo-treasurer-entry {
   display: none;
+}
+
+/* Stopover calendar (Bryntum, flag on only): the widget keeps its own theme, taken
+   from the shell's; around it, the rail's own type and spacing. */
+.escales-scheduler-lead { margin: 0 0 var(--space-2); }
+.escales-scheduler-bryntum {
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+}
+.escales-scheduler .escales-cabins { margin-top: var(--space-3); }
+.escales-scheduler .escales-cabins h3 {
+  margin: 0;
+  color: var(--color-fg);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 600;
+}
+.escales-scheduler .escales-legs {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.escales-scheduler .escales-legs > li {
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-line);
+}
+.escales-scheduler .escales-legs > li:last-child { padding-bottom: 0; border-bottom: 0; }
+
+/* The stopover calendar on the treasurer page: a panel like the others, as wide as the page. */
+.treasurer-page-inner > .escales-scheduler {
+  min-width: 0;
+  padding: var(--space-3);
+}
+.treasurer-page-inner > .escales-scheduler h2 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-panel-heading);
+  line-height: var(--text-panel-heading--line-height);
+  font-weight: 600;
 }

@@ -1,5 +1,6 @@
 import { resumeCheckout } from "./checkoutAttempts";
 import { walletFactories } from "./paypalWallets";
+import { STACKED_BUTTON_GAP_PX, applyV6ButtonLook, v6CardFieldStyle, type V5ButtonStyle } from "./paypalLookV6";
 import type { CardFieldComponent, CardFieldOptions, Components, PaymentFlow, EligiblePaymentMethodsOutput, PayPalV6Namespace, SdkInstance } from "@paypal/paypal-js/sdk-v6";
 
 /**
@@ -27,7 +28,7 @@ type ButtonCallbacks = {
   onApprove?: Callback;
   onCancel?: Callback;
   onError?: Callback;
-  style?: { label?: string };
+  style?: V5ButtonStyle;
   offerPayLater?: boolean;
   subscriptionPlanId?: string;
 };
@@ -274,7 +275,8 @@ export function buildV6Adapter(
           if (!eligible.isEligible("paypal")) throw new Error("PayPal not eligible for this checkout");
           element = document.createElement("paypal-button");
           element.setAttribute("type", subscription ? "subscribe" : config.style?.label === "donate" ? "donate" : "pay");
-          element.classList.add("paypal-gold");
+          // The v5 look asked for by `style`: colour, full width, height (paypalLookV6.ts).
+          applyV6ButtonLook(element, config.style);
           click = () => {
             if (closed || starting) return;
             starting = true;
@@ -291,6 +293,10 @@ export function buildV6Adapter(
             const button = document.createElement("paypal-pay-later-button");
             button.countryCode = details.countryCode;
             button.productCode = details.productCode;
+            // Stacked under the PayPal button at the same width, as in v5's vertical layout.
+            button.style.display = "block";
+            button.style.width = "100%";
+            button.style.marginTop = `${STACKED_BUTTON_GAP_PX}px`;
             button.onclick = () => {
               if (closed || starting) return;
               starting = true;
@@ -327,7 +333,8 @@ export function buildV6Adapter(
         return {
           render: async (host: HTMLElement) => {
             if (disposed) throw new Error("PayPal card session closed");
-            field = session.createCardFieldsComponent({ type });
+            // Styled for the shell's theme as far as v6 card fields allow (paypalLookV6.ts).
+            field = session.createCardFieldsComponent({ type, style: v6CardFieldStyle() });
             fields.add(field);
             host.appendChild(field);
           },

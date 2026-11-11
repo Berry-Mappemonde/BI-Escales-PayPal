@@ -1064,7 +1064,11 @@ async def delete_invoice_route(invoice_id: str, request: Request):
 
 @router.post("/paypal/subscriptions/setup")
 async def post_subscription_setup(request: Request):
-    """Idempotent Crew supporter product + monthly EUR plan (admin)."""
+    """Idempotent Crew membership product and 10 EUR per year plan, in both languages (admin).
+
+    This is the action that creates the current plans on a host. The earlier
+    5 EUR per month catalog is not touched.
+    """
     _require_treasurer(request)
     try:
         return await ensure_crew_supporter_catalog(_paypal())
@@ -1074,7 +1078,7 @@ async def post_subscription_setup(request: Request):
 
 @router.get("/paypal/subscriptions/plan")
 async def get_crew_subscription_plan(lang: Optional[str] = None):
-    """Public read-only Crew supporter billing plan id (hydrates from PayPal when needed)."""
+    """Public read-only Crew membership plan id (10 EUR per year); ``null`` until setup has run."""
     app_lang = resolve_app_language(lang)
     try:
         plan_id = await resolve_crew_supporter_plan_id(_paypal(app_lang), lang=app_lang)

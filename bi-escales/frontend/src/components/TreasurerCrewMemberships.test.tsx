@@ -139,7 +139,7 @@ describe("TreasurerPayPalPanel: Crew memberships", () => {
   it("lists the memberships from the same read as the count, with the treasurer key", async () => {
     panel("treasurer-key");
     await screen.findByTestId("crew-row-I-NEWEST00003");
-    expect(screen.getByTestId("treasurer-subscription-count")).toHaveTextContent("Crew subscriptions: 3");
+    expect(screen.getByTestId("treasurer-subscription-count")).toHaveTextContent("Crew memberships: 3");
     expect(api.fetchPayPalSubscriptions).toHaveBeenCalledTimes(1);
     expect(api.fetchPayPalSubscriptions).toHaveBeenCalledWith("treasurer-key");
   });

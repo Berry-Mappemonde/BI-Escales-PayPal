@@ -25,7 +25,9 @@ Copy the numbered steps below into Devpost’s private **Testing instructions** 
 
 5. **AI Captain (optional, left panel):** Tap a suggested question such as **Where is the boat?**, or type your own (for example `Sponsor 20 miles near Mayotte`). Each answer says whether it came from a fixed rule in the code or from the model (NVIDIA Nemotron via NIM).
 
-6. **Seeing a capture:** Capture needs the treasurer key, so on the public demo watch the treasurer capture flow in the [demo video (v7)](https://youtu.be/LszlcLdwzoQ).
+6. **Crew membership (optional):** The **Crew membership** button in the left panel is the association's membership (adhésion): **10 € per year**, through PayPal Subscriptions, with the same sandbox buyer. The AI Captain answers "How much is the Crew membership?" from a fixed rule.
+
+7. **Seeing a capture:** Capture needs the treasurer key, so on the public demo watch the treasurer capture flow in the [demo video (v7)](https://youtu.be/LszlcLdwzoQ).
 
 ## What needs the treasurer key
 
@@ -43,7 +45,7 @@ Read from `GET /api/escales/features` on escales.naviguide.fr on 11 Nov 2026.
 | --- | --- |
 | PayPal Vault for far stops and cabins (`ESCALES_VAULT_ENABLED`) | **On** |
 | Demo treasurer, read-only (`ESCALES_DEMO_TREASURER`) | **On** |
-| Crew membership (PayPal subscription) | **On** |
+| Crew membership (association adhésion) — 10 € per year, PayPal subscription | **On** |
 | Gear wishlists | **On** |
 | Card Fields, pay by card in the page (`ESCALES_CARD_FIELDS_ENABLED`) | Off |
 | Apple Pay / Google Pay (`ESCALES_WALLET_PAY_ENABLED`) | Off |

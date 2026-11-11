@@ -1,4 +1,9 @@
-"""Billing subscriptions — idempotent bilingual 'Crew supporter' catalog setup (admin)."""
+"""Billing subscriptions — idempotent bilingual Crew membership catalog setup (admin).
+
+Crew membership is the association membership (adhésion): 10 EUR per year.
+The first catalog, 5 EUR per month, is kept: nothing here deletes or changes it,
+and a subscription on one of its plans still verifies as a Crew subscription.
+"""
 
 from __future__ import annotations
 
@@ -13,15 +18,45 @@ from .paypal_client import paypal_checkout_locale
 from .paypal_idempotency import paypal_request_id
 from .pledges import _client_key
 
-CREW_SETUP_KEY = "crew_supporter_catalog"
+# Catalog v2: the plans the app shows and sells. A new key, so that the finance row
+# and the PayPal request ids are new and the v1 catalog is neither reused nor touched.
+CREW_SETUP_KEY = "crew_membership_catalog_v2"
+CREW_PLAN_AMOUNT_EUR = "10.00"
+CREW_PLAN_INTERVAL_UNIT = "YEAR"
+
+# Catalog v1: 5 EUR per month. Read-only here. Its plan ids are still accepted when a
+# subscription is verified, so existing sandbox subscribers keep working.
+CREW_LEGACY_SETUP_KEY = "crew_supporter_catalog"
+
 SUBSCRIPTION_CREATE_CACHE_KIND = "paypal_subscription_create_cache"
 SUBSCRIPTION_CREATE_CACHE_MAX = 32
 
 CREW_CATALOG_LANGS = ("en", "fr")
 
+# A v1 English plan id that was hard-coded before the catalog row existed. Legacy only:
+# accepted on verification, never offered for a new subscription.
 CREW_PLAN_ID_EN_FALLBACK = "P-4PS00218TX624722ENLVZY3I"
 
 CREW_LABELS: dict[str, dict[str, str]] = {
+    "en": {
+        "product_name": "Crew membership",
+        "product_description": (
+            "Association membership (adhésion) of Berry-Mappemonde for Blue Intelligence Escales: "
+            "10 EUR per year"
+        ),
+        "plan_name": "Crew membership (10 EUR per year)",
+    },
+    "fr": {
+        "product_name": "Adhésion Crew",
+        "product_description": (
+            "Adhésion à l'association Berry-Mappemonde pour Blue Intelligence Escales : 10 EUR par an"
+        ),
+        "plan_name": "Adhésion Crew (10 EUR par an)",
+    },
+}
+
+# The v1 names, kept for reference and tests. No product or plan is created with them any more.
+CREW_LEGACY_LABELS: dict[str, dict[str, str]] = {
     "en": {
         "product_name": "Crew supporter",
         "product_description": "Monthly crew supporter subscription for Blue Intelligence Escales",
@@ -35,13 +70,33 @@ CREW_LABELS: dict[str, dict[str, str]] = {
 }
 
 
-async def _catalog_row() -> Optional[dict]:
+async def _catalog_row(setup_key: str = CREW_SETUP_KEY) -> Optional[dict]:
+    """The stored catalog for ``setup_key``: the current one (v2) unless the legacy key is asked for."""
     for entry in await list_finance_entries():
         if entry.get("kind") != "subscription_catalog_ready":
             continue
-        if entry.get("setup_key") == CREW_SETUP_KEY:
+        if entry.get("setup_key") == setup_key:
             return entry
     return None
+
+
+async def legacy_crew_plan_ids() -> set[str]:
+    """Plan ids of the v1 catalog (5 EUR per month), from local records only.
+
+    Used to keep verifying subscriptions made before the 10 EUR per year plans.
+    No PayPal call: the v1 catalog is never looked up, changed or recreated.
+    """
+    ids = {CREW_PLAN_ID_EN_FALLBACK}
+    for entry in await list_finance_entries():
+        if entry.get("kind") != "subscription_catalog_ready":
+            continue
+        if entry.get("setup_key") != CREW_LEGACY_SETUP_KEY:
+            continue
+        for key in ("plan_id", *(f"plan_id_{lang}" for lang in CREW_CATALOG_LANGS)):
+            plan_id = str(entry.get(key) or "").strip()
+            if plan_id:
+                ids.add(plan_id)
+    return ids
 
 
 def _catalog_product_id(products_payload: dict, product_name: str) -> Optional[str]:
@@ -170,8 +225,8 @@ async def _ensure_lang_catalog(client: Any, lang: str) -> dict[str, str]:
     plan = client.create_billing_plan(
         product_id=product_id,
         name=labels["plan_name"],
-        amount_eur="5.00",
-        interval_unit="MONTH",
+        amount_eur=CREW_PLAN_AMOUNT_EUR,
+        interval_unit=CREW_PLAN_INTERVAL_UNIT,
         idempotency_key=paypal_request_id(CREW_SETUP_KEY, f"plan-{lang}"),
     )
     plan_id = str(plan.get("id") or "")
@@ -188,7 +243,10 @@ async def _ensure_lang_catalog(client: Any, lang: str) -> dict[str, str]:
 
 
 async def ensure_crew_supporter_catalog(client: Any) -> dict:
-    """Create bilingual product + monthly EUR plans once (idempotent)."""
+    """Create the bilingual product and the 10 EUR per year plans once (idempotent).
+
+    Works on catalog v2 only. A v1 catalog on the host is left exactly as it is.
+    """
     row = await _catalog_row()
     if row and all(_row_plan_id(row, lang) for lang in CREW_CATALOG_LANGS):
         return {
@@ -224,7 +282,12 @@ async def public_crew_supporter_plan_id(lang: Optional[str] = None) -> Optional[
 
 
 async def resolve_crew_supporter_plan_id(client: Any, lang: Optional[str] = None) -> Optional[str]:
-    """Local memory or PayPal catalog lookup only — never creates product/plan."""
+    """Local memory or PayPal catalog lookup only — never creates product/plan.
+
+    Returns the 10 EUR per year plan, or ``None`` until that catalog exists on the
+    host. It never falls back to a v1 plan: the app must not sell 5 EUR per month
+    under a "10 EUR per year" label.
+    """
     app_lang = normalize_app_lang(lang)
     row = await _catalog_row()
     if row:
@@ -233,8 +296,6 @@ async def resolve_crew_supporter_plan_id(client: Any, lang: Optional[str] = None
             return plan_id
     hydrated = await _hydrate_lang_from_paypal(client, app_lang)
     if not hydrated:
-        if app_lang == "en":
-            return CREW_PLAN_ID_EN_FALLBACK
         return None
     patch = {
         f"product_id_{app_lang}": hydrated["product_id"],
@@ -248,16 +309,18 @@ async def resolve_crew_supporter_plan_id(client: Any, lang: Optional[str] = None
 
 
 async def crew_supporter_plan_ids(client: Any) -> set[str]:
+    """Every plan id that counts as a Crew subscription: the current plans and the v1 ones."""
     await ensure_crew_supporter_catalog(client)
     row = await _catalog_row()
     ids: set[str] = set()
-    if not row:
-        return ids
     for lang in CREW_CATALOG_LANGS:
-        plan_id = _row_plan_id(row, lang)
+        plan_id = _row_plan_id(row or {}, lang) if row else None
         if plan_id:
             ids.add(plan_id)
-    return ids
+    if not ids:
+        # No current catalog: nothing is configured, and legacy ids alone do not make it so.
+        return ids
+    return ids | await legacy_crew_plan_ids()
 
 
 def _subscription_approve_link(payload: dict) -> Optional[str]:
@@ -357,7 +420,7 @@ async def create_crew_subscription(
     if not plan_id:
         plan_id = str(await resolve_crew_supporter_plan_id(client, lang=app_lang) or "")
     if not plan_id:
-        raise ValueError("crew supporter plan is not configured")
+        raise ValueError("Crew membership plan is not configured")
     replay_key = _client_key(client_key)
     body_hash = _subscription_create_body_hash(
         return_url=return_url,
@@ -411,10 +474,10 @@ async def approve_crew_subscription(
     remote = client.get_subscription(sub_id)
     expected_plans = await crew_supporter_plan_ids(client)
     if not expected_plans:
-        raise ValueError("crew supporter plan is not configured")
+        raise ValueError("Crew membership plan is not configured")
     remote_plan = str(remote.get("plan_id") or plan_id or "").strip()
     if remote_plan not in expected_plans:
-        raise ValueError("subscription plan_id does not match the Crew supporter plan")
+        raise ValueError("subscription plan_id does not match the Crew membership plan")
     status = str(remote.get("status") or "").strip().upper()
     if status != "ACTIVE":
         raise ValueError(

@@ -430,6 +430,29 @@
     "settleAtInvalid": "Enter a valid date and time.",
     "paypal": {
       "heading": "PayPal (read-only lists)",
+      "crew": {
+        "heading": "Crew memberships",
+        "total_one": "{{count}} membership",
+        "total_other": "{{count}} memberships",
+        "active_one": "{{count}} active",
+        "active_other": "{{count}} active",
+        "empty": "No Crew membership yet.",
+        "member": "Member",
+        "status": "Status",
+        "since": "Since",
+        "updated": "Last change",
+        "subscription": "Subscription",
+        "noEmail": "Email not shared by PayPal",
+        "readOnly": "Read-only. A membership starts and ends in PayPal.",
+        "statuses": {
+          "ACTIVE": "Active",
+          "APPROVAL_PENDING": "Waiting for approval",
+          "APPROVED": "Approved, not started",
+          "SUSPENDED": "Suspended",
+          "CANCELLED": "Cancelled",
+          "EXPIRED": "Expired"
+        }
+      },
       "disputes": "Disputes: {{count}}",
       "invoices": "Invoices: {{count}}",
       "subscriptions": "Crew subscriptions: {{count}}",

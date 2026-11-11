@@ -148,6 +148,35 @@
   background: var(--color-selected);
 }
 
+/* Crew memberships: a sub-list of the PayPal section, same table as the others.
+   The section may shrink below its table, which then scrolls inside its own box. */
+.treasurer-page-inner > .treasurer-panel,
+.treasurer-panel .treasurer-panel-body .treasurer-paypal {
+  min-width: 0;
+}
+.treasurer-panel .treasurer-panel-body .treasurer-crew {
+  min-width: 0;
+  margin: var(--space-3) 0;
+}
+.treasurer-panel .treasurer-panel-body .treasurer-crew h4 {
+  margin: 0 0 var(--space-1);
+  color: var(--color-fg);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 600;
+}
+.treasurer-panel .treasurer-panel-body .treasurer-crew-table {
+  overflow-x: auto;
+  margin: var(--space-2) 0;
+}
+.treasurer-panel .treasurer-panel-body .treasurer-crew-table td {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.treasurer-panel .treasurer-panel-body .treasurer-crew-table td[data-status="ACTIVE"] {
+  color: var(--color-st-done);
+}
+
 /* Lists and forms */
 .treasurer-panel .treasurer-panel-body .treasurer-paypal-list {
   display: grid;

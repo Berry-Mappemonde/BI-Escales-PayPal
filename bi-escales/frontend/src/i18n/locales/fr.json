@@ -430,6 +430,29 @@
     "settleAtInvalid": "Indiquez une date et une heure valides.",
     "paypal": {
       "heading": "PayPal (listes lecture seule)",
+      "crew": {
+        "heading": "Adhésions Crew",
+        "total_one": "{{count}} adhésion",
+        "total_other": "{{count}} adhésions",
+        "active_one": "{{count}} active",
+        "active_other": "{{count}} actives",
+        "empty": "Aucune adhésion Crew pour l’instant.",
+        "member": "Membre",
+        "status": "Statut",
+        "since": "Depuis",
+        "updated": "Dernier changement",
+        "subscription": "Abonnement",
+        "noEmail": "E-mail non communiqué par PayPal",
+        "readOnly": "Lecture seule. Une adhésion commence et se termine dans PayPal.",
+        "statuses": {
+          "ACTIVE": "Active",
+          "APPROVAL_PENDING": "En attente d’approbation",
+          "APPROVED": "Approuvée, pas commencée",
+          "SUSPENDED": "Suspendue",
+          "CANCELLED": "Résiliée",
+          "EXPIRED": "Expirée"
+        }
+      },
       "disputes": "Litiges : {{count}}",
       "invoices": "Factures : {{count}}",
       "subscriptions": "Abonnements équipage : {{count}}",

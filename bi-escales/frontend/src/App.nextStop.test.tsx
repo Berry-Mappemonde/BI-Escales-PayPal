@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as escalesApi from "./api/escales";
+import * as loadVoyage from "./voyage/loadVoyage.js";
 import i18n from "./i18n";
 import App from "./App";
 
@@ -115,11 +116,56 @@ describe("Back the next stop", () => {
     await waitFor(() => expect(button).toHaveAccessibleName("Back the next stop: Ajaccio (Corse)"));
   });
 
+  it("names no stop while the schedule is on its way, then names the next open one", async () => {
+    vi.mocked(escalesApi.fetchClock).mockResolvedValue({ start: "2026-11-12", now: "2026-11-12T10:00:00+00:00" });
+    let answer: (row: unknown) => void = () => undefined;
+    vi.mocked(escalesApi.fetchSchedule).mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve as (row: unknown) => void;
+      }) as never,
+    );
+    renderApp();
+
+    // The boat waits at Saint-Maur, but the schedule may say Saint-Maur is reached.
+    const pending = await screen.findByTestId("back-next-stop-pending");
+    expect(pending).toBeDisabled();
+    expect(pending).toHaveAttribute("aria-busy", "true");
+    expect(pending).toHaveTextContent("Back the next stop");
+    expect(pending).toHaveTextContent("Finding the next stop…");
+    expect(pending).not.toHaveTextContent("Saint-Maur");
+    expect(screen.queryByTestId("back-next-stop")).toBeNull();
+
+    answer(schedule);
+    const button = await screen.findByTestId("back-next-stop");
+    expect(button).toHaveAccessibleName("Back the next stop: La Rochelle");
+    expect(screen.queryByTestId("back-next-stop-pending")).toBeNull();
+  });
+
+  it("falls back to the boat's stop when the schedule request fails", async () => {
+    vi.mocked(escalesApi.fetchClock).mockResolvedValue({ start: "2026-11-12", now: "2026-11-12T10:00:00+00:00" });
+    vi.mocked(escalesApi.fetchSchedule).mockRejectedValue(new Error("schedule down"));
+    renderApp();
+    const button = await screen.findByTestId("back-next-stop");
+    expect(button).toHaveAccessibleName("Back the next stop: Saint-Maur (Berry, Indre)");
+    expect(screen.queryByTestId("back-next-stop-pending")).toBeNull();
+  });
+
+  it("samples the voyage at the API clock, so the left rail agrees with the stop statuses", async () => {
+    vi.mocked(escalesApi.fetchClock).mockResolvedValue({ start: "2026-11-12", now: "2026-11-12T10:00:00+00:00" });
+    renderApp();
+    await screen.findByTestId("back-next-stop");
+    await waitFor(() => {
+      const last = vi.mocked(loadVoyage.sampleAt).mock.calls.at(-1) as unknown as [unknown, Date];
+      expect(last[1].toISOString()).toBe("2026-11-12T10:00:00.000Z");
+    });
+  });
+
   it("offers no shortcut when every stop is behind the boat", async () => {
     vi.mocked(escalesApi.fetchClock).mockResolvedValue({ start: "2026-11-12", now: "2028-01-01T00:00:00+00:00" });
     renderApp();
     await waitFor(() => expect(escalesApi.fetchClock).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByTestId("back-next-stop")).toBeNull());
+    await waitFor(() => expect(screen.queryByTestId("back-next-stop-pending")).toBeNull());
     expect(screen.getByTestId("how-it-works")).toBeInTheDocument();
   });
 });

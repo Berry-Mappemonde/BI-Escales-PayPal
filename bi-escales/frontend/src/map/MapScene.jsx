@@ -81,6 +81,55 @@ function paintSegment(group, segment) {
   addRouteLine(group, segment.coords, { color: "#0077ff", weight: ROUTE_MAIN_WEIGHT });
 }
 
+/** Room kept between a popup and the edges of the map, on each side (px). */
+const POPUP_SIDE_ROOM = 24;
+
+/**
+ * Popup widths that fit the map: Leaflet's maxWidth / minWidth are fixed pixel
+ * values, and a 320-360 px popup plus its padding is wider than a phone's map.
+ */
+export function popupWidths(map, maxWidth, minWidth) {
+  const mapWidth = Number(map?.getSize?.().x) || 0;
+  // 40 px: Leaflet's own left + right content margins inside the popup frame.
+  const room = mapWidth > 0 ? Math.max(160, mapWidth - 40 - POPUP_SIDE_ROOM * 2) : maxWidth;
+  const max = Math.min(maxWidth, room);
+  return minWidth === undefined ? { maxWidth: max } : { maxWidth: max, minWidth: Math.min(minWidth, max) };
+}
+
+/**
+ * The popup's content is a React tree mounted after the popup opens, and it keeps
+ * changing size (the description, then the PayPal button). Leaflet measured an
+ * empty box, so measure again whenever the content's size changes: the popup is
+ * then centred on its marker and panned inside the map.
+ *
+ * Not `popup.update()`: that re-attaches the content node, which reloads any
+ * iframe inside it (the PayPal button). These three steps only measure and move.
+ * Returns the function that stops watching.
+ */
+function keepPopupFitted(marker, container) {
+  const refit = () => {
+    const popup = marker.getPopup?.();
+    if (!popup || !marker.isPopupOpen?.()) return;
+    popup._updateLayout?.();
+    popup._updatePosition?.();
+    popup._adjustPan?.();
+  };
+  if (typeof ResizeObserver !== "function") {
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(refit);
+    else setTimeout(refit, 0);
+    return () => {};
+  }
+  let seen = "";
+  const observer = new ResizeObserver(() => {
+    const size = `${container.offsetWidth}x${container.offsetHeight}`;
+    if (size === seen) return; // our own refit settles on the same size: no loop
+    seen = size;
+    refit();
+  });
+  observer.observe(container);
+  return () => observer.disconnect();
+}
+
 export function MapScene({
   segments,
   stops,
@@ -117,6 +166,10 @@ export function MapScene({
   const onPledgeAuthorizedRef = useRef(onPledgeAuthorized);
   onPledgeAuthorizedRef.current = onPledgeAuthorized;
   const popupRootsRef = useRef(new Map());
+  // Project id -> its dot, so a project picked outside the map can open its popup.
+  const projectMarkersRef = useRef(new Map());
+  // Id of the project whose popup is open, if any.
+  const openProjectIdRef = useRef(null);
   const stopOffsetsRef = useRef([]);
 
   useEffect(() => {
@@ -284,11 +337,18 @@ export function MapScene({
     const map = mapRef.current;
     const layers = layersRef.current;
     if (!map || !layers) return undefined;
+    // The dots are rebuilt when the list changes (the gear projects arrive after the
+    // base file). A popup that was open stays open on the rebuilt dot.
+    const reopenId = openProjectIdRef.current;
     const group = layers.update("projects", () => L.layerGroup().addTo(map), (layer) => layer.clearLayers());
+    openProjectIdRef.current = null;
     const roots = popupRootsRef.current;
     roots.forEach((root) => root.unmount());
     roots.clear();
+    const projectMarkers = projectMarkersRef.current;
+    projectMarkers.clear();
     if (!showProjects) return undefined;
+    let reopen = null;
     (projects?.features || []).forEach((feature) => {
       const [lon, lat] = feature.geometry?.coordinates || [];
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
@@ -323,14 +383,25 @@ export function MapScene({
       };
 
       marker.bindPopup(popupContainer, {
-        maxWidth: 360,
-        minWidth: 260,
+        ...popupWidths(map, 360, 260),
         className: "ng-project-leaflet-popup",
         autoPan: true,
         keepInView: true,
       });
-      marker.on("popupopen", mountPopup);
+      const projectId = String(feature.properties?.id || "");
+      if (projectId) projectMarkers.set(projectId, marker);
+      if (projectId && projectId === reopenId) reopen = marker;
+      let stopFitting = null;
+      marker.on("popupopen", () => {
+        openProjectIdRef.current = projectId || null;
+        mountPopup();
+        stopFitting?.();
+        stopFitting = keepPopupFitted(marker, popupContainer);
+      });
       marker.on("popupclose", () => {
+        if (openProjectIdRef.current === projectId) openProjectIdRef.current = null;
+        stopFitting?.();
+        stopFitting = null;
         popupRoot?.unmount();
         popupRoot = null;
         roots.delete(marker);
@@ -343,9 +414,11 @@ export function MapScene({
         marker.openPopup();
       });
     });
+    reopen?.openPopup();
     return () => {
       roots.forEach((root) => root.unmount());
       roots.clear();
+      projectMarkers.clear();
     };
   }, [projects, showProjects, contributor, onPledgeAuthorized, i18nInstance.language]);
 
@@ -389,9 +462,16 @@ export function MapScene({
           </I18nextProvider>,
         );
       };
-      marker.bindPopup(container, { maxWidth: 320, autoPan: true, keepInView: true });
-      marker.on("popupopen", mountPopup);
+      marker.bindPopup(container, { ...popupWidths(map, 320), autoPan: true, keepInView: true });
+      let stopFitting = null;
+      marker.on("popupopen", () => {
+        mountPopup();
+        stopFitting?.();
+        stopFitting = keepPopupFitted(marker, container);
+      });
       marker.on("popupclose", () => {
+        stopFitting?.();
+        stopFitting = null;
         popupRoot?.unmount();
         popupRoot = null;
       });
@@ -411,7 +491,20 @@ export function MapScene({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !flyTo || !Number.isFinite(flyTo.lat) || !Number.isFinite(flyTo.lon)) return;
+    // A project picked from the list opens its popup, like a click on its dot: the
+    // dot alone is 4 px wide and says nothing. Other targets have no entry here.
+    // It opens once the map has arrived, so Leaflet can pan the whole popup into view
+    // (a pan asked for during the zoom animation is dropped).
+    const marker = flyTo.id ? projectMarkersRef.current.get(String(flyTo.id)) : null;
+    const openPopup = () => {
+      if (marker && !marker.isPopupOpen() && map.hasLayer(marker)) marker.openPopup();
+    };
+    // Registered before the move: Leaflet reports a move that changes nothing at once.
+    if (marker) map.once("moveend", openPopup);
     map.setView([flyTo.lat, flyTo.lon], Math.max(map.getZoom(), 8), { animate: true });
+    return () => {
+      if (marker) map.off("moveend", openPopup);
+    };
   }, [flyTo]);
 
   return <div ref={containerRef} className="voyage-map" data-testid="voyage-map" />;

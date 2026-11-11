@@ -10,6 +10,8 @@ import {
 } from "../paypal/paypalSdk";
 import { PayPalErrorBoundary } from "./PayPalErrorBoundary";
 import { subscribeCrewSubscribeReturn } from "../paypal/crewSubscribeReturnEvents";
+import { usePayPalJsVersion } from "../paypal/paypalJsVersion";
+import { CrewSubscribeButtonV6Inner } from "./CrewSubscribeButtonV6";
 
 export interface CrewSubscribeButtonProps {
   planId?: string;
@@ -46,7 +48,7 @@ function readShellTheme(): ShellTheme {
 }
 
 /** The theme lives on <html data-theme>; follow it so the button is redrawn on a switch. */
-function useShellTheme(): ShellTheme {
+export function useShellTheme(): ShellTheme {
   const [theme, setTheme] = useState<ShellTheme>(readShellTheme);
   useEffect(() => {
     if (typeof MutationObserver === "undefined") return undefined;
@@ -59,7 +61,7 @@ function useShellTheme(): ShellTheme {
 
 type PlanLoadIssue = "missing" | "timeout" | null;
 
-function useCrewSupporterPlanId(planIdProp?: string) {
+export function useCrewSupporterPlanId(planIdProp?: string) {
   const { t, i18n } = useTranslation();
   const appLang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const [planId, setPlanId] = useState(() => (planIdProp || "").trim());
@@ -173,10 +175,17 @@ export function CrewSupporterPublicSection({ adminKey }: { adminKey?: string }) 
   );
 }
 
+/**
+ * Picks the subscription button for this page load. `CrewSubscribeButtonInner` below is
+ * today's JS SDK v5 button and stays the default; `CrewSubscribeButtonV6Inner` is used only
+ * when the backend reports `features.paypal_js_v6` (see paypal/paypalJsVersion.ts).
+ */
 export function CrewSubscribeButton(props: CrewSubscribeButtonProps) {
+  const version = usePayPalJsVersion();
+  if (version === null) return null;
   return (
     <PayPalErrorBoundary testId="crew-subscribe-error">
-      <CrewSubscribeButtonInner {...props} />
+      {version === "v6" ? <CrewSubscribeButtonV6Inner {...props} /> : <CrewSubscribeButtonInner {...props} />}
     </PayPalErrorBoundary>
   );
 }

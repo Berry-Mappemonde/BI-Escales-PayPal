@@ -81,6 +81,11 @@ async def escale_marinas_geojson(name: str = ""):
     return JSONResponse(content=payload, media_type="application/geo+json")
 
 
+_backend_static = Path(__file__).resolve().parent.parent / "static"
+_onboarding_static = _backend_static / "onboarding"
+if _onboarding_static.is_dir():
+    app.mount("/static/onboarding", StaticFiles(directory=_onboarding_static), name="onboarding-static")
+
 _escales_on = os.environ.get("ESCALES_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
 if _escales_on:
     from app.routers import escales, escales_demo, project_onboarding

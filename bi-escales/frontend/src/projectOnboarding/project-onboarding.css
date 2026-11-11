@@ -10,6 +10,31 @@
   border-radius: 4px;
 }
 
+.project-onboarding-card {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  margin: 1rem 0;
+}
+
+.project-onboarding-logo {
+  width: 6rem;
+  height: auto;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.project-onboarding-description {
+  color: #333;
+  margin: 0.35rem 0;
+}
+
+.project-onboarding-location {
+  font-size: 0.95rem;
+  color: #555;
+  margin: 0.25rem 0 0;
+}
+
 .project-onboarding-donations {
   list-style: none;
   padding: 0;

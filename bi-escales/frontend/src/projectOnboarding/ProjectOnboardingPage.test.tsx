@@ -5,11 +5,14 @@ import i18n from "../i18n";
 import { ProjectOnboardingPage } from "./ProjectOnboardingPage";
 
 vi.mock("../api/projectOnboarding", () => ({
-  fetchOnboardingFeatureStatus: vi.fn().mockResolvedValue({ enabled: true, demo_project_id: "projet-demo-recif-vivant" }),
+  fetchOnboardingFeatureStatus: vi.fn().mockResolvedValue({ enabled: true, demo_project_id: "projet-berry-mappemonde" }),
   fetchProjectOnboarding: vi.fn().mockResolvedValue({
-    id: "projet-demo-recif-vivant",
-    demo_fake: true,
-    title: "Demo Project — Living Reef (fictional / sandbox)",
+    id: "projet-berry-mappemonde",
+    title: "Berry-Mappemonde association",
+    description:
+      "A French non-profit based in Saint-Maur (Indre), Berry-Mappemonde is organising a 36-month sailing expedition on production sailboats, linking the Berry, a landlocked region in the heart of France, to France's 13 overseas territories. The association builds lasting ties between these places (twinnings, exchanges, partnerships), runs school programmes, raises awareness of maritime, farming and environmental issues, and documents the journey through a book, a documentary series and a travelling exhibition.",
+    image_url: "/static/onboarding/berry-mappemonde-logo.webp",
+    location_label: "Saint-Maur (Indre), France",
     onboarding_status: "pending",
     donations: [
       {
@@ -37,12 +40,18 @@ describe("ProjectOnboardingPage", () => {
     i18n.changeLanguage("en");
     render(
       <I18nextProvider i18n={i18n}>
-        <ProjectOnboardingPage projectId="projet-demo-recif-vivant" />
+        <ProjectOnboardingPage projectId="projet-berry-mappemonde" />
       </I18nextProvider>,
     );
     await waitFor(() => expect(screen.getByTestId("project-onboarding-page")).toBeInTheDocument());
     expect(screen.getAllByText(/Held pending project onboarding/i).length).toBeGreaterThanOrEqual(1);
     expect(document.querySelector('li[data-status="held_pending_onboarding"]')).not.toBeNull();
     expect(screen.getByTestId("onboard-donate")).toBeInTheDocument();
+    expect(screen.getByTestId("project-onboarding-logo")).toHaveAttribute(
+      "src",
+      "/static/onboarding/berry-mappemonde-logo.webp",
+    );
+    expect(screen.getByTestId("project-onboarding-location")).toHaveTextContent("Saint-Maur (Indre), France");
+    expect(screen.getByText(/travelling exhibition\./)).toBeInTheDocument();
   });
 });

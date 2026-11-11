@@ -4,6 +4,8 @@ import { formatSettleCaptureNote } from "./api/settleCaptureNote";
 import { approveCrewSubscription, authorizePledge, fetchClock, fetchCrewSupporterPlan, fetchFund, fetchFeatures, fetchGearProjects, fetchHealthRetrying, fetchPrices, fetchPublicCommonFund, fetchSchedule, listMilestones, readCrewSubscribeReturn, readPaypalReturn, readVaultReturn, recordSpending, registerVault, settleClock } from "./api/escales";
 import { emitCrewSubscribeReturn } from "./paypal/crewSubscribeReturnEvents";
 import { emitPledgeReturn } from "./paypal/pledgeReturnEvents";
+import { notePayPalJsFeatures } from "./paypal/paypalJsVersion";
+import { hasAttempt, reconcileAttempt } from "./paypal/v6/checkoutAttempts";
 import type { CaptainChatResponse, FundView, Milestone, PublicPledge, ScheduleResponse } from "./api/types";
 import { EscalesPanel } from "./components/EscalesPanel";
 import { EscalePopup } from "./components/EscalePopup.jsx";
@@ -226,6 +228,8 @@ export default function App() {
       .catch(() => setProjects({ features: [] }));
     void fetchFeatures()
       .then((flags) => {
+        // Tells the PayPal buttons which browser SDK to use (v5 unless paypal_js_v6 is on).
+        notePayPalJsFeatures(flags);
         if (cancelled) return;
         setBryntumEnabled(Boolean(flags.bryntum));
         setWishlistsEnabled(Boolean(flags.wishlists));
@@ -233,6 +237,7 @@ export default function App() {
         setDemoTreasurerAvailable(Boolean(flags.demo_treasurer));
       })
       .catch(() => {
+        notePayPalJsFeatures(null);
         if (!cancelled) {
           setBryntumEnabled(false);
           setClockPinned(false);
@@ -562,7 +567,10 @@ export default function App() {
       }
       if (!vaultParsed.pledgeId) return undefined;
       setPaypalNote("vaulting");
-      void registerVault(vaultParsed.pledgeId, vaultParsed.approvalTokenId)
+      // A checkout started by the v6 path shares one server reconciliation with its PayPal session.
+      void (hasAttempt(vaultParsed.pledgeId)
+        ? reconcileAttempt(vaultParsed.pledgeId, true, vaultParsed.approvalTokenId)
+        : registerVault(vaultParsed.pledgeId, vaultParsed.approvalTokenId))
         .then((pledge) => {
           pledgeQueueRef.current.updatePledge(pledge);
           void pledgeQueueRef.current.refresh();
@@ -594,7 +602,7 @@ export default function App() {
     }
     if (!parsed.pledgeId) return;
     setPaypalNote("authorizing");
-    void authorizePledge(parsed.pledgeId)
+    void (hasAttempt(parsed.pledgeId) ? reconcileAttempt(parsed.pledgeId) : authorizePledge(parsed.pledgeId))
       .then((pledge) => {
         pledgeQueueRef.current.updatePledge(pledge);
         void pledgeQueueRef.current.refresh();

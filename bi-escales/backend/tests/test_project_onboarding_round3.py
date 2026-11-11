@@ -222,6 +222,20 @@ def test_merchant_webhook_rejects_failed_verification(onboarding_api, monkeypatc
     assert res.status_code == 401
 
 
+def test_en_email_omits_foundation_when_absent():
+    rendered = render_onboarding_email(
+        lang="en",
+        amount_eur="10.00",
+        foundation_name="",
+        project_title="Berry-Mappemonde association",
+        action_url="https://www.sandbox.paypal.com/example",
+        donation_status=ONBOARDING_HELD_STATUS,
+        deadline_iso="2026-12-10T12:00:00Z",
+    )
+    assert "foundation:" not in rendered["html"].lower()
+    assert "Berry-Mappemonde association" in rendered["html"]
+
+
 def test_en_email_uses_english_foundation_name():
     project = {
         "title_en": "Demo Project",

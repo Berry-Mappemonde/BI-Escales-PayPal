@@ -230,6 +230,17 @@ def wallet_pay_enabled() -> bool:
     return os.environ.get("ESCALES_WALLET_PAY_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def paypal_js_v6_enabled() -> bool:
+    """Browser checkout through PayPal Web SDK v6 instead of the JS SDK v5 Smart Buttons.
+
+    Off by default: the page keeps today's v5 checkout. Sandbox only, like every
+    other PayPal path; a non-sandbox PAYPAL_ENV keeps it off whatever the flag says.
+    """
+    if os.environ.get("ESCALES_PAYPAL_JS_V6_ENABLED", "").strip().lower() not in _TRUTHY:
+        return False
+    return (os.environ.get("PAYPAL_ENV") or "sandbox").strip().lower() == "sandbox"
+
+
 def platform_fees_enabled() -> bool:
     """Multiparty marina platform fees (berth only). Off until Platform partner-referrals ACTIVE."""
     return os.environ.get("ESCALES_PLATFORM_FEES_ENABLED", "").strip().lower() in _TRUTHY
@@ -345,7 +356,7 @@ def email_enabled() -> bool:
 
 
 def demo_project_contact_email() -> str:
-    """Runtime contact for the fictional demo project (never committed)."""
+    """Runtime contact for the onboard-after-payment demo project (never committed)."""
     return (os.environ.get("ESCALES_DEMO_PROJECT_CONTACT_EMAIL") or "").strip()
 
 

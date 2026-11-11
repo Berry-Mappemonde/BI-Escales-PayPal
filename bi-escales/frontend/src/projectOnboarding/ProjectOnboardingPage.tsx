@@ -104,7 +104,25 @@ export function ProjectOnboardingPage({ projectId }: { projectId: string }) {
   return (
     <main className="project-onboarding-page" data-testid="project-onboarding-page">
       <p className="sandbox-banner">{t("projectOnboarding.sandboxBanner")}</p>
-      <h1>{view.title}</h1>
+      <header className="project-onboarding-card">
+        {view.image_url ? (
+          <img
+            className="project-onboarding-logo"
+            src={view.image_url}
+            alt=""
+            data-testid="project-onboarding-logo"
+          />
+        ) : null}
+        <div className="project-onboarding-card-body">
+          <h1>{view.title}</h1>
+          {view.description ? <p className="project-onboarding-description">{view.description}</p> : null}
+          {view.location_label ? (
+            <p className="project-onboarding-location" data-testid="project-onboarding-location">
+              {view.location_label}
+            </p>
+          ) : null}
+        </div>
+      </header>
       <p>{t(`projectOnboarding.projectStatus.${view.onboarding_status}`, { defaultValue: view.onboarding_status })}</p>
       <ul className="project-onboarding-donations">
         {view.donations.map((row) => (

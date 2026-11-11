@@ -33,6 +33,46 @@ const pledge = {
 describe("TreasurerQueue", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => vi.useRealTimers());
+
+  describe("milestone shown per pledge", () => {
+    const rows = [
+      pledge,
+      { ...pledge, id: "p-2", milestone_id: "dep-ajaccio-corse" },
+      { ...pledge, id: "p-3", milestone_id: "leg-la-rochelle-ajaccio" },
+      { ...pledge, id: "p-4", milestone_id: "" },
+    ];
+    const stopNames = { "dep-la-rochelle": "La Rochelle", "dep-ajaccio-corse": "Ajaccio (Corse)" };
+
+    function show(names?: Record<string, string>) {
+      vi.mocked(captainReview).mockResolvedValue({ milestone_id: "dep-la-rochelle", proposal: "wait", pledge_ids: [] });
+      render(
+        <I18nextProvider i18n={i18n}>
+          <TreasurerQueue pledges={rows} adminKey="key" stopNames={names} onRefresh={() => {}} onUpdated={() => {}} />
+        </I18nextProvider>,
+      );
+    }
+
+    it("shows the stop name instead of the milestone id, and keeps the id as a tooltip", () => {
+      show(stopNames);
+      expect(screen.getByTestId("pledge-milestone-p-1")).toHaveTextContent(/^La Rochelle$/);
+      expect(screen.getByTestId("pledge-milestone-p-1")).toHaveAttribute("title", "dep-la-rochelle");
+      expect(screen.getByTestId("pledge-milestone-p-2")).toHaveTextContent(/^Ajaccio \(Corse\)$/);
+      expect(within(screen.getByTestId("queue-row-p-1")).queryByText("dep-la-rochelle")).toBeNull();
+    });
+
+    it("falls back to the id for a milestone the voyage does not know", () => {
+      show(stopNames);
+      expect(screen.getByTestId("pledge-milestone-p-3")).toHaveTextContent(/^leg-la-rochelle-ajaccio$/);
+      expect(screen.getByTestId("pledge-milestone-p-4")).toBeEmptyDOMElement();
+      expect(screen.getByTestId("pledge-milestone-p-4")).not.toHaveAttribute("title");
+    });
+
+    it("shows ids when no stop names are known yet", () => {
+      show(undefined);
+      expect(screen.getByTestId("pledge-milestone-p-1")).toHaveTextContent(/^dep-la-rochelle$/);
+      expect(screen.getByTestId("pledge-milestone-p-2")).toHaveTextContent(/^dep-ajaccio-corse$/);
+    });
+  });
   it("records review approval then captures on a separate button", async () => {
     await i18n.changeLanguage("fr");
     vi.mocked(captainReview).mockResolvedValue({

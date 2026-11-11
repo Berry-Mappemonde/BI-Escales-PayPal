@@ -3,10 +3,12 @@ import { useTranslation } from "react-i18next";
 import type { Milestone, PublicPledge } from "../api/types";
 import { featureAgGridEnabled } from "../config/features";
 import { buildGaugeRows, buildMarinaDashboardRows, gaugePercent } from "../utils/gauges";
+import { milestoneLabel } from "../utils/milestoneLabel";
+import type { StopNames } from "../utils/milestoneLabel";
 
-type AgTableProps = { rows: ReturnType<typeof buildGaugeRows> };
+type AgTableProps = { rows: ReturnType<typeof buildGaugeRows>; stopNames?: StopNames };
 
-function OptionalAgGrid({ rows }: AgTableProps) {
+function OptionalAgGrid({ rows, stopNames }: AgTableProps) {
   const [Table, setTable] = useState<ComponentType<AgTableProps> | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -30,8 +32,8 @@ function OptionalAgGrid({ rows }: AgTableProps) {
     };
   }, []);
 
-  if (failed || !Table) return <FallbackTreasurerTable rows={rows} />;
-  return <Table rows={rows} />;
+  if (failed || !Table) return <FallbackTreasurerTable rows={rows} stopNames={stopNames} />;
+  return <Table rows={rows} stopNames={stopNames} />;
 }
 
 export interface TreasurerGridProps {
@@ -42,6 +44,8 @@ export interface TreasurerGridProps {
   onPledgeUpdated: (pledge: PublicPledge) => void;
   selectedMilestoneId: string;
   onSelectMilestone: (id: string) => void;
+  /** Stop names by milestone id, from the voyage the app has loaded. */
+  stopNames?: StopNames;
 }
 
 function GaugeBar({ label, percent, tone }: { label: string; percent: number; tone: string }) {
@@ -58,7 +62,7 @@ function GaugeBar({ label, percent, tone }: { label: string; percent: number; to
   );
 }
 
-function FallbackTreasurerTable({ rows }: { rows: ReturnType<typeof buildGaugeRows> }) {
+function FallbackTreasurerTable({ rows, stopNames }: { rows: ReturnType<typeof buildGaugeRows>; stopNames?: StopNames }) {
   const { t } = useTranslation();
   return (
     <table className="fallback-table grid-table" data-testid="treasurer-fallback-table">
@@ -73,7 +77,7 @@ function FallbackTreasurerTable({ rows }: { rows: ReturnType<typeof buildGaugeRo
       <tbody>
         {rows.map((row) => (
           <tr key={row.milestone_id}>
-            <td>{row.milestone_id}</td>
+            <td title={row.milestone_id || undefined}>{milestoneLabel(stopNames, row.milestone_id)}</td>
             <td>
               {row.authorized_count} ({row.authorized_total_eur.toFixed(2)} €)
               <GaugeBar
@@ -111,7 +115,11 @@ export function TreasurerGrid(props: TreasurerGridProps) {
     <>
     <section className="panel treasurer-grid">
       <h3>{t("grid.heading")}</h3>
-      {agGrid ? <OptionalAgGrid rows={rows} /> : <FallbackTreasurerTable rows={rows} />}
+      {agGrid ? (
+        <OptionalAgGrid rows={rows} stopNames={props.stopNames} />
+      ) : (
+        <FallbackTreasurerTable rows={rows} stopNames={props.stopNames} />
+      )}
     </section>
     <section className="panel treasurer-marina-grid" data-testid="treasurer-marina-dashboard">
       <h3>{t("grid.marinaHeading")}</h3>

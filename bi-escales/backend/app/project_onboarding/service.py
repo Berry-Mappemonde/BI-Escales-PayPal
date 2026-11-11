@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 from app.escales.config import (
     demo_project_contact_email,
-    load_config,
+    load_platform_config,
     onboard_after_payment_enabled,
     order_cancel_url,
     order_return_url,
@@ -41,6 +41,7 @@ from app.project_onboarding.paypal_orders import (
     is_unlinked_payee_failure,
     order_approve_url,
     order_belongs_to_donation,
+    read_order,
 )
 from app.project_onboarding.store import (
     get_donation,
@@ -65,7 +66,8 @@ class DonationCaptureRejected(Exception):
 
 
 def _paypal() -> PayPalClient:
-    return PayPalClient(load_config())
+    """Onboarding runs on the PayPal Platform app when it is configured, else on the main app."""
+    return PayPalClient(load_platform_config())
 
 
 def _deadline_from(iso_moment: str) -> str:
@@ -237,7 +239,7 @@ async def finalize_donation_capture(
     if not order_id:
         raise DonationCaptureRejected(400, "donation has no PayPal order")
     try:
-        order = client.get_order(order_id)
+        order = read_order(client, order_id)
     except PayPalError as exc:
         if exc.status == 404:
             raise DonationCaptureRejected(404, "PayPal order not found") from exc

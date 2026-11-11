@@ -239,7 +239,8 @@
     "crewSubscribeConfirmed": "Crew membership confirmed. Thank you.",
     "crewSubscribeVerifying": "Verifying your Crew membership with PayPal…",
     "crewSubscribePending": "Your Crew membership is not active yet. Finish approval in PayPal or try again shortly.",
-    "crewSubscribeCancelled": "Crew membership cancelled. Nothing was charged."
+    "crewSubscribeCancelled": "Crew membership cancelled. Nothing was charged.",
+    "charged": "Payment received. Thank you."
   },
   "howItWorks": {
     "credit": "Sandbox payments by PayPal · AI by NVIDIA Nemotron",

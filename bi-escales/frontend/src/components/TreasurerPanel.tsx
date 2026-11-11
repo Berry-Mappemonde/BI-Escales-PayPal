@@ -11,6 +11,7 @@ import { TreasurerGrid } from "./TreasurerGrid";
 import { TreasurerStudioSection } from "./TreasurerStudioSection";
 import { DemoStopMoment } from "./DemoStopMoment";
 import { TreasurerWishlistsPanel } from "../wishlists/TreasurerWishlistsPanel";
+import type { StopNames } from "../utils/milestoneLabel";
 import "./treasurer-panel.css";
 
 function OpenFundTotals({
@@ -73,6 +74,8 @@ export interface TreasurerPanelProps {
   demoMode?: boolean;
   /** Host allows the sandbox judge moment (``features.demo_treasurer``); still keyed. */
   demoStopAvailable?: boolean;
+  /** Stop names by milestone id, so the queue and the gauges name stops instead of showing ids. */
+  stopNames?: StopNames;
   children?: ReactNode;
 }
 
@@ -109,6 +112,7 @@ export function TreasurerPanel({
   onSpendSubmit,
   demoMode = false,
   demoStopAvailable = false,
+  stopNames,
   children,
 }: TreasurerPanelProps) {
   const { t } = useTranslation();
@@ -223,6 +227,7 @@ export function TreasurerPanel({
             needsKey={needsKey}
             adminKey={adminKey}
             demoTreasurer={demoMode}
+            stopNames={stopNames}
             onRefresh={onRefreshQueue}
             onUpdated={onPledgeUpdated}
           />
@@ -243,6 +248,7 @@ export function TreasurerPanel({
             onSelectMilestone={_onMilestoneIdChange}
             onMilestonesChange={() => {}}
             onPledgeUpdated={onPledgeUpdated}
+            stopNames={stopNames}
           />
           <TreasurerStudioSection pledges={pledges} />
           <form className="stack-form" onSubmit={onSpendSubmit}>

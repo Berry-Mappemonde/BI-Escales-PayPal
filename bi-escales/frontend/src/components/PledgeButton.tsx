@@ -42,6 +42,18 @@ export interface PledgeButtonProps {
   onAuthorized?: (pledge: PublicPledge) => void;
 }
 
+/**
+ * The status line once the payer has approved in the Smart Buttons window and the
+ * server has answered: charged, or authorised and held. Any other answer clears
+ * the line. Until then it reads "Approve in PayPal…", which must not outlive the
+ * approval.
+ */
+function approvedStatusKey(status: string | undefined): string | null {
+  if (status === "captured" || status === "settled") return "pledge.charged";
+  if (status === "authorized" || status === "vaulted") return "pledge.authorized";
+  return null;
+}
+
 export function PledgeButton(props: PledgeButtonProps) {
   return (
     <PayPalErrorBoundary testId="paypal-buttons-error">
@@ -390,9 +402,12 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
             setBusy(true);
             try {
               const done = await authorizePledge(pledgeId);
-              setStatus(isProjectPledge ? t("pledge.returnPendingProject") : t("pledge.returnPending"));
+              const doneKey = approvedStatusKey(done?.status);
+              setStatus(doneKey ? t(doneKey) : null);
               onAuthorized?.(done);
             } catch (e) {
+              // Nothing is being prepared any more: the error is the whole message.
+              setStatus(null);
               setError(e instanceof Error ? e.message : String(e));
             } finally {
               setBusy(false);

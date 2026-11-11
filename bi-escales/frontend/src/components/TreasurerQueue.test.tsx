@@ -5,6 +5,7 @@ import {
   approveCaptainReview,
   captainReview,
   capturePledge,
+  fetchSchedule,
   refundPledge,
   voidPledge,
 } from "../api/escales";
@@ -71,6 +72,82 @@ describe("TreasurerQueue", () => {
       show(undefined);
       expect(screen.getByTestId("pledge-milestone-p-1")).toHaveTextContent(/^dep-la-rochelle$/);
       expect(screen.getByTestId("pledge-milestone-p-2")).toHaveTextContent(/^dep-ajaccio-corse$/);
+    });
+
+    describe("Captain review cards", () => {
+      const leg = "leg-la-rochelle-to-ajaccio-corse";
+      const cabin = { ...pledge, id: "p-5", milestone_id: leg };
+
+      function showCards(names: Record<string, string> | undefined, pledges = [...rows, cabin]) {
+        vi.mocked(captainReview).mockResolvedValue({ milestone_id: "dep-la-rochelle", proposal: "wait", pledge_ids: [] });
+        render(
+          <I18nextProvider i18n={i18n}>
+            <TreasurerQueue pledges={pledges} adminKey="key" stopNames={names} onRefresh={() => {}} onUpdated={() => {}} />
+          </I18nextProvider>,
+        );
+      }
+
+      afterEach(async () => {
+        vi.mocked(fetchSchedule).mockResolvedValue({});
+        await i18n.changeLanguage("en");
+      });
+
+      it("names the stop under the heading and keeps the id as a tooltip", async () => {
+        await i18n.changeLanguage("en");
+        showCards(stopNames);
+        const card = screen.getByTestId("captain-card-dep-ajaccio-corse");
+        const name = within(card).getByTestId("captain-stop-dep-ajaccio-corse");
+        expect(name).toHaveTextContent(/^Ajaccio \(Corse\)$/);
+        expect(name).toHaveAttribute("title", "dep-ajaccio-corse");
+        expect(within(card).queryByText("dep-ajaccio-corse")).toBeNull();
+        expect(screen.getByTestId("captain-stop-dep-la-rochelle")).toHaveTextContent(/^La Rochelle$/);
+      });
+
+      it.each([
+        ["en", "Cabin: La Rochelle → Ajaccio (Corse)"],
+        ["fr", "Cabine : La Rochelle → Ajaccio (Corse)"],
+      ])("names both ends of a cabin leg (%s), on the card and in its row", async (lang, label) => {
+        await i18n.changeLanguage(lang);
+        showCards(stopNames);
+        const name = screen.getByTestId(`captain-stop-${leg}`);
+        expect(name.textContent).toBe(label);
+        expect(name).toHaveAttribute("title", leg);
+        expect(screen.getByTestId("pledge-milestone-p-5").textContent).toBe(label);
+        expect(screen.getByTestId("pledge-milestone-p-5")).toHaveAttribute("title", leg);
+      });
+
+      it("keeps the raw id when a cabin leg has an end the voyage does not know", async () => {
+        await i18n.changeLanguage("en");
+        const unknown = "leg-la-rochelle-to-atlantis";
+        showCards(stopNames, [{ ...pledge, id: "p-6", milestone_id: unknown }]);
+        expect(screen.getByTestId(`captain-stop-${unknown}`).textContent).toBe(unknown);
+        expect(screen.getByTestId(`captain-stop-${unknown}`)).toHaveAttribute("title", unknown);
+        expect(screen.getByTestId("pledge-milestone-p-6").textContent).toBe(unknown);
+      });
+
+      it("uses the schedule's name when the voyage has none, then the id", async () => {
+        await i18n.changeLanguage("en");
+        vi.mocked(fetchSchedule).mockResolvedValue({
+          milestones: [{ milestone_id: "dep-ajaccio-corse", name: "Ajaccio from the schedule" }],
+        } as Awaited<ReturnType<typeof fetchSchedule>>);
+        showCards(undefined);
+        expect(await screen.findByText("Ajaccio from the schedule")).toBe(
+          screen.getByTestId("captain-stop-dep-ajaccio-corse"),
+        );
+        expect(screen.getByTestId("captain-stop-dep-la-rochelle").textContent).toBe("dep-la-rochelle");
+      });
+
+      it("prefers the voyage's stop name over the schedule's", async () => {
+        await i18n.changeLanguage("en");
+        vi.mocked(fetchSchedule).mockResolvedValue({
+          milestones: [{ milestone_id: "dep-la-rochelle", name: "Schedule name" }],
+        } as Awaited<ReturnType<typeof fetchSchedule>>);
+        showCards(stopNames);
+        await waitFor(() => expect(fetchSchedule).toHaveBeenCalled());
+        await act(async () => {});
+        expect(screen.getByTestId("captain-stop-dep-la-rochelle").textContent).toBe("La Rochelle");
+        expect(screen.queryByText("Schedule name")).toBeNull();
+      });
     });
   });
   it("records review approval then captures on a separate button", async () => {

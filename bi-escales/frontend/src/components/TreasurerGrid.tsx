@@ -77,7 +77,7 @@ function FallbackTreasurerTable({ rows, stopNames }: { rows: ReturnType<typeof b
       <tbody>
         {rows.map((row) => (
           <tr key={row.milestone_id}>
-            <td title={row.milestone_id || undefined}>{milestoneLabel(stopNames, row.milestone_id)}</td>
+            <td title={row.milestone_id || undefined}>{milestoneLabel(stopNames, row.milestone_id, t)}</td>
             <td>
               {row.authorized_count} ({row.authorized_total_eur.toFixed(2)} €)
               <GaugeBar

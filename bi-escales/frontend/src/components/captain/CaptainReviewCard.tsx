@@ -120,7 +120,10 @@ export function CaptainReviewCard({
     <article className="captain-card" data-testid={`captain-card-${milestoneId}`}>
       <header className="captain-card-head">
         <h3>{t("captainCard.heading")}</h3>
-        <p className="captain-meta">{stopName || milestoneId}</p>
+        {/* The stop's name; the raw id stays one hover away, as in the queue below. */}
+        <p className="captain-meta" data-testid={`captain-stop-${milestoneId}`} title={milestoneId}>
+          {stopName || milestoneId}
+        </p>
       </header>
 
       {review === undefined ? (

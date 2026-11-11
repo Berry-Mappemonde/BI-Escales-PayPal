@@ -245,11 +245,13 @@ export function TreasurerQueue({
         <div className="captain-cards">
           {cardIds.map((milestoneId) => {
             const stop = stopOnSchedule(schedule, milestoneId);
+            // Same name as the queue rows below; the schedule's name only when the voyage has none.
+            const label = milestoneLabel(stopNames, milestoneId, t);
             return (
               <CaptainReviewCard
                 key={milestoneId}
                 milestoneId={milestoneId}
-                stopName={stop.name}
+                stopName={label !== milestoneId ? label : stop.name}
                 arrivalIso={stop.arrivalIso}
                 review={reviews[milestoneId]}
                 holds={releasableHolds(pledges, milestoneId)}
@@ -303,7 +305,7 @@ export function TreasurerQueue({
                   <strong>{p.description}</strong>
                   {/* The stop's name; the raw id stays one hover away, like the pledge reference. */}
                   <small data-testid={`pledge-milestone-${p.id}`} title={p.milestone_id || undefined}>
-                    {milestoneLabel(stopNames, p.milestone_id)}
+                    {milestoneLabel(stopNames, p.milestone_id, t)}
                   </small>
                   <small data-testid={`capture-id-${p.id}`} aria-label={t("treasurer.captureId")}>{p.capture_id || "—"}</small>
                 </td>

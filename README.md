@@ -47,7 +47,7 @@ To see a capture without the key, watch the treasurer flow in the [demo video (v
 **No tax receipts:** BI Escales does not issue tax receipts for pledges, cabins, fund contributions or project donations.
 
 - Authorizations are not opened more than **29 days** before the relevant arrival or departure; farther horizons use PayPal **Vault** (`ESCALES_VAULT_ENABLED`, on for the hosted demo).
-- **Abonnement Crew** (English UI: **Crew membership**) is the association **membership**: one PayPal subscription product, not a second membership SKU.
+- **Crew membership (association adhésion) — 10 € per year** (French UI: **Adhésion Crew**), paid through PayPal Subscriptions. It is the association's membership itself: one product, not a second membership SKU. The plans are created once per host by the treasurer's **Ensure Crew membership plan (sandbox)** action (`POST /api/escales/paypal/subscriptions/setup`); until then the Crew button is not shown. Subscriptions made on the earlier 5 € per month sandbox plans still verify.
 - The expedition **crew is six people** (capacity checks on safety gear in the Channel3 seed catalogue; see [CHANNEL3_WISHLISTS.md](bi-escales/docs/CHANNEL3_WISHLISTS.md)).
 
 ### What is switched on for the hosted demo
@@ -58,7 +58,7 @@ Read from `GET https://escales.naviguide.fr/api/escales/features` on 11 Nov 2026
 | --- | --- | --- |
 | PayPal Vault for far stops and cabins | `ESCALES_VAULT_ENABLED` | **On** |
 | Demo treasurer (view of the queue; live on a visitor's own pledges, sandbox only) | `ESCALES_DEMO_TREASURER` | **On** |
-| Crew membership (PayPal subscription) | plan configured on the host | **On** |
+| Crew membership, 10 € per year (PayPal subscription) | plan created on the host with the treasurer's setup action | **On** once the setup action has been run on the host |
 | Gear wishlists (Channel3 catalogue) | `ESCALES_WISHLISTS_ENABLED`, `ESCALES_CHANNEL3_ENABLED` | **On** |
 | PayPal webhooks | `ESCALES_WEBHOOKS_ENABLED` | **On** |
 | Card Fields (pay by card in the page) | `ESCALES_CARD_FIELDS_ENABLED` | Off |

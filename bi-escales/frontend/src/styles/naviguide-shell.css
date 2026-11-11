@@ -895,7 +895,8 @@ body.ng-naviguide-shell {
 }
 
 .crew-supporter-heading .crew-sandbox-note {
-  white-space: nowrap;
+  /* The line now names what the membership is and its price, so it may wrap in the rail. */
+  white-space: normal;
   color: var(--color-fg-3);
   font-size: var(--text-meta);
   line-height: var(--text-meta--line-height);

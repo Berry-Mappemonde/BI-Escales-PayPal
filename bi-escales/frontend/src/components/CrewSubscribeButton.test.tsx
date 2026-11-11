@@ -133,7 +133,7 @@ describe("CrewSubscribeButton", () => {
       </I18nextProvider>,
     );
 
-    expect(screen.getByText(/Loading Crew supporter plan/i)).toBeInTheDocument();
+    expect(screen.getByText(/Loading the Crew membership plan/i)).toBeInTheDocument();
   });
 
   it("survives a PayPal Buttons component without render (no app crash)", async () => {
@@ -196,7 +196,7 @@ describe("CrewSubscribeButton", () => {
     const hint = await screen.findByTestId("crew-subscribe-treasurer-hint");
     expect(hint).toHaveClass("hint");
     expect(hint).not.toHaveClass("error");
-    expect(hint.textContent).toMatch(/Ensure Crew supporter plan \(sandbox\)/i);
+    expect(hint.textContent).toMatch(/Ensure Crew membership plan \(sandbox\)/i);
     expect(document.querySelector(".notice.error")).toBeNull();
   });
 

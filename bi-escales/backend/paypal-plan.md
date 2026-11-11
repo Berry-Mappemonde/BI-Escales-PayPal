@@ -397,6 +397,78 @@ Skills used: `python-getting-started`, `python-client-initialization`,
 `python-authentication` under the vendored `.cursor/skills/paypal-server-sdk`
 directory. The SDK client itself is not changed by this work.
 
+# Crew membership catalog v2: 10 EUR per year (11 Nov 2026)
+
+Crew membership is the association membership (adhésion): **10.00 EUR per YEAR**
+(confirmed by the owner). The first catalog was 5.00 EUR per MONTH. Sandbox only.
+
+## What changes
+
+| | Catalog v1 (kept, not modified) | Catalog v2 (new) |
+| --- | --- | --- |
+| Setup key (finance row `subscription_catalog_ready.setup_key`) | `crew_supporter_catalog` | `crew_membership_catalog_v2` |
+| Product name (en / fr) | `Crew supporter` / `Soutien d'équipage` | `Crew membership` / `Adhésion Crew` |
+| Plan name (en / fr) | `Crew supporter (monthly)` / `Soutien d'équipage (mensuel)` | `Crew membership (10 EUR per year)` / `Adhésion Crew (10 EUR par an)` |
+| Price, cycle | 5.00 EUR, `MONTH` × 1 | 10.00 EUR, `YEAR` × 1 |
+| Role | Still accepted when a subscription is verified (existing subscribers) | The plan the app shows and sells |
+
+No PayPal call deletes, deactivates or updates a v1 product or plan. v1 ids are
+only read from the local finance row (plus the old hard-coded English id) so that
+`approve_crew_subscription` keeps accepting them.
+
+## PayPal operations called (all through `PayPalClient`, httpx path)
+
+None of these is one of the Server SDK gateway operations above: product and plan
+creation have always used `PayPalClient._req`. Signatures are unchanged.
+
+| Step | `PayPalClient` method | HTTP | When |
+| --- | --- | --- | --- |
+| Find an existing v2 product | `iter_billing_product_pages(*, page_size=20, max_pages=50)` / `list_billing_products(*, page=1, page_size=20) -> dict` | `GET /v1/catalogs/products` | Setup and plan lookup, when the v2 finance row has no id for the language |
+| Find its plan | `list_billing_plans(*, product_id: str, page_size: int = 20) -> dict` | `GET /v1/billing/plans?product_id=` | Same |
+| Create the v2 product | `create_billing_product(*, name: str, description: str, idempotency_key: str) -> dict` | `POST /v1/catalogs/products` | Setup only, when not found |
+| Create the v2 plan | `create_billing_plan(*, product_id: str, name: str, amount_eur: str, interval_unit: str, idempotency_key: str) -> dict` with `amount_eur="10.00"`, `interval_unit="YEAR"` | `POST /v1/billing/plans` | Setup only, when not found |
+| Subscribe (unchanged) | `create_billing_subscription(*, plan_id, return_url, cancel_url, idempotency_key, locale=None)` | `POST /v1/billing/subscriptions` | Buyer checkout, now with the v2 plan id |
+| Verify (unchanged) | `get_subscription(subscription_id: str) -> dict` | `GET /v1/billing/subscriptions/{id}` | Approval; the subscription's `plan_id` must be a v2 **or** v1 Crew plan |
+
+`interval_unit="YEAR"` with `interval_count=1` is within PayPal's limits for a
+billing cycle (a yearly frequency allows an interval count of 1).
+
+## Errors
+
+Unchanged. A non-2xx from PayPal is `PayPalError(status, body)` from `_req`; the
+router maps it with `_as_http`. Setup that fails half-way leaves the finance row
+with the ids already obtained and can be run again (see idempotency).
+
+## Duplicate-claim / idempotency rows
+
+| Call | `PayPal-Request-Id` | Effect |
+| --- | --- | --- |
+| v2 product, en | `product-en-crew_membership_catalog_v2` | New key: PayPal does not replay the v1 product |
+| v2 product, fr | `product-fr-crew_membership_catalog_v2` | Same |
+| v2 plan, en | `plan-en-crew_membership_catalog_v2` | Same |
+| v2 plan, fr | `plan-fr-crew_membership_catalog_v2` | Same |
+| Local | finance row `subscription_catalog_ready` with `setup_key=crew_membership_catalog_v2` | Setup returns the stored ids (`idempotent: true`) without calling PayPal; the v1 row is never written to |
+| Local | lookup by v2 product and plan **name** before creating | A catalog created on PayPal but lost locally is found again, not duplicated |
+
+## How the v2 plans get created on a host
+
+`POST /api/escales/paypal/subscriptions/setup` with the treasurer key (the
+treasurer page's PayPal section button). It is idempotent. Until it has run,
+`GET /api/escales/paypal/subscriptions/plan` returns `plan_id: null` and the Crew
+button is not shown: the app never falls back to selling the 5 EUR monthly plan.
+
+## Validation
+
+Stubbed PayPal client, no network: the v2 plan is created at 10.00 / YEAR under
+the v2 request ids; a v1 row is left untouched and its plan ids still verify; the
+public plan lookup returns v2 ids only; a subscription on an unknown plan is
+still refused. Not verified against PayPal: no sandbox credentials are available
+in development or CI.
+
+Skills used: `python-getting-started` under the vendored
+`.cursor/skills/paypal-server-sdk` directory. The Server SDK is not called by
+the operations this change touches.
+
 # Demo treasurer: a visitor plays the treasurer on their own pledges (issue #145, 11 Nov 2026)
 
 In demo treasurer mode (`ESCALES_DEMO_TREASURER` on, `PAYPAL_ENV=sandbox`, `ESCALES_ENV`

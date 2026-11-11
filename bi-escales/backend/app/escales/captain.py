@@ -295,6 +295,40 @@ _DANGLING_WORD = {
 }
 
 
+# Crew membership is the association membership (adhésion). A question about joining
+# gets this fixed answer; the model itself is told not to speak of membership, because
+# it used to invent links for it.
+_MEMBERSHIP_Q = re.compile(
+    r"\badh[ée]sions?\b|\badh[ée]rer\b|\bcotisations?\b"
+    r"|\bmemberships?\b|\bbecome\s+a\s+member\b|\bdevenir\s+membre\b"
+    r"|\bjoin\s+(?:the\s+)?(?:association|crew)\b"
+    r"|\brejoindre\s+(?:l['’]association|le\s+crew|l['’][ée]quipage)\b"
+    r"|\bcrew\s+(?:member|subscription|plan)\b|\babonnement\s+crew\b",
+    re.IGNORECASE,
+)
+CREW_MEMBERSHIP_RULE_EN = (
+    "Crew membership is the association's membership (adhésion): 10 € per year, "
+    "paid through PayPal Subscriptions. Use the Crew membership button in the left panel. "
+    "It renews each year until you cancel it in PayPal, and it is separate from stop pledges."
+)
+CREW_MEMBERSHIP_RULE_FR = (
+    "L'adhésion Crew est l'adhésion à l'association : 10 € par an, "
+    "réglée par abonnement PayPal. Utilisez le bouton Adhésion Crew dans le panneau de gauche. "
+    "Elle se renouvelle chaque année jusqu'à sa résiliation dans PayPal, "
+    "et elle est distincte des promesses d'escale."
+)
+
+
+def _is_membership_question(message: str) -> bool:
+    """A question about joining the association (Crew membership), not a pledge."""
+    return bool(_MEMBERSHIP_Q.search(message or ""))
+
+
+def _membership_reply(lang: str) -> str:
+    rule = CREW_MEMBERSHIP_RULE_EN if lang == "en" else CREW_MEMBERSHIP_RULE_FR
+    return _fit_words("", [rule, _signature(lang)])
+
+
 def _is_capture_rule_question(message: str) -> bool:
     """When money is captured. Not a request to capture or void one pledge."""
     text = message or ""
@@ -3124,6 +3158,15 @@ async def _chat(
                 "rule_source": VOYAGE_RULE_SOURCE,
                 "rule_label": VOYAGE_RULE_LABEL[lang if lang == "en" else "fr"],
             }
+    if not _message_prices_a_pledge(text) and _is_membership_question(text):
+        return {
+            "reply": _membership_reply(lang),
+            "suggested_pledge": None,
+            "cart": None,
+            "model_source": _rules_source(),
+            "fund": None,
+            "rule_by_design": True,
+        }
     if _is_capture_rule_question(text):
         return {
             "reply": _capture_rule_reply(lang),

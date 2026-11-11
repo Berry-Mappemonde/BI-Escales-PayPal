@@ -173,8 +173,8 @@ def test_subscription_setup_is_idempotent():
         assert first["plan_id_en"]
         assert first["plan_id_fr"]
         assert second["idempotent"] is True
-        assert spy.calls.count(("product", "Crew supporter")) == 1
-        assert spy.calls.count(("product", "Soutien d'équipage")) == 1
+        assert spy.calls.count(("product", "Crew membership")) == 1
+        assert spy.calls.count(("product", "Adhésion Crew")) == 1
 
     asyncio.run(run())
 

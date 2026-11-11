@@ -115,7 +115,7 @@ class MockPayPal:
                     200,
                     json={
                         "merchant_id": "MERCH-MOCK",
-                        "tracking_id": "projet-demo-recif-vivant",
+                        "tracking_id": DEMO_PROJECT_ID,
                         "links": [],
                     },
                 )
@@ -169,13 +169,18 @@ def onboarding_api(monkeypatch):
     reset_onboarding_store()
 
 
-def test_seed_idempotent_demo_fake(onboarding_api):
+def test_seed_idempotent_berry_project(onboarding_api):
     first = onboarding_api.post("/api/escales/project-onboarding/seed", headers={"x-admin-key": "test-admin"})
     second = onboarding_api.post("/api/escales/project-onboarding/seed", headers={"x-admin-key": "test-admin"})
     assert first.status_code == 200
     assert second.status_code == 200
-    assert first.json()["project"]["demo_fake"] is True
-    assert "fictif" in first.json()["project"]["title_fr"].lower() or "fictional" in first.json()["project"]["title_fr"].lower()
+    project = first.json()["project"]
+    assert project["_id"] == DEMO_PROJECT_ID
+    assert "Berry-Mappemonde" in project["title_en"]
+    assert project.get("demo_fake") is not True
+    assert project.get("image_url") == "/static/onboarding/berry-mappemonde-logo.webp"
+    assert project.get("location_label") == "Saint-Maur (Indre), France"
+    assert second.json()["project"]["onboarding_status"] == first.json()["project"]["onboarding_status"]
 
 
 def test_donation_order_uses_payee_and_custom_id(onboarding_api, monkeypatch):

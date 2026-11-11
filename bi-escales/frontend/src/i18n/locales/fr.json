@@ -581,7 +581,7 @@
   "projectOnboarding": {
     "featureOff": "Le parcours « onboard after payment » est désactivé (ESCALES_ONBOARD_AFTER_PAYMENT_ENABLED).",
     "loading": "Chargement du projet démo…",
-    "sandboxBanner": "Test bac à sable — projet fictif, aucun mouvement réel de fonds.",
+    "sandboxBanner": "Test bac à sable — aucun mouvement réel de fonds.",
     "walletOnly": "Paiement PayPal uniquement (pas de saisie carte sur ce projet).",
     "donatePayPal": "Donner via PayPal",
     "donationError": "Impossible de créer le don.",
@@ -592,7 +592,7 @@
     "openOnboardingLink": "Ouvrir le lien d’inscription PayPal Business",
     "returnTitle": "Retour depuis PayPal",
     "backToProject": "Retour au projet démo",
-    "treasurerHeading": "Onboard after payment (démo fictive)",
+    "treasurerHeading": "Onboard after payment (Berry-Mappemonde)",
     "emailPreview": "Prévisualiser l’e-mail d’inscription",
     "copyOnboardingLink": "Copier le lien d’inscription",
     "copied": "Lien copié dans le presse-papiers.",

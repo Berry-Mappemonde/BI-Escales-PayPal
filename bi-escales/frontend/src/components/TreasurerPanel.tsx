@@ -79,7 +79,7 @@ export interface TreasurerPanelProps {
   children?: ReactNode;
 }
 
-const DEMO_ONBOARD_PROJECT_ID = "projet-demo-recif-vivant";
+const DEMO_ONBOARD_PROJECT_ID = "projet-berry-mappemonde";
 
 export function TreasurerPanel({
   open,

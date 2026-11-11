@@ -18,6 +18,22 @@ def _lang(lang: str) -> str:
     return "en" if str(lang or "").lower().startswith("en") else "fr"
 
 
+def _foundation_clause(code: str, foundation_name: str) -> str:
+    name = str(foundation_name or "").strip()
+    if not name:
+        return ""
+    if code == "en":
+        return f"(foundation: {html.escape(name)}) "
+    return f"(fondation : {html.escape(name)}) "
+
+
+def _project_context_suffix(code: str, foundation_name: str) -> str:
+    clause = _foundation_clause(code, foundation_name).rstrip()
+    if not clause:
+        return "."
+    return f" {clause}."
+
+
 def render_onboarding_email(
     *,
     lang: str,
@@ -45,13 +61,14 @@ def render_onboarding_email(
         else:
             deadline_line = f"<p>Les fonds sont retenus 30 jours (jusqu'au {html.escape(deadline_text)}).</p>"
 
+    foundation_clause = _foundation_clause(code, foundation_name)
     if onboarding_required:
         if code == "en":
             subject = f"Complete PayPal Business setup for {project_title}"
             intro = (
                 f"A supporter pledged <strong>{html.escape(amount_eur)} EUR</strong> to "
                 f"<strong>{html.escape(project_title)}</strong> "
-                f"(foundation: {html.escape(foundation_name)}). "
+                f"{foundation_clause}"
                 f"The project must finish PayPal Business onboarding before the donation can be paid."
             )
             cta = "Set up PayPal Business account"
@@ -60,24 +77,24 @@ def render_onboarding_email(
             intro = (
                 f"Un donateur a promis <strong>{html.escape(amount_eur)} EUR</strong> pour "
                 f"<strong>{html.escape(project_title)}</strong> "
-                f"(fondation : {html.escape(foundation_name)}). "
+                f"{foundation_clause}"
                 f"Le projet doit terminer l'inscription PayPal Business avant que le don puisse être payé."
             )
             cta = "Créer un compte PayPal Business"
     elif code == "en":
         subject = f"Funds held for {project_title} — complete PayPal Business setup"
+        suffix = _project_context_suffix(code, foundation_name)
         intro = (
             f"A donation of <strong>{html.escape(amount_eur)} EUR</strong> is held for "
-            f"<strong>{html.escape(project_title)}</strong> "
-            f"(foundation: {html.escape(foundation_name)})."
+            f"<strong>{html.escape(project_title)}</strong>{suffix}"
         )
         cta = "Set up PayPal Business account"
     else:
         subject = f"Fonds en attente pour {project_title} — finaliser l'inscription PayPal"
+        suffix = _project_context_suffix(code, foundation_name)
         intro = (
             f"Un don de <strong>{html.escape(amount_eur)} EUR</strong> est en attente pour "
-            f"<strong>{html.escape(project_title)}</strong> "
-            f"(fondation : {html.escape(foundation_name)})."
+            f"<strong>{html.escape(project_title)}</strong>{suffix}"
         )
         cta = "Créer un compte PayPal Business"
 

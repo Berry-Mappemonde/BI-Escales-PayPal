@@ -1,7 +1,12 @@
 export type ProjectOnboardingStatus = {
   id: string;
-  demo_fake: boolean;
+  demo_fake?: boolean;
   title: string;
+  description?: string;
+  image_url?: string;
+  location_label?: string;
+  lat?: number;
+  lng?: number;
   onboarding_status: string;
   onboarded_at?: string | null;
   donations: Array<{

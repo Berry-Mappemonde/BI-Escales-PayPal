@@ -10,6 +10,7 @@ from app.channel3_catalog import (
     load_catalog_seed,
 )
 from app.channel3_funding import enrich_item_funding, fund_snapshot_for_project
+from app.escales.ledger import list_finance_entries
 from app.channel3_public import apply_buy_link_policy
 from app.channel3_wishlist_store import get_wishlist_store, new_wishlist_id, normalize_wishlist_item
 from app.escales.ledger import now_iso
@@ -177,8 +178,10 @@ def _fail_closed_target(
 async def _public_item_from_catalog(
     catalog: dict[str, Any],
     wishlist_item: Optional[dict] = None,
+    *,
+    finance_entries: Optional[list[dict]] = None,
 ) -> dict[str, Any]:
-    fund = await fund_snapshot_for_project(catalog["project_id"])
+    fund = await fund_snapshot_for_project(catalog["project_id"], finance_entries=finance_entries)
     target_minor: Optional[int] = None
     target_ccy: Optional[str] = None
     line_qty: Optional[int] = None
@@ -217,7 +220,12 @@ def _unavailable_wishlist_line(item: dict, *, reason: str) -> dict[str, Any]:
     }
 
 
-async def public_wishlist_payload(row: dict) -> dict[str, Any]:
+async def public_wishlist_payload(
+    row: dict, *, finance_entries: Optional[list[dict]] = None
+) -> dict[str, Any]:
+    """One wishlist with each line's funding. The finance journal is read once for all lines."""
+    if finance_entries is None:
+        finance_entries = await list_finance_entries()
     items_out: list[dict] = []
     for item in row.get("items") or []:
         pid = str(item.get("channel3_product_id") or "")
@@ -228,7 +236,7 @@ async def public_wishlist_payload(row: dict) -> dict[str, Any]:
         if catalog_needs_confirmation(catalog):
             items_out.append(_unavailable_wishlist_line(item, reason="needs_confirmation"))
             continue
-        items_out.append(await _public_item_from_catalog(catalog, item))
+        items_out.append(await _public_item_from_catalog(catalog, item, finance_entries=finance_entries))
     return {
         "wishlist_id": row["_id"],
         "slug": row.get("slug"),
@@ -240,9 +248,11 @@ async def public_wishlist_payload(row: dict) -> dict[str, Any]:
 
 
 async def public_catalog_payload() -> dict[str, Any]:
+    """The public catalogue with each item's funding. The finance journal is read once."""
+    finance_entries = await list_finance_entries()
     items = []
     for catalog in list_catalog_items(public_only=True):
-        items.append(await _public_item_from_catalog(catalog))
+        items.append(await _public_item_from_catalog(catalog, finance_entries=finance_entries))
     seed = {
         "item_count": len(items),
         "seed_item_count": int(load_catalog_seed().get("item_count") or 0),

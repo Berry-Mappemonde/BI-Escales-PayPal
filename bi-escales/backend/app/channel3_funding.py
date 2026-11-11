@@ -14,22 +14,35 @@ def _major_to_minor(amount: str, currency: str) -> int:
     return major_string_to_minor(amount, currency)
 
 
-async def _project_finance_lines(project_id: str) -> list[dict]:
+async def _project_finance_lines(
+    project_id: str, finance_entries: Optional[list[dict]] = None
+) -> list[dict]:
+    """This project's journal lines, from ``finance_entries`` when the caller already read the journal."""
     from app.escales.ledger import _entry_for_project_target, list_finance_entries
 
     token = str(project_id or "").strip().casefold()
-    return [entry for entry in await list_finance_entries() if _entry_for_project_target(entry, token)]
+    entries = finance_entries if finance_entries is not None else await list_finance_entries()
+    return [entry for entry in entries if _entry_for_project_target(entry, token)]
 
 
-async def fund_snapshot_for_project(project_id: str) -> dict[str, Any]:
-    """Captured totals for a catalogue ``project_id`` in the item's native currency."""
+async def fund_snapshot_for_project(
+    project_id: str, *, finance_entries: Optional[list[dict]] = None
+) -> dict[str, Any]:
+    """Captured totals for a catalogue ``project_id`` in the item's native currency.
+
+    ``finance_entries`` is the finance journal when the caller has already read it.
+    A list of N items passes it, so that the journal is read once for the list and
+    not twice per item (each read is a database round trip). Without it the journal
+    is read here, once. The totals are the same either way.
+    """
     catalog = lookup_catalog_by_project_id(project_id)
     if catalog:
         native = str(catalog.get("price_currency") or "EUR").upper()
         captured = Decimal("0.00")
         refunded = Decimal("0.00")
         donation_count = 0
-        for entry in await _project_finance_lines(project_id):
+        lines = await _project_finance_lines(project_id, finance_entries)
+        for entry in lines:
             entry_ccy = str(entry.get("currency") or "EUR").upper()
             if entry_ccy != native:
                 continue
@@ -49,7 +62,7 @@ async def fund_snapshot_for_project(project_id: str) -> dict[str, Any]:
         from app.escales.paypal_settlement import finance_entry_received_net_eur, finance_entry_refund_net_eur
 
         received_net_eur = Decimal("0.00")
-        for entry in await _project_finance_lines(project_id):
+        for entry in lines:
             received_net_eur += finance_entry_received_net_eur(entry)
             received_net_eur -= finance_entry_refund_net_eur(entry)
         if received_net_eur < Decimal("0.00"):

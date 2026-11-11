@@ -9,6 +9,9 @@ import { WishlistItemCard } from "./WishlistItemCard";
 import "../styles/app.css";
 import "./wishlists.css";
 
+/** Placeholder cards shown while the first answer is on its way: two rows on a desktop. */
+const SKELETON_CARDS = 8;
+
 export function WishlistsPage() {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme } = useTheme();
@@ -102,6 +105,20 @@ export function WishlistsPage() {
         </div>
       </header>
       {loading ? <p role="status">{t("wishlists.loading")}</p> : null}
+      {/* First load only: the shape of the cards to come, so the page is not an empty sheet.
+          A reload after a pledge keeps the lists that are already on screen. */}
+      {loading && wishlists.length === 0 ? (
+        <div className="wishlist-grid" aria-hidden="true" data-testid="wishlists-skeleton">
+          {Array.from({ length: SKELETON_CARDS }, (_unused, index) => (
+            <div key={index} className="wishlist-item-card panel wishlist-skeleton">
+              <span className="wishlist-skeleton-block wishlist-skeleton-image" />
+              <span className="wishlist-skeleton-block wishlist-skeleton-title" />
+              <span className="wishlist-skeleton-block wishlist-skeleton-line" />
+              <span className="wishlist-skeleton-block wishlist-skeleton-bar" />
+            </div>
+          ))}
+        </div>
+      ) : null}
       {error ? <p className="notice error">{error}</p> : null}
       {enabled === false ? <p className="notice">{t("wishlists.disabled")}</p> : null}
       {!loading && enabled && wishlists.length === 0 ? <p>{t("wishlists.empty")}</p> : null}

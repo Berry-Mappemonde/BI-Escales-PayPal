@@ -20,6 +20,32 @@
   gap: 1rem;
 }
 
+/* Loading: the outline of a card. Tokens only; still when motion is reduced. */
+.wishlist-skeleton {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.wishlist-skeleton-block {
+  display: block;
+  border-radius: var(--radius-chip);
+  background: var(--color-selected);
+  animation: wishlist-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.wishlist-skeleton-image { height: 120px; border-radius: var(--radius-control); }
+.wishlist-skeleton-title { height: 1rem; width: 80%; }
+.wishlist-skeleton-line { height: 0.75rem; width: 55%; }
+.wishlist-skeleton-bar { height: 6px; margin-top: var(--space-2); }
+
+@keyframes wishlist-skeleton-pulse {
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wishlist-skeleton-block { animation: none; }
+}
+
 .wishlist-item-card.unavailable {
   opacity: 0.85;
   border-style: dashed;

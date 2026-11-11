@@ -10,6 +10,8 @@ import {
 import { isCaptainRateLimitMessage } from "../api/captainRateLimit";
 import type { CaptainProposal, PublicPledge, ScheduleResponse } from "../api/types";
 import { isQueuedPledge, isRefundablePledge, isTreasurerQueueRow } from "../hooks/queueFilter";
+import { demoPlay, fetchOwnDemoPledges, type DemoPlay, type DemoPlayAction } from "../api/demoPlay";
+import { DemoOwnPledgeActions } from "./DemoOwnPledgeActions";
 import { CaptainReviewCard } from "./captain/CaptainReviewCard";
 import { releasableHolds, stopOnSchedule } from "./captain/captainEvidence";
 import { PledgeStatusChip } from "./captain/PledgeStatusChip";
@@ -86,6 +88,49 @@ export function TreasurerQueue({
     requestAnimationFrame(() => refundTrigger.current?.querySelector<HTMLButtonElement>("button")?.focus());
   };
   const [approvedMilestones, setApprovedMilestones] = useState<Record<string, boolean>>({});
+  // Demo treasurer: the pledges this browser made itself, which it may play with (#145).
+  // The server says which they are and what may be done next on each.
+  const [ownPlays, setOwnPlays] = useState<Record<string, DemoPlay>>({});
+  const [playNote, setPlayNote] = useState<string | null>(null);
+  const ownKey = demoTreasurer ? pledges.map((p) => `${p.id}:${p.status}`).sort().join("|") : "";
+  useEffect(() => {
+    if (!demoTreasurer) {
+      setOwnPlays({});
+      return undefined;
+    }
+    let cancelled = false;
+    fetchOwnDemoPledges()
+      .then((rows) => {
+        if (!cancelled) setOwnPlays(Object.fromEntries(rows.map((row) => [row.pledge_id, row])));
+      })
+      .catch(() => {
+        // Not knowing is view-only: no live button is shown on a guess.
+        if (!cancelled) setOwnPlays({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [demoTreasurer, ownKey]);
+
+  const runPlay = async (pledgeId: string, action: DemoPlayAction) => {
+    if (actionRunning.current) return;
+    actionRunning.current = true;
+    setBusyId(pledgeId);
+    setActionError(null);
+    setPlayNote(null);
+    try {
+      const result = await demoPlay(pledgeId, action);
+      setOwnPlays((all) => ({ ...all, [pledgeId]: result.play }));
+      setPlayNote(t(`treasurer.demoPlay.done.${action}`, { ref: shortPledgeId(pledgeId) }));
+      onUpdated(result.pledge);
+      onRefresh();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      actionRunning.current = false;
+      setBusyId(null);
+    }
+  };
 
   const queue = useMemo(
     () => pledges.filter((p) => isTreasurerQueueRow(p.status)).sort(comparePledgesNewestFirst),
@@ -238,8 +283,11 @@ export function TreasurerQueue({
 
       {demoTreasurer && !canMoveMoney && queue.length ? (
         <p className="hint" data-testid="treasurer-demo-readonly">
-          {t("treasurer.moneyNeedsKey")}
+          {t("treasurer.demoPlay.othersViewOnly")}
         </p>
+      ) : null}
+      {playNote ? (
+        <p className="notice" role="status" data-testid="demo-play-note">{playNote}</p>
       ) : null}
       {!needsKey && cardIds.length ? (
         <div className="captain-cards">
@@ -292,6 +340,9 @@ export function TreasurerQueue({
                   >
                     {shortPledgeId(p.id)}
                   </span>
+                  {ownPlays[p.id] ? (
+                    <span className="demo-own-tag" data-testid={`own-tag-${p.id}`}>{t("treasurer.demoPlay.yours")}</span>
+                  ) : null}
                 </td>
                 <td>
                   <time
@@ -320,7 +371,15 @@ export function TreasurerQueue({
                 <td className="actions queue-value">
                   <strong>{p.amount_eur} {p.currency}</strong>
                   <PledgeStatusChip status={p.status} />
-                  {isQueuedPledge(p.status) && reviews[p.milestone_id]?.proposal === "capture" ? (
+                  {/* This browser's own pledge in the demo: its own live controls, checked by the server. */}
+                  {ownPlays[p.id] && !canMoveMoney ? (
+                    <DemoOwnPledgeActions
+                      play={ownPlays[p.id]}
+                      busy={busyId !== null}
+                      onRun={(action) => void runPlay(p.id, action)}
+                    />
+                  ) : null}
+                  {!(ownPlays[p.id] && !canMoveMoney) && isQueuedPledge(p.status) && reviews[p.milestone_id]?.proposal === "capture" ? (
                     <button
                       type="button"
                       data-testid={`capture-${p.id}`}
@@ -335,7 +394,7 @@ export function TreasurerQueue({
                       {t("treasurer.capturePledge")}
                     </button>
                   ) : null}
-                  {isRefundablePledge(p.status) ? (
+                  {!(ownPlays[p.id] && !canMoveMoney) && isRefundablePledge(p.status) ? (
                     refundConfirmation?.id === p.id && refundConfirmation.amount === refundableAmount(p) ? (
                       <div className="treasurer-confirmation" role="group" aria-labelledby={`refund-question-${p.id}`}>
                         <p id={`refund-question-${p.id}`}>

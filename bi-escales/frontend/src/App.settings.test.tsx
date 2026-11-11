@@ -113,7 +113,7 @@ describe("App settings", () => {
     renderApp();
     await user.click(await screen.findByTestId("demo-treasurer-button"));
     const page = screen.getByTestId("treasurer-page");
-    expect(screen.getByTestId("demo-treasurer-banner")).toHaveTextContent(/Sandbox demo, read-only/);
+    expect(screen.getByTestId("demo-treasurer-banner")).toHaveTextContent(/Sandbox demo: you can play the treasurer/);
 
     await user.click(within(page).getByRole("button", { name: i18n.t("app.langFrSwitch") }));
     await waitFor(() => expect(screen.getByTestId("demo-treasurer-banner")).toHaveTextContent(/lecture seule/i));

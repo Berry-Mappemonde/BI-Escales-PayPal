@@ -149,6 +149,15 @@ export function TreasurerPanel({
             <p className="notice demo-treasurer-banner" data-testid="demo-treasurer-banner">
               {t("treasurer.demoBanner")}
             </p>
+            {/* How a visitor plays the treasurer on a pledge of their own (#145). */}
+            <div className="demo-play-hint" data-testid="demo-play-hint">
+              <p className="hint">{t("treasurer.demoPlay.hintLead")}</p>
+              <ol>
+                <li>{t("treasurer.demoPlay.hintStep1")}</li>
+                <li>{t("treasurer.demoPlay.hintStep2")}</li>
+                <li>{t("treasurer.demoPlay.hintStep3")}</li>
+              </ol>
+            </div>
             </>
           ) : (
             <>

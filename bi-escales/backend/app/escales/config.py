@@ -192,11 +192,13 @@ def vault_enabled() -> bool:
 
 
 def demo_treasurer_enabled() -> bool:
-    """Sandbox-only, read-only treasurer view without x-admin-key.
+    """Sandbox-only demo treasurer without x-admin-key.
 
     Requires ``ESCALES_DEMO_TREASURER``, ``PAYPAL_ENV=sandbox`` and ``ESCALES_ENV`` other
-    than ``production``. It only unlocks a redacted ``GET /pledges`` (no contributor names);
-    capture, void and captain-review approval always need the treasurer key.
+    than ``production``. It unlocks a redacted ``GET /pledges`` (no contributor names) and
+    the own-pledge demo routes (``/api/escales/demo/pledges/…``), which act only on a
+    pledge whose creating browser proves it made it. The treasurer's keyed routes
+    (capture, void, refund, captain-review approval) always need the treasurer key.
     """
     if os.environ.get("ESCALES_DEMO_TREASURER", "").strip().lower() not in _TRUTHY:
         return False

@@ -14,6 +14,7 @@ import type {
   PublicWishlist,
   TreasurerWishlistDoc,
 } from "./types";
+import { rememberPledgeKey } from "../demo/ownPledges";
 import { captainSessionHeaders } from "./escalesSession";
 
 function treasurerAccessHeaders(
@@ -176,7 +177,11 @@ export async function createPledge(
     body: JSON.stringify({ ...paypalPageUrls(), ...body }),
   });
   if (!res.ok) throw new Error(await parseError(res));
-  return res.json();
+  const pledge = (await res.json()) as PublicPledge;
+  // The demo treasurer lets a visitor act on the pledges their own browser made. The
+  // request id above is the proof; remembered here, checked by the server each time.
+  rememberPledgeKey(pledge?.id, paypalRequestId);
+  return pledge;
 }
 
 export async function authorizePledge(pledgeId: string): Promise<PublicPledge> {

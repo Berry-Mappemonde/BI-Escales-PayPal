@@ -21,7 +21,12 @@ Copy the numbered steps below into Devpost’s private **Testing instructions** 
 
    **Authorize vs Vault (checkout):** PayPal authorizations are not opened more than **29 days** before the relevant arrival or departure. Near stops use Orders v2 **`AUTHORIZE`**; stops more than 29 days away save the payment method with PayPal **Vault** and charge on arrival (Vault is on for the hosted demo). On the demo clock **La Rochelle** (`dep-la-rochelle`) is near: `GET /api/escales/pledges/mode?milestone_id=dep-la-rochelle&kind=mile` returns **`AUTHORIZE`**. **Mayotte** is beyond the window: `GET /api/escales/pledges/mode?milestone_id=dep-dzaoudzi-mayotte&kind=mile` returns **`VAULT`**. Checkout follows `/pledges/mode`, whatever a Captain answer says about the intent.
 
-4. **Demo treasurer (read-only):** Press **Demo treasurer** at the bottom of the left panel (French: **Trésorier démo**). You see the queue of held pledges and the AI Captain's review of each stop with its sources, without supporter names. The banner says it: capture, void and refunds need the treasurer key. **Back** or Escape returns to the map.
+4. **Demo treasurer, on your own pledge:** Press **Demo treasurer** at the bottom of the left panel (French: **Trésorier démo**). You see the queue of held pledges and the AI Captain's review of each stop with its sources, without supporter names. The pledge you made in step 3, from this same browser, is tagged **Yours** (French: **À vous**) and has live buttons, for real in the PayPal sandbox:
+   - **Simulate arrival**: the boat arrives for that pledge only; the shared voyage clock and other pledges do not move;
+   - **Approve**, then **Capture**; or **Void** instead to release the hold;
+   - **Refund** once it is captured.
+
+   Every other pledge is view-only: the server checks on each call that the pledge was made from your browser. **Back** or Escape returns to the map.
 
 5. **AI Captain (optional, left panel):** Tap a suggested question such as **Where is the boat?**, or type your own (for example `Sponsor 20 miles near Mayotte`). Each answer says whether it came from a fixed rule in the code or from the model (NVIDIA Nemotron via NIM).
 
@@ -31,7 +36,7 @@ Copy the numbered steps below into Devpost’s private **Testing instructions** 
 
 The key (HTTP header `x-admin-key`) is supplied privately and is **not in this repository**. Judges on the public demo do not need it. It is required for:
 
-- **Capture**, **void** and **refund**;
+- **Capture**, **void** and **refund** of a pledge made from another browser, and approval of the Captain's review for a whole stop;
 - **Run departure-day settle** and **Settle at this date**;
 - the **Judge moment — La Rochelle** tools: **Simulate boat arrival**, **Cancel stop**, **Reset demo** (French: **Simuler l’arrivée du bateau**, **Annuler l’escale**, **Réinitialiser la démo**).
 
@@ -42,7 +47,7 @@ Read from `GET /api/escales/features` on escales.naviguide.fr on 11 Nov 2026.
 | Feature | Hosted demo |
 | --- | --- |
 | PayPal Vault for far stops and cabins (`ESCALES_VAULT_ENABLED`) | **On** |
-| Demo treasurer, read-only (`ESCALES_DEMO_TREASURER`) | **On** |
+| Demo treasurer, live on your own pledges only (`ESCALES_DEMO_TREASURER`) | **On** |
 | Crew membership (PayPal subscription) | **On** |
 | Gear wishlists | **On** |
 | Card Fields, pay by card in the page (`ESCALES_CARD_FIELDS_ENABLED`) | Off |
@@ -105,4 +110,4 @@ Card Fields are **off** on the hosted demo, so there is no card form in the page
 | Common fund | `GET /api/escales/common-fund/fund` |
 | Captain (POST) | `POST /api/escales/captain/chat` with JSON `{"message":"Sponsor 20 miles near Mayotte","lang":"en"}` |
 
-Treasurer list without key: on the hosted demo (demo treasurer on) `GET /api/escales/pledges` returns **200** with redacted rows (no contributor, payer or order ids). Money routes (capture, void, refund, review approval) return **401** without `x-admin-key`, in demo mode too.
+Treasurer list without key: on the hosted demo (demo treasurer on) `GET /api/escales/pledges` returns **200** with redacted rows (no contributor, payer or order ids). The treasurer's money routes (capture, void, refund, review approval) return **401** without `x-admin-key`, in demo mode too. The demo's own routes (`/api/escales/demo/pledges/{id}/…`) act only on a pledge whose creating browser presents that pledge's request id in `X-Pledge-Key`; anything else is **403**.

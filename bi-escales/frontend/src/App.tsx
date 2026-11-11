@@ -18,11 +18,11 @@ import { TreasurerPanel } from "./components/TreasurerPanel";
 import { CrewSupporterPublicSection } from "./components/CrewSubscribeButton";
 import { HowItWorks } from "./components/stop/HowItWorks.jsx";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
+import { ShellSettings } from "./components/ShellSettings";
 import { ToastContainer } from "./components/Toast";
 import type { ToastItem } from "./components/Toast";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { useTheme } from "./hooks/useTheme";
-import { setLanguage } from "./i18n";
 import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { resolveBoatStop } from "./voyage/boatStop.js";
@@ -926,53 +926,8 @@ export default function App() {
             </svg>
             <h1 aria-label={t("app.title")}>BI Escales</h1>
           </div>
-          <div className="ng-controls">
-            <div className="lang-switch" role="group" aria-label={t("app.language")}>
-              <button
-                type="button"
-                className={i18n.language === "fr" ? "active" : ""}
-                aria-label={t("app.langFrSwitch")}
-                aria-pressed={i18n.language === "fr"}
-                onClick={() => setLanguage("fr")}
-              >
-                FR
-              </button>
-              <button
-                type="button"
-                className={i18n.language === "en" ? "active" : ""}
-                aria-label={t("app.langEnSwitch")}
-                aria-pressed={i18n.language === "en"}
-                onClick={() => setLanguage("en")}
-              >
-                EN
-              </button>
-            </div>
-            <div className="theme-switch" data-testid="theme-switch">
-              <button
-                type="button"
-                data-testid="theme-toggle"
-                aria-label={theme === "light" ? t("app.themeDark") : t("app.themeLight")}
-                aria-pressed={theme === "light"}
-                onClick={() => toggleTheme()}
-              >
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  {theme === "light" ? (
-                    <path
-                      d="M20.2 15.1A8.4 8.4 0 0 1 8.9 3.8 8.5 8.5 0 1 0 20.2 15.1Z"
-                      stroke="currentColor"
-                      strokeWidth="1.7"
-                      strokeLinejoin="round"
-                    />
-                  ) : (
-                    <>
-                      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.7" />
-                      <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                    </>
-                  )}
-                </svg>
-              </button>
-            </div>
-          </div>
+          {/* App settings: their own group, outside the visitor tools below. */}
+          <ShellSettings theme={theme} onToggleTheme={toggleTheme} />
           <p className="rail-tagline">{t("app.subtitle")}</p>
         </header>
         <div className="ng-tab-bar" role="tablist">
@@ -1160,15 +1115,19 @@ export default function App() {
           }}
         >
           <div className="treasurer-page-inner">
-            <button
-              type="button"
-              ref={treasurerBackRef}
-              className="secondary treasurer-page-back"
-              data-testid="treasurer-page-back"
-              onClick={() => onTreasurerOpenChange(false)}
-            >
-              {t("treasurer.page.back")}
-            </button>
+            <div className="treasurer-page-bar">
+              <button
+                type="button"
+                ref={treasurerBackRef}
+                className="secondary treasurer-page-back"
+                data-testid="treasurer-page-back"
+                onClick={() => onTreasurerOpenChange(false)}
+              >
+                {t("treasurer.page.back")}
+              </button>
+              {/* The same app settings as on the map, outside the treasurer tools below. */}
+              <ShellSettings theme={theme} onToggleTheme={toggleTheme} place="treasurer-page" />
+            </div>
             <section className="treasurer-page-intro" data-testid="treasurer-page-intro">
               <p className="treasurer-page-eyebrow">{t("treasurer.page.eyebrow")}</p>
               <ol className="treasurer-page-steps">

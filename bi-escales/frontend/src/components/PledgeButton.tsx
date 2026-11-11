@@ -23,6 +23,8 @@ import { createPledgeWithTimeout, pledgeCreateErrorMessage } from "../paypal/ple
 import { PayPalErrorBoundary } from "./PayPalErrorBoundary";
 import { PayPalWalletPayBlock } from "./PayPalWalletPayBlock";
 import { subscribePledgeReturn } from "../paypal/pledgeReturnEvents";
+import { usePayPalJsVersion } from "../paypal/paypalJsVersion";
+import { PledgeButtonV6Inner } from "./PledgeButtonV6";
 
 export interface PledgeFormValues {
   quantity?: number;
@@ -48,16 +50,23 @@ export interface PledgeButtonProps {
  * the line. Until then it reads "Approve in PayPal…", which must not outlive the
  * approval.
  */
-function approvedStatusKey(status: string | undefined): string | null {
+export function approvedStatusKey(status: string | undefined): string | null {
   if (status === "captured" || status === "settled") return "pledge.charged";
   if (status === "authorized" || status === "vaulted") return "pledge.authorized";
   return null;
 }
 
+/**
+ * Picks the checkout implementation for this page load. `PledgeButtonInner` below is
+ * today's JS SDK v5 checkout and stays the default; `PledgeButtonV6Inner` is used only
+ * when the backend reports `features.paypal_js_v6` (see paypal/paypalJsVersion.ts).
+ */
 export function PledgeButton(props: PledgeButtonProps) {
+  const version = usePayPalJsVersion();
+  if (version === null) return null;
   return (
     <PayPalErrorBoundary testId="paypal-buttons-error">
-      <PledgeButtonInner {...props} />
+      {version === "v6" ? <PledgeButtonV6Inner {...props} /> : <PledgeButtonInner {...props} />}
     </PayPalErrorBoundary>
   );
 }

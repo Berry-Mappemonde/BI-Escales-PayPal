@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchFeatures, fetchPublicWishlists } from "../api/escales";
+import { notePayPalJsFeatures } from "../paypal/paypalJsVersion";
 import type { PublicPledge, PublicWishlist } from "../api/types";
 import { setLanguage } from "../i18n";
 import { useTheme } from "../hooks/useTheme";
@@ -21,7 +22,12 @@ export function WishlistsPage() {
     setLoading(true);
     setError(null);
     try {
-      const flags = await fetchFeatures();
+      const flags = await fetchFeatures().catch((err: unknown) => {
+        notePayPalJsFeatures(null);
+        throw err;
+      });
+      // Tells the PayPal buttons which browser SDK to use (v5 unless paypal_js_v6 is on).
+      notePayPalJsFeatures(flags);
       const on = Boolean(flags.wishlists);
       setEnabled(on);
       if (!on) {

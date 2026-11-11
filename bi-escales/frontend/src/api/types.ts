@@ -131,6 +131,8 @@ export interface FeatureFlags {
   card_fields?: boolean;
   vault_on_purchase?: boolean;
   wallet_pay?: boolean;
+  /** Browser checkout on PayPal Web SDK v6 instead of JS SDK v5. Off unless ESCALES_PAYPAL_JS_V6_ENABLED is set. */
+  paypal_js_v6?: boolean;
   clock_pinned?: boolean;
   crew_supporter_plan_id?: string | null;
   demo_treasurer?: boolean;

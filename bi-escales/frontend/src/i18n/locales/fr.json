@@ -91,6 +91,7 @@
   "projects": {
     "heading": "Explorer les projets",
     "empty": "Aucun projet trouvé.",
+    "loading": "Chargement des projets…",
     "open": "Page",
     "pledge": "Promettre",
     "search": "Rechercher des projets…",

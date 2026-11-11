@@ -1,0 +1,26 @@
+name: naviguide-escales
+
+on:
+  push:
+    paths:
+      - "naviguide-escales/**"
+  pull_request:
+    paths:
+      - "naviguide-escales/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: naviguide-escales/server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+      - name: Pytest
+        working-directory: naviguide-escales
+        run: pytest -q

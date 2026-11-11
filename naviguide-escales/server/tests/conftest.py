@@ -18,6 +18,11 @@ os.environ.setdefault("NAVIGUIDE_ICI_WARM", "0")
 os.environ.setdefault("NAVIGUIDE_HINDCAST", "0")
 # Pas de préchauffage ETA (Open-Meteo Ensemble) pendant les tests.
 os.environ.setdefault("NAVIGUIDE_ETA_PREHEAT", "0")
+# Roses float16 de test (fixture wind_float32_ref → wind_roses/).
+os.environ.setdefault(
+    "NAVIGUIDE_WIND_ROSE_DIR",
+    str(Path(__file__).resolve().parent / "fixtures" / "wind_roses"),
+)
 # No LLM pre-generation after a (test) warm run either.
 os.environ.setdefault("NAVIGUIDE_STORY_PREGEN", "0")
 # Garde du catalogue Token Factory (GET /models) coupée par défaut : les

@@ -180,6 +180,17 @@
     "amount": "Amount (EUR)",
     "description": "Description",
     "kind": "What you fund",
+    "kindWithPrice": "{{kind}} — {{price}}",
+    "kindPrice": "{{kind}} {{price}}",
+    "fixedPrices": "Fixed prices:",
+    "kindShort": {
+      "mile": "mile",
+      "berth": "berth",
+      "night": "night",
+      "meal": "meal",
+      "care": "wellness",
+      "cabin_leg": "cabin"
+    },
     "kinds": {
       "mile": "Sponsored miles (simulation)",
       "berth": "Berth reservation (simulation)",
@@ -273,6 +284,7 @@
     "scheduledDeparture": "Scheduled departure",
     "held": "{{amount}} pledged for this stop · not charged yet",
     "captured": "{{amount}} captured",
+    "nothingPledged": "Nothing pledged for this stop yet",
     "backThisLeg": "Back this stop",
     "ruleHeld": "Authorised now. Nothing is charged yet.",
     "ruleCaptured": "Captured when the boat arrives at this stop, after the treasurer approves.",

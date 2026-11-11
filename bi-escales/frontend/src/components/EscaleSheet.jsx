@@ -11,6 +11,7 @@ import {
   cabinLegMilestoneId,
   pledgeAmountReadOnly,
   pledgeOrderAmount,
+  unitPriceForKind,
 } from "../pledge/stopPledgeAmount.js";
 import {
   formatEurAmount,
@@ -142,6 +143,16 @@ export const EscaleSheet = memo(function EscaleSheet({
     ? stopStatus({ now: context.now, arrivalIso, startIso, cancelled })
     : null;
   const { heldEur, capturedEur } = fundTotals(context.fund);
+  // Known and zero: say so. Unknown (the call failed, is on its way, or a field is
+  // missing or redacted): say nothing.
+  const knownZero = (value) => value !== null && value !== undefined && String(value).trim() !== "" && Number(value) === 0;
+  const nothingPledged = knownZero(context.fund?.authorized_eur) && knownZero(context.fund?.captured_eur);
+  // The fixed price of each thing a visitor can fund here, from the same catalogue as the amount.
+  const unitPriceLabel = (kind) => {
+    const unit = unitPriceForKind(kind, priceCatalog);
+    return unit ? formatEurAmount(Number(unit), lang) : null;
+  };
+  const fixedPrices = STOP_KINDS.map((kind) => ({ kind, price: unitPriceLabel(kind) })).filter((row) => row.price);
   const logLines = logbookUpTo(logbookEntries, context.now).map((entry) => logbookLine(entry, lang));
 
   return (
@@ -163,7 +174,7 @@ export const EscaleSheet = memo(function EscaleSheet({
           </button>
         ) : null}
       </div>
-      {arrivalLabel || departureLabel || heldEur || capturedEur ? (
+      {arrivalLabel || departureLabel || heldEur || capturedEur || nothingPledged ? (
         <div className="stop-section stop-summary">
           {arrivalLabel || departureLabel ? (
             <dl className="stop-rows">
@@ -188,6 +199,9 @@ export const EscaleSheet = memo(function EscaleSheet({
               {capturedEur ? t("stopPanel.captured", { amount: formatEurAmount(capturedEur, lang) }) : null}
             </p>
           ) : null}
+          {nothingPledged ? (
+            <p className="stop-money stop-money-none" data-testid="stop-money-none">{t("stopPanel.nothingPledged")}</p>
+          ) : null}
         </div>
       ) : null}
       {pledge && !cancelled ? (
@@ -201,11 +215,22 @@ export const EscaleSheet = memo(function EscaleSheet({
                 value={pledge.kind}
                 onChange={(event) => pledge.onKind(event.target.value)}
               >
-                {STOP_KINDS.map((kind) => (
-                  <option key={kind} value={kind}>{t(`pledge.kinds.${kind}`)}</option>
-                ))}
+                {STOP_KINDS.map((kind) => {
+                  const price = unitPriceLabel(kind);
+                  const name = t(`pledge.kinds.${kind}`);
+                  return (
+                    <option key={kind} value={kind}>
+                      {price ? t("pledge.kindWithPrice", { kind: name, price }) : name}
+                    </option>
+                  );
+                })}
               </select>
             </label>
+            {/* Every fixed price at a glance, without opening the list. */}
+            <p className="stop-note stop-fixed-prices" data-testid="stop-fixed-prices">
+              {t("pledge.fixedPrices")}{" "}
+              {fixedPrices.map(({ kind, price }) => t("pledge.kindPrice", { kind: t(`pledge.kindShort.${kind}`), price })).join(" · ")}
+            </p>
             <div className="pledge-calculation">
               {perUnit ? <label>
                 {t("pledge.quantity")}

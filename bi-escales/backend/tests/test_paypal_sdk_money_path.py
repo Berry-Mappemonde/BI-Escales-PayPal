@@ -502,10 +502,11 @@ async def _run_case(name: str, client: PayPalClient) -> dict[str, Any]:
         elif name == "subscription":
             await list_finance_entries()
             from app.escales.ledger import record_finance
+            from app.escales.paypal_subscriptions import CREW_SETUP_KEY
 
             await record_finance(
                 "subscription_catalog_ready",
-                setup_key="crew_supporter_catalog",
+                setup_key=CREW_SETUP_KEY,
                 product_id_en="PROD-EN",
                 plan_id_en="P-EN",
                 product_id_fr="PROD-FR",

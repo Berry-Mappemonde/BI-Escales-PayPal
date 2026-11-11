@@ -345,7 +345,7 @@ def email_enabled() -> bool:
 
 
 def demo_project_contact_email() -> str:
-    """Runtime contact for the fictional demo project (never committed)."""
+    """Runtime contact for the onboard-after-payment demo project (never committed)."""
     return (os.environ.get("ESCALES_DEMO_PROJECT_CONTACT_EMAIL") or "").strip()
 
 

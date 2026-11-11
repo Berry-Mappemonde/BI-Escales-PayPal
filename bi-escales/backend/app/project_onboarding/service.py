@@ -102,25 +102,34 @@ def project_contact_email(project: dict, *, override: str = "") -> str:
 def _localized(project: dict, lang: str) -> dict[str, str]:
     code = "en" if str(lang or "").lower().startswith("en") else "fr"
     title_key = "title_en" if code == "en" else "title_fr"
+    description_key = "description_en" if code == "en" else "description_fr"
     foundation_key = "foundation_title_en" if code == "en" else "foundation_title_fr"
     return {
         "lang": code,
         "title": str(project.get(title_key) or project.get("title_fr") or ""),
+        "description": str(project.get(description_key) or project.get("description_fr") or ""),
         "foundation_title": str(project.get(foundation_key) or project.get("foundation_title_fr") or ""),
     }
 
 
+def _is_public_onboarding_project(project_id: str, project: dict) -> bool:
+    if str(project_id) == DEMO_PROJECT_ID:
+        return True
+    return bool(project.get("demo_fake"))
+
+
 async def public_project_view(project_id: str, *, lang: str = "fr") -> Optional[dict]:
     project = await get_project(project_id)
-    if not project or not project.get("demo_fake"):
+    if not project or not _is_public_onboarding_project(project_id, project):
         return None
     donations = await list_donations(project_id)
     loc = _localized(project, lang)
     referral = await get_referral(project_id)
-    return {
+    view: dict[str, Any] = {
         "id": project_id,
-        "demo_fake": True,
+        "demo_fake": bool(project.get("demo_fake")),
         "title": loc["title"],
+        "description": loc["description"],
         "onboarding_status": project.get("onboarding_status") or "pending",
         "onboarded_at": project.get("onboarded_at"),
         "donations": [_public_donation_row(row, lang) for row in donations],
@@ -128,6 +137,17 @@ async def public_project_view(project_id: str, *, lang: str = "fr") -> Optional[
         "wallet_only": True,
         "card_fields_hidden": True,
     }
+    image_url = str(project.get("image_url") or "").strip()
+    if image_url:
+        view["image_url"] = image_url
+    location_label = str(project.get("location_label") or "").strip()
+    if location_label:
+        view["location_label"] = location_label
+    if project.get("lat") is not None:
+        view["lat"] = project.get("lat")
+    if project.get("lng") is not None:
+        view["lng"] = project.get("lng")
+    return view
 
 
 def _public_donation_row(row: dict, lang: str) -> dict:

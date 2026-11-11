@@ -9,6 +9,8 @@ import {
   nextDataAgentAction,
   nextTreasurerAction,
   VALIDATION_NOTE_ID,
+  FUNDING_WIDGET_TYPE,
+  FUNDING_WIDGET_ID,
   VALIDATION_WIDGET_TYPE,
 } from "./agentPlan";
 import { studioT } from "./locale";
@@ -84,6 +86,18 @@ async function* runTreasurer(input: AgAiRunInput): AsyncGenerator<AgAiEvent> {
     yield* callTool(`delegate-${stamp}`, "delegate_to", {
       type: { id: "data" },
       instructions: action.instructions,
+    });
+    return;
+  }
+  if (action.kind === "add-funding-widget") {
+    yield* say(stamp, treasurerSpeech(userText, toolCount));
+    yield* callTool(`add-funding-${stamp}`, "add_widget", {
+      widgetId: FUNDING_WIDGET_ID,
+      type: FUNDING_WIDGET_TYPE,
+      xTrack: 0,
+      yTrack: 27,
+      xSpan: 24,
+      ySpan: 14,
     });
     return;
   }

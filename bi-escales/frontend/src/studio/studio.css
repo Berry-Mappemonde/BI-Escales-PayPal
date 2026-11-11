@@ -80,3 +80,11 @@
 .validation-scoreboard .tone-saved {
   background: #e8b84a;
 }
+
+.funding-milestone-widget { display: flex; flex-direction: column; gap: .4rem; height: 100%; color: var(--text); }
+.funding-milestone-scroll { overflow: auto; min-height: 0; flex: 1; }
+.funding-milestone-widget table { width: 100%; border-collapse: collapse; font-size: .84rem; font-variant-numeric: tabular-nums; }
+.funding-milestone-widget th, .funding-milestone-widget td { padding: .5rem .7rem; border-bottom: 1px solid #274057; text-align: right; white-space: nowrap; }
+.funding-milestone-widget th:first-child, .funding-milestone-widget td:first-child { text-align: left; }
+.funding-milestone-widget thead th { position: sticky; top: 0; background: #0b1f33; z-index: 1; }
+.funding-kind { font-size: .72rem; opacity: .75; border: 1px solid #49657b; padding: .1rem .35rem; border-radius: .5rem; }

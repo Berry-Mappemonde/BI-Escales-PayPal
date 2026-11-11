@@ -38,6 +38,8 @@ export function pledgeStudioData(pledges: PublicPledge[], language?: string): Ag
           },
           { id: "contributor", name: t("studio.colContributor"), format: "textFormat" },
           { id: "description", name: t("studio.colDescription"), format: "textFormat" },
+          { id: "kind", name: language?.startsWith("en") ? "Funding type" : "Type de financement", format: "textFormat" },
+          { id: "target_id", name: language?.startsWith("en") ? "Funding target" : "Projet ciblé", format: "textFormat" },
         ],
       },
     ],

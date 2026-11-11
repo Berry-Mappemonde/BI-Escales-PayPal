@@ -1,6 +1,7 @@
 import type { AgDefaultRegistry, AgWidgetFormParams, AgWidgetsConfig } from "ag-studio";
 import { createWidgets } from "ag-studio-react";
-import { VALIDATION_WIDGET_TYPE } from "./agentPlan";
+import { FUNDING_WIDGET_TYPE, VALIDATION_WIDGET_TYPE } from "./agentPlan";
+import { FundingMilestoneWidget } from "./fundingMilestoneWidget";
 import { studioT } from "./locale";
 import { ValidationScoreboard } from "./validationWidget";
 
@@ -49,14 +50,30 @@ export function humanValidationWidget(language?: string) {
   };
 }
 
+export function fundingMilestoneWidget(language?: string) {
+  return {
+    id: FUNDING_WIDGET_TYPE,
+    label: language?.startsWith("en") ? "Project funding by milestone" : "Financement par projet",
+    icon: ICON,
+    dataMapping: {},
+    comp: FundingMilestoneWidget,
+    defaultSize: { width: 900, height: 320 },
+    minSize: { width: 430, height: 200 },
+    ai: {
+      description: "Show real captured, authorized, vaulted and released amounts by marine project, stopover or common fund.",
+      usage: "Use for crowdfunding, project funding, milestone finance or campaign questions. Never initiate a payment.",
+    },
+  };
+}
+
 export function escalesWidgets(
   widgetConfig: AgWidgetsConfig<AgDefaultRegistry>,
   language?: string,
 ): AgWidgetsConfig<AgDefaultRegistry> {
   const params = {
-    additionalTypes: [humanValidationWidget(language)],
+    additionalTypes: [humanValidationWidget(language), fundingMilestoneWidget(language)],
     menu: [
-      { label: "BI Escales", widgetIds: [VALIDATION_WIDGET_TYPE] },
+      { label: "BI Escales", widgetIds: [VALIDATION_WIDGET_TYPE, FUNDING_WIDGET_TYPE] },
       ...widgetConfig.menu,
     ],
   };

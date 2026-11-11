@@ -1,5 +1,5 @@
 import type { AgReportState } from "ag-studio";
-import { VALIDATION_WIDGET_TYPE } from "./agentPlan";
+import { FUNDING_WIDGET_TYPE, VALIDATION_WIDGET_TYPE } from "./agentPlan";
 import { studioT } from "./locale";
 
 const PLEDGES = "pledges";
@@ -36,6 +36,7 @@ export function treasurerInitialState(language?: string): AgReportState {
             },
             format: { title: { enabled: true, text: t("studio.chartTitle") } },
           },
+          "funding-widget": { type: FUNDING_WIDGET_TYPE },
           "pledge-grid": {
             type: "grid",
             dataMapping: {
@@ -54,6 +55,7 @@ export function treasurerInitialState(language?: string): AgReportState {
         },
         widgetLayout: {
           validation: { xTrack: 0, yTrack: 0, xSpan: 24, ySpan: 11 },
+          "funding-widget": { xTrack: 0, yTrack: 27, xSpan: 24, ySpan: 14 },
           "status-chart": { xTrack: 0, yTrack: 11, xSpan: 10, ySpan: 16 },
           "pledge-grid": { xTrack: 10, yTrack: 11, xSpan: 14, ySpan: 16 },
         },

@@ -14,6 +14,8 @@ import { CaptainReviewCard } from "./captain/CaptainReviewCard";
 import { releasableHolds, stopOnSchedule } from "./captain/captainEvidence";
 import { PledgeStatusChip } from "./captain/PledgeStatusChip";
 import { useHoldRelease } from "./captain/useHoldRelease";
+import { milestoneLabel } from "../utils/milestoneLabel";
+import type { StopNames } from "../utils/milestoneLabel";
 
 export function shortPledgeId(id: string): string {
   return id.length > 8 ? id.slice(0, 8) : id;
@@ -55,6 +57,8 @@ export interface TreasurerQueueProps {
   needsKey?: boolean;
   adminKey: string;
   demoTreasurer?: boolean;
+  /** Stop names by milestone id, from the voyage the app has loaded. */
+  stopNames?: StopNames;
   onRefresh: () => void;
   onUpdated: (pledge: PublicPledge) => void;
 }
@@ -66,6 +70,7 @@ export function TreasurerQueue({
   needsKey,
   adminKey,
   demoTreasurer = false,
+  stopNames,
   onRefresh,
   onUpdated,
 }: TreasurerQueueProps) {
@@ -296,7 +301,10 @@ export function TreasurerQueue({
                 </td>
                 <td>
                   <strong>{p.description}</strong>
-                  <small>{p.milestone_id}</small>
+                  {/* The stop's name; the raw id stays one hover away, like the pledge reference. */}
+                  <small data-testid={`pledge-milestone-${p.id}`} title={p.milestone_id || undefined}>
+                    {milestoneLabel(stopNames, p.milestone_id)}
+                  </small>
                   <small data-testid={`capture-id-${p.id}`} aria-label={t("treasurer.captureId")}>{p.capture_id || "—"}</small>
                 </td>
                 <td className="actions queue-value">

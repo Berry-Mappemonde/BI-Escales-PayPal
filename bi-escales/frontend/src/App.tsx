@@ -28,6 +28,7 @@ import { nextOpenStop } from "./voyage/nextStop.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
 import { isNarrowScreen } from "./utils/narrowScreen";
+import { stopNamesFromStops } from "./utils/milestoneLabel";
 import { formatCivilDate } from "./voyage/voyageClock.js";
 import { escaleArrivalIso, logbookEntriesForStop } from "./voyage/journalDisplay.js";
 import {
@@ -763,12 +764,16 @@ export default function App() {
     return out;
   }, [projects]);
 
+  // The treasurer reads stop names, not milestone ids; the voyage already has them.
+  const stopNames = useMemo(() => stopNamesFromStops(voyage?.stops), [voyage?.stops]);
+
   const treasurerPanel = (
     <TreasurerPanel
       open={treasurerOpen}
       onOpenChange={onTreasurerOpenChange}
       demoMode={demoTreasurer}
       demoStopAvailable={demoTreasurerAvailable}
+      stopNames={stopNames}
       adminKey={adminKey}
       onAdminKeyChange={setAdminKey}
       settleBusy={settleBusy}

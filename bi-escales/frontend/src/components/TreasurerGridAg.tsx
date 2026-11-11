@@ -8,17 +8,28 @@ import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 import type { PledgeGaugeRow } from "../api/types";
 import { gaugePercent } from "../utils/gauges";
+import { milestoneLabel } from "../utils/milestoneLabel";
+import type { StopNames } from "../utils/milestoneLabel";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 export interface AgProps {
   rows: PledgeGaugeRow[];
+  /** Stop names by milestone id, from the voyage the app has loaded. */
+  stopNames?: StopNames;
 }
 
-export default function TreasurerGridAg({ rows }: AgProps) {
+export default function TreasurerGridAg({ rows, stopNames }: AgProps) {
   const columnDefs = useMemo<ColDef<PledgeGaugeRow>[]>(
     () => [
-      { field: "milestone_id", headerName: "Milestone", flex: 1 },
+      {
+        field: "milestone_id",
+        headerName: "Milestone",
+        // The stop's name; an id the voyage does not know is shown as it is.
+        valueFormatter: (p) => milestoneLabel(stopNames, p.value),
+        tooltipField: "milestone_id",
+        flex: 1,
+      },
       {
         headerName: "Authorized",
         valueGetter: (p) =>
@@ -42,7 +53,7 @@ export default function TreasurerGridAg({ rows }: AgProps) {
         flex: 1,
       },
     ],
-    [],
+    [stopNames],
   );
 
   return (

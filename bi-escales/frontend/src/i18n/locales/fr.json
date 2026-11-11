@@ -150,6 +150,9 @@
   },
   "scheduler": {
     "heading": "Calendrier des escales",
+    "lead": "Une barre par escale, de l’arrivée au départ.",
+    "leadSelect": "Sélectionnez une escale pour l’ouvrir.",
+    "cabins": "Réserver une cabine sur une étape",
     "empty": "Aucune escale planifiée.",
     "cabinLeg": "{{from}} → {{to}}",
     "cabinPrice": "{{amount}} EUR",

@@ -150,6 +150,9 @@
   },
   "scheduler": {
     "heading": "Stopover calendar",
+    "lead": "One bar per stop, from arrival to departure.",
+    "leadSelect": "Select a stop to open it.",
+    "cabins": "Book a cabin on a leg",
     "empty": "No stopovers scheduled.",
     "cabinLeg": "{{from}} → {{to}}",
     "cabinPrice": "{{amount}} EUR",

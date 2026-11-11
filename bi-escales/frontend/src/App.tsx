@@ -1181,6 +1181,18 @@ export default function App() {
               </ol>
               <p className="hint">{t("treasurer.page.keyNote")}</p>
             </section>
+            {/* The treasurer's view of the voyage (flag on only): which stops are coming, and when. */}
+            {bryntumEnabled && schedule ? (
+              <EscalesScheduler
+                schedule={schedule}
+                planningEnabled
+                showCabins={false}
+                // Full names and every row where the page is wide; the compact timeline on a phone.
+                wide={!isNarrowScreen()}
+                onSelectEscale={undefined}
+                onAuthorized={undefined}
+              />
+            ) : null}
             {treasurerPanel}
           </div>
         </div>

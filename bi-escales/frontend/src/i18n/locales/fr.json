@@ -227,6 +227,8 @@
     "cardErrorInvalidExpiry": "Date d’expiration invalide. Vérifiez le mois et l’année.",
     "cardErrorInvalidCvv": "Cryptogramme (CVV) invalide.",
     "cardErrorInvalidNumber": "Numéro de carte invalide.",
+    "originalReceipt": "La promesse approuvée dans PayPal est la précédente : {{amount}} {{currency}} pour {{target}} (référence {{id}}). Elle est enregistrée. Le formulaire modifié ensuite n’a pas été payé.",
+    "walletPayError": "Le paiement par portefeuille a été annulé ou n’a pas abouti. Veuillez réessayer.",
     "walletPayHint": "Google Pay (Chrome) ou Apple Pay (Safari), sandbox TEST EUR.",
     "error": "Erreur promesse",
     "crewSubscribeHint": "Abonnement Crew",

@@ -410,6 +410,7 @@
     "createdAt": "Created",
     "milestoneFromStop": "Spending and fund use the selected stop milestone: {{id}}",
     "milestone": "Milestone",
+    "cabinLeg": "Cabin: {{from}} → {{to}}",
     "actions": "Actions",
     "back": "Back to the map",
     "screen": "Treasurer screen",

@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -403,3 +403,91 @@ def load_config() -> EscalesConfig:
         client_secret=os.environ.get("PAYPAL_CLIENT_SECRET", ""),
         env=env,
     )
+
+
+# --- PayPal Platform app, for project onboarding only -------------------------
+#
+# Project onboarding (partner referrals, the unlinked-payee donation order and its
+# capture, the merchant-onboarding webhook) can run on its own PayPal Platform
+# sandbox app. Nothing else may use these credentials: pledges, vault, card fields,
+# wallets, subscriptions and the browser SDK keep ``load_config()``.
+
+_PLATFORM_CLIENT_ID_VAR = "PAYPAL_PLATFORM_CLIENT_ID"
+_PLATFORM_CLIENT_SECRET_VAR = "PAYPAL_PLATFORM_CLIENT_SECRET"
+_PLATFORM_WEBHOOK_ID_VAR = "PAYPAL_PLATFORM_WEBHOOK_ID"
+_platform_fallback_warned = False
+
+
+def _paypal_env_is_sandbox() -> bool:
+    return (os.environ.get("PAYPAL_ENV") or "sandbox").strip().lower() == "sandbox"
+
+
+def _platform_pair() -> tuple[str, str]:
+    return (
+        (os.environ.get(_PLATFORM_CLIENT_ID_VAR) or "").strip(),
+        (os.environ.get(_PLATFORM_CLIENT_SECRET_VAR) or "").strip(),
+    )
+
+
+def platform_credentials_active() -> bool:
+    """True when project onboarding runs on its own PayPal Platform sandbox app.
+
+    Both variables must be set, and ``PAYPAL_ENV`` must be ``sandbox``: outside
+    the sandbox the platform app is never used. A boolean only, safe to expose.
+    """
+    if not _paypal_env_is_sandbox():
+        return False
+    client_id, client_secret = _platform_pair()
+    return bool(client_id and client_secret)
+
+
+def load_platform_config() -> EscalesConfig:
+    """Config for the project-onboarding path only.
+
+    The same sandbox base, currency and environment as :func:`load_config`, with
+    the client id and secret of the Platform app. If either platform variable is
+    unset, this is exactly ``load_config()``. Outside the sandbox ``load_config()``
+    raises first, so the platform credentials are never read into a config there.
+    """
+    main = load_config()
+    if not platform_credentials_active():
+        return main
+    client_id, client_secret = _platform_pair()
+    return replace(main, client_id=client_id, client_secret=client_secret)
+
+
+def paypal_platform_webhook_id() -> str:
+    """Webhook id registered on the Platform app, or ``""``. Sandbox only."""
+    if not _paypal_env_is_sandbox():
+        return ""
+    return (os.environ.get(_PLATFORM_WEBHOOK_ID_VAR) or "").strip()
+
+
+def warn_if_platform_credentials_missing() -> bool:
+    """Say once, at startup, that onboarding falls back to the main PayPal app.
+
+    Only when the onboarding feature is on (nothing else reads the platform
+    config) and only once per process. The message names the variables that are
+    missing, never a value. Returns True when it logged.
+    """
+    global _platform_fallback_warned
+    if _platform_fallback_warned or not onboard_after_payment_enabled():
+        return False
+    if not _paypal_env_is_sandbox() or platform_credentials_active():
+        return False
+    client_id, client_secret = _platform_pair()
+    missing = [
+        name
+        for name, value in (
+            (_PLATFORM_CLIENT_ID_VAR, client_id),
+            (_PLATFORM_CLIENT_SECRET_VAR, client_secret),
+        )
+        if not value
+    ]
+    _platform_fallback_warned = True
+    log.warning(
+        "Project onboarding uses the main PayPal app: %s not set. "
+        "Set both platform variables to use the PayPal Platform sandbox app.",
+        " and ".join(missing),
+    )
+    return True

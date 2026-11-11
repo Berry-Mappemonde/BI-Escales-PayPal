@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any, Optional
 
-from app.escales.config import order_cancel_url, order_return_url
+from app.escales.config import order_cancel_url, order_return_url, platform_credentials_active
 from app.escales.paypal_client import PayPalClient, approve_link
 from app.escales.paypal_idempotency import paypal_request_id
 
@@ -67,6 +67,20 @@ def create_unlinked_payee_capture_order(
 
         raise PayPalError(response.status_code, response.text)
     return response.json() if response.content else {}
+
+
+def read_order(client: PayPalClient, order_id: str) -> dict:
+    """Read a donation order with the credentials that created it.
+
+    ``PayPalClient.get_order`` may hand the read to the Server SDK gateway, a
+    process-wide client that only ever holds the main app's credentials. An order
+    created by the Platform app has to be read with the Platform app's token, so
+    with the platform credentials active the read goes through the client's own
+    request path. Without them nothing changes.
+    """
+    if platform_credentials_active():
+        return client._req("GET", f"/v2/checkout/orders/{order_id}")
+    return client.get_order(order_id)
 
 
 def capture_order_once(client: PayPalClient, order_id: str) -> dict:

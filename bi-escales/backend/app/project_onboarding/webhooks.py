@@ -6,13 +6,38 @@ import json
 import logging
 from typing import Any, Optional
 
-from app.escales.config import paypal_webhook_id, webhooks_enabled
+from app.escales.config import (
+    EscalesConfig,
+    load_config,
+    load_platform_config,
+    paypal_platform_webhook_id,
+    paypal_webhook_id,
+    webhooks_enabled,
+)
 from app.escales.paypal_client import PayPalClient, PayPalError
 from app.escales.webhooks import WebhookRejected, _transmission_headers, _signature_is_malformed, _cert_url_is_malformed
 from app.project_onboarding.service import mark_onboarded_from_webhook
 from app.project_onboarding.store import claim_webhook_event
 
 log = logging.getLogger("escales.project_onboarding.webhooks")
+
+
+def onboarding_webhook_id() -> str:
+    """``PAYPAL_PLATFORM_WEBHOOK_ID`` when set, else the existing ``PAYPAL_WEBHOOK_ID``."""
+    return paypal_platform_webhook_id() or paypal_webhook_id()
+
+
+def onboarding_webhook_config() -> EscalesConfig:
+    """Credentials of the app that owns :func:`onboarding_webhook_id`.
+
+    PayPal verifies a signature for a webhook registered to the app whose
+    credentials make the call, so the id and the credentials are chosen together:
+    the platform webhook id goes with the platform config, the existing webhook
+    id goes with the main app it was registered on.
+    """
+    if paypal_platform_webhook_id():
+        return load_platform_config()
+    return load_config()
 
 
 async def verify_merchant_onboarding_webhook(
@@ -23,7 +48,7 @@ async def verify_merchant_onboarding_webhook(
 ) -> dict:
     if not webhooks_enabled():
         raise WebhookRejected(404, "webhooks disabled")
-    webhook_id = paypal_webhook_id()
+    webhook_id = onboarding_webhook_id()
     if not webhook_id:
         raise WebhookRejected(503, "PAYPAL_WEBHOOK_ID is not configured")
     tx = _transmission_headers(headers)

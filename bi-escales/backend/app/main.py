@@ -91,6 +91,10 @@ if _escales_on:
     app.include_router(project_onboarding.router)
     app.include_router(project_onboarding.webhooks_router)
 
+    from app.escales.config import warn_if_platform_credentials_missing
+
+    warn_if_platform_credentials_missing()
+
 
 def frontend_dist() -> Path:
     """Built Vite app, next to the backend (bi-escales/frontend/dist)."""

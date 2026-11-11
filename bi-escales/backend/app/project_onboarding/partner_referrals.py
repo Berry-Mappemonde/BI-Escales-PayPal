@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional, Protocol
 
-from app.escales.config import SANDBOX_BASE, load_config, public_base_url
+from app.escales.config import SANDBOX_BASE, load_platform_config, public_base_url
 from app.escales.paypal_client import PayPalClient, PayPalError
 
 log = logging.getLogger("escales.project_onboarding.referrals")
@@ -30,7 +30,7 @@ class RawHttpPartnerReferralsClient:
     """Sandbox-only Partner Referrals via PayPal REST."""
 
     def __init__(self, client: Optional[PayPalClient] = None):
-        self._client = client or PayPalClient(load_config())
+        self._client = client or PayPalClient(load_platform_config())
 
     def create_referral(
         self,

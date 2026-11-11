@@ -12,8 +12,8 @@ from starlette.responses import JSONResponse
 from app.escales.config import (
     email_enabled,
     escales_enabled,
-    load_config,
     onboard_after_payment_enabled,
+    platform_credentials_active,
 )
 from app.escales.paypal_client import PayPalClient, PayPalError
 from app.escales.rate_limit import RateLimited, client_ip, hit
@@ -21,7 +21,7 @@ from app.escales.webhooks import WebhookRejected
 from app.project_onboarding.constants import DEMO_PROJECT_ID
 from app.project_onboarding.seed import seed_demo_onboarding
 from app.project_onboarding import service
-from app.project_onboarding.webhooks import verify_merchant_onboarding_webhook
+from app.project_onboarding.webhooks import onboarding_webhook_config, verify_merchant_onboarding_webhook
 
 router = APIRouter(prefix="/api/escales/project-onboarding", tags=["project-onboarding"])
 webhooks_router = APIRouter(prefix="/api/escales/project-onboarding", tags=["project-onboarding-webhooks"])
@@ -55,7 +55,12 @@ def _lang(request: Request) -> str:
 
 
 def _paypal_client() -> PayPalClient:
-    return PayPalClient(load_config())
+    """Client that verifies the merchant-onboarding webhook.
+
+    The PayPal Platform app when its webhook id is configured; otherwise the main
+    app, which owns the existing webhook id (see ``onboarding_webhook_config``).
+    """
+    return PayPalClient(onboarding_webhook_config())
 
 
 def _enforce_capture_rate(request: Request) -> None:
@@ -78,6 +83,8 @@ async def feature_status():
         "enabled": onboard_after_payment_enabled(),
         "email_enabled": email_enabled(),
         "demo_project_id": DEMO_PROJECT_ID,
+        # A boolean only: never the client id, the secret or a webhook id.
+        "platform_credentials": platform_credentials_active(),
     }
 
 

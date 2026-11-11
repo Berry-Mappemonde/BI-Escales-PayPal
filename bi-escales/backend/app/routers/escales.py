@@ -753,6 +753,12 @@ async def post_pledge(body: PledgeIn, request: Request):
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc, lang=body.lang) from exc
+    # Demo treasurer mode: a pledge made without the treasurer key may later be played
+    # with by the browser that made it (and by no one else). Nothing else changes here.
+    if demo_treasurer_enabled() and (client_key or "").strip() and not _has_admin_key_header(request):
+        from app.escales.demo_play import mark_playable
+
+        doc = await mark_playable(doc)
     return await _public_pledge_with_fund(doc, lang=resolve_app_language(body.lang))
 
 

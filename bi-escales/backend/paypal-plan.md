@@ -468,3 +468,71 @@ in development or CI.
 Skills used: `python-getting-started` under the vendored
 `.cursor/skills/paypal-server-sdk` directory. The Server SDK is not called by
 the operations this change touches.
+
+# Demo treasurer: a visitor plays the treasurer on their own pledges (issue #145, 11 Nov 2026)
+
+In demo treasurer mode (`ESCALES_DEMO_TREASURER` on, `PAYPAL_ENV=sandbox`, `ESCALES_ENV`
+not `production`), a visitor without the treasurer key can take **a pledge made from
+the same browser** through the treasurer loop, for real in the PayPal sandbox:
+simulate the boat's arrival for that pledge, approve, capture or void, refund.
+Every other pledge stays view-only. The keyed treasurer routes are not changed.
+
+## PayPal operations called
+
+No new PayPal operation and no new signature. The demo routes call the same service
+functions as the keyed treasurer routes, which call the same `PayPalClient` methods:
+
+| Demo route (`/api/escales/demo/pledges/{id}/…`) | Service function (unchanged) | PayPal call it makes (unchanged) |
+| --- | --- | --- |
+| `simulate-arrival` | none: writes `demo_play.arrival_at` on the pledge only | none |
+| `approve` | none: writes `demo_play.approved_at` on the pledge only | none |
+| `capture` | `capture_pledge(pledge_id, client, effective_at=<that pledge's simulated arrival>)` | `capture_authorization(authorization_id, idempotency_key=)` or `charge_vaulted(…)` for a Vault pledge; `reauthorize(…)` after the honor period, as for the treasurer |
+| `void` | `void_pledge(pledge_id, client)` | void of the authorization, or deletion of the unused vault token |
+| `refund` | `refund_pledge(pledge_id, client)` (remaining balance) | refund of the capture |
+| `POST /demo/pledges/own` | none: reads pledges | none |
+
+The Captain's review is the existing `POST /captain/review/{milestone_id}`, already
+open (and rate-limited) without the key.
+
+## Ownership (never a pledge id alone)
+
+| Item | Rule |
+| --- | --- |
+| Proof | The pledge's `client_key`: the `PayPal-Request-Id` the browser chose when it created the pledge. It is stored on the pledge, never returned by any public or demo response, and only that browser knows it. The browser sends it back in `X-Pledge-Key`. |
+| Check | On every demo action: the pledge must carry `demo_playable: true` **and** `secrets.compare_digest(stored client_key, X-Pledge-Key)`. Anything else is HTTP 403, including an unknown pledge id (no id probing). |
+| `demo_playable` | Set when a pledge is created while demo treasurer mode is on, with a `PayPal-Request-Id` and without an `x-admin-key` header. Pledges created before this change, by the treasurer key, or with the mode off never get it and stay view-only. |
+| Scope of "simulate arrival" | Stored on that pledge only. The shared voyage clock, the stop's milestone, the Captain's stored review and every other pledge are untouched. The capture passes that stored moment as `effective_at`, the parameter the treasurer's own capture route already uses for a dated capture. |
+| Approval | Stored on that pledge only (`demo_play.approved_at`). No `captain_review_approved` row is written for the stop, so the real voyage never sees an approval nobody gave. Capture is refused until both the arrival and the approval are on the pledge. |
+
+## Errors
+
+Unchanged mapping: `PledgeNotFound`, `IllegalTransition`, `PayPalError`, `ValueError`
+go through `_money_http`, as on the keyed routes. Added: 403 (not this browser's
+pledge, or mode off), 409 (step out of order: capture before approval, approval before
+arrival, nothing to simulate for a pledge charged at once), 429 (rate limit).
+
+## Duplicate-claim / idempotency rows
+
+| Call | Key | Effect |
+| --- | --- | --- |
+| Demo capture | the pledge's existing capture idempotency key (`_call_with_capture_idempotency`) | A repeated click replays the same PayPal request; a captured pledge is refused by its status |
+| Demo void | status check in `void_pledge` | A second void is an illegal transition (409) |
+| Demo refund | `refund_pledge` remaining-balance rule | A second full refund returns 409 "already fully refunded" |
+| Demo simulate-arrival / approve | idempotent writes on the pledge | Repeating returns the same state |
+
+## Limits
+
+- Rate limit on every demo pledge route: the existing demo limiter (`hit_demo`), once per client IP and once per pledge key.
+- Sandbox only: the routes return 403 unless the demo flag is on with `PAYPAL_ENV=sandbox`.
+
+## Validation
+
+Stubbed PayPal client, no network: a pledge from another browser is refused (403) on
+every demo action; an unknown id is 403; a pledge made before the change or with the
+treasurer key is not playable; the keyed capture, void and refund routes still demand
+the key and behave as before; "simulate arrival" changes neither the shared clock nor
+another pledge on the same stop. Not verified against PayPal: no sandbox credentials
+are available in development or CI.
+
+Skills used: `python-getting-started` under the vendored
+`.cursor/skills/paypal-server-sdk` directory. No PayPal operation or SDK call is added.

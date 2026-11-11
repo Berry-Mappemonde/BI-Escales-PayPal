@@ -393,7 +393,7 @@
       "keyNote": "Le trésorier démo est une vue en lecture seule de la file et des revues du capitaine. Encaisser, annuler et rembourser demandent la clé trésorier (bac à sable PayPal uniquement)."
     },
     "demoButton": "Trésorier démo",
-    "demoBanner": "Démo bac à sable, lecture seule : vous voyez la file et les revues du capitaine. Encaisser, annuler et rembourser demandent la clé trésorier.",
+    "demoBanner": "Démo bac à sable : vous pouvez jouer le trésorier sur les promesses faites depuis ce navigateur. Les autres promesses sont en lecture seule ; la clé trésorier agit sur toutes.",
     "demoStop": {
       "heading": "Moment juge — La Rochelle",
       "hint": "Bac à sable uniquement, clé trésorier requise : escale {{id}}. Simuler l'arrivée capture les promesses autorisées (l'approbation ne vaut que pour cette action, rien n'est enregistré) ; annuler vide les autorisations ; réinitialiser efface l'état démo sans toucher aux captures.",
@@ -413,6 +413,32 @@
     "void": "Annuler l’autorisation",
     "queueEmpty": "Aucune promesse autorisée, vaultée ou en attente sur le serveur.",
     "moneyNeedsKey": "La vue démo est en lecture seule : saisissez la clé trésorier pour capturer, annuler, rembourser ou approuver.",
+    "demoPlay": {
+      "hintLead": "Jouez le trésorier sur une promesse à vous, pour de vrai dans le bac à sable PayPal :",
+      "hintStep1": "Faites une promesse sur une escale",
+      "hintStep2": "Revenez ici",
+      "hintStep3": "Approuvez, encaissez ou annulez-la",
+      "yours": "À vous",
+      "othersViewOnly": "Seul le navigateur qui a fait une promesse peut agir dessus ici. Les promesses sans l’étiquette « À vous » sont en lecture seule.",
+      "stepHeld": "Retenue chez PayPal. Ensuite : le bateau arrive, pour cette promesse seulement.",
+      "stepArrived": "Le bateau est arrivé, pour cette promesse seulement. Ensuite : approuvez l’encaissement.",
+      "stepApproved": "Approuvée par vous. Ensuite : encaissez, ou annulez.",
+      "stepCaptured": "Encaissée dans le bac à sable PayPal. Vous pouvez la rembourser.",
+      "actions": {
+        "simulate_arrival": "Simuler l’arrivée",
+        "approve": "Approuver",
+        "capture": "Encaisser",
+        "void": "Annuler",
+        "refund": "Rembourser"
+      },
+      "done": {
+        "simulate_arrival": "Promesse {{ref}} : arrivée simulée, pour cette promesse seulement.",
+        "approve": "Promesse {{ref}} : encaissement approuvé.",
+        "capture": "Promesse {{ref}} : encaissée dans le bac à sable PayPal.",
+        "void": "Promesse {{ref}} : retenue libérée dans le bac à sable PayPal. Rien n’a été débité.",
+        "refund": "Promesse {{ref}} : remboursée dans le bac à sable PayPal."
+      }
+    },
     "queueNeedsKey": "Saisissez la clé trésorier pour lire la file sur le serveur.",
     "capturePledge": "Capturer la promesse",
     "refundPledge": "Rembourser (PayPal)",

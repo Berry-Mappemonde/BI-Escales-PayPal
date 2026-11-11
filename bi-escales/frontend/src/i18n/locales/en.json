@@ -393,7 +393,7 @@
       "keyNote": "Demo treasurer is a read-only view of the queue and the Captain's reviews. Capture, void and refunds need the treasurer key (PayPal sandbox only)."
     },
     "demoButton": "Demo treasurer",
-    "demoBanner": "Sandbox demo, read-only: you see the queue and the Captain's reviews. Capture, void and refunds need the treasurer key.",
+    "demoBanner": "Sandbox demo: you can play the treasurer on pledges made from this browser. Every other pledge is view-only; the treasurer key acts on all of them.",
     "demoStop": {
       "heading": "Judge moment — La Rochelle",
       "hint": "Sandbox only, treasurer key required: stop {{id}}. Simulate arrival captures authorized pledges (approval applies to this action only, nothing is stored); cancel voids authorizations; reset clears demo state without undoing captures.",
@@ -413,6 +413,32 @@
     "void": "Void authorization",
     "queueEmpty": "No authorized, vaulted, or pending pledges on the server.",
     "moneyNeedsKey": "Demo view is read-only: enter the treasurer key to capture, void, refund or approve.",
+    "demoPlay": {
+      "hintLead": "Play the treasurer on a pledge of your own, for real in the PayPal sandbox:",
+      "hintStep1": "Pledge on a stop",
+      "hintStep2": "Come back here",
+      "hintStep3": "Approve, capture or void it",
+      "yours": "Yours",
+      "othersViewOnly": "Only the browser that made a pledge can act on it here. Pledges without the “Yours” tag are view-only.",
+      "stepHeld": "Held in PayPal. Next: the boat arrives, for this pledge only.",
+      "stepArrived": "The boat has arrived, for this pledge only. Next: approve the capture.",
+      "stepApproved": "Approved by you. Next: capture, or void instead.",
+      "stepCaptured": "Captured in the PayPal sandbox. You can refund it.",
+      "actions": {
+        "simulate_arrival": "Simulate arrival",
+        "approve": "Approve",
+        "capture": "Capture",
+        "void": "Void",
+        "refund": "Refund"
+      },
+      "done": {
+        "simulate_arrival": "Pledge {{ref}}: arrival simulated, for this pledge only.",
+        "approve": "Pledge {{ref}}: capture approved.",
+        "capture": "Pledge {{ref}}: captured in the PayPal sandbox.",
+        "void": "Pledge {{ref}}: hold released in the PayPal sandbox. Nothing was charged.",
+        "refund": "Pledge {{ref}}: refunded in the PayPal sandbox."
+      }
+    },
     "queueNeedsKey": "Enter the treasurer key to read the queue from the server.",
     "capturePledge": "Capture pledge",
     "refundPledge": "Refund (PayPal)",

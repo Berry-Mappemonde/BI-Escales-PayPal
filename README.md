@@ -21,7 +21,7 @@ PayPal **sandbox only**: no live money moves, on any host. The voyage departs on
 1. **Map.** Open [escales.naviguide.fr](https://escales.naviguide.fr). The map shows the voyage, one flag per stop. The page opens in English; **FR** switches to French.
 2. **Back the next stop.** Press **Back the next stop** in the right panel. On the demo clock it opens **La Rochelle**. Any flag on the map opens its stop the same way.
 3. **Pay with PayPal.** Choose what you fund and a quantity, then press **Pay with PayPal** and approve with the sandbox buyer (see below). The pledge is **authorised, not charged**: La Rochelle uses Orders v2 `intent=AUTHORIZE`. The stop sheet then confirms the pledge.
-4. **Demo treasurer (read-only).** Press **Demo treasurer** at the bottom of the left panel. It shows the queue of held pledges and the AI Captain's review of each stop, with its sources. It is a read-only view: nothing can be captured, voided or refunded from it, and supporter names are not shown.
+4. **Demo treasurer: play the treasurer on your own pledge.** Press **Demo treasurer** at the bottom of the left panel. It shows the queue of held pledges and the AI Captain's review of each stop, with its sources, without supporter names. The pledge you just made from this browser is tagged **Yours** and has live buttons: **Simulate arrival** (for that pledge only), **Approve**, then **Capture** or **Void**, and **Refund** once captured, for real in the PayPal sandbox. Every other pledge is view-only.
 
 Optional: ask the **AI Captain** a question in the left panel (for example the **Where is the boat?** chip). Each answer says whether it came from a fixed rule or from NVIDIA Nemotron.
 
@@ -29,9 +29,9 @@ A far stop shows the other payment mode: **Mayotte** is more than 29 days away o
 
 ### What needs the treasurer key
 
-Everything that moves money is behind the private treasurer key (HTTP header `x-admin-key`), which is **not in this repository** and is not needed for the judge path:
+Acting on a pledge **made from another browser** is behind the private treasurer key (HTTP header `x-admin-key`), which is **not in this repository** and is not needed for the judge path. Without the key, the demo acts only on a pledge whose own browser proves it made it (the server checks this on every call). The key is needed for:
 
-- **Capture** a held pledge after the Captain's review is approved, **void** it, or **refund** a capture.
+- **Capture**, **void** or **refund** of any other pledge, and approval of the Captain's review for a whole stop.
 - **Run departure-day settle** and **Settle at this date**.
 - The **Judge moment — La Rochelle** tools: **Simulate boat arrival**, **Cancel stop**, **Reset demo**.
 
@@ -57,7 +57,7 @@ Read from `GET https://escales.naviguide.fr/api/escales/features` on 11 Nov 2026
 | Feature | Flag | Hosted demo |
 | --- | --- | --- |
 | PayPal Vault for far stops and cabins | `ESCALES_VAULT_ENABLED` | **On** |
-| Demo treasurer (read-only view) | `ESCALES_DEMO_TREASURER` | **On** |
+| Demo treasurer (view of the queue; live on a visitor's own pledges, sandbox only) | `ESCALES_DEMO_TREASURER` | **On** |
 | Crew membership, 10 € per year (PayPal subscription) | plan created on the host with the treasurer's setup action | **On** once the setup action has been run on the host |
 | Gear wishlists (Channel3 catalogue) | `ESCALES_WISHLISTS_ENABLED`, `ESCALES_CHANNEL3_ENABLED` | **On** |
 | PayPal webhooks | `ESCALES_WEBHOOKS_ENABLED` | **On** |
@@ -121,7 +121,7 @@ In `.env`, set at minimum:
 - `PAYPAL_CLIENT_ID=sandbox_placeholder`
 - `PAYPAL_CLIENT_SECRET=sandbox_placeholder`
 - `ESCALES_ADMIN_KEY=dev-secret`
-- `ESCALES_DEMO_TREASURER=1` (optional: **Demo treasurer** without sharing `x-admin-key`; requires `PAYPAL_ENV=sandbox`)
+- `ESCALES_DEMO_TREASURER=1` (optional: **Demo treasurer** without sharing `x-admin-key`: a view of the queue, and the treasurer loop on pledges made from the visitor's own browser; requires `PAYPAL_ENV=sandbox`)
 
 Replace PayPal placeholders with your own **sandbox** REST app credentials only if you need real checkout locally.
 

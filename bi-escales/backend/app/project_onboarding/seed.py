@@ -12,12 +12,20 @@ PROJECT_TEMPLATE = {
     "title_fr": "Association Berry-Mappemonde",
     "title_en": "Berry-Mappemonde association",
     "description_fr": (
-        "L'association à l'origine de l'expédition voilière Berry-Mappemonde, "
-        "qui soutient des projets océan et territoires le long de la route."
+        "Association loi 1901 basée à Saint-Maur (Indre), Berry-Mappemonde organise une expédition "
+        "à la voile de 36 mois, en voiliers de série, qui relie le Berry, terre sans littoral au centre "
+        "de la France, aux 13 territoires français d'Outre-mer. L'association crée des liens durables "
+        "entre ces territoires (jumelages, échanges, partenariats), mène des actions pédagogiques dans "
+        "les écoles, sensibilise aux enjeux maritimes, agricoles et environnementaux, et documente "
+        "l'aventure par un livre, une série documentaire et une exposition itinérante."
     ),
     "description_en": (
-        "The association behind the Berry-Mappemonde sailing expedition, "
-        "supporting ocean and territory projects along the route."
+        "A French non-profit based in Saint-Maur (Indre), Berry-Mappemonde is organising a 36-month "
+        "sailing expedition on production sailboats, linking the Berry, a landlocked region in the heart "
+        "of France, to France's 13 overseas territories. The association builds lasting ties between "
+        "these places (twinnings, exchanges, partnerships), runs school programmes, raises awareness of "
+        "maritime, farming and environmental issues, and documents the journey through a book, a "
+        "documentary series and a travelling exhibition."
     ),
     "location_label": "Saint-Maur (Indre), France",
     "lat": 46.807,

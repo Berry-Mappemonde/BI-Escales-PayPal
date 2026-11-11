@@ -180,6 +180,10 @@ def test_seed_idempotent_berry_project(onboarding_api):
     assert project.get("demo_fake") is not True
     assert project.get("image_url") == "/static/onboarding/berry-mappemonde-logo.webp"
     assert project.get("location_label") == "Saint-Maur (Indre), France"
+    assert "36 mois" in project["description_fr"]
+    assert "exposition itinérante" in project["description_fr"]
+    assert "36-month" in project["description_en"]
+    assert "travelling exhibition" in project["description_en"]
     assert second.json()["project"]["onboarding_status"] == first.json()["project"]["onboarding_status"]
 
 

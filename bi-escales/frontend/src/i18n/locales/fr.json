@@ -239,7 +239,8 @@
     "crewSubscribeConfirmed": "Abonnement Crew confirmé. Merci.",
     "crewSubscribeVerifying": "Vérification de votre Abonnement Crew auprès de PayPal…",
     "crewSubscribePending": "Votre Abonnement Crew n’est pas encore actif. Terminez l’approbation PayPal ou réessayez.",
-    "crewSubscribeCancelled": "Abonnement Crew annulé. Aucun prélèvement."
+    "crewSubscribeCancelled": "Abonnement Crew annulé. Aucun prélèvement.",
+    "charged": "Paiement reçu. Merci."
   },
   "howItWorks": {
     "credit": "Paiements en mode test par PayPal · IA par NVIDIA Nemotron",

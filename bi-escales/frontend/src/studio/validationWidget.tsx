@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AgWidgetField, AgWidgetParams } from "ag-studio";
 import { useTranslation } from "react-i18next";
+import { dashboardMoney } from "./dashboardLedger";
 import { formatPledgeAmount } from "./locale";
 import { totalsFromStudioRows, type StatusTotals } from "./pledgeRows";
 
@@ -31,7 +32,8 @@ function schemaFields(widgetApi: AgWidgetParams["widgetApi"]): AgWidgetField[] {
 
 export function ValidationScoreboard(props: AgWidgetParams) {
   const { t, i18n } = useTranslation();
-  const { widgetApi, dataMapping, format } = props;
+  const { widgetApi, dataMapping, format, context } = props;
+  const currency: string | undefined = context?.currency;
   const [totals, setTotals] = useState<StatusTotals>(EMPTY);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,7 +87,9 @@ export function ValidationScoreboard(props: AgWidgetParams) {
         {bars.map((bar) => (
           <li key={bar.key}>
             <span>{bar.label}</span>
-            <span>{formatPledgeAmount(totals[bar.key], i18n.language)}</span>
+            <span>{currency && currency !== "EUR"
+              ? dashboardMoney(Math.round(totals[bar.key] * 100), currency, i18n.language)
+              : formatPledgeAmount(totals[bar.key], i18n.language)}</span>
             <div className="gauge-track">
               <div
                 className={`gauge-fill ${bar.tone}`}

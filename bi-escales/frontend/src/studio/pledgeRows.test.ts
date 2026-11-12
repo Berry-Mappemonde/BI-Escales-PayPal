@@ -1,41 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { nextDataAgentAction, nextTreasurerAction } from "./agentPlan";
-import { toPledgeStudioRows, totalsFromStudioRows } from "./pledgeRows";
-
-describe("toPledgeStudioRows", () => {
-  it("convertit le montant et laisse le contributeur vide", () => {
-    const [row] = toPledgeStudioRows([
-      {
-        id: "p1",
-        status: "authorized",
-        intent: "AUTHORIZE",
-        currency: "EUR",
-        amount_eur: "12.50",
-        description: "eau",
-        milestone_id: "dep-mayotte",
-      },
-    ]);
-    expect(row).toMatchObject({
-      id: "p1",
-      status: "authorized",
-      amount_eur: 12.5,
-      contributor: "",
-      milestone_id: "dep-mayotte",
-    });
-  });
-
-  it("déduit les remboursements du net sans descendre sous zéro", () => {
-    const base = { intent: "CAPTURE", currency: "EUR", description: "eau", milestone_id: "m1" };
-    const rows = toPledgeStudioRows([
-      { ...base, id: "p1", status: "captured", amount_eur: "30.00" },
-      { ...base, id: "p2", status: "partially_refunded", amount_eur: "30.00", refunded_amount_eur: "10.10" },
-      { ...base, id: "p3", status: "refunded", amount_eur: "30.00", refunded_amount_eur: "30.00" },
-      { ...base, id: "p4", status: "refunded", amount_eur: "30.00", refunded_amount_eur: "31.00" },
-    ]);
-    expect(rows.map((row) => row.net_eur)).toEqual([30, 19.9, 0, 0]);
-    expect(rows.map((row) => row.amount_eur)).toEqual([30, 30, 30, 30]);
-  });
-});
+import { totalsFromStudioRows } from "./pledgeRows";
 
 describe("totalsFromStudioRows", () => {
   it("somme les montants quel que soit le préfixe de colonne", () => {
@@ -80,6 +45,12 @@ describe("totalsFromStudioRows", () => {
 });
 
 describe("nextTreasurerAction", () => {
+  it.each(["Show crowdfunding totals", "Afficher le financement des projets"])("routes %s through the data agent to the funding widget", (prompt) => {
+    expect(nextTreasurerAction(prompt, 0).kind).toBe("delegate-data");
+    expect(nextTreasurerAction(prompt, 1).kind).toBe("add-funding-widget");
+    expect(nextTreasurerAction(prompt, 2).kind).toBe("reply");
+  });
+
   it("délègue d’abord à l’agent data de Studio", () => {
     expect(nextTreasurerAction("totaux", 0)).toEqual({
       kind: "delegate-data",

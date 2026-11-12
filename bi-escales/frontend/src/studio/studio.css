@@ -1,41 +1,287 @@
-/* Loaded with the lazy Studio chunk only, so the app's CSS is unchanged with the flag off. */
 .studio-overlay {
-  /* Studio stays on its night theme, so these do not follow the app's light theme. */
-  --text: #e8f1fa;
-  --muted: #9fb6cc;
-  --accent: #3d9be9;
-  --accent-fg: #041018;
-  --ok: #7fd992;
-  --gauge-track: #1a334a;
   position: fixed;
   inset: 0;
-  z-index: 2000;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.75rem;
   box-sizing: border-box;
-  background: #0b1f33;
-  color: var(--text);
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  overflow: auto;
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
 }
 
-.studio-overlay-header {
+.studio-workspace {
+  box-sizing: border-box;
+  width: min(100%, 1440px);
+  margin-inline: auto;
+  padding: var(--space-10) clamp(var(--space-4), 4vw, var(--space-16));
+}
+
+.studio-overlay-header,
+.studio-table-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 
 .studio-overlay-header h2 {
-  margin: 0;
-  font-size: 1.05rem;
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-display);
+  line-height: var(--text-display--line-height);
+  letter-spacing: normal;
 }
 
-.treasurer-studio {
-  flex: 1;
-  min-height: 0;
-  border-radius: 10px;
+.studio-overlay-header p {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-fg-2);
+  font-size: var(--text-ui);
+}
+
+.studio-demo {
+  padding: 1px var(--space-2);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-chip);
+  font-size: var(--text-meta);
+}
+
+.studio-actions,
+.studio-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.studio-nav {
+  margin-block: var(--space-6);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.studio-overlay .studio-nav button {
+  padding: var(--space-2) var(--space-3);
+  min-height: var(--space-10);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-fg-2);
+}
+
+.studio-overlay .studio-nav button[aria-pressed="true"] {
+  border-bottom-color: var(--color-accent);
+  color: var(--color-fg);
+  font-weight: 650;
+}
+
+.studio-chart-toggle {
+  margin-inline-start: auto;
+}
+
+.studio-overlay :is(button, input, select):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.studio-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.studio-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.studio-controls label {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  font-weight: 600;
+}
+
+.studio-controls .studio-search {
+  flex: 1 1 220px;
+  max-width: 340px;
+}
+
+.studio-controls :is(input, select) {
+  box-sizing: border-box;
+  min-height: var(--space-10);
+  padding: var(--space-2);
+  width: 100%;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-panel);
+  color: var(--color-fg);
+  font: inherit;
+  font-weight: 400;
+  font-size: var(--text-ui);
+}
+
+.studio-controls input::placeholder {
+  color: var(--color-fg-3);
+}
+
+.studio-overlay .studio-clear {
+  min-height: var(--space-10);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-accent-fg);
+}
+
+.studio-overlay .studio-clear:disabled {
+  color: var(--color-fg-3);
+}
+
+.studio-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  margin: 0;
+  gap: 1px;
   overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-line);
+}
+
+.studio-totals > div {
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--color-panel);
+}
+
+.studio-totals dt,
+.studio-hint {
+  margin: 0;
+  color: var(--color-fg-2);
+  font-size: var(--text-ui);
+}
+
+.studio-totals dd {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-display);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.studio-totals [data-total="captured"] dd { color: var(--color-status-captured); }
+.studio-totals [data-total="authorized"] dd { color: var(--color-status-held); }
+
+.studio-table-heading {
+  margin-top: var(--space-2);
+  margin-bottom: calc(-1 * var(--space-2));
+}
+
+.studio-overlay h3 {
+  margin: 0;
+  font-size: var(--text-panel-heading);
+  line-height: var(--text-panel-heading--line-height);
+}
+
+.studio-grid {
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.studio-grid .ag-header-cell-text {
+  white-space: normal;
+}
+
+.studio-target {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.studio-target strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.studio-target small {
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+}
+
+.studio-status {
+  --studio-tone: var(--color-status-pending);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.studio-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--studio-tone);
+}
+
+.studio-status[data-tone="held"] { --studio-tone: var(--color-status-held); }
+.studio-status[data-tone="saved"] { --studio-tone: var(--color-status-saved); }
+.studio-status[data-tone="captured"] { --studio-tone: var(--color-status-captured); }
+.studio-status[data-tone="released"] { --studio-tone: var(--color-status-released); }
+.studio-status[data-tone="refunded"] { --studio-tone: var(--color-status-refunded); }
+.studio-status[data-tone="error"] { --studio-tone: var(--color-status-error); }
+
+.studio-empty,
+.studio-chart {
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-panel);
+}
+
+.studio-overlay-header + .studio-empty {
+  margin-top: var(--space-6);
+}
+
+.studio-chart-canvas { height: 236px; }
+
+.treasurer-studio {
+  height: min(750px, 78vh);
+  min-height: 440px;
+  margin-top: var(--space-3);
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+}
+
+.studio-widget-scroll { height: 100%; overflow: auto; }
+.studio-funding-widget { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.studio-funding-widget :is(th, td) {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-line);
+  text-align: end;
+  white-space: nowrap;
+}
+.studio-funding-widget th:first-child { text-align: start; }
+
+@media (max-width: 600px) {
+  .studio-workspace { padding-block: var(--space-5); }
+  .studio-controls .studio-search { max-width: none; flex-basis: 100%; }
+  .studio-controls label:not(.studio-search) { flex: 1 1 42%; }
+  .studio-chart-toggle { margin-inline-start: 0; }
 }
 
 .validation-scoreboard {
@@ -78,5 +324,5 @@
 }
 
 .validation-scoreboard .tone-saved {
-  background: #e8b84a;
+  background: var(--color-status-saved);
 }

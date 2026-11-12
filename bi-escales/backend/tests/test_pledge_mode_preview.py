@@ -29,7 +29,7 @@ def memory(monkeypatch):
     reset_ledger()
     set_paypal_client_factory(None)
 
-@pytest.mark.parametrize('days,mode',[(28,'AUTHORIZE'),(29,'AUTHORIZE'),(30,'VAULT'),(60,'VAULT')])
+@pytest.mark.parametrize('days,mode',[(28,'AUTHORIZE'),(29,'VAULT'),(30,'VAULT'),(60,'VAULT')])
 def test_mode_preview_matches_creation_without_writes(days, mode):
     ledger=get_ledger()
     anchor=dt.datetime(2026,11,19,8,tzinfo=dt.timezone.utc)+dt.timedelta(days=days)
@@ -87,7 +87,6 @@ def test_cabin_preview_uses_leg_departure(days, monkeypatch):
 
 @pytest.mark.parametrize('milestone,kind', [
     ('dep-mayotte', 'invalid'),
-    ('dep-mayotte', 'project_pledge'),
     ('dep-dakar', 'cabin_leg'),
     ('', 'mile'),
 ])

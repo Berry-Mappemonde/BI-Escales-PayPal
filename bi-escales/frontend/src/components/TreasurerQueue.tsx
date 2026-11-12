@@ -121,7 +121,7 @@ export function TreasurerQueue({
     try {
       const result = await demoPlay(pledgeId, action);
       setOwnPlays((all) => ({ ...all, [pledgeId]: result.play }));
-      setPlayNote(t(`treasurer.demoPlay.done.${action}`, { ref: shortPledgeId(pledgeId) }));
+      setPlayNote(t(result.pledge.status === "pending" ? "pledge.cardConfirmPendingNext" : `treasurer.demoPlay.done.${action}`, { ref: shortPledgeId(pledgeId) }));
       onUpdated(result.pledge);
       onRefresh();
     } catch (err) {
@@ -379,19 +379,19 @@ export function TreasurerQueue({
                       onRun={(action) => void runPlay(p.id, action)}
                     />
                   ) : null}
-                  {!(ownPlays[p.id] && !canMoveMoney) && isQueuedPledge(p.status) && reviews[p.milestone_id]?.proposal === "capture" ? (
+                  {!(ownPlays[p.id] && !canMoveMoney) && isQueuedPledge(p.status) && (p.status === "pending" || reviews[p.milestone_id]?.proposal === "capture") ? (
                     <button
                       type="button"
                       data-testid={`capture-${p.id}`}
                       disabled={
                         !canMoveMoney ||
                         busyId !== null ||
-                        !approvedMilestones[p.milestone_id] ||
+                        (p.status !== "pending" && !approvedMilestones[p.milestone_id]) ||
                         releaseRunning(p.milestone_id)
                       }
                       onClick={() => void runAction(p.id, "capture")}
                     >
-                      {t("treasurer.capturePledge")}
+                      {t(p.status === "pending" ? "treasurer.checkPaymentStatus" : "treasurer.capturePledge")}
                     </button>
                   ) : null}
                   {!(ownPlays[p.id] && !canMoveMoney) && isRefundablePledge(p.status) ? (

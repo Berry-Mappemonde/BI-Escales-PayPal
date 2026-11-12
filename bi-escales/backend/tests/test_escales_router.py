@@ -982,11 +982,11 @@ def test_prices_and_clock(api, monkeypatch):
     assert catalogue["label"] == "prix simulé"
     kinds = [row["kind"] for row in catalogue["prices"]]
     assert kinds == [
-        "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "common_fund",
+        "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "common_fund", "stop_gift",
     ]
     by_kind = {row["kind"]: row for row in catalogue["prices"]}
     fixed_kinds = ("mile", "berth", "night", "meal", "care", "cabin_leg")
-    free_kinds = ("project_pledge", "common_fund")
+    free_kinds = ("project_pledge", "common_fund", "stop_gift")
     assert all(by_kind[k]["label"] == "prix fixe" for k in fixed_kinds)
     assert all(by_kind[k]["label"] == "montant libre" for k in free_kinds)
     assert all(by_kind[k]["free_amount"] is False for k in fixed_kinds)

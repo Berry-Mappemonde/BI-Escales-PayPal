@@ -145,12 +145,12 @@ export async function fetchHealthRetrying(
   throw last instanceof Error ? last : new Error(String(last ?? "health failed"));
 }
 
-export async function fetchPledgeMode(milestoneId: string, kind = "mile"): Promise<{ payment_mode: "AUTHORIZE" | "VAULT" }> {
+export async function fetchPledgeMode(milestoneId: string, kind = "mile"): Promise<{ payment_mode: "AUTHORIZE" | "VAULT" | "CAPTURE" }> {
   const params = new URLSearchParams({ milestone_id: milestoneId, kind });
   const res = await fetch(url(`/api/escales/pledges/mode?${params}`));
   if (!res.ok) throw new Error(await parseError(res));
   const body = await res.json();
-  if (!["AUTHORIZE", "VAULT"].includes(body.payment_mode)) throw new Error("Invalid card payment mode");
+  if (!["AUTHORIZE", "VAULT", "CAPTURE"].includes(body.payment_mode)) throw new Error("Invalid card payment mode");
   return body;
 }
 
@@ -188,6 +188,13 @@ export async function authorizePledge(pledgeId: string): Promise<PublicPledge> {
   const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}/authorize`), {
     method: "POST",
   });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+/** Public status read used to resolve an uncertain capture response. */
+export async function fetchPledgeStatus(pledgeId: string): Promise<{ status: PublicPledge["status"] }> {
+  const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}`));
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }

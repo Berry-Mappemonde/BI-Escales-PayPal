@@ -25,6 +25,8 @@ vi.mock("../api/escales", () => ({
 vi.mock("../paypal/paypalSdk", async (load) => ({ ...(await load<object>()), loadPayPalSdk: vi.fn() }));
 vi.mock("../paypal/v6/paypalSdkV6", async (load) => ({ ...(await load<object>()), loadPayPalSdk: vi.fn() }));
 
+vi.mock("./PayPalCardFieldsBlock", () => ({ PayPalCardFieldsBlock: () => <div data-testid="card-fields-capture" /> }));
+
 type Callbacks = Record<string, (...args: never[]) => unknown> & { style?: unknown; offerPayLater?: boolean };
 const seen: { v5: Callbacks[]; v6: Callbacks[] } = { v5: [], v6: [] };
 const fakeSdk = (bucket: Callbacks[]) => ({
@@ -64,6 +66,13 @@ describe("PledgeButton and features.paypal_js_v6", () => {
     await waitFor(() => expect(v6 ? seen.v6 : seen.v5).toHaveLength(1));
     expect((v6 ? seen.v6 : seen.v5)[0]).toHaveProperty("createOrder");
     expect((v6 ? seen.v6 : seen.v5)[0]).not.toHaveProperty("createVaultSetupToken");
+  });
+
+  it.each([false, true])("offers Card Fields for project capture on v6=%s", async (v6) => {
+    notePayPalJsFeatures({ paypal_js_v6: v6 });
+    vi.mocked(fetchFeatures).mockResolvedValue({ card_fields: true });
+    render(<PledgeButton values={{ ...values, kind: "project_pledge", milestone_id: "", target_id: "projet-ecole" }} />);
+    expect(await screen.findByTestId("card-fields-capture")).toBeInTheDocument();
   });
 
   describe("flag off", () => {

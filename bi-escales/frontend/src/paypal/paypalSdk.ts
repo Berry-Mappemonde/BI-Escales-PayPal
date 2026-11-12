@@ -73,7 +73,7 @@ export function paypalSdkUrl(
 /** Vault SDK only for far-stop VAULT, cabin VAULT, and Crew subscription (never project/near-stop checkout). */
 export function checkoutSdkUseVault(options: {
   isProjectPledge: boolean;
-  paymentMode?: "AUTHORIZE" | "VAULT" | null;
+  paymentMode?: "AUTHORIZE" | "VAULT" | "CAPTURE" | null;
 }): boolean {
   if (options.isProjectPledge) return false;
   return options.paymentMode === "VAULT";

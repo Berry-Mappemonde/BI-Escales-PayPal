@@ -7,6 +7,9 @@ and a subscription on one of its plans still verifies as a Crew subscription.
 
 from __future__ import annotations
 
+import asyncio
+import os
+import weakref
 import hashlib
 import json
 import secrets
@@ -242,7 +245,20 @@ async def _ensure_lang_catalog(client: Any, lang: str) -> dict[str, str]:
     return {"product_id": product_id, "plan_id": plan_id}
 
 
+_catalog_locks: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
 async def ensure_crew_supporter_catalog(client: Any) -> dict:
+    """Sandbox-only provisioning; reuse catalog v2 and serialize local callers."""
+    if os.environ.get("PAYPAL_ENV", "").strip().lower() != "sandbox":
+        raise ValueError("Crew catalog provisioning requires PAYPAL_ENV=sandbox")
+    loop = asyncio.get_running_loop()
+    lock = _catalog_locks.setdefault(loop, asyncio.Lock())
+    async with lock:
+        return await _ensure_crew_supporter_catalog(client)
+
+
+async def _ensure_crew_supporter_catalog(client: Any) -> dict:
     """Create the bilingual product and the 10 EUR per year plans once (idempotent).
 
     Works on catalog v2 only. A v1 catalog on the host is left exactly as it is.

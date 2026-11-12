@@ -15,16 +15,16 @@ stay the values ``PayPalClient`` already used. See ``paypal-plan.md``.
 
 from __future__ import annotations
 
+import datetime as dt
 import importlib
 import logging
+import math
 import os
+import random
 import threading
 import time
-import math
-import random
 from contextvars import ContextVar
 from email.utils import parsedate_to_datetime
-import datetime as dt
 from typing import Any, NoReturn
 
 from .config import SANDBOX_BASE, paypal_sdk_reads_enabled as _flag_enabled
@@ -268,13 +268,24 @@ def _execute(controller_name: str, operation: str, *args: Any) -> dict[str, Any]
     sdk = client()
     controller = getattr(sdk, controller_name)
     operation_fn = getattr(controller, operation)
+    last_error: Exception | None = None
     for attempt in range(_RESOURCE_ATTEMPTS):
         budget = _CALL_BUDGET.get()
         if budget is not None:
-            budget.consume()
+            try:
+                budget.consume()
+            except Exception as budget_error:
+                if last_error is not None:
+                    log.warning(
+                        "Captain PayPal budget exhausted after HTTP %s",
+                        getattr(last_error, "response_code", "unknown"),
+                    )
+                    raise budget_error from last_error
+                raise
         try:
             result = operation_fn(*args)
         except Exception as exc:
+            last_error = exc
             delay = _retry_delay(exc, attempt)
             if delay is not None and attempt < _RESOURCE_ATTEMPTS - 1:
                 time.sleep(delay)

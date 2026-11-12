@@ -19,6 +19,13 @@ import { useHoldRelease } from "./captain/useHoldRelease";
 import { milestoneLabel } from "../utils/milestoneLabel";
 import type { StopNames } from "../utils/milestoneLabel";
 
+/** Statuses the legend explains, in the order a pledge goes through them. */
+const LEGEND_STATUSES = ["authorized", "vaulted", "captured", "voided", "refunded"] as const;
+/** A pledge in one of these needs no decision any more. */
+const CLOSED_STATUSES = new Set(["voided", "refunded"]);
+/** Closed pledges listed; older ones are counted, not listed. */
+const CLOSED_SHOWN = 8;
+
 export function shortPledgeId(id: string): string {
   return id.length > 8 ? id.slice(0, 8) : id;
 }
@@ -137,6 +144,12 @@ export function TreasurerQueue({
     [pledges],
   );
   const pending = queue.filter((p) => isQueuedPledge(p.status));
+  // Released and refunded pledges need no decision, so they leave the queue above;
+  // they are still listed, read-only, so every status a pledge can end in is visible.
+  const closed = useMemo(
+    () => pledges.filter((p) => CLOSED_STATUSES.has(p.status)).sort(comparePledgesNewestFirst),
+    [pledges],
+  );
   // Capture, void, refund and review approval always need the treasurer key, even in demo.
   const canMoveMoney = Boolean(adminKey.trim());
   /** A missing key means the review is still loading; null means it failed. */
@@ -314,6 +327,16 @@ export function TreasurerQueue({
           })}
         </div>
       ) : null}
+      {!needsKey ? (
+        <ul className="queue-legend" data-testid="queue-status-legend" aria-label={t("treasurer.statusLegend")}>
+          {LEGEND_STATUSES.map((status) => (
+            <li key={status}>
+              <PledgeStatusChip status={status} />
+              <span>{t(`treasurer.statusMeaning.${status}`)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {needsKey ? (
         <p className="hint">{t("treasurer.queueNeedsKey")}</p>
       ) : queue.length === 0 ? (
@@ -437,6 +460,51 @@ export function TreasurerQueue({
         </table>
         </div>
       )}
+      {!needsKey && closed.length ? (
+        <section className="queue-closed" data-testid="queue-closed">
+          <h4>{t("treasurer.closedHeading")}</h4>
+          <p className="hint">{t("treasurer.closedLead")}</p>
+          <div className="treasurer-queue-table">
+            <table className="fallback-table">
+              <thead>
+                <tr>
+                  <th scope="col">{t("treasurer.pledgeRef")}</th>
+                  <th scope="col">{t("treasurer.createdAt")}</th>
+                  <th scope="col">{t("treasurer.description")}</th>
+                  <th scope="col">{t("treasurer.amount")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {closed.slice(0, CLOSED_SHOWN).map((p) => (
+                  <tr key={p.id} data-testid={`closed-row-${p.id}`}>
+                    <td>
+                      <span className="treasurer-pledge-ref" title={p.id}>{shortPledgeId(p.id)}</span>
+                    </td>
+                    <td>
+                      <time dateTime={p.created_at || undefined}>{formatPledgeCreatedAt(p.created_at, i18n.language)}</time>
+                    </td>
+                    <td>
+                      {p.description ? <strong>{p.description}</strong> : null}
+                      <small className={p.description ? undefined : "queue-stop-primary"} title={p.milestone_id || undefined}>
+                        {milestoneLabel(stopNames, p.milestone_id, t)}
+                      </small>
+                    </td>
+                    <td className="actions queue-value">
+                      <strong>{p.amount_eur} {p.currency}</strong>
+                      <PledgeStatusChip status={p.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {closed.length > CLOSED_SHOWN ? (
+            <p className="hint" data-testid="queue-closed-more">
+              {t("treasurer.closedMore", { count: closed.length - CLOSED_SHOWN })}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
     </section>
   );
 }

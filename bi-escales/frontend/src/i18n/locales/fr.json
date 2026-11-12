@@ -406,12 +406,24 @@
       "emptyActions": "Action terminée. Aucune promesse autorisée à traiter."
     },
     "heading": "File trésorier",
+    "statusLegend": "Ce que signifie chaque statut",
+    "statusMeaning": {
+      "authorized": "autorisée par PayPal, pas encore débitée",
+      "vaulted": "en attente : moyen de paiement enregistré chez PayPal pour une escale à plus de 29 jours, débité à l’arrivée",
+      "captured": "débitée",
+      "voided": "autorisation annulée, rien n’a été débité",
+      "refunded": "argent rendu après un encaissement"
+    },
+    "closedHeading": "Promesses closes",
+    "closedLead": "Libérées ou remboursées : plus rien à décider.",
+    "closedMore_one": "Et {{count}} promesse close plus ancienne.",
+    "closedMore_other": "Et {{count}} promesses closes plus anciennes.",
     "adminKey": "Clé trésorier",
     "adminKeyHint": "Saisie en mémoire uniquement — jamais enregistrée.",
     "refresh": "Actualiser la file",
     "capture": "Encaisser",
     "void": "Annuler l’autorisation",
-    "queueEmpty": "Aucune promesse autorisée, vaultée ou en attente sur le serveur.",
+    "queueEmpty": "Aucune promesse n’attend de décision pour le moment.",
     "moneyNeedsKey": "La vue démo est en lecture seule : saisissez la clé trésorier pour capturer, annuler, rembourser ou approuver.",
     "demoPlay": {
       "hintLead": "Jouez le trésorier sur une promesse à vous, pour de vrai dans le bac à sable PayPal :",

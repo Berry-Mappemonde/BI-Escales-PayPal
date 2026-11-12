@@ -851,3 +851,23 @@ def test_create_order_sdk_failure_never_replays(pins, monkeypatch):
         client.create_capture_order("30.00", "Fund", "create", idempotency_key="stable")
     assert error.value.status == 422
     assert len(_operations(rows)) == 1
+
+def test_annual_plan_creation_uses_generated_sdk(pins, monkeypatch):
+    monkeypatch.setenv("ESCALES_PAYPAL_SDK_ENABLED", "1")
+    original = _dispatch
+    monkeypatch.setattr(sys.modules[__name__], "_dispatch", lambda method, path:
+        (201, {"id": "ANNUAL", "status": "ACTIVE"})
+        if path == "/v1/billing/plans" else original(method, path))
+    rows = []
+    _install(rows)
+    def forbidden(request):
+        raise AssertionError("Plan SDK must not fall back")
+    client = PayPalClient(EscalesConfig("test-client-id", "test-secret"), transport=httpx.MockTransport(forbidden))
+    result = client.create_billing_plan(product_id="PRODUCT", name="Crew annual",
+        amount_eur="10.00", interval_unit="YEAR", idempotency_key="catalog-v2-plan-en")
+    assert result["id"] == "ANNUAL"
+    call = _operations(rows)[0]
+    assert call["request_id"] == "catalog-v2-plan-en"
+    cycle = call["body"]["billing_cycles"][0]
+    assert cycle["frequency"] == {"interval_unit": "YEAR", "interval_count": 1}
+    assert cycle["pricing_scheme"]["fixed_price"] == {"value": "10.00", "currency_code": "EUR"}

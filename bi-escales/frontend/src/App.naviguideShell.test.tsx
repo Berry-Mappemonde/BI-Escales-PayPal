@@ -24,6 +24,7 @@ vi.mock("./api/escales", async (importOriginal) => {
     ...actual,
     fetchHealthRetrying: vi.fn().mockResolvedValue({ status: "ok" }),
     fetchFeatures: vi.fn().mockResolvedValue({ clock_pinned: false }),
+    fetchClock: vi.fn().mockResolvedValue({ start: "2026-11-12", now: "2026-11-12T08:00:00Z" }),
     authorizePledge: vi.fn(),
     registerVault: vi.fn(),
     fetchFund: vi.fn().mockResolvedValue({

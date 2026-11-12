@@ -11,6 +11,7 @@ import {
 import type { Channel3CatalogItem, TreasurerWishlistDoc } from "../api/types";
 import { Channel3Thumb } from "../components/Channel3Thumb";
 import { catalogMapFromItems, linesFromTreasurerItems } from "./catalogMap";
+import { wishlistPublicHref } from "./wishlistAnchor";
 import { WishlistItemUnavailable } from "./WishlistItemCard";
 
 export interface TreasurerWishlistsPanelProps {
@@ -30,6 +31,8 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
   const [targetMinor, setTargetMinor] = useState("");
   const [allowOptional, setAllowOptional] = useState(false);
   const [busy, setBusy] = useState(false);
+  // True after the first successful load: "no wishlist yet" must not show before it, nor next to a load error.
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -51,6 +54,7 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
       setCatalog(cat.items);
       setWishlists(lists.wishlists);
       setSelectedId((current) => current || lists.wishlists[0]?._id || "");
+      setLoaded(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -152,7 +156,6 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
   }
 
   const lines = linesFromTreasurerItems(selected?.items, catalogById);
-  const loadedOnce = !busy || wishlists.length > 0 || catalog.length > 0;
 
   return (
     <section className="panel treasurer-wishlists" data-testid="treasurer-wishlists-panel">
@@ -161,7 +164,13 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
       {error ? <p className="notice error">{error}</p> : null}
       {notice ? <p className="notice" role="status">{notice}</p> : null}
       <div className="wishlist-treasurer-lists">
-        {loadedOnce && wishlists.length === 0 ? (
+        {!loaded ? (
+          error ? null : (
+            <p className="hint" aria-busy="true" data-testid="wishlist-treasurer-loading">
+              {t("wishlists.treasurer.loading")}
+            </p>
+          )
+        ) : wishlists.length === 0 ? (
           <p className="hint" data-testid="wishlist-treasurer-none">{t("wishlists.treasurer.noLists")}</p>
         ) : (
           <label>
@@ -189,7 +198,7 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
                 {" · "}
                 {selected.published ? t("wishlists.treasurer.publishedMeans") : t("wishlists.treasurer.draftMeans")}{" "}
                 {selected.published ? (
-                  <a href="/escales/wishlists" target="_blank" rel="noopener noreferrer" data-testid="wishlist-public-link">
+                  <a href={wishlistPublicHref({ slug: selected.slug, id: selected._id })} target="_blank" rel="noopener noreferrer" data-testid="wishlist-public-link">
                     {t("wishlists.treasurer.openPublic")}
                   </a>
                 ) : null}

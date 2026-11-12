@@ -6,6 +6,7 @@ import type { PublicPledge, PublicWishlist } from "../api/types";
 import { setLanguage } from "../i18n";
 import { useTheme } from "../hooks/useTheme";
 import { WishlistItemCard } from "./WishlistItemCard";
+import { wishlistAnchor } from "./wishlistAnchor";
 import "../styles/app.css";
 import "./wishlists.css";
 
@@ -50,6 +51,14 @@ export function WishlistsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A link to one list (from the treasurer page) lands on it once the lists have loaded.
+  useEffect(() => {
+    if (loading || !wishlists.length) return;
+    const anchor = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+    if (!anchor) return;
+    document.getElementById(anchor)?.scrollIntoView({ block: "start" });
+  }, [loading, wishlists]);
 
   const onAuthorized = useCallback((_pledge: PublicPledge) => {
     void load();
@@ -123,7 +132,12 @@ export function WishlistsPage() {
       {enabled === false ? <p className="notice">{t("wishlists.disabled")}</p> : null}
       {!loading && enabled && wishlists.length === 0 ? <p>{t("wishlists.empty")}</p> : null}
       {wishlists.map((list) => (
-        <section key={list.wishlist_id} className="wishlist-section" data-testid="wishlist-section">
+        <section
+          key={list.wishlist_id}
+          id={wishlistAnchor({ slug: list.slug, id: list.wishlist_id })}
+          className="wishlist-section"
+          data-testid="wishlist-section"
+        >
           <h2>{list.title}</h2>
           <div className="wishlist-grid">
             {(list.items || []).map((item) => (

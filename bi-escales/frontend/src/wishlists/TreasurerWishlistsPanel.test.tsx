@@ -147,7 +147,8 @@ describe("TreasurerWishlistsPanel, usable by a treasurer (brief B11)", () => {
     const state = await screen.findByTestId("wishlist-published-state");
     expect(state).toHaveTextContent("Published · visitors see this list and can fund it.");
     const link = screen.getByTestId("wishlist-public-link");
-    expect(link).toHaveAttribute("href", "/escales/wishlists");
+    // The link opens the public page on this list, not on the index.
+    expect(link).toHaveAttribute("href", "/escales/wishlists#wishlist-treasurer-mock");
     expect(link).toHaveAttribute("target", "_blank");
     expect(screen.getByTestId("wishlist-unpublish")).toBeInTheDocument();
     expect(screen.queryByTestId("wishlist-publish")).toBeNull();
@@ -195,6 +196,36 @@ describe("TreasurerWishlistsPanel, usable by a treasurer (brief B11)", () => {
     render(<TreasurerWishlistsPanel adminKey="test-key" />);
     expect(await screen.findByRole("button", { name: "Remove Life vest" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "1 item on this list" })).toBeInTheDocument();
+  });
+
+  it("says the lists are loading, not that there is none, before the first answer", async () => {
+    await i18n.changeLanguage("en");
+    vi.spyOn(escalesApi, "fetchChannel3Catalog").mockReturnValue(new Promise(() => undefined));
+    vi.spyOn(escalesApi, "fetchTreasurerWishlists").mockReturnValue(new Promise(() => undefined));
+    render(<TreasurerWishlistsPanel adminKey="test-key" />);
+    expect(await screen.findByTestId("wishlist-treasurer-loading")).toHaveTextContent("Loading the lists…");
+    expect(screen.queryByTestId("wishlist-treasurer-none")).toBeNull();
+    expect(screen.queryByTestId("wishlist-treasurer-select")).toBeNull();
+  });
+
+  it("does not call the lists empty when they failed to load", async () => {
+    await i18n.changeLanguage("en");
+    vi.spyOn(escalesApi, "fetchChannel3Catalog").mockResolvedValue({ item_count: 0, items: [] });
+    vi.spyOn(escalesApi, "fetchTreasurerWishlists").mockRejectedValue(new Error("Admin key rejected"));
+    render(<TreasurerWishlistsPanel adminKey="test-key" />);
+    expect(await screen.findByText("Admin key rejected")).toBeInTheDocument();
+    expect(screen.queryByTestId("wishlist-treasurer-none")).toBeNull();
+    expect(screen.queryByTestId("wishlist-treasurer-loading")).toBeNull();
+  });
+
+  it("links to a list without a short name by its id", async () => {
+    await i18n.changeLanguage("en");
+    mockLists([{ ...fixtureTreasurerWishlist, slug: undefined, published: true }]);
+    render(<TreasurerWishlistsPanel adminKey="test-key" />);
+    expect(await screen.findByTestId("wishlist-public-link")).toHaveAttribute(
+      "href",
+      "/escales/wishlists#wishlist-mock-wid-01",
+    );
   });
 
   it("invites to create the first list when there is none, and keeps the create form at hand", async () => {

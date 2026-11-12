@@ -7,7 +7,7 @@ from app.escales.payment_mode import resolve_pledge_mode
 
 
 @pytest.mark.parametrize("capture_on", ["arrival", "departure"])
-@pytest.mark.parametrize("seconds,too_early", [(695*3600-1, False), (695*3600, False),
+@pytest.mark.parametrize("seconds,too_early", [(694*3600, False), (695*3600-1, False), (695*3600, False),
     (695*3600+1, True), (696*3600, True), (719*3600, True)])
 def test_exact_utc_window(monkeypatch, capture_on, seconds, too_early):
     now = dt.datetime(2026, 11, 12, 12, tzinfo=dt.timezone.utc)
@@ -68,4 +68,44 @@ def test_naive_authorization_clock_is_utc(monkeypatch, capture_on, seconds):
                 await clock.refuse_early_authorization({})
         else:
             await clock.refuse_early_authorization({})
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("kind,capture_on", [("stop_gift", "arrival"), ("cabin_leg", "departure")])
+@pytest.mark.parametrize("hours,mode", [(694, "AUTHORIZE"), (696, "VAULT")])
+def test_persisted_dedicated_milestone_uses_the_same_creation_and_preview_band(monkeypatch, kind, capture_on, hours, mode):
+    from app.escales.ledger import get_ledger, reset_ledger
+    from app.escales.payment_mode import preview_payment_mode
+    from app.escales.pledges import create_pledge
+    from tests.test_escales_pledges import Spy
+
+    now = dt.datetime(2026, 11, 12, 8, tzinfo=dt.timezone.utc)
+    mid = ("leg-" if kind == "cabin_leg" else "dep-") + "cursor-agent-test-window"
+    monkeypatch.setenv("ESCALES_STORE", "memory")
+    monkeypatch.setenv("ESCALES_VAULT_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_CLOCK_NOW", now.isoformat())
+    class VaultSpy(Spy):
+        def create_setup_token(self, *args, **kwargs):
+            return {"id": "SETUP", "links": [{"rel": "approve", "href": "https://www.sandbox.paypal.com/setup"}]}
+    async def run():
+        reset_ledger()
+        await get_ledger().ensure_milestone(mid, meta={"capture_on": capture_on, f"{capture_on}_iso": (now + dt.timedelta(hours=hours)).isoformat()})
+        assert await preview_payment_mode(mid, kind) == mode
+        created = await create_pledge(amount_eur="80.00" if kind == "cabin_leg" else "17.35", description="cursor-agent-test", milestone_id=mid, kind=kind, client=VaultSpy())
+        assert created["payment_mode"] == mode
+        reset_ledger()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("meta", [{}, {"capture_on": "arrival", "arrival_iso": "2026-12-11T08:00:00Z"}, {"capture_on": "departure", "departure_iso": "invalid"}])
+def test_persisted_cabin_target_requires_a_real_departure(meta, monkeypatch):
+    from app.escales.ledger import get_ledger, reset_ledger
+    from app.escales.pledges import _cabin_target
+    monkeypatch.setenv("ESCALES_STORE", "memory")
+    async def run():
+        reset_ledger()
+        await get_ledger().ensure_milestone("leg-cursor-agent-test-invalid", meta=meta)
+        with pytest.raises(ValueError, match="cabin leg"):
+            await _cabin_target("", "leg-cursor-agent-test-invalid")
+        reset_ledger()
     asyncio.run(run())

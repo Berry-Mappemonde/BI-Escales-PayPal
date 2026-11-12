@@ -712,3 +712,13 @@ Before code: route three PayPalClient methods through the existing sandbox gatew
 | delete_payment_token | VaultController.delete_payment_token(id) | PayPal-Request-Id paypal_request_id(vault id, "delete-payment-token") | The generated method takes only the id. Request id and mock header are attached on the outgoing request. httpx DELETE still sends neither request id (only POST/PATCH do). Empty success body stays {}. |
 
 Errors: existing ApiException / transport mapping. No httpx replay after the SDK is selected. Skills: python-getting-started, python-calling-endpoints, python-models, python-error-handling, python-configuration-resilience, python-testing.
+
+### Test2 boundary verification (12 November 2026)
+
+Use dedicated persisted stop/leg milestones tagged `cursor-agent-test` to verify
+694 h AUTHORIZE versus 696 h VAULT without changing any shared demo schedule.
+Cabin target validation may read a persisted leg with a valid `departure_iso`
+and `capture_on=departure`, matching the existing timing resolver. It must still
+reject unknown targets, stop arrivals, and mismatched milestone/target IDs.
+No PayPal operation, SDK signature, exception handling or idempotency key changes:
+creation continues through the existing Orders v2 / Vault setup-token methods.

@@ -426,7 +426,7 @@ async def _known_stopover(slug: str) -> bool:
     return resolve_milestone(slug) is not None
 
 
-def _cabin_target(explicit: str, milestone_id: str) -> str:
+async def _cabin_target(explicit: str, milestone_id: str) -> str:
     """A cabin names the leg milestone. The stored target is that leg id."""
     from .naviguide_bridge import leg_by_id
 
@@ -434,6 +434,14 @@ def _cabin_target(explicit: str, milestone_id: str) -> str:
     if not _TARGET_SLUG.fullmatch(chosen):
         raise ValueError("target_id must match [a-z0-9-]+")
     leg = leg_by_id(chosen)
+    if leg is None and chosen.startswith("leg-"):
+        # Persisted legs use the same departure metadata as the timing resolver.
+        known = await get_ledger().get_milestone(chosen)
+        meta = (known or {}).get("meta") or {}
+        if meta.get("capture_on") == "departure":
+            from .departure_clock import _parse_moment
+            if _parse_moment(str(meta.get("departure_iso") or "")) is not None:
+                leg = {"id": chosen}
     if leg is None:
         raise ValueError("target_id must name a cabin leg")
     if milestone_id != leg["id"]:
@@ -468,7 +476,7 @@ async def _resolve_target(target_id: Optional[str], milestone_id: str, kind: str
         resolved = resolve_milestone(explicit)
         return _bare_canonical(resolved) if resolved else slug
     if kind == "cabin_leg":
-        return _cabin_target(explicit, milestone_id)
+        return await _cabin_target(explicit, milestone_id)
     if explicit and not _TARGET_SLUG.fullmatch(_target_slug(explicit)):
         raise ValueError("target_id must match [a-z0-9-]+")
     milestone_resolved = resolve_milestone(milestone_id)

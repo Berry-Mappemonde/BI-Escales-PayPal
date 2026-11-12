@@ -104,20 +104,158 @@
   margin-bottom: 0.5rem;
 }
 
+/* Treasurer: manage the lists. Tokens only; the same field look as the rest of the page. */
+.treasurer-wishlists select,
+.treasurer-wishlists input:not([type="checkbox"]) {
+  width: 100%;
+  min-height: 32px;
+  padding: var(--space-1) 10px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font: inherit;
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+}
+
+/* Browsers inset a select's text by a few pixels, so this lines it up with the inputs. */
+.treasurer-wishlists select {
+  padding-left: 6px;
+}
+
+.treasurer-wishlists label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.treasurer-wishlists h4 {
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.treasurer-wishlists .wishlist-treasurer-lists {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+/* The list's state and the one action that changes it, on one row. */
+.treasurer-wishlists .wishlist-treasurer-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.treasurer-wishlists .wishlist-treasurer-state p {
+  margin: 0;
+  min-width: 0;
+}
+
+.treasurer-wishlists .wishlist-treasurer-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+}
+
 .treasurer-wishlists .wishlist-treasurer-items {
   list-style: none;
+  margin: 0;
   padding: 0;
 }
 
+/* One line per item: picture, name, then the action at the end. */
 .treasurer-wishlists .wishlist-treasurer-items li {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-3);
   align-items: center;
-  margin-bottom: 0.5rem;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-line);
 }
 
-.wishlist-treasurer-actions {
+.treasurer-wishlists .wishlist-treasurer-items li > span,
+.treasurer-wishlists .wishlist-treasurer-items li > article {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.treasurer-wishlists .wishlist-treasurer-items li > button {
+  flex: none;
+}
+
+.treasurer-wishlists .wishlist-add-item {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) 0 0;
+  border: 0;
+  border-top: 1px solid var(--color-line);
+  min-width: 0;
+}
+
+.treasurer-wishlists .wishlist-add-item legend {
+  padding: 0;
+  color: var(--color-fg);
+  font-weight: 600;
+}
+
+/* Two short fields side by side; one column when the page is narrow. */
+.treasurer-wishlists .wishlist-add-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-3);
+}
+
+.treasurer-wishlists .wishlist-add-item .hint {
+  margin: 0;
+}
+
+/* Three classes: the treasurer page stacks every label and stretches every input. */
+.treasurer-panel .treasurer-wishlists label.checkbox-row {
   display: flex;
-  gap: 0.5rem;
-  margin: 0.5rem 0 1rem;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  color: var(--color-fg);
+  font-size: var(--text-ui);
+}
+
+.treasurer-panel .treasurer-wishlists label.checkbox-row input {
+  flex: none;
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
+
+.treasurer-wishlists .wishlist-treasurer-state a {
+  color: var(--color-fg-2);
+}
+
+/* Three classes: the treasurer page stretches a form's submit button across it. */
+.treasurer-panel .treasurer-wishlists .wishlist-add-item > button,
+.treasurer-panel .treasurer-wishlists .wishlist-create > button {
+  justify-self: start;
+  align-self: flex-start;
+  width: auto;
+}
+
+.treasurer-wishlists .wishlist-create {
+  margin-top: var(--space-5);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--color-line);
+}
+
+@media (pointer: coarse) {
+  /* Below 16px, iOS zooms the page on focus. */
+  .treasurer-wishlists select,
+  .treasurer-wishlists input:not([type="checkbox"]) {
+    min-height: 44px;
+    font-size: 16px;
+  }
 }

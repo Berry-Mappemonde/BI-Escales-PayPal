@@ -1,0 +1,23 @@
+/*
+ * PayPal v6 card fields fill their parent. Without an explicit height the
+ * hosted iframe keeps the browser default (150px) and reads as an empty box.
+ * https://developer.paypal.com/expanded/card-fields
+ */
+.paypal-card-fields .card-field-hosts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.paypal-card-fields .card-field-host {
+  display: block;
+  width: 100%;
+  height: 3rem;
+  min-height: 3rem;
+}
+
+.paypal-card-fields .card-field-host > * {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

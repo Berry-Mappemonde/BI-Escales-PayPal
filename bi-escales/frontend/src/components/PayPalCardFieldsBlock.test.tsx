@@ -47,6 +47,8 @@ describe("Card Fields checkout", () => {
     const s = sdk(); const onAuthorized = vi.fn();
     render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} onAuthorized={onAuthorized} />);
     await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+    expect(screen.getByTestId("paypal-card-number")).toHaveClass("card-field-host");
+    expect(screen.getByTestId("paypal-card-name")).toHaveClass("card-field-host");
     const config = s.CardFields.mock.calls[0][0];
     expect(Object.keys(config)).toEqual([mode === "VAULT" ? "createVaultSetupToken" : "createOrder", "onApprove", "onError", "onCancel", "billingAddress"]);
     await expect(config[mode === "VAULT" ? "createVaultSetupToken" : "createOrder"]()).rejects.toThrow("Press Pay");

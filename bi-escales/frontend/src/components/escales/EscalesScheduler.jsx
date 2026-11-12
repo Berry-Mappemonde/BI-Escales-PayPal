@@ -130,6 +130,8 @@ export default function EscalesScheduler({
   wide = false,
   // Treasurer only: by milestone id, whether the boat has arrived and the held pledges there.
   stopOverview = /** @type {Record<string, { status: string | null, held: number, heldEur: number, due: boolean }> | null} */ (null),
+  /** Voyage clock (ESCALES_CLOCK_NOW). The timeline opens around this instant. */
+  clockNow = /** @type {Date | string | null} */ (null),
 }) {
   const { t, i18n } = useTranslation();
   const escales = schedule?.export?.escales || schedule?.escales || localFallbackEscales();
@@ -185,6 +187,7 @@ export default function EscalesScheduler({
         onSelect={onSelectEscale}
         fallback={<LocalScheduleList events={events} onSelect={onSelectEscale} />}
         extraColumns={extraColumns}
+        clockNow={clockNow}
         // On a wide surface every stop's name and row fits; in the rail the list scrolls.
         {...(wide ? { nameWidth: 220, maxHeight: Number.POSITIVE_INFINITY } : {})}
       />

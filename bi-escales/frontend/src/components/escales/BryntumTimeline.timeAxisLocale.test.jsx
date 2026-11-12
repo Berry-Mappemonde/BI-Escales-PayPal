@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { rebuildTimelineTimeAxisHeaders } from "./BryntumTimeline.jsx";
+import { rebuildTimelineTimeAxisHeaders, timelineCenterDate } from "./BryntumTimeline.jsx";
 
 /**
  * Simulates Bryntum leaving the last partial day cell in French after FR → EN when only
@@ -109,5 +109,39 @@ describe("rebuildTimelineTimeAxisHeaders", () => {
     expect(widget.timeAxisViewModel.update).toHaveBeenCalled();
     expect(widget.timeAxisColumn.refreshHeader).toHaveBeenCalled();
     expect(widget.refreshTimeAxis).not.toHaveBeenCalled();
+  });
+
+  it("keeps the voyage clock in view when the preset is reapplied", () => {
+    const clock = new Date("2026-11-12T08:00:00Z");
+    const first = new Date("2026-11-12T12:00:00Z");
+    const last = new Date("2027-08-27T08:00:00Z");
+    expect(timelineCenterDate(clock, [{ startDate: first }])).toBe(clock);
+    expect(timelineCenterDate("2026-11-12T08:00:00Z", [{ startDate: first }]).toISOString()).toBe(clock.toISOString());
+    expect(timelineCenterDate(null, [{ startDate: first }])).toBe(first);
+    expect(timelineCenterDate("not-a-date", [{ startDate: first }])).toBe(first);
+
+    const applied = {};
+    const widget = {
+      isPainted: true,
+      isHorizontal: true,
+      timeAxisSubGrid: { scrollable: { element: { getBoundingClientRect: () => ({ width: 640 }) } } },
+      timeAxisViewModel: { update: vi.fn() },
+      timeAxisColumn: { refreshHeader: vi.fn() },
+      currentOrientation: { doUpdateTimeView: vi.fn() },
+      onLocaleChange: vi.fn(),
+      _preset: { id: "monthAndYear" },
+      get viewPreset() { return this._preset; },
+      set viewPreset(preset) { applied.last = preset; this._preset = preset; },
+      presets: { getById: () => ({ id: "monthAndYear", options: {} }) },
+      startDate: first,
+      endDate: last,
+    };
+    rebuildTimelineTimeAxisHeaders(widget, clock);
+    expect(applied.last.options.centerDate).toBe(clock);
+    expect(applied.last.options.startDate).toBe(first);
+    expect(applied.last.options.endDate).toBe(last);
+
+    rebuildTimelineTimeAxisHeaders(widget);
+    expect(applied.last.options.centerDate).toBe(first);
   });
 });

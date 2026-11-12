@@ -255,6 +255,14 @@ async function postSubscription(appLang: string | undefined, plan: string, key: 
   return data.subscription_id;
 }
 
+function cardFieldPlaceholder(type: CardFieldOptions["type"], appLang?: string): string {
+  const french = (appLang || "").toLowerCase().startsWith("fr");
+  if (type === "number") return french ? "Numéro de carte" : "Card number";
+  if (type === "expiry") return french ? "MM/AA" : "MM/YY";
+  if (type === "cvv") return "CVV";
+  return french ? "Nom sur la carte" : "Name on card";
+}
+
 export function buildV6Adapter(
   sdk: V6Instance,
   eligible: Pick<EligiblePaymentMethodsOutput, "isEligible"> & Partial<Pick<EligiblePaymentMethodsOutput, "getDetails">>,
@@ -466,7 +474,12 @@ export function buildV6Adapter(
           render: async (host: HTMLElement) => {
             if (disposed) throw new Error("PayPal card session closed");
             // Styled for the shell's theme as far as v6 card fields allow (paypalLookV6.ts).
-            field = session.createCardFieldsComponent({ type, style: v6CardFieldStyle() });
+            // Placeholder is required: an untitled iframe reads as an empty box.
+            field = session.createCardFieldsComponent({
+              type,
+              placeholder: cardFieldPlaceholder(type, appLang),
+              style: v6CardFieldStyle(),
+            });
             fields.add(field);
             host.appendChild(field);
           },

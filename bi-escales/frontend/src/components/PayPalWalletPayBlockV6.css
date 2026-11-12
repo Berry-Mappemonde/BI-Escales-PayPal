@@ -1,0 +1,20 @@
+/*
+ * The shell's `button { background: var(--accent) }` shorthand resets
+ * background-repeat to repeat and background-size to auto. Google Pay's
+ * createButton artwork is a single SVG, so a full-width button tiles it.
+ * Size the control to one drawing.
+ */
+.paypal-wallet-pay [data-testid="paypal-google-pay"] button {
+  box-sizing: border-box;
+  width: 240px;
+  max-width: 100%;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background-color: #000;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}

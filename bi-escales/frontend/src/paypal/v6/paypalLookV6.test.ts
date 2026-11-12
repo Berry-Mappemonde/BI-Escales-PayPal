@@ -102,10 +102,10 @@ describe("v6 adapter applies the look", () => {
   });
 
   it("styles each card field for the shell's theme when the field is created", async () => {
-    const created: Array<{ type: string; style?: Record<string, Record<string, string>> }> = [];
+    const created: Array<{ type: string; placeholder?: string; style?: Record<string, Record<string, string>> }> = [];
     const sdk = {
       createCardFieldsOneTimePaymentSession: () => ({
-        createCardFieldsComponent: (options: { type: string; style?: Record<string, Record<string, string>> }) => {
+        createCardFieldsComponent: (options: { type: string; placeholder?: string; style?: Record<string, Record<string, string>> }) => {
           created.push(options);
           return Object.assign(document.createElement("div"), { destroy: vi.fn() });
         },
@@ -121,6 +121,7 @@ describe("v6 adapter applies the look", () => {
     await cards.CVVField().render(host);
 
     expect(created.map((options) => options.type)).toEqual(["number", "cvv"]);
+    expect(created.map((options) => options.placeholder)).toEqual(["Card number", "CVV"]);
     // Dark shell: dark field, light text. Not PayPal's default white box.
     expect(created[0].style!.input).toMatchObject({ background: "#1f1f1f", color: "#ededed", border: "1px solid #333333" });
     expect(created[0].style!["input::placeholder"]).toEqual({ color: "#8f8f8f" });

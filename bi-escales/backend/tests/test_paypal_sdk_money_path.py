@@ -835,6 +835,9 @@ def test_create_order_generated_wire_parity(flow, pins, monkeypatch):
     client = PayPalClient(EscalesConfig("test-client-id", "test-secret"), transport=httpx.MockTransport(forbidden))
     assert call(client)["id"] == "ORDER-NEW"
     assert _operations(on) == _operations(off)
+    if flow == "capture":
+        context = _operations(on)[0]["body"]["payment_source"]["paypal"]["experience_context"]
+        assert context["user_action"] == "PAY_NOW"
 
 
 def test_create_order_sdk_failure_never_replays(pins, monkeypatch):

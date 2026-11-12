@@ -314,14 +314,19 @@ class PayPalClient:
         cancel_url: str,
         *,
         locale: Optional[str] = None,
+        user_action: str = "CONTINUE",
     ) -> dict:
-        """Checkout experience_context shared by orders and vault setup."""
+        """Checkout experience_context shared by orders and vault setup.
+
+        CAPTURE orders pass PAY_NOW so the PayPal button says Pay Now.
+        AUTHORIZE orders and vault setup stay CONTINUE.
+        """
         return {
             "brand_name": VAULT_BRAND_NAME,
             "locale": paypal_checkout_locale(locale),
             "return_url": return_url,
             "cancel_url": cancel_url,
-            "user_action": "CONTINUE",
+            "user_action": user_action,
             "shipping_preference": "NO_SHIPPING",
         }
 
@@ -488,7 +493,7 @@ class PayPalClient:
             "payment_source": {
                 "paypal": {
                     "experience_context": self._experience_context(
-                        back, cancel, locale=checkout_locale,
+                        back, cancel, locale=checkout_locale, user_action="PAY_NOW",
                     ),
                 },
             },
@@ -504,7 +509,9 @@ class PayPalClient:
         if checkout_method == "card":
             body["payment_source"] = {"card": {
                 "attributes": {"verification": {"method": "SCA_WHEN_REQUIRED"}},
-                "experience_context": self._experience_context(back, cancel, locale=checkout_locale),
+                "experience_context": self._experience_context(
+                    back, cancel, locale=checkout_locale, user_action="PAY_NOW",
+                ),
             }}
         elif checkout_method != "paypal":
             raise ValueError("unsupported checkout method")

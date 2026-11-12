@@ -59,6 +59,32 @@ def test_create_card_authorize_order_sends_sca():
     )
     card = bodies[0]["payment_source"]["card"]
     assert card["attributes"]["verification"]["method"] == "SCA_WHEN_REQUIRED"
+    assert card["experience_context"]["user_action"] == "CONTINUE"
+
+
+def test_create_capture_order_uses_pay_now():
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "T", "expires_in": 3600})
+        bodies.append(json.loads(request.content))
+        return httpx.Response(201, json={"id": "CAP1", "status": "CREATED", "intent": "CAPTURE"})
+
+    client = PayPalClient(
+        EscalesConfig("cid", "sec"),
+        transport=httpx.MockTransport(handler),
+    )
+    client.create_capture_order(
+        "10.00", "Common fund", "fund-1",
+        return_url="https://example.com/r", cancel_url="https://example.com/c",
+    )
+    client.create_capture_order(
+        "10.00", "Card donation", "fund-2", checkout_method="card",
+        return_url="https://example.com/r", cancel_url="https://example.com/c",
+    )
+    assert bodies[0]["payment_source"]["paypal"]["experience_context"]["user_action"] == "PAY_NOW"
+    assert bodies[1]["payment_source"]["card"]["experience_context"]["user_action"] == "PAY_NOW"
 
 
 def test_create_card_setup_token_sends_sca():

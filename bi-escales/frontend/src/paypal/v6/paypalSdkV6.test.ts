@@ -111,13 +111,41 @@ describe("v6 payment session adapters", () => {
     expect(result.ok).toBe(true);
     expect(host.querySelector("paypal-button")).toBeTruthy();
     host.querySelector("paypal-button")!.dispatchEvent(new MouseEvent("click"));
-    expect(start).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
     expect(start.mock.calls[0][0]).toEqual({ presentationMode: "auto" });
     await expect(start.mock.calls[0][1]).resolves.toEqual({ orderId: "TEST-ORDER" });
     await sessionCallbacks.onApprove({ orderId: "TEST-ORDER" });
     expect(onApprove).toHaveBeenCalledOnce();
     safePayPalClose(result.instance);
     expect(destroy).toHaveBeenCalledOnce();
+    host.remove();
+  });
+
+  it("falls back from app switch to popup on a phone, and stops when the buyer cancels", async () => {
+    const agent = vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X)");
+    const start = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error("switch unavailable"), { isRecoverable: true, code: "APP_SWITCH_FAILED" }))
+      .mockResolvedValueOnce(undefined);
+    const sdk = { createPayPalOneTimePaymentSession: vi.fn(() => ({ start, destroy: vi.fn() })) };
+    const adapter = buildV6Adapter(sdk as never, eligible);
+    const host = document.createElement("div");
+    const result = await safePayPalRender(adapter.Buttons, { createOrder: vi.fn().mockResolvedValue("TEST-ORDER") }, host);
+    host.querySelector("paypal-button")!.dispatchEvent(new MouseEvent("click"));
+    await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+    expect(start.mock.calls[0][0]).toEqual({ presentationMode: "direct-app-switch", autoRedirect: { enabled: true } });
+    expect(start.mock.calls[1][0]).toEqual({ presentationMode: "popup" });
+    await expect(start.mock.calls[1][1]).resolves.toEqual({ orderId: "TEST-ORDER" });
+    safePayPalClose(result.instance);
+
+    const cancelled = vi.fn().mockRejectedValueOnce(Object.assign(new Error("cancelled"), { name: "CheckoutCancelled", isRecoverable: true }));
+    const onError = vi.fn();
+    const again = buildV6Adapter({ createPayPalOneTimePaymentSession: () => ({ start: cancelled, destroy: vi.fn() }) } as never, eligible);
+    const second = await safePayPalRender(again.Buttons, { createOrder: () => "TEST-ORDER", onError }, host);
+    host.querySelector("paypal-button")!.dispatchEvent(new MouseEvent("click"));
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    expect(cancelled).toHaveBeenCalledOnce();
+    safePayPalClose(second.instance);
+    agent.mockRestore();
     host.remove();
   });
 
@@ -188,13 +216,37 @@ describe("v6 payment session adapters", () => {
     await number.render(host);
     await cards.ExpiryField().render(host);
     await cards.CVVField().render(host);
+    await cards.NameField().render(host);
     expect([...host.querySelectorAll("[data-field]")].map((node) => (node as HTMLElement).dataset.field))
-      .toEqual(["number", "expiry", "cvv"]);
+      .toEqual(["number", "expiry", "cvv", "name"]);
     const field = host.firstElementChild as HTMLElement & { destroy: ReturnType<typeof vi.fn> };
     await number.close();
     expect(field.destroy).toHaveBeenCalledOnce();
     await cards.submit();
     expect(submit).toHaveBeenCalledWith("C-ORDER");
+  });
+
+  it("sends billing address and lets a dismissed card challenge be retried", async () => {
+    const submit = vi.fn()
+      .mockResolvedValueOnce({ state: "canceled", data: {} })
+      .mockResolvedValueOnce({ state: "succeeded", data: { orderId: "C-ORDER" } });
+    const adapter = buildV6Adapter({
+      createCardFieldsOneTimePaymentSession: () => ({ createCardFieldsComponent: vi.fn(), submit, destroy: vi.fn() }),
+    } as never, eligible);
+    const onApprove = vi.fn();
+    const onCancel = vi.fn();
+    const cards = adapter.CardFields!({
+      createOrder: async () => "C-ORDER",
+      onApprove,
+      onCancel,
+      billingAddress: () => ({ countryCode: "FR", postalCode: "17000", addressLine1: "" }),
+    }) as Record<string, any>;
+    await cards.submit();
+    expect(onCancel).toHaveBeenCalledOnce();
+    expect(onApprove).not.toHaveBeenCalled();
+    expect(submit).toHaveBeenCalledWith("C-ORDER", { billingAddress: { countryCode: "FR", postalCode: "17000" } });
+    await cards.submit();
+    expect(onApprove).toHaveBeenCalledOnce();
   });
 
   it("checks vault card session result before calling approval", async () => {
@@ -238,7 +290,9 @@ describe("locale and price guards", () => {
 });
 
 it("renders v6 Pay Later messages using the native element and currency", async () => {
-  const createPayPalMessages = vi.fn();
+  const open = vi.fn();
+  const createLearnMore = vi.fn(() => ({ open }));
+  const createPayPalMessages = vi.fn(() => ({ createLearnMore }));
   const adapter = buildV6Adapter({ createPayPalMessages } as never, { isEligible: () => true });
   const host = document.createElement("div");
   const message = adapter.Messages!({ amount: "50.00", currencyCode: "EUR" });
@@ -246,7 +300,13 @@ it("renders v6 Pay Later messages using the native element and currency", async 
   const element = host.querySelector("paypal-message")!;
   expect(element.amount).toBe("50.00");
   expect(element.currencyCode).toBe("EUR");
-  expect(createPayPalMessages).toHaveBeenCalledWith({ currencyCode: "EUR" });
+  expect(createPayPalMessages).toHaveBeenCalledWith({ currencyCode: "EUR", buyerCountry: "FR" });
+  expect(createLearnMore).toHaveBeenCalledWith({
+    amount: "50.00", currencyCode: "EUR", buyerCountry: "FR", presentationMode: "MODAL",
+  });
+  expect(element.presentationMode).toBe("MODAL");
+  element.dispatchEvent(new MouseEvent("click"));
+  expect(open).not.toHaveBeenCalled();
   await message.close!(); expect(host.children).toHaveLength(0);
 });
 
@@ -325,12 +385,21 @@ describe("v6 lifecycle and legacy callback parity", () => {
 it.each(["succeeded", "canceled", "failed"])("card vault %s result preserves approval gating", async state => {
   const submit = vi.fn().mockResolvedValue({ state, data: { vaultSetupToken: "SETUP", message: "not completed" } });
   const onApprove = vi.fn();
+  const onCancel = vi.fn();
   const adapter = buildV6Adapter({ createCardFieldsSavePaymentSession: () => ({ submit, destroy: vi.fn() }) } as never, { isEligible: () => true });
-  const cards = adapter.CardFields!({ createVaultSetupToken: () => "SETUP", onApprove }) as any;
+  const cards = adapter.CardFields!({ createVaultSetupToken: () => "SETUP", onApprove, onCancel }) as any;
   if (state === "succeeded") {
-    await cards.submit(); expect(onApprove).toHaveBeenCalledWith({ vaultSetupToken: "SETUP", message: "not completed" });
+    await cards.submit();
+    expect(onApprove).toHaveBeenCalledWith({ vaultSetupToken: "SETUP", message: "not completed" });
+    expect(onCancel).not.toHaveBeenCalled();
+  } else if (state === "canceled") {
+    await cards.submit();
+    expect(onApprove).not.toHaveBeenCalled();
+    expect(onCancel).toHaveBeenCalledOnce();
   } else {
-    await expect(cards.submit()).rejects.toThrow(/not completed/); expect(onApprove).not.toHaveBeenCalled();
+    await expect(cards.submit()).rejects.toThrow(/not completed/);
+    expect(onApprove).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
   }
   expect(submit).toHaveBeenCalledWith("SETUP");
 });

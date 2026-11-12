@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.escales.config import EscalesConfig
+from app.escales.config import EscalesConfig, card_sca_method
 from app.escales.paypal_client import PayPalClient
 from app.escales.pledges import create_pledge, reset_ledger
 
@@ -85,6 +85,27 @@ def test_create_capture_order_uses_pay_now():
     )
     assert bodies[0]["payment_source"]["paypal"]["experience_context"]["user_action"] == "PAY_NOW"
     assert bodies[1]["payment_source"]["card"]["experience_context"]["user_action"] == "PAY_NOW"
+
+
+def test_card_sca_always_is_sandbox_only(monkeypatch):
+    monkeypatch.setenv("ESCALES_CARD_SCA_ALWAYS", "1")
+    monkeypatch.setenv("PAYPAL_ENV", "sandbox")
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/oauth2/token":
+            return httpx.Response(200, json={"access_token": "T", "expires_in": 3600})
+        bodies.append(json.loads(request.content))
+        return httpx.Response(201, json={"id": "ORD-SCA", "status": "CREATED", "intent": "AUTHORIZE"})
+
+    client = PayPalClient(EscalesConfig("cid", "sec"), transport=httpx.MockTransport(handler))
+    client.create_card_authorize_order(
+        "12.00", "12 miles", "ref-sca",
+        return_url="https://example.com/r", cancel_url="https://example.com/c",
+    )
+    assert bodies[0]["payment_source"]["card"]["attributes"]["verification"]["method"] == "SCA_ALWAYS"
+    monkeypatch.setenv("PAYPAL_ENV", "live")
+    assert card_sca_method() == "SCA_WHEN_REQUIRED"
 
 
 def test_create_card_setup_token_sends_sca():

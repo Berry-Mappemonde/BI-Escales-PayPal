@@ -1,3 +1,4 @@
+import { reportPayPalV6LoadFailure } from "../paypalJsVersion";
 import { resumeCheckout } from "./checkoutAttempts";
 import { walletFactories } from "./paypalWallets";
 import { STACKED_BUTTON_GAP_PX, applyV6ButtonLook, v6CardFieldStyle, type V5ButtonStyle } from "./paypalLookV6";
@@ -487,6 +488,7 @@ function loadConfigured(clientId: string, appLang: string | undefined, currency:
     return buildV6Adapter(sdk, eligible, walletPay, intent, appLang);
   }).catch((error: unknown) => {
     instances.delete(key);
+    reportPayPalV6LoadFailure(error);
     throw error;
   });
   instances.set(key, promise);

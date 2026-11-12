@@ -131,6 +131,17 @@
   overflow-x: auto;
 }
 
+/* PayPal notifications: the status line above the list. */
+.treasurer-panel .treasurer-panel-body .webhook-status {
+  margin: var(--space-2) 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.treasurer-panel .treasurer-panel-body .treasurer-webhooks caption {
+  padding: 0 0 var(--space-1);
+  text-align: start;
+}
+
 /* Gauges */
 .treasurer-panel .treasurer-panel-body .gauge {
   margin-top: var(--space-1);

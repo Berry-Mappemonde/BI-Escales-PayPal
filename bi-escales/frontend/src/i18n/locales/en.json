@@ -504,8 +504,20 @@
       "reconcileLag": "Reconcile matches capture_id to PayPal transaction_id; sandbox reporting can lag about 3 hours."
     },
     "webhooks": {
-      "heading": "Recent PayPal webhooks",
-      "empty": "No webhooks recorded on this server.",
+      "heading": "PayPal notifications",
+      "lead": "Signed notifications from PayPal (webhooks) keep the ledger up to date without anyone clicking.",
+      "lastReceived": "Last received: {{when}}",
+      "count_one": "{{count}} notification recorded in total.",
+      "count_other": "{{count}} notifications recorded in total.",
+      "latest_one": "The latest notification",
+      "latest_other": "The latest {{count}} notifications",
+      "outcomes": {
+        "accepted": "Verified, ledger updated",
+        "duplicate": "Already recorded, ignored",
+        "rejected": "Rejected, not applied"
+      },
+      "empty": "No notification received from PayPal yet.",
+      "refresh": "Refresh notifications",
       "time": "Time",
       "event": "Event",
       "outcome": "Outcome",

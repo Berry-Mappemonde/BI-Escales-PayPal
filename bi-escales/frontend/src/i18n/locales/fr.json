@@ -504,8 +504,20 @@
       "reconcileLag": "Le rapprochement lie capture_id et transaction_id PayPal ; le sandbox accuse ~3 h de retard."
     },
     "webhooks": {
-      "heading": "Webhooks PayPal récents",
-      "empty": "Aucun webhook enregistré sur ce serveur.",
+      "heading": "Notifications PayPal",
+      "lead": "Les notifications signées de PayPal (webhooks) tiennent le registre à jour sans que personne ne clique.",
+      "lastReceived": "Dernière reçue : {{when}}",
+      "count_one": "{{count}} notification enregistrée au total.",
+      "count_other": "{{count}} notifications enregistrées au total.",
+      "latest_one": "La dernière notification",
+      "latest_other": "Les {{count}} dernières notifications",
+      "outcomes": {
+        "accepted": "Vérifiée, registre mis à jour",
+        "duplicate": "Déjà enregistrée, ignorée",
+        "rejected": "Rejetée, non appliquée"
+      },
+      "empty": "Aucune notification reçue de PayPal pour l’instant.",
+      "refresh": "Actualiser les notifications",
       "time": "Heure",
       "event": "Événement",
       "outcome": "Résultat",

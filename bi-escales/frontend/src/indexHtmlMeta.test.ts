@@ -27,8 +27,11 @@ describe("index.html site meta", () => {
   });
 
   it("points search engines at both languages, by the address the app reads", () => {
-    // The app chooses its language from ?lang=, not from the path.
-    expect(indexHtml).toMatch(/rel="alternate"\s+hreflang="en"\s+href="https:\/\/escales\.naviguide\.fr\/\?lang=en"/i);
+    // The app chooses its language from ?lang=, not from the path. English is the
+    // default page, so its alternate is the canonical "/" itself (the server writes
+    // each page's own canonical and alternates: app/spa_client_routes.py).
+    expect(indexHtml).toMatch(/rel="canonical"\s+href="https:\/\/escales\.naviguide\.fr\/"/i);
+    expect(indexHtml).toMatch(/rel="alternate"\s+hreflang="en"\s+href="https:\/\/escales\.naviguide\.fr\/"/i);
     expect(indexHtml).toMatch(/rel="alternate"\s+hreflang="fr"\s+href="https:\/\/escales\.naviguide\.fr\/\?lang=fr"/i);
     expect(indexHtml).toMatch(/rel="alternate"\s+hreflang="x-default"\s+href="https:\/\/escales\.naviguide\.fr\/"/i);
   });

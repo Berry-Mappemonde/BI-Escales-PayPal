@@ -2,9 +2,9 @@
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse
 
@@ -12,7 +12,7 @@ from app.bi_marinas_catalog import build_escale_fiche, get_all_escale_marinas_ge
 from app.bi_projects_catalog import get_bi_projects_geojson
 from app.escales.config import cors_origins, resolve_apple_pay_domain_association_path
 from app.middleware.security_headers import install_security_headers
-from app.spa_client_routes import is_known_client_route
+from app.spa_client_routes import client_redirect, page_head
 
 app = FastAPI(title="BI Escales — Pay Only If We Sail")
 
@@ -118,15 +118,20 @@ def attach_frontend(application: FastAPI) -> None:
         application.mount("/assets", StaticFiles(directory=assets), name="frontend-assets")
 
     @application.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
-    def spa(full_path: str):
+    def spa(full_path: str, request: Request):
         if full_path == "api" or full_path.startswith("api/"):
             raise HTTPException(status_code=404)
         candidate = (dist / full_path).resolve() if full_path else index
         if full_path and candidate.is_file() and str(candidate).startswith(str(dist)):
             return FileResponse(candidate)
-        # The page itself for every path, so the app always loads; 404 for a path
-        # the app does not know, so an address that does not exist says so.
-        return FileResponse(index, status_code=200 if is_known_client_route(full_path) else 404)
+        query = request.url.query
+        # Old /en and /fr links and unknown paths move to a page the app has: none answers 404.
+        moved = client_redirect(full_path, query)
+        if moved:
+            location, status = moved
+            return RedirectResponse(location, status_code=status)
+        # The page, with this page's own canonical address and language alternates.
+        return HTMLResponse(page_head(index.read_text(encoding="utf-8"), full_path, query))
 
 
 attach_frontend(app)

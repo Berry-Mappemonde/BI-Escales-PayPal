@@ -13,6 +13,10 @@ ROUTE = ROOT / "frontend" / "public" / "route.geojson"
 BUNDLED_FONT = ROOT / "backend" / "app" / "escales" / "assets" / "DejaVuSans.ttf"
 
 W, H = 1200, 630
+# The title and subtitle end above this line: no grid line or route point crosses them.
+GRID_TOP = 170
+GRID_STEP = 70
+GRID_ALPHA = 28
 NAVY = (0, 61, 122)
 SEA = (0, 40, 88)
 ACCENT = (0, 119, 255)
@@ -40,8 +44,9 @@ def _project(points: list[tuple[float, float]]) -> list[tuple[int, int]]:
     lats = [p[1] for p in points]
     min_lon, max_lon = min(lons), max(lons)
     min_lat, max_lat = min(lats), max(lats)
-    pad_x, pad_y = 80, 140
-    box_w, box_h = W - pad_x * 2, H - pad_y - 60
+    # The route stays below the title block and above the footer text.
+    pad_x, pad_y = 80, GRID_TOP
+    box_w, box_h = W - pad_x * 2, H - pad_y - 90
 
     def to_xy(lon: float, lat: float) -> tuple[int, int]:
         x = pad_x + (lon - min_lon) / (max_lon - min_lon or 1) * box_w
@@ -85,10 +90,15 @@ def main() -> None:
         b = int(SEA[2] + (NAVY[2] - SEA[2]) * t)
         draw.line([(0, y), (W, y)], fill=(r, g, b))
 
-    # faint latitude grid
+    # Faint latitude grid, below the title block. The image is RGB, so the alpha only
+    # counts on an overlay composited onto it.
+    grid = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    grid_draw = ImageDraw.Draw(grid)
     for i in range(6):
-        y = 120 + i * 70
-        draw.line([(60, y), (W - 60, y)], fill=(255, 255, 255, 20), width=1)
+        y = GRID_TOP + i * GRID_STEP
+        grid_draw.line([(60, y), (W - 60, y)], fill=(255, 255, 255, GRID_ALPHA), width=1)
+    img = Image.alpha_composite(img.convert("RGBA"), grid).convert("RGB")
+    draw = ImageDraw.Draw(img)
 
     pts = _project(_load_route_points())
     if len(pts) > 1:

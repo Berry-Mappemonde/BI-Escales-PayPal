@@ -334,8 +334,20 @@ it("renders v6 Pay Later messages using the native element and currency", async 
     amount: "50.00", currencyCode: "EUR", buyerCountry: "FR", presentationMode: "MODAL",
   });
   expect(element.presentationMode).toBe("MODAL");
+  expect(element.getAttribute("presentation-mode")).toBe("MODAL");
   element.dispatchEvent(new MouseEvent("click"));
   expect(open).not.toHaveBeenCalled();
+  const learnMoreClick = new CustomEvent("paypal-message-click", {
+    cancelable: true,
+    detail: { config: { amount: "50.00" } },
+  });
+  element.dispatchEvent(learnMoreClick);
+  expect(learnMoreClick.defaultPrevented).toBe(true);
+  expect(open).toHaveBeenCalledTimes(1);
+  expect(open).toHaveBeenCalledWith({ amount: "50.00" });
+  document.documentElement.dataset.theme = "light";
+  await vi.waitFor(() => expect(element.textColor).toBe("BLACK"));
+  delete document.documentElement.dataset.theme;
   await message.close!(); expect(host.children).toHaveLength(0);
 });
 

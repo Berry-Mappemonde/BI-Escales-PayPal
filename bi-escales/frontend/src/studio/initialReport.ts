@@ -23,8 +23,8 @@ export function treasurerInitialState(language?: string, hasCompleteCaptures = t
           ...(hasCompleteCaptures ? { validation: {
             type: VALIDATION_WIDGET_TYPE,
             dataMapping: {
-              status: [{ id: `${PLEDGES}.status` }],
-              amount: [{ id: `${PLEDGES}.net_eur`, aggregation: "sum" }],
+              status: [{ id: "status_totals.status" }],
+              amount: [{ id: "status_totals.amount", aggregation: "sum" }],
             },
             format: { title: { enabled: true, text: t("studio.scoreTitle") } },
           } } : {}),

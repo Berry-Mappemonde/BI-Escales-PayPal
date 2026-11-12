@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { AgStudio, AgStudioProvider } from "ag-studio-react";
+import { agStudioLlmEndpoint } from "../config/features";
 import { agStudioLocaleText } from "./agStudioLocale";
 import { escalesStudioTheme } from "./escalesTheme";
 import { treasurerInitialState } from "./initialReport";
@@ -35,7 +36,9 @@ export default function StudioReport({ rows, stopNames, language, licenseKey, ag
   const initialState = useMemo(() => treasurerInitialState(language, totals.captured !== null), [language, totals.captured]);
   const widgets = useMemo(() => (config: Parameters<typeof escalesWidgets>[0]) => escalesWidgets(config, language), [language]);
   const localeText = useMemo(() => agStudioLocaleText(language), [language]);
-  const ai = useMemo(() => agent ? createTreasurerHarness(undefined, language) : undefined, [agent, language]);
+  const ai = useMemo(() => agent
+    ? createTreasurerHarness(agStudioLlmEndpoint(), language, { currency, totals })
+    : undefined, [agent, language, currency, totals]);
   const copy = dashboardCopy(language);
   const mode = document.documentElement.dataset.theme === "light" ? "light" : "dark";
 

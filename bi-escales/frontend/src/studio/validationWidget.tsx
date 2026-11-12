@@ -20,13 +20,10 @@ function fieldKey(field: AgWidgetField): string {
 }
 
 function schemaFields(widgetApi: AgWidgetParams["widgetApi"]): AgWidgetField[] {
-  const tables = widgetApi.getSchema();
-  const table = tables.find((entry) => entry.id === "pledges") ?? tables[0];
+  const table = widgetApi.getSchema().find((entry) => entry.id === "status_totals");
   if (!table) return [];
   const status = table.fields.find((field) => /status$/i.test(fieldKey(field)));
-  const amount =
-    table.fields.find((field) => /net_eur$/i.test(fieldKey(field))) ??
-    table.fields.find((field) => /amount/i.test(fieldKey(field)));
+  const amount = table.fields.find((field) => /amount$/i.test(fieldKey(field)));
   return [status, amount].filter((field): field is AgWidgetField => Boolean(field));
 }
 

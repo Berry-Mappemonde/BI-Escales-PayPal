@@ -6,6 +6,7 @@ export type PledgeStatus =
   | "captured"
   | "settled"
   | "failed"
+  | "capture_failed"
   | "voided"
   | "partially_refunded"
   | "refunded";

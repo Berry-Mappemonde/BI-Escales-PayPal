@@ -658,8 +658,8 @@ async def get_features():
 
 
 @router.get("/prices")
-async def get_prices():
-    return simulated_prices()
+async def get_prices(lang: Optional[str] = None):
+    return simulated_prices(lang)
 
 
 def _clock_body() -> dict:

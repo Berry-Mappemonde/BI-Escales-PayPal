@@ -120,3 +120,13 @@ def test_stop_gift_maximum_and_rejection_before_provider():
             await gift(spy, amount_eur="1000.01")
         assert spy.calls == calls
     asyncio.run(run())
+
+
+def test_price_note_includes_stop_gift_lifecycle_in_both_languages():
+    from app.escales.captain import simulated_prices
+
+    for lang, words in [("fr", ("cadeau à une escale", "réservé", "débité", "libéré")),
+                        ("en", ("stop gift", "held until arrival", "captured on arrival", "voided"))]:
+        catalog = simulated_prices(lang)
+        assert all(word in catalog["note"] for word in words)
+        assert next(row for row in catalog["prices"] if row["kind"] == "stop_gift")["free_amount"] is True

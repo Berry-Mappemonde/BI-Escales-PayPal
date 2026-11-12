@@ -52,7 +52,11 @@ export function pledgeOrderAmount(kind, userAmount, catalog, quantity) {
     const unit = catalogExactPrice(kind, catalog) || (kind === "mile" ? "1.00" : null);
     if (unit) return (Math.round(Number(unit) * 100) * quantity / 100).toFixed(2);
   }
-  return catalogExactPrice(kind, catalog) || String(userAmount ?? "").trim() || "1.00";
+  const exact = catalogExactPrice(kind, catalog);
+  if (exact) return exact;
+  const normalized = String(userAmount ?? "").trim().replace(",", ".");
+  // A cleared gift must fail validation rather than silently donating one euro.
+  return normalized || (kind === "stop_gift" ? "" : "1.00");
 }
 
 export function pledgeAmountReadOnly(kind, catalog) {

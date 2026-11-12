@@ -105,8 +105,8 @@ describe("gift to a stop", () => {
     expect(options.find((option) => option.value === "stop_gift")).toBeDefined();
   });
 
-  it("sends kind stop_gift for this stop, with the amount the supporter typed", async () => {
-    await show({ pledge: pledge("stop_gift", "17.35") });
+  it.each(["17.35", "17,35"])("sends a normalized stop gift amount for %s", async (amount) => {
+    await show({ pledge: pledge("stop_gift", amount) });
     const values = buttonProps.at(-1).values;
     expect(values).toMatchObject({
       kind: "stop_gift",
@@ -139,7 +139,7 @@ describe("gift to a stop", () => {
     expect(within(screen.getByTestId("pledge-kind")).getByRole("option", { name: "Don à cette escale (retenu jusqu’à l’arrivée)" })).toBeInTheDocument();
   });
 
-  it.each(["1000.01", "0", "-5", "12.345", "abc"])("offers no checkout for %s, and says why", async (amount) => {
+  it.each(["", " ", "1000.01", "0", "-5", "12.345", "abc"])("offers no checkout for %s, and says why", async (amount) => {
     await show({ pledge: pledge("stop_gift", amount) });
     expect(screen.getByTestId("stop-gift-invalid")).toHaveTextContent("Enter an amount between €0.01 and €1,000");
     expect(screen.queryByTestId("pledge-values")).toBeNull();

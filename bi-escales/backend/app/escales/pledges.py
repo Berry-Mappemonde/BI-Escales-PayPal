@@ -1349,11 +1349,32 @@ def _require_status(pledge: dict, expected: str | tuple[str, ...], target: str) 
         raise IllegalTransition(str(current), target)
 
 
+def _require_card_capture_approval(order: dict) -> None:
+    """Fail closed on unknown/failed 3DS; use PayPal's server response matrix."""
+    if str(order.get("status") or "").upper() not in {"APPROVED", "COMPLETED"}:
+        raise ValueError("card order not approved yet")
+    card = (order.get("payment_source") or {}).get("card") or {}
+    auth = card.get("authentication_result") or {}
+    three_ds = auth.get("three_d_secure") or {}
+    enrolled = str(three_ds.get("enrollment_status") or "").upper()
+    status = str(three_ds.get("authentication_status") or "").upper()
+    liability = str(auth.get("liability_shift") or "").upper()
+    authenticated = enrolled == "Y" and status in {"Y", "A"} and liability == "POSSIBLE"
+    exempt = enrolled in {"N", "U", "B"} and not status and liability == "NO"
+    if not (authenticated or exempt):
+        raise ValueError("card authentication incomplete or declined; retry or choose another payment method")
+
+
 async def _capture_order_pledge(pledge_id: str, client: Any, pledge: dict) -> dict:
     """Capture a CAPTURE-intent order after the buyer approved on PayPal."""
     _require_status(pledge, "created", "captured")
     order_id = str(pledge.get("order_id") or "")
-    if not _buyer_approved(client, order_id):
+    if pledge.get("checkout_method") == "card":
+        getter = getattr(client, "get_order", None)
+        if not callable(getter):
+            raise ValueError("card approval cannot be verified")
+        _require_card_capture_approval(getter(order_id) or {})
+    elif not _buyer_approved(client, order_id):
         raise ValueError("order not approved yet")
     capture = getattr(client, "capture_order", None)
     if capture is None:

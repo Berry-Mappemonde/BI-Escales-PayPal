@@ -68,6 +68,7 @@ export function PayPalCardFieldsBlock({
   const submitRef = useRef<(() => Promise<void>) | null>(null);
   const attemptRef = useRef<{ key: string; values: PledgeFormValues; pledge?: Promise<PublicPledge> } | null>(null);
   const submittingRef = useRef(false);
+  const confirmationErrorRef = useRef<Error | null>(null);
   const generationRef = useRef(0);
   const pledgeTargetRef = useRef(`${values.milestone_id}\0${values.kind ?? ""}`);
   valuesRef.current = values;
@@ -146,8 +147,10 @@ export function PayPalCardFieldsBlock({
         // Authorization/vault registration stays in onSubmit after submit() resolves.
         const cardFields = CardFields({
           ...callbacks,
-          onApprove: () => undefined,
-          onError: () => undefined,
+          onApprove: (data: { liabilityShift?: string }) => {
+            if (data?.liabilityShift === "UNKNOWN") confirmationErrorRef.current = new Error("Card authentication incomplete");
+          },
+          onError: () => { confirmationErrorRef.current = new Error("Card confirmation failed"); },
         });
         if (!cardFields.isEligible()) return;
         for (const [field, el] of [
@@ -200,8 +203,10 @@ export function PayPalCardFieldsBlock({
     setBusy(true);
     setError(null);
     try {
+      confirmationErrorRef.current = null;
       await submit();
       if (isClosed()) return;
+      if (confirmationErrorRef.current) throw confirmationErrorRef.current;
       let current = activePledgeRef.current;
       if (!current) {
         throw new Error("pledge missing after card submit");
@@ -212,6 +217,10 @@ export function PayPalCardFieldsBlock({
         current = await authorizePledge(current.id);
       }
       if (isClosed()) return;
+      if ((current.payment_mode === "CAPTURE" || ["project_pledge", "common_fund"].includes(snapshot.kind || ""))
+          && !["captured", "settled"].includes(current.status)) {
+        throw new Error(t("pledge.cardCaptureNotCompleted"));
+      }
       attemptRef.current = null;
       setReady(false);
       setConfirmed(current);
@@ -229,24 +238,26 @@ export function PayPalCardFieldsBlock({
   const shortRef = confirmed ? confirmed.id.slice(0, 8) : "";
   const vaultConfirmed = confirmed ? isVaultPledge(confirmed) : false;
   const confirmKind = confirmed?.kind ?? values.kind;
+  const paidImmediately = confirmed?.status === "captured" || confirmed?.status === "settled";
+  const immediateDonation = ["project_pledge", "common_fund"].includes(values.kind || "");
 
   return (
     <div className="paypal-card-fields" data-testid="paypal-card-fields" ref={rootRef}>
       {confirmed ? (
         <div data-testid="paypal-card-confirm">
           <p className="status">
-            {t(vaultConfirmed ? "pledge.cardConfirmVaultTitle" : "pledge.cardConfirmAuthorizeTitle")}
+            {t(paidImmediately ? "pledge.cardConfirmPaidTitle" : vaultConfirmed ? "pledge.cardConfirmVaultTitle" : "pledge.cardConfirmAuthorizeTitle")}
           </p>
           <p className="hint" data-testid="paypal-card-confirm-ref">
             {t("pledge.cardConfirmRef", { ref: shortRef })}
           </p>
           <p className="hint" data-testid="paypal-card-confirm-next">
-            {t(isCabinLegKind(confirmKind) ? "pledge.cardConfirmCabinNext" : "pledge.cardConfirmStopNext")}
+            {t(paidImmediately ? "pledge.cardConfirmPaidNext" : isCabinLegKind(confirmKind) ? "pledge.cardConfirmCabinNext" : "pledge.cardConfirmStopNext")}
           </p>
         </div>
       ) : null}
       <div data-testid="paypal-card-checkout" hidden={Boolean(confirmed)}>
-        <p className="hint">{t("pledge.cardFieldsHint")}</p>
+        <p className="hint">{t(immediateDonation ? "pledge.cardFieldsImmediateHint" : "pledge.cardFieldsHint")}</p>
         <div className="card-field-row">
           <div ref={numberRef} data-testid="paypal-card-number" />
           <div ref={expiryRef} data-testid="paypal-card-expiry" />

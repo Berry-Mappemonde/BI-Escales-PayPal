@@ -561,3 +561,10 @@ Both JS version entry points render the existing card component. This adds no
 new page or layout. Common-fund CAPTURE uses the same creator after PAY-03 merges.
 Skills: python-getting-started, python-calling-endpoints, python-models,
 python-error-handling, python-configuration-resilience, python-testing.
+
+Card review: before CAPTURE, reread the order through PayPalClient.get_order
+(the generated SDK when enabled), require approval and a card authentication
+result permitting continuation under the PayPal 3DS response matrix. Unknown,
+failed, rejected or still-challenged authentication fails closed without capture.
+Only a completed capture receipt may render the immediate-donation paid text.
+Reference: https://developer.paypal.com/platforms/checkout/advanced/customize/3d-secure/response-parameters

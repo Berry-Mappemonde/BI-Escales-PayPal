@@ -568,6 +568,7 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
           {t("pledge.vaultConfirm")}
         </button>
       ) : null}
+      <div ref={sdkHost} data-testid="paypal-sdk-host" />
       <div ref={buttonsHost} data-testid="paypal-smart-buttons" />
       {walletPayEnabled && (isProjectPledge || isCommonFund || (modeMatchesValues && pledgeMode?.paymentMode !== "VAULT")) ? (
         <PayPalWalletPayBlockV6
@@ -589,7 +590,6 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
           onAuthorized={onAuthorized}
         />
       ) : null}
-      <div ref={sdkHost} data-testid="paypal-sdk-host" />
       {status ? <p className="status">{status}</p> : null}
       {error ? (
         <div className="notice error">

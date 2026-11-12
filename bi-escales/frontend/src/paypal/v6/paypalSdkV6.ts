@@ -248,15 +248,6 @@ export function buildV6Adapter(
     ...(sdk.createPayPalMessages ? { Messages: (options: Record<string, unknown>): PayPalSdkButtonInstance => {
       const currencyCode = String(options.currencyCode || "EUR");
       const amount = String(options.amount || "");
-      const messages = sdk.createPayPalMessages!({ currencyCode, buyerCountry: "FR" }) as {
-        createLearnMore?: (learnMore: { amount?: string; currencyCode?: string; buyerCountry?: string; presentationMode?: "MODAL" }) => { open?: () => Promise<void> };
-      } | undefined;
-      messages?.createLearnMore?.({
-        amount,
-        currencyCode,
-        buyerCountry: "FR",
-        presentationMode: "MODAL",
-      });
       let message: HTMLElement | null = null;
       return {
         render: async target => {
@@ -265,13 +256,26 @@ export function buildV6Adapter(
           const element = document.createElement("paypal-message");
           element.amount = amount;
           element.currencyCode = currencyCode;
+          element.buyerCountry = "FR";
+          // The shell is dark by default. Black Pay Later text disappears on it.
+          element.textColor = document.documentElement.dataset.theme === "light" ? "BLACK" : "WHITE";
           // The bootstrapped message already opens Learn more from its own control.
           // A second click listener would open another modal on the same click.
           element.presentationMode = "MODAL";
           element.autoBootstrap = true;
           element.setAttribute("auto-bootstrap", "");
           message = element;
+          // The data layer only picks up an element that is already in the page.
           host.replaceChildren(element);
+          const messages = sdk.createPayPalMessages!({ currencyCode, buyerCountry: "FR" }) as {
+            createLearnMore?: (learnMore: { amount?: string; currencyCode?: string; buyerCountry?: string; presentationMode?: "MODAL" }) => { open?: () => Promise<void> };
+          } | undefined;
+          messages?.createLearnMore?.({
+            amount,
+            currencyCode,
+            buyerCountry: "FR",
+            presentationMode: "MODAL",
+          });
         },
         close: async () => { message?.remove(); },
       };

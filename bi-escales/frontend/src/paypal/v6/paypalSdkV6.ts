@@ -249,6 +249,8 @@ export function buildV6Adapter(
       const currencyCode = String(options.currencyCode || "EUR");
       const amount = String(options.amount || "");
       let message: HTMLElement | null = null;
+      let themeObserver: MutationObserver | null = null;
+      const textColor = () => (document.documentElement.dataset.theme === "light" ? "BLACK" : "WHITE");
       return {
         render: async target => {
           const host = typeof target === "string" ? document.querySelector<HTMLElement>(target) : target;
@@ -257,27 +259,49 @@ export function buildV6Adapter(
           element.amount = amount;
           element.currencyCode = currencyCode;
           element.buyerCountry = "FR";
+          element.setAttribute("amount", amount);
+          element.setAttribute("currency-code", currencyCode);
+          element.setAttribute("buyer-country", "FR");
           // The shell is dark by default. Black Pay Later text disappears on it.
-          element.textColor = document.documentElement.dataset.theme === "light" ? "BLACK" : "WHITE";
-          // The bootstrapped message already opens Learn more from its own control.
-          // A second click listener would open another modal on the same click.
+          const applyColor = () => {
+            const color = textColor();
+            element.textColor = color;
+            element.setAttribute("text-color", color);
+          };
+          applyColor();
+          themeObserver?.disconnect();
+          themeObserver = new MutationObserver(applyColor);
+          themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+          // Without this listener the Learn more control is an href="#" and the page
+          // stays put. PayPal requires preventDefault, then learnMore.open.
+          // https://developer.paypal.com/pay-later/integrate
           element.presentationMode = "MODAL";
+          element.setAttribute("presentation-mode", "MODAL");
           element.autoBootstrap = true;
           element.setAttribute("auto-bootstrap", "");
           message = element;
           // The data layer only picks up an element that is already in the page.
           host.replaceChildren(element);
           const messages = sdk.createPayPalMessages!({ currencyCode, buyerCountry: "FR" }) as {
-            createLearnMore?: (learnMore: { amount?: string; currencyCode?: string; buyerCountry?: string; presentationMode?: "MODAL" }) => { open?: () => Promise<void> };
+            createLearnMore?: (learnMore: { amount?: string; currencyCode?: string; buyerCountry?: string; presentationMode?: "MODAL" }) => { open?: (config?: object) => Promise<void> | void } | Promise<{ open?: (config?: object) => Promise<void> | void }>;
           } | undefined;
-          messages?.createLearnMore?.({
+          const learnMore = await Promise.resolve(messages?.createLearnMore?.({
             amount,
             currencyCode,
             buyerCountry: "FR",
             presentationMode: "MODAL",
+          }));
+          element.addEventListener("paypal-message-click", (event) => {
+            event.preventDefault();
+            const config = (event as CustomEvent<{ config?: object }>).detail?.config;
+            void learnMore?.open?.(config);
           });
         },
-        close: async () => { message?.remove(); },
+        close: async () => {
+          themeObserver?.disconnect();
+          themeObserver = null;
+          message?.remove();
+        },
       };
     } } : {}),
     Buttons: (opts: Record<string, unknown>): PayPalSdkButtonInstance => {

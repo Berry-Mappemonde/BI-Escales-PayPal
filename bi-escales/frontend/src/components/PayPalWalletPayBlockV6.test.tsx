@@ -9,7 +9,7 @@ import { PayPalWalletPayBlockV6 } from "./PayPalWalletPayBlockV6";
 
 vi.mock("../api/escales", () => ({ createPledge: vi.fn(), authorizePledge: vi.fn() }));
 
-type WalletConfig = { amount: string; currencyCode: string; createOrder: () => Promise<string>; onApprove: () => Promise<void>; onError: () => void };
+type WalletConfig = { amount: string; currencyCode: string; buttonLocale?: string; createOrder: () => Promise<string>; onApprove: () => Promise<void>; onError: () => void };
 const values = { amount_eur: "20.00", milestone_id: "dep-la-rochelle", kind: "mile", description: "La Rochelle" };
 
 function show(paypal: Record<string, unknown>, onAuthorized = vi.fn()) {
@@ -21,12 +21,32 @@ function show(paypal: Record<string, unknown>, onAuthorized = vi.fn()) {
 }
 
 describe("Google Pay button artwork", () => {
+  const read = (file: string) => readFileSync(resolve(process.cwd(), file), "utf8");
+
   it("draws the PayPal artwork once instead of tiling it", () => {
-    const css = readFileSync(resolve(process.cwd(), "src/components/PayPalWalletPayBlockV6.css"), "utf8");
+    const css = read("src/components/PayPalWalletPayBlockV6.css");
+    const stop = read("src/components/stop/stop-panel.css");
+    const shell = read("src/styles/naviguide-shell.css");
     expect(css).toMatch(/background-repeat:\s*no-repeat/);
     expect(css).toMatch(/background-size:\s*contain/);
     expect(css).toMatch(/background-position:\s*center/);
-    expect(css).not.toMatch(/background-repeat:\s*repeat/);
+    expect(css).toMatch(/background-color:\s*#000/);
+    expect(css).not.toMatch(/background-repeat:\s*repeat\b/);
+    expect(css).toMatch(/\.escale-sheet \.pledge-form \.paypal-wallet-pay\[data-testid="paypal-wallet-pay"\] \[data-testid="paypal-google-pay"\] > button:is\(:hover, :active, :focus, :focus-visible\)/);
+    expect(css).toMatch(/\.ng-sidebar \.project-pledge \.paypal-wallet-pay\[data-testid="paypal-wallet-pay"\] \[data-testid="paypal-google-pay"\] > button/);
+    const coarse = css.slice(css.indexOf("@media (pointer: coarse)"));
+    expect(coarse).toMatch(/paypal-google-pay/);
+    expect(coarse).toMatch(/background-repeat:\s*no-repeat/);
+    expect(coarse).toMatch(/background-color:\s*#000/);
+    for (const selector of [
+      ".escale-sheet .pledge-form button:not([data-testid=\"paypal-google-pay\"] button)",
+      ".escale-sheet .pledge-form button:active:not(:disabled):not([data-testid=\"paypal-google-pay\"] button)",
+      ".escale-sheet .pledge-form button:focus-visible:not([data-testid=\"paypal-google-pay\"] button)",
+      ".escale-sheet .pledge-form button:hover:not(:disabled):not([data-testid=\"paypal-google-pay\"] button)",
+    ]) {
+      expect(stop).toContain(selector);
+    }
+    expect(shell).toContain(".ng-sidebar .project-pledge button:not([data-testid=\"paypal-google-pay\"] button)");
   });
 });
 
@@ -105,4 +125,14 @@ it("passes the donation currency to the native wallet sheet", async () => {
     } } as never} />);
   await waitFor(() => expect(config).toBeDefined());
   expect(config.currencyCode).toBe("USD");
+  expect(config.buttonLocale).toBeUndefined();
+});
+
+it("asks Google Pay for a French label on a French page", async () => {
+  let config!: WalletConfig;
+  render(<PayPalWalletPayBlockV6 values={values} appLang="fr" sdkIntent="authorize" sdkReady paypal={{
+    Googlepay: (c: WalletConfig) => { config = c; return { render: async () => {}, close: async () => {} }; },
+  } as never} />);
+  await waitFor(() => expect(config).toBeDefined());
+  expect(config.buttonLocale).toBe("fr");
 });

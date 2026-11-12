@@ -44,6 +44,14 @@ describe("independent Google Pay eligibility", () => {
     await expect(walletFactories(h.sdk as never, eligible).Googlepay(h.options).render(document.createElement("div"))).rejects.toThrow(/not ready/);
     expect(h.options.createOrder).not.toHaveBeenCalled();
   });
+  it("passes buttonLocale fr on a French page and omits it otherwise", async () => {
+    const french = googleHarness();
+    await walletFactories(french.sdk as never, eligible).Googlepay({ ...french.options, buttonLocale: "fr" }).render(document.createElement("div"));
+    expect(french.client.createButton).toHaveBeenCalledWith(expect.objectContaining({ buttonLocale: "fr" }));
+    const english = googleHarness();
+    await walletFactories(english.sdk as never, eligible).Googlepay(english.options).render(document.createElement("div"));
+    expect(english.client.createButton.mock.calls[0][0].buttonLocale).toBeUndefined();
+  });
 });
 describe("Google Pay confirmation and 3DS", () => {
   it("confirms the order before server approval and prevents duplicate clicks", async () => {

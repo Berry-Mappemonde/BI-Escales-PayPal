@@ -24,7 +24,9 @@ describe.each(["stop/stop-panel.css", "captain/captain-card.css", "treasurer-pan
   });
 
   it("does not reach into the PayPal hosts", () => {
-    expect(css).not.toMatch(/paypal-(smart|buttons|card|wallet|google|apple)|card-field|pledge-button/i);
+    // A :not() may name a host so a generic rule leaves its button alone.
+    const styled = css.replace(/:not\([^()]*\)/g, "");
+    expect(styled).not.toMatch(/paypal-(smart|buttons|card|wallet|google|apple)|card-field|pledge-button/i);
   });
 });
 

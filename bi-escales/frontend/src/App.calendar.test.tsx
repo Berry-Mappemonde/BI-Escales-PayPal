@@ -122,6 +122,9 @@ describe("Stopover calendar placement", () => {
     const inPage = calendars.props.filter((props) => props.wide === true).at(-1);
     expect(inPage?.onSelectEscale).toBeUndefined();
     expect(inPage?.onAuthorized).toBeUndefined();
+    // The treasurer's copy knows each stop's status and held pledges; the visitor's does not.
+    expect(inPage?.stopOverview).toMatchObject({ "dep-la-rochelle": { held: 0, due: false } });
+    expect(calendars.props.filter((props) => props.wide !== true).every((props) => props.stopOverview === undefined)).toBe(true);
   });
 
   it("flag off: no calendar anywhere", async () => {

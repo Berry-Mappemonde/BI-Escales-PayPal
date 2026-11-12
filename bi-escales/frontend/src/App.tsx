@@ -28,6 +28,7 @@ import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { resolveBoatStop } from "./voyage/boatStop.js";
 import { nextOpenStop } from "./voyage/nextStop.js";
+import { treasurerStopOverview } from "./voyage/treasurerStopOverview.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
 import { isNarrowScreen } from "./utils/narrowScreen";
@@ -801,6 +802,12 @@ export default function App() {
     return out;
   }, [projects]);
 
+  // The treasurer's calendar: has the boat reached each stop, and which held pledges wait there.
+  const stopOverview = useMemo(
+    () => (schedule ? treasurerStopOverview(schedule, apiNow ?? now.toISOString(), milestones, pledges) : null),
+    [schedule, apiNow, now, milestones, pledges],
+  );
+
   // The treasurer reads stop names, not milestone ids; the voyage already has them.
   const stopNames = useMemo(() => stopNamesFromStops(voyage?.stops), [voyage?.stops]);
 
@@ -1181,6 +1188,7 @@ export default function App() {
                 showCabins={false}
                 // Full names and every row where the page is wide; the compact timeline on a phone.
                 wide={!isNarrowScreen()}
+                stopOverview={stopOverview}
                 onSelectEscale={undefined}
                 onAuthorized={undefined}
               />

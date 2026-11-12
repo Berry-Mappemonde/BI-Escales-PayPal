@@ -78,5 +78,7 @@ it.each(["AUTHORIZE", "VAULT"])("posts no %s pledge until Pay, then posts once w
     mode === "VAULT" ? "createVaultSetupToken" : "createOrder",
     "onApprove",
     "onError",
+    "onCancel",
+    "billingAddress",
   ]);
 });

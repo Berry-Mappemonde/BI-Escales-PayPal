@@ -48,7 +48,7 @@ describe("Card Fields checkout", () => {
     render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} onAuthorized={onAuthorized} />);
     await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
     const config = s.CardFields.mock.calls[0][0];
-    expect(Object.keys(config)).toEqual([mode === "VAULT" ? "createVaultSetupToken" : "createOrder", "onApprove", "onError"]);
+    expect(Object.keys(config)).toEqual([mode === "VAULT" ? "createVaultSetupToken" : "createOrder", "onApprove", "onError", "onCancel", "billingAddress"]);
     await expect(config[mode === "VAULT" ? "createVaultSetupToken" : "createOrder"]()).rejects.toThrow("Press Pay");
     expect(createPledge).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("paypal-card-submit"));
@@ -57,6 +57,34 @@ describe("Card Fields checkout", () => {
     expect(createPledge).toHaveBeenCalledWith(expect.objectContaining({checkout_method:"card"}), expect.any(String));
     if (mode === "VAULT") {expect(registerVault).toHaveBeenCalledWith("P", "S");expect(authorizePledge).not.toHaveBeenCalled();}
     else {expect(authorizePledge).toHaveBeenCalledWith("P");expect(registerVault).not.toHaveBeenCalled();}
+  });
+  it("shows try again when card authentication is dismissed and sends the billing address", async () => {
+    vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "AUTHORIZE" });
+    const pledge = stubPledge({ id: "P", payment_mode: "AUTHORIZE", order_id: "O", intent: "AUTHORIZE" });
+    vi.mocked(createPledge).mockResolvedValue(pledge);
+    let callbacks: Record<string, any> = {};
+    const name = { render: vi.fn().mockResolvedValue(undefined), close: vi.fn() };
+    const CardFields = vi.fn((config) => {
+      callbacks = config;
+      return {
+        isEligible: () => true,
+        NumberField: () => ({ render: vi.fn().mockResolvedValue(undefined), close: vi.fn() }),
+        ExpiryField: () => ({ render: vi.fn().mockResolvedValue(undefined), close: vi.fn() }),
+        CVVField: () => ({ render: vi.fn().mockResolvedValue(undefined), close: vi.fn() }),
+        NameField: () => name,
+        submit: async () => { callbacks.onCancel(); },
+      };
+    });
+    render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={{ CardFields } as never} />);
+    await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+    expect(name.render).toHaveBeenCalledOnce();
+    fireEvent.change(screen.getByTestId("paypal-card-postal"), { target: { value: "17000" } });
+    fireEvent.change(screen.getByTestId("paypal-card-country"), { target: { value: "fr" } });
+    fireEvent.click(screen.getByTestId("paypal-card-submit"));
+    await waitFor(() => expect(screen.getByTestId("paypal-card-retry")).toHaveTextContent("Please try again"));
+    expect(screen.queryByText(/Pledge error/)).toBeNull();
+    expect(authorizePledge).not.toHaveBeenCalled();
+    expect(callbacks.billingAddress()).toEqual({ countryCode: "FR", postalCode: "17000" });
   });
   it("closes all rendered fields on unmount", async () => {
     vi.mocked(createPledge).mockResolvedValue(stubPledge({ id: "P", order_id: "O" }));

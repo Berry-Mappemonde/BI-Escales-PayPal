@@ -33,12 +33,61 @@ type ButtonCallbacks = {
   subscriptionPlanId?: string;
 };
 
+type BillingAddress = {
+  addressLine1?: string;
+  addressLine2?: string;
+  adminArea1?: string;
+  adminArea2?: string;
+  postalCode?: string;
+  countryCode?: string;
+};
+
 type CardCallbacks = {
   createOrder?: Callback;
   createVaultSetupToken?: Callback;
   onApprove?: Callback;
+  onCancel?: Callback;
   onError?: Callback;
+  billingAddress?: () => BillingAddress | undefined;
 };
+
+function recoverableCheckoutError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return true;
+  const record = error as { code?: unknown; name?: unknown; isRecoverable?: unknown };
+  const label = `${record.code ?? ""} ${record.name ?? ""}`;
+  if (/cancel/i.test(label)) return false;
+  return record.isRecoverable !== false;
+}
+
+async function startWithFallback(
+  attempts: Array<(payment: Promise<{ orderId: string }>) => Promise<unknown>>,
+  payment: Promise<{ orderId: string }>,
+  orderFailed: () => boolean,
+): Promise<void> {
+  let last: unknown;
+  for (let index = 0; index < attempts.length; index += 1) {
+    let pending: Promise<unknown>;
+    try {
+      // Invoke before the first await so the click gesture can open the first mode.
+      pending = attempts[index](payment);
+      await pending;
+      return;
+    } catch (error) {
+      last = error;
+      if (orderFailed() || index === attempts.length - 1 || !recoverableCheckoutError(error)) throw error;
+    }
+  }
+  throw last;
+}
+
+function cardBillingOptions(config: CardCallbacks): { billingAddress: BillingAddress } | undefined {
+  const billingAddress = config.billingAddress?.();
+  if (!billingAddress) return undefined;
+  const filled = Object.fromEntries(
+    Object.entries(billingAddress).filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0),
+  ) as BillingAddress;
+  return Object.keys(filled).length ? { billingAddress: filled } : undefined;
+}
 
 type V6Instance = Pick<SdkInstance<Components[]>,
   "findEligibleMethods" | "createPayPalOneTimePaymentSession" |
@@ -192,22 +241,36 @@ export function buildV6Adapter(
     ...(walletPay && eligible.getDetails ? walletFactories(sdk, eligible as EligiblePaymentMethodsOutput) : {}),
     ...(sdk.createPayPalMessages ? { Messages: (options: Record<string, unknown>): PayPalSdkButtonInstance => {
       const currencyCode = String(options.currencyCode || "EUR");
-      sdk.createPayPalMessages!({ currencyCode });
+      const amount = String(options.amount || "");
+      const messages = sdk.createPayPalMessages!({ currencyCode, buyerCountry: "FR" }) as {
+        createLearnMore?: (learnMore: { amount?: string; currencyCode?: string; buyerCountry?: string; presentationMode?: "MODAL" }) => { open?: () => Promise<void> };
+      } | undefined;
+      const learnMore = messages?.createLearnMore?.({
+        amount,
+        currencyCode,
+        buyerCountry: "FR",
+        presentationMode: "MODAL",
+      });
       let message: HTMLElement | null = null;
+      let openLearnMore: EventListener | null = null;
       return {
         render: async target => {
           const host = typeof target === "string" ? document.querySelector<HTMLElement>(target) : target;
           if (!host) throw new Error("PayPal message host missing");
           const element = document.createElement("paypal-message");
-          element.amount = String(options.amount || "");
+          element.amount = amount;
           element.currencyCode = currencyCode;
           element.autoBootstrap = true;
           element.setAttribute("auto-bootstrap", "");
+          openLearnMore = () => { void learnMore?.open?.(); };
+          element.addEventListener("click", openLearnMore);
           message = element;
           host.replaceChildren(element);
-
         },
-        close: async () => { message?.remove(); },
+        close: async () => {
+          if (message && openLearnMore) message.removeEventListener("click", openLearnMore);
+          message?.remove();
+        },
       };
     } } : {}),
     Buttons: (opts: Record<string, unknown>): PayPalSdkButtonInstance => {
@@ -253,8 +316,19 @@ export function buildV6Adapter(
       } else {
         const orderSession = sdk.createPayPalOneTimePaymentSession(callbacks);
         session = orderSession;
-        start = () => orderSession.start({ presentationMode: "auto" },
-          Promise.resolve().then(() => config.createOrder?.()).then(value => ({ orderId: token(value) })));
+        start = () => {
+          let orderFailed = false;
+          const payment = Promise.resolve().then(() => config.createOrder?.()).then(value => ({ orderId: token(value) }))
+            .catch((error: unknown) => { orderFailed = true; throw error; });
+          // App switch, then popup, modal, and redirect. Each call stays a
+          // separate object literal so the SDK overload keeps its mode.
+          return startWithFallback([
+            (order) => orderSession.start({ presentationMode: "direct-app-switch", autoRedirect: { enabled: true } }, order),
+            (order) => orderSession.start({ presentationMode: "popup" }, order),
+            (order) => orderSession.start({ presentationMode: "modal" }, order),
+            (order) => orderSession.start({ presentationMode: "redirect", autoRedirect: { enabled: true } }, order),
+          ], payment, () => orderFailed);
+        };
       }
       return {
         render: async (target) => {
@@ -360,9 +434,19 @@ export function buildV6Adapter(
             const token = vault ? await config.createVaultSetupToken?.() : await config.createOrder?.();
             if (!token || typeof token !== "string") throw new Error("PayPal order or vault token missing");
             if (disposed) throw new Error("PayPal card session closed");
-            const result = await session.submit(token);
+            const billing = cardBillingOptions(config);
+            const result = billing ? await session.submit(token, billing) : await session.submit(token);
             if (disposed) throw new Error("PayPal card session closed");
-            if (result.state !== "succeeded") throw new Error(result.data?.message || "Card confirmation was not completed");
+            // A dismissed 3DS challenge is state "canceled": the buyer can try again.
+            if (result.state === "canceled") {
+              await config.onCancel?.();
+              return;
+            }
+            if (result.state !== "succeeded") {
+              const error = new Error(result.data?.message || "Card confirmation was not completed");
+              await config.onError?.(error);
+              throw error;
+            }
             const confirmedToken = "orderId" in result.data ? result.data.orderId : result.data.vaultSetupToken;
             if (confirmedToken !== token) throw new Error("PayPal confirmation token mismatch");
             await config.onApprove?.(result.data);

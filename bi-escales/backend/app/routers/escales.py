@@ -294,6 +294,7 @@ class VaultRegisterIn(BaseModel):
 
 class ClockSettleIn(BaseModel):
     now: Optional[str] = None
+    milestone_id: Optional[str] = Field(None, description="Settle only this milestone; omitted settles all milestones.")
 
 
 class InvoiceCreateIn(BaseModel):
@@ -678,7 +679,7 @@ async def get_clock():
 @router.post("/clock/settle")
 async def post_clock_settle(request: Request, payload: ClockSettleIn = ClockSettleIn()):
     """Settle departure pledges. Treasurer key. Uses the simulated clock."""
-    from app.escales.departure_clock import run_departure_clock
+    from app.escales.departure_clock import run_departure_clock, run_departure_clock_for_milestone
 
     _require_treasurer(request)
     settle_at = None
@@ -692,7 +693,11 @@ async def post_clock_settle(request: Request, payload: ClockSettleIn = ClockSett
     body = _clock_body()
     if settle_at is not None:
         body["now"] = settle_at.replace(microsecond=0).isoformat()
-    body["settled"] = await run_departure_clock(_paypal(), now=settle_at)
+    milestone_id = (payload.milestone_id or "").strip()
+    if milestone_id:
+        body["settled"] = await run_departure_clock_for_milestone(_paypal(), milestone_id, now=settle_at)
+    else:
+        body["settled"] = await run_departure_clock(_paypal(), now=settle_at)
     return body
 
 

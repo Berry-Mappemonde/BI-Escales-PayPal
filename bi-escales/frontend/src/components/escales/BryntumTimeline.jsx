@@ -228,7 +228,17 @@ export function runTimelineLocaleSyncWithRetries(ctx) {
   };
 }
 
-export default function BryntumTimeline({ events, onSelect, fallback, nameWidth = NAME_WIDTH, maxHeight = MAX_HEIGHT }) {
+const NO_EXTRA_COLUMNS = [];
+
+export default function BryntumTimeline({
+  events,
+  onSelect,
+  fallback,
+  nameWidth = NAME_WIDTH,
+  maxHeight = MAX_HEIGHT,
+  // More text columns beside the stop's name: [{ text, field, width }], the field read from each event.
+  extraColumns = NO_EXTRA_COLUMNS,
+}) {
   const { t, i18n } = useTranslation();
   const [modules, setModules] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -280,7 +290,15 @@ export default function BryntumTimeline({ events, onSelect, fallback, nameWidth 
   }, [modules, theme]);
 
   // One row per stop, in route order: its name on the left, its stay as a bar.
-  const resources = useMemo(() => events.map((event) => ({ id: event.id, name: event.name })), [events]);
+  const resources = useMemo(
+    () =>
+      events.map((event) => ({
+        id: event.id,
+        name: event.name,
+        ...Object.fromEntries(extraColumns.map((column) => [column.field, event[column.field] ?? ""])),
+      })),
+    [events, extraColumns],
+  );
 
   const timelineEvents = useMemo(
     () =>
@@ -320,8 +338,11 @@ export default function BryntumTimeline({ events, onSelect, fallback, nameWidth 
   );
 
   const columns = useMemo(
-    () => [{ text: t("scheduler.heading"), field: "name", width: nameWidth }],
-    [i18n.language, t, nameWidth],
+    () => [
+      { text: t("scheduler.heading"), field: "name", width: nameWidth },
+      ...extraColumns.map((column) => ({ text: column.text, field: column.field, width: column.width })),
+    ],
+    [i18n.language, t, nameWidth, extraColumns],
   );
 
   const bryntumLocaleKey = bryntumLocaleForLanguage(i18n.language);

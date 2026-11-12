@@ -53,7 +53,7 @@ FIXED_PRICE_LABEL = "fixed price"
 FIXED_PRICE_LABEL_FR = "prix fixe"
 FREE_AMOUNT_LABEL = "free amount"
 FREE_AMOUNT_LABEL_FR = "montant libre"
-_FREE_AMOUNT_KINDS = frozenset({"project_pledge", "common_fund"})
+_FREE_AMOUNT_KINDS = frozenset({"project_pledge", "common_fund", "stop_gift"})
 
 
 def simulated_price_label(lang: str) -> str:
@@ -121,8 +121,32 @@ _CAPTURE_RULE_Q = re.compile(
     r"|\bquand\b.{0,40}\bargent\b.{0,40}\b(?:pr[ée]lev|encaiss|pris)"
     r"|\bargent\b.{0,50}\b(?:pris|pr[ée]lev|encaiss).{0,40}\bd[ée]part"
     r"|\bmon argent\b.{0,40}\bd[ée]part"
-    r"|\bmy money\b.{0,40}\bdeparture",
+    r"|\bmy money\b.{0,40}\bdeparture"
+    # The panel's own suggested question, and its plain variants: "When am I charged?".
+    r"|\bwhen\b.{0,30}\b(?:am|will|do|would)\s+i\b.{0,30}\b(?:charged|debited|billed|pay)\b"
+    r"|\bquand\b.{0,40}\b(?:d[ée]bit[ée]e?s?|pr[ée]lev[ée]e?s?|factur[ée]e?s?)\b"
+    r"|\bquand\b.{0,30}\b(?:est-ce que je|vais-je|dois-je)\b.{0,20}\bpa(?:ye|ie|yer)",
     re.IGNORECASE | re.DOTALL,
+)
+# "What happens if a stop is cancelled?": a question about the rule, not an order to cancel one.
+_CANCELLED_STOP_Q = re.compile(
+    r"\bwhat\s+happens?\b.{0,60}\bcancel+ed\b"
+    r"|\bif\b.{0,40}\b(?:stop|stopover|leg|voyage)\b.{0,30}\bcancel+ed\b"
+    r"|\bque\s+se\s+passe\b.{0,60}\bannul[ée]e?s?\b"
+    r"|\bsi\b.{0,40}\b(?:escale|[ée]tape|voyage)\b.{0,30}\bannul[ée]e?s?\b",
+    re.IGNORECASE | re.DOTALL,
+)
+CANCELLED_STOP_RULE_EN = (
+    "If a stop is cancelled, the pledges for that stop are voided: the PayPal authorization is "
+    "released, or the saved payment method is never charged. You pay nothing. "
+    "A cabin is voided the same way if its leg is cancelled. "
+    "Project donations and the common fund are charged at once, so a cancelled stop does not change them."
+)
+CANCELLED_STOP_RULE_FR = (
+    "Si une escale est annulée, les promesses de cette escale sont annulées : l'autorisation PayPal "
+    "est libérée, ou le moyen de paiement enregistré n'est jamais débité. Vous ne payez rien. "
+    "Une cabine est annulée de la même façon si son étape est annulée. "
+    "Les dons projet et le fonds commun sont débités immédiatement : une escale annulée ne les change pas."
 )
 _STATUS_Q = re.compile(
     r"\b(?:statuts?|status|états?|etats?)\b"
@@ -317,6 +341,16 @@ CREW_MEMBERSHIP_RULE_FR = (
     "Elle se renouvelle chaque année jusqu'à sa résiliation dans PayPal, "
     "et elle est distincte des promesses d'escale."
 )
+
+
+def _is_cancelled_stop_question(message: str) -> bool:
+    """What a cancelled stop means for a supporter's money. A rule, answered from code."""
+    return bool(_CANCELLED_STOP_Q.search(message or ""))
+
+
+def _cancelled_stop_reply(lang: str) -> str:
+    rule = CANCELLED_STOP_RULE_EN if lang == "en" else CANCELLED_STOP_RULE_FR
+    return _fit_words("", [rule, _signature(lang)])
 
 
 def _is_membership_question(message: str) -> bool:
@@ -3145,7 +3179,8 @@ async def _chat(
                 "fund": None,
                 "paypal_tools": _paypal_tools_payload(reader),
             }
-    if not _message_prices_a_pledge(text):
+    # "Quand serai-je prélevé ?" asks about money, not about an arrival time.
+    if not _message_prices_a_pledge(text) and not _is_capture_rule_question(text):
         voyage = voyage_reply(text, lang)
         if voyage:
             return {
@@ -3161,6 +3196,15 @@ async def _chat(
     if not _message_prices_a_pledge(text) and _is_membership_question(text):
         return {
             "reply": _membership_reply(lang),
+            "suggested_pledge": None,
+            "cart": None,
+            "model_source": _rules_source(),
+            "fund": None,
+            "rule_by_design": True,
+        }
+    if not _message_prices_a_pledge(text) and _is_cancelled_stop_question(text):
+        return {
+            "reply": _cancelled_stop_reply(lang),
             "suggested_pledge": None,
             "cart": None,
             "model_source": _rules_source(),

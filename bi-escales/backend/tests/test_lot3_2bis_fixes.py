@@ -191,9 +191,7 @@ def test_n36_public_common_fund_route(api):
         "milestone_id": "",
         "kind": "common_fund",
     })
-    assert client.post(
-        f"/api/escales/pledges/{boat['id']}/capture", headers=ADMIN
-    ).status_code == 200
+    assert boat["status"] == "captured"
     public = client.get("/api/escales/common-fund/fund").json()
     assert public["income_eur"] == "12.00"
     assert public["balance_eur"] == "12.00"
@@ -210,7 +208,6 @@ async def _captured_common_fund(spy, amount, key):
         client_key=key,
     )
     await authorize_pledge(pledge["_id"], spy)
-    await capture_pledge(pledge["_id"], spy)
     return pledge
 
 

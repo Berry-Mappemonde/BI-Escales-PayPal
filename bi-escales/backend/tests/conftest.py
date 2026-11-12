@@ -28,6 +28,12 @@ _LLM_ENV_KEYS = (
 
 
 @pytest.fixture(autouse=True)
+def _default_paypal_sandbox(monkeypatch):
+    """Payment tests explicitly select sandbox; individual guard tests may override it."""
+    monkeypatch.setenv("PAYPAL_ENV", "sandbox")
+
+
+@pytest.fixture(autouse=True)
 def _default_escales_simulated_clock(monkeypatch):
     """Pin the voyage clock unless a test sets ESCALES_CLOCK_NOW or clears it."""
     monkeypatch.setenv("ESCALES_CLOCK_NOW", "2026-11-19T08:00:00Z")

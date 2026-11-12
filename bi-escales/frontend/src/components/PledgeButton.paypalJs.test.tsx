@@ -26,6 +26,7 @@ vi.mock("../paypal/paypalSdk", async (load) => ({ ...(await load<object>()), loa
 vi.mock("../paypal/v6/paypalSdkV6", async (load) => ({ ...(await load<object>()), loadPayPalSdk: vi.fn() }));
 
 vi.mock("./PayPalWalletPayBlockV6", () => ({ PayPalWalletPayBlockV6: () => <div data-testid="wallet-capture-entry" /> }));
+vi.mock("./PayPalCardFieldsBlock", () => ({ PayPalCardFieldsBlock: () => <div data-testid="card-fields-capture" /> }));
 
 type Callbacks = Record<string, (...args: never[]) => unknown> & { style?: unknown; offerPayLater?: boolean };
 const seen: { v5: Callbacks[]; v6: Callbacks[] } = { v5: [], v6: [] };
@@ -64,6 +65,24 @@ describe("PledgeButton and features.paypal_js_v6", () => {
     expect(await screen.findByTestId("wallet-capture-entry")).toBeInTheDocument();
     await waitFor(() => expect(loadV6).toHaveBeenCalled());
     expect(vi.mocked(loadV6).mock.calls[0][2]).toBe("capture");
+  });
+
+  it.each([false, true])("common fund uses CAPTURE on v6=%s without Vault", async (v6) => {
+    notePayPalJsFeatures({ paypal_js_v6: v6 });
+    render(<PledgeButton values={{ ...values, kind: "common_fund", milestone_id: "", target_id: "fonds-commun" }} />);
+    const loader = v6 ? loadV6 : loadV5;
+    await waitFor(() => expect(loader).toHaveBeenCalled());
+    expect(vi.mocked(loader).mock.calls[0][2]).toBe("capture");
+    await waitFor(() => expect(v6 ? seen.v6 : seen.v5).toHaveLength(1));
+    expect((v6 ? seen.v6 : seen.v5)[0]).toHaveProperty("createOrder");
+    expect((v6 ? seen.v6 : seen.v5)[0]).not.toHaveProperty("createVaultSetupToken");
+  });
+
+  it.each([false, true])("offers Card Fields for project capture on v6=%s", async (v6) => {
+    notePayPalJsFeatures({ paypal_js_v6: v6 });
+    vi.mocked(fetchFeatures).mockResolvedValue({ card_fields: true });
+    render(<PledgeButton values={{ ...values, kind: "project_pledge", milestone_id: "", target_id: "projet-ecole" }} />);
+    expect(await screen.findByTestId("card-fields-capture")).toBeInTheDocument();
   });
 
   describe("flag off", () => {

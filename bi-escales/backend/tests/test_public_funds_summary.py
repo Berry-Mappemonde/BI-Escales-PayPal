@@ -105,7 +105,7 @@ def test_project_donations_and_the_common_fund(api):
     for key, amount in (("pub-p1", "25.00"), ("pub-p2", "10.00")):
         _ready(api, key, {"amount_eur": amount, "description": "don", "milestone_id": "", "kind": "project_pledge", "target_id": "projet-ecole"})
     _created, boat = _ready(api, "pub-fund", {"amount_eur": "12.00", "description": "fonds commun", "milestone_id": "", "kind": "common_fund"})
-    assert api.post(f"/api/escales/pledges/{boat['id']}/capture", headers=ADMIN).status_code == 200
+    assert boat["status"] == "captured"
     body = api.get(URL).json()
     assert body["projects"] == [
         {"project_id": "projet-ecole", "amount_eur": "35.00", "donation_count": 2, "refunded_eur": "0.00"},

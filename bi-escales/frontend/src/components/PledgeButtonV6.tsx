@@ -72,7 +72,7 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
   const [pledgeMode, setPledgeMode] = useState<{
     milestoneId: string;
     kind: string | undefined;
-    paymentMode: "AUTHORIZE" | "VAULT";
+    paymentMode: "AUTHORIZE" | "VAULT" | "CAPTURE";
   } | null>(null);
   const [cardFieldsEnabled, setCardFieldsEnabled] = useState(false);
   const [walletPayEnabled, setWalletPayEnabled] = useState(false);
@@ -81,10 +81,12 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
   const sdkHost = useRef<HTMLDivElement | null>(null);
   const activePledgeIdRef = useRef<string | null>(null);
   const vault = created ? isVaultPledge(created) : false;
-  const isProjectPledge = (values.kind || "") === "project_pledge";
+  const isProjectPledge = values.kind === "project_pledge";
+  const isCommonFund = values.kind === "common_fund";
+  const isImmediateCapture = isProjectPledge || isCommonFund;
   const isCabinLeg = (values.kind || "") === "cabin_leg";
   const [cabinLegId, setCabinLegId] = useState("");
-  const sdkIntent = isProjectPledge ? "capture" : "authorize";
+  const sdkIntent = isImmediateCapture ? "capture" : "authorize";
   const sdkCurrency =
     isProjectPledge && values.currency?.trim()
       ? values.currency.trim().toUpperCase()
@@ -107,14 +109,16 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
     pledgeMode?.milestoneId === effectiveMilestoneId && pledgeMode.kind === values.kind;
   // v6 asks eligibility for a payment flow (and, one-time, an amount) instead of loading a "vault" SDK URL.
   const sdkPaymentFlow =
-    !isProjectPledge && modeMatchesValues && pledgeMode?.paymentMode === "VAULT"
+    !isImmediateCapture && modeMatchesValues && pledgeMode?.paymentMode === "VAULT"
       ? "VAULT_WITHOUT_PAYMENT"
       : "ONE_TIME_PAYMENT";
   const shouldRenderSmartButtons =
-    isProjectPledge
+    isImmediateCapture
     || (modeMatchesValues && pledgeMode.paymentMode === "AUTHORIZE")
     || (isCabinLeg && modeMatchesValues && pledgeMode.paymentMode === "VAULT");
-  const intentLabel = isProjectPledge
+  const intentLabel = isCommonFund
+    ? t("pledge.intentCommonFund")
+    : isProjectPledge
     ? t("pledge.intentProject")
     : modeMatchesValues
       ? t(pledgeMode.paymentMode === "VAULT" ? "pledge.intentVault" : "pledge.intent")
@@ -192,7 +196,7 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
   useEffect(() => {
     let cancelled = false;
     setPledgeMode(null);
-    if (isProjectPledge) {
+    if (isImmediateCapture) {
       return () => {
         cancelled = true;
       };
@@ -218,7 +222,7 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
     return () => {
       cancelled = true;
     };
-  }, [isProjectPledge, isCabinLeg, effectiveMilestoneId, values.kind]);
+  }, [isImmediateCapture, isCabinLeg, effectiveMilestoneId, values.kind]);
 
   useEffect(() => {
     if (!created?.approve_link || !vault || smartButtonsReady) return;
@@ -277,8 +281,8 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
       setCreated(pledge);
       if (isVaultPledge(pledge)) {
         setStatus(t("pledge.vaultRedirect"));
-      } else if (isProjectPledge) {
-        setStatus(t("pledge.returnPendingProject"));
+      } else if (isImmediateCapture) {
+        setStatus(t(isCommonFund ? "pledge.returnPendingCommonFund" : "pledge.returnPendingProject"));
       } else {
         setStatus(t("pledge.returnPending"));
       }
@@ -480,6 +484,8 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
     shouldRenderSmartButtons,
     smartButtonsBlocked,
     isProjectPledge,
+    isImmediateCapture,
+    isCommonFund,
     isCabinLeg,
     modeMatchesValues,
     pledgeMode?.paymentMode,
@@ -563,7 +569,7 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
         </button>
       ) : null}
       <div ref={buttonsHost} data-testid="paypal-smart-buttons" />
-      {walletPayEnabled && (isProjectPledge || (modeMatchesValues && pledgeMode?.paymentMode !== "VAULT")) ? (
+      {walletPayEnabled && (isProjectPledge || isCommonFund || (modeMatchesValues && pledgeMode?.paymentMode !== "VAULT")) ? (
         <PayPalWalletPayBlockV6
           values={effectiveValues}
           appLang={appLang}
@@ -574,7 +580,7 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
           onAuthorized={onAuthorized}
         />
       ) : null}
-      {cardFieldsEnabled && !isProjectPledge ? (
+      {cardFieldsEnabled ? (
         <PayPalCardFieldsBlock
           values={effectiveValues}
           appLang={appLang}

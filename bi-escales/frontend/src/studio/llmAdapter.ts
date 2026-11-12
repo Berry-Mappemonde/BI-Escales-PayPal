@@ -1,63 +1,69 @@
-import type { AgAiEvent, AgAiOutputItem, AgLlmAdapter, AgLlmResponse } from "ag-studio";
+import type { AgLlmRequest, AgLlmResponse } from "ag-studio";
+import { totalFields, type LedgerTotals, type TotalField } from "./dashboardLedger";
+import { studioLanguage } from "./locale";
 
-/**
- * Posts Studio's own turn payload to a proxy. The proxy holds the provider key.
- * The browser sends no secret. The proxy returns an AgLlmResponse JSON body.
- */
-export function proxyLlmAdapter(endpoint: string): AgLlmAdapter {
-  return {
-    executeTurn(request, options) {
-      const complete = (async (): Promise<AgLlmResponse> => {
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: { "content-type": "application/json", accept: "application/json" },
-          body: JSON.stringify({ request }),
-          signal: options?.signal,
-        });
-        if (!response.ok) {
-          return {
-            id: "proxy-error",
-            createdAt: Date.now(),
-            status: "failed",
-            output: [],
-            error: { code: String(response.status), message: `LLM proxy HTTP ${response.status}` },
-          };
-        }
-        return (await response.json()) as AgLlmResponse;
-      })();
-      const stream = (async function* (): AsyncGenerator<AgAiEvent> {
-        yield* eventsFromLlmResponse(await complete);
-      })();
-      return { stream, complete };
-    },
+export interface LedgerSummary {
+  currency: string;
+  totals: LedgerTotals;
+}
+
+const topicPatterns: Record<TotalField, RegExp> = {
+  captured: /captur|encaiss|collect|\bnet\b/i,
+  authorized: /authori[sz]|autoris|\bheld\b/i,
+  vaulted: /vault|\bsaved\b|enregistr/i,
+  voided: /void|cancel|releas|annul|libér/i,
+  refunded: /refund|rembours/i,
+};
+
+/** Construct the proxy request from ledger totals and local topic matches only. */
+export async function askLedgerModel(
+  endpoint: string,
+  { currency, totals }: LedgerSummary,
+  question: string,
+  language: string,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
+  const focus = totalFields.filter((field) => topicPatterns[field].test(question));
+  const amounts = Object.fromEntries(totalFields.map((field) => {
+    const amount = totals[field];
+    return [field, amount !== null && Number.isFinite(amount) ? amount / 100 : null];
+  }));
+  const request: AgLlmRequest = {
+    instructions: [
+      `Reply in ${studioLanguage(language) === "fr" ? "French" : "English"} as a read-only treasurer assistant.`,
+      "Summarize the ledger totals provided. If focus contains statuses, emphasize those totals.",
+      "Captured means net after refunds. Authorized, vaulted, and voided amounts are outside captured funds.",
+      "All amounts are in the stated currency, and null means unavailable. Do not infer individual transactions.",
+    ].join(" "),
+    input: [{
+      id: "ledger-summary",
+      kind: "input",
+      type: "message",
+      role: "user",
+      status: "completed",
+      content: [{
+        type: "text",
+        text: JSON.stringify({ currency: /^[A-Z]{3}$/.test(currency) ? currency : null, focus, amounts }),
+      }],
+    }],
+    toolChoice: "none",
+    responseFormat: { type: "text" },
   };
-}
 
-export function* eventsFromLlmResponse(body: AgLlmResponse): Generator<AgAiEvent> {
-  if (body.error) {
-    const messageId = `${body.id}-error`;
-    yield { type: "TEXT_MESSAGE_START", messageId, role: "assistant" };
-    yield { type: "TEXT_MESSAGE_CONTENT", messageId, delta: body.error.message };
-    yield { type: "TEXT_MESSAGE_END", messageId };
-  }
-  for (const item of body.output ?? []) {
-    yield* eventsFromOutputItem(item);
-  }
-}
-
-function* eventsFromOutputItem(item: AgAiOutputItem): Generator<AgAiEvent> {
-  if (item.type === "message") {
-    const text = item.content
-      .map((part) => (part.type === "text" ? part.text : part.refusal))
-      .join("");
-    yield { type: "TEXT_MESSAGE_START", messageId: item.id, role: "assistant" };
-    yield { type: "TEXT_MESSAGE_CONTENT", messageId: item.id, delta: text };
-    yield { type: "TEXT_MESSAGE_END", messageId: item.id };
-    return;
-  }
-  if (item.type === "function_call") {
-    yield { type: "TOOL_CALL_START", toolCallId: item.callId, toolCallName: item.name };
-    yield { type: "TOOL_CALL_ARGS", toolCallId: item.callId, delta: item.arguments };
-    yield { type: "TOOL_CALL_END", toolCallId: item.callId };
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ request }),
+      signal,
+    });
+    if (!response.ok) return undefined;
+    const result = (await response.json()) as AgLlmResponse;
+    if (result.status !== "completed" || result.error) return undefined;
+    return result.output.flatMap((item) => item.type === "message"
+      ? item.content.flatMap((part) => part.type === "text" ? [part.text] : [])
+      : []).join("\n").trim() || undefined;
+  } catch {
+    return undefined;
   }
 }

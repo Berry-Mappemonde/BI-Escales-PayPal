@@ -28,6 +28,7 @@ import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { resolveBoatStop } from "./voyage/boatStop.js";
 import { nextOpenStop } from "./voyage/nextStop.js";
+import { treasurerStopOverview } from "./voyage/treasurerStopOverview.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
 import { isNarrowScreen } from "./utils/narrowScreen";
@@ -101,6 +102,8 @@ export default function App() {
 
   const [routeFc, setRouteFc] = useState<unknown>(null);
   const [projects, setProjects] = useState<{ features?: unknown[] }>({ features: [] });
+  // True until the projects file has answered or failed: "0 projects" is not yet known.
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [devT0, setDevT0] = useState("");
   const [now, setNow] = useState(() => new Date());
   const [stop, setStop] = useState<VoyageStop | null>(null);
@@ -214,6 +217,7 @@ export default function App() {
         if (cancelled) return;
         // Show the base projects at once; the gear projects join them when they arrive.
         setProjects(base as { features?: unknown[] });
+        setProjectsLoading(false);
         void fetchGearProjects().then((gear) => {
           if (cancelled) return;
           const baseFeatures = Array.isArray((base as { features?: unknown[] })?.features)
@@ -237,7 +241,11 @@ export default function App() {
           if (!cancelled) setProjects(base as { features?: unknown[] });
         });
       })
-      .catch(() => setProjects({ features: [] }));
+      .catch(() => {
+        if (cancelled) return;
+        setProjects({ features: [] });
+        setProjectsLoading(false);
+      });
     void fetchFeatures()
       .then((flags) => {
         // Tells the PayPal buttons which browser SDK to use (v5 unless paypal_js_v6 is on).
@@ -794,6 +802,12 @@ export default function App() {
     return out;
   }, [projects]);
 
+  // The treasurer's calendar: has the boat reached each stop, and which held pledges wait there.
+  const stopOverview = useMemo(
+    () => (schedule ? treasurerStopOverview(schedule, apiNow ?? now.toISOString(), milestones, pledges) : null),
+    [schedule, apiNow, now, milestones, pledges],
+  );
+
   // The treasurer reads stop names, not milestone ids; the voyage already has them.
   const stopNames = useMemo(() => stopNamesFromStops(voyage?.stops), [voyage?.stops]);
 
@@ -1004,6 +1018,7 @@ export default function App() {
             />
             <ProjectList
               projects={projects}
+              loading={projectsLoading}
               featureScope="projects"
               selectedProjectId={selectedProjectId}
               onSelectProject={setSelectedProjectId}
@@ -1173,6 +1188,7 @@ export default function App() {
                 showCabins={false}
                 // Full names and every row where the page is wide; the compact timeline on a phone.
                 wide={!isNarrowScreen()}
+                stopOverview={stopOverview}
                 onSelectEscale={undefined}
                 onAuthorized={undefined}
               />

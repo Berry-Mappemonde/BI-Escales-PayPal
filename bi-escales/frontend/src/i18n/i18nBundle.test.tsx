@@ -32,6 +32,7 @@ const pledgeValues = {
 
 const FR_LEAKS = [
   /Pay Only If We Sail/i,
+  /Payez seulement si nous partons/i,
   /\bAUTHORIZE\b/,
   /\bCAPTURE\b/,
   /\bVault\b/,

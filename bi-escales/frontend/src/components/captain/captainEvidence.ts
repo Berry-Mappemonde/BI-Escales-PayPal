@@ -1,6 +1,6 @@
-import type { CaptainProposal, PublicPledge, ScheduleResponse } from "../../api/types";
+import type { CaptainProposal, LogbookEntry, PublicPledge, ScheduleResponse } from "../../api/types";
 
-export type SourceKind = "schedule" | "pending_authorizations" | "authorizations.get" | "orders.get";
+export type SourceKind = "schedule" | "logbook" | "pending_authorizations" | "authorizations.get" | "orders.get";
 
 export interface CaptainSource {
   n: number;
@@ -9,7 +9,15 @@ export interface CaptainSource {
   ids: string[];
 }
 
-export type ClaimKey = "arrival" | "holds" | "validTo" | "expired" | "authorizationsRead" | "ordersRead";
+export type ClaimKey =
+  | "arrival"
+  | "logbook"
+  | "logbookEmpty"
+  | "holds"
+  | "validTo"
+  | "expired"
+  | "authorizationsRead"
+  | "ordersRead";
 
 export interface CaptainClaim {
   key: ClaimKey;
@@ -18,6 +26,8 @@ export interface CaptainClaim {
   iso?: string;
   count?: number;
   totalEur?: number;
+  /** The logbook entry a "logbook" claim quotes. */
+  entry?: LogbookEntry;
 }
 
 export interface StopOnSchedule {
@@ -70,6 +80,8 @@ export function buildEvidence(
   review: CaptainProposal | null,
   arrivalIso: string | undefined,
   now: Date = new Date(),
+  /** The stop's logbook from the schedule; undefined when the schedule carries no logbook. */
+  logbook?: LogbookEntry[],
 ): { claims: CaptainClaim[]; sources: CaptainSource[] } {
   const claims: CaptainClaim[] = [];
   const sources: CaptainSource[] = [];
@@ -81,6 +93,21 @@ export function buildEvidence(
 
   if (arrivalIso) {
     claims.push({ key: "arrival", cite: addSource("schedule"), iso: arrivalIso });
+  }
+
+  // The logbook as it stood at the clock the Captain reviewed with: an entry the
+  // voyage has not reached yet is not evidence. Without that clock, no claim.
+  const reviewedAt = Date.parse(String(review?.at ?? ""));
+  if (logbook && Number.isFinite(reviewedAt)) {
+    const reached = logbook
+      .filter((entry) => {
+        const at = Date.parse(String(entry?.t ?? ""));
+        return Number.isFinite(at) && at <= reviewedAt;
+      })
+      .sort((a, b) => Date.parse(String(a.t)) - Date.parse(String(b.t)));
+    const latest = reached[reached.length - 1];
+    const cite = addSource("logbook");
+    claims.push(latest ? { key: "logbook", cite, iso: String(latest.t), entry: latest } : { key: "logbookEmpty", cite });
   }
 
   const pending = review?.pending_authorizations ?? [];

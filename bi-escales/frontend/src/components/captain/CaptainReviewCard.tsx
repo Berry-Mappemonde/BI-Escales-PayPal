@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { CaptainProposal, PublicPledge } from "../../api/types";
+import type { CaptainProposal, LogbookEntry, PublicPledge } from "../../api/types";
 import {
   buildEvidence,
   sumEur,
@@ -18,6 +18,8 @@ export interface CaptainReviewCardProps {
   milestoneId: string;
   stopName?: string;
   arrivalIso?: string;
+  /** The stop's logbook from the schedule; undefined when the schedule carries none. */
+  logbook?: LogbookEntry[];
   /** null once the review failed, undefined while it loads. */
   review: CaptainProposal | null | undefined;
   /** Holds Override would release, from the live queue. */
@@ -51,6 +53,7 @@ export function CaptainReviewCard({
   milestoneId,
   stopName,
   arrivalIso,
+  logbook,
   review,
   holds,
   canMoveMoney,
@@ -68,7 +71,7 @@ export function CaptainReviewCard({
 
   const phase = release?.phase;
   const decisionRef = useFocusFirstButton<HTMLElement>(`${phase}:${confirming}:${approved}`);
-  const { claims, sources } = buildEvidence(review ?? null, arrivalIso);
+  const { claims, sources } = buildEvidence(review ?? null, arrivalIso, undefined, logbook);
 
   const total = format.money(sumEur(holds.map((pledge) => pledge.amount_eur)));
 
@@ -77,12 +80,22 @@ export function CaptainReviewCard({
   }, [phase]);
 
   const sourceName = (source: CaptainSource) =>
-    source.kind === "schedule" ? t("captainCard.sourceSchedule") : source.kind;
+    source.kind === "schedule"
+      ? t("captainCard.sourceSchedule")
+      : source.kind === "logbook"
+        ? t("captainCard.sourceLogbook")
+        : source.kind;
 
   const claimText = (claim: CaptainClaim) => {
     switch (claim.key) {
       case "arrival":
         return t("captainCard.claimArrival", { date: format.day(claim.iso ?? "") });
+      case "logbook": {
+        const label = (i18n.language === "fr" ? claim.entry?.label_fr : claim.entry?.label_en) || "";
+        return t("captainCard.claimLogbook", { date: format.day(claim.iso ?? ""), entry: label });
+      }
+      case "logbookEmpty":
+        return t("captainCard.claimLogbookEmpty");
       case "holds":
         return t("captainCard.claimHolds", { count: claim.count, total: format.money(claim.totalEur ?? 0) });
       case "validTo":
@@ -156,7 +169,8 @@ export function CaptainReviewCard({
       ) : null}
 
       {claims.length ? (
-        <section className="captain-section">
+        <section className="captain-section" data-testid={`captain-basis-${milestoneId}`}>
+          <p className="captain-label">{t("captainCard.basis")}</p>
           <ul className="captain-claims">
             {claims.map((claim) => {
               const source = sources[claim.cite - 1];
@@ -193,7 +207,7 @@ export function CaptainReviewCard({
                 <span className="captain-cite-num" aria-hidden="true">
                   {source.n}
                 </span>
-                <span className={source.kind === "schedule" ? undefined : "captain-mono"}>{sourceName(source)}</span>
+                <span className={source.kind === "schedule" || source.kind === "logbook" ? undefined : "captain-mono"}>{sourceName(source)}</span>
                 {source.ids.length ? <span className="captain-mono captain-ids">{source.ids.join(", ")}</span> : null}
               </li>
             ))}

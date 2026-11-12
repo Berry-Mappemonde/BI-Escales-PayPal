@@ -14,6 +14,7 @@ import { demoPlay, fetchOwnDemoPledges, type DemoPlay, type DemoPlayAction } fro
 import { DemoOwnPledgeActions } from "./DemoOwnPledgeActions";
 import { CaptainReviewCard } from "./captain/CaptainReviewCard";
 import { releasableHolds, stopOnSchedule } from "./captain/captainEvidence";
+import { logbookEntriesForStop } from "../voyage/journalDisplay.js";
 import { PledgeStatusChip } from "./captain/PledgeStatusChip";
 import { useHoldRelease } from "./captain/useHoldRelease";
 import { milestoneLabel } from "../utils/milestoneLabel";
@@ -301,6 +302,7 @@ export function TreasurerQueue({
                 milestoneId={milestoneId}
                 stopName={label !== milestoneId ? label : stop.name}
                 arrivalIso={stop.arrivalIso}
+                logbook={schedule?.logbook ? logbookEntriesForStop(schedule, milestoneId) : undefined}
                 review={reviews[milestoneId]}
                 holds={releasableHolds(pledges, milestoneId)}
                 canMoveMoney={canMoveMoney}

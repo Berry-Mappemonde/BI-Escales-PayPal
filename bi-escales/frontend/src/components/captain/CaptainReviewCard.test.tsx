@@ -88,7 +88,9 @@ describe("Captain review card", () => {
     it("cites each claim, built only from the review and schedule", async () => {
       await openCard();
       await card().findByText(/Scheduled arrival: 28 Nov/);
-      expect(card().getByRole("button", { name: "Source 1: Schedule" })).toBeInTheDocument();
+      expect(card().getByRole("button", { name: "Source 1: NAVIGUIDE schedule (ETA)" })).toBeInTheDocument();
+      // The claims have a heading of their own, beside the proposal.
+      expect(within(screen.getByTestId(`captain-basis-${STOP}`)).getByText("What the Captain looked at")).toBeInTheDocument();
       expect(card().getByText(/2 holds · €32\.50 total/)).toBeInTheDocument();
       expect(card().getByText(/Valid to 3 Dec/)).toBeInTheDocument();
       expect(card().getAllByRole("button", { name: "Source 2: pending_authorizations" })).toHaveLength(2);
@@ -96,6 +98,64 @@ describe("Captain review card", () => {
       expect(card().getByRole("button", { name: "Source 4: orders.get" })).toBeInTheDocument();
       expect(within(screen.getByTestId(`captain-card-${STOP}`).querySelector(".captain-sources") as HTMLElement).getByText("7AG23904")).toBeInTheDocument();
       expect(within(screen.getByTestId(`captain-card-${STOP}`).querySelector(".captain-sources") as HTMLElement).getByText("ORDER-1")).toBeInTheDocument();
+    });
+
+    describe("logbook", () => {
+      const withLogbook = (at: string | undefined, entries: unknown[] | undefined) => {
+        vi.mocked(captainReview).mockResolvedValue({ ...review, at });
+        vi.mocked(fetchSchedule).mockResolvedValue({
+          export: { escales: [{ milestone_id: STOP, name: "Ajaccio (Corse)", arrival_iso: "2026-11-28T22:02:54.002Z" }] },
+          ...(entries ? { logbook: { [STOP]: entries } } : {}),
+        } as never);
+      };
+      const entries = [
+        { t: "2026-11-26T22:02:54Z", label_en: "Position — underway for Ajaccio", label_fr: "Position — en route vers Ajaccio" },
+        { t: "2026-11-28T22:02:54Z", label_en: "Stopover — arrival at Ajaccio", label_fr: "Escale — arrivée Ajaccio" },
+      ];
+
+      it("quotes the latest logbook entry the review's clock has reached, and cites the logbook", async () => {
+        withLogbook("2026-11-27T08:00:00+00:00", entries);
+        await openCard();
+        await card().findByText(/Logbook, 26 Nov: Position — underway for Ajaccio/);
+        expect(card().queryByText(/arrival at Ajaccio/)).toBeNull();
+        expect(card().getByRole("button", { name: "Source 2: NAVIGUIDE logbook" })).toBeInTheDocument();
+        // The other sources follow, renumbered.
+        expect(card().getAllByRole("button", { name: "Source 3: pending_authorizations" })).toHaveLength(2);
+      });
+
+      it("quotes the arrival entry once the clock has passed it", async () => {
+        withLogbook("2026-11-29T08:00:00+00:00", entries);
+        await openCard();
+        await card().findByText(/Logbook, 28 Nov: Stopover — arrival at Ajaccio/);
+      });
+
+      it("says so when the logbook has no entry for the stop yet", async () => {
+        withLogbook("2026-11-20T08:00:00+00:00", entries);
+        await openCard();
+        await card().findByText("Logbook: no entry for this stop yet");
+        expect(card().getByRole("button", { name: "Source 2: NAVIGUIDE logbook" })).toBeInTheDocument();
+      });
+
+      it("quotes the entry in French", async () => {
+        await i18n.changeLanguage("fr");
+        withLogbook("2026-11-27T08:00:00+00:00", entries);
+        await openCard();
+        await card().findByText(/Journal de bord, 26 nov\. : Position — en route vers Ajaccio/);
+        expect(card().getByRole("button", { name: /^Source 2\s: Journal de bord NAVIGUIDE$/ })).toBeInTheDocument();
+      });
+
+      it("makes no logbook claim without the review's clock or without a logbook", async () => {
+        withLogbook(undefined, entries);
+        await openCard();
+        await card().findByText(/Scheduled arrival: 28 Nov/);
+        expect(card().queryByText(/Logbook/)).toBeNull();
+        cleanup();
+
+        withLogbook("2026-11-27T08:00:00+00:00", undefined);
+        await openCard();
+        await card().findByText(/Scheduled arrival: 28 Nov/);
+        expect(card().queryByText(/Logbook/)).toBeNull();
+      });
     });
 
     it("says PayPal was read, never what it answered", async () => {

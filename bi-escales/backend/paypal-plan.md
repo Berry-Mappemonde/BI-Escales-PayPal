@@ -656,6 +656,8 @@ event loop and preserve per-pledge serialization and idempotency keys. The worke
 owns both the SDK request and retry wait; no blocking join runs on the event loop.
 Onboarding transport calls will receive the same treatment in #266.
 
+Project donation order create, order read and capture (`create_donation_order`, `finalize_donation_capture`) run through `asyncio.to_thread`, same as pledge SDK calls, so a synchronous SDK retry cannot block the event loop.
+
 Keep the optional Captain budget scoped to its client and ContextVar, with normal
 route clients unbudgeted. Add a generated-HTTP-boundary regression proving a
 normal capture retries after another client's budget is exhausted. If a Captain

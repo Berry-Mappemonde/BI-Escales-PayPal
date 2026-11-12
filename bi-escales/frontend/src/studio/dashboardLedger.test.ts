@@ -55,6 +55,29 @@ describe("treasurer dashboard ledger", () => {
     expect(ledgerTotals(rows.filter((row) => row.status === "captured")).captured).toBe(3000);
   });
 
+  it("uses captured after refunds for the Studio Net column and keeps holds and voids in status totals", () => {
+    const rows = ledgerPledges([
+      pledge({ status: "captured" }),
+      pledge({ status: "partially_refunded", refunded_amount_eur: "10.10" }),
+      pledge({ status: "refunded" }),
+      pledge({ status: "authorized" }),
+      pledge({ status: "vaulted" }),
+      pledge({ status: "voided" }),
+    ]);
+    const [pledges, totals] = pledgeStudioData(rows).sources;
+
+    expect(pledges).toMatchObject({ data: [30, 19.9, 0, 0, 0, 0].map((net_eur) => ({ net_eur })) });
+    expect(totals).toMatchObject({ data: [
+      { status: "captured", amount: 49.9 },
+      { status: "authorized", amount: 30 },
+      { status: "vaulted", amount: 30 },
+      { status: "voided", amount: 30 },
+      { status: "refunded", amount: 40.1 },
+    ] });
+    const [incomplete] = pledgeStudioData(ledgerPledges([pledge({ status: "partially_refunded" })])).sources;
+    expect(incomplete).toMatchObject({ data: [{ net_eur: null }] });
+  });
+
   it("projects only allowed fields before data reaches the dashboard or Studio", () => {
     const rows = ledgerPledges([pledge({
       contributor: "Private Supporter", description: "private@example.test",

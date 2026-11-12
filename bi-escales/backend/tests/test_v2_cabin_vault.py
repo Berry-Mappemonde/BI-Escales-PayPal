@@ -1,4 +1,4 @@
-"""Task V-2: cabin pledges use VAULT when leg departure is >29 days away (mock PayPal only)."""
+"""Task V-2: cabin pledges use VAULT when leg departure is >695 hours away (mock PayPal only)."""
 from __future__ import annotations
 
 import asyncio
@@ -81,7 +81,7 @@ def _mode_get(leg_id: str) -> str:
     return response.json()["payment_mode"]
 
 
-@pytest.mark.parametrize("days_before,expected", [(28, "AUTHORIZE"), (29, "AUTHORIZE"), (30, "VAULT")])
+@pytest.mark.parametrize("days_before,expected", [(28, "AUTHORIZE"), (29, "VAULT"), (30, "VAULT")])
 def test_cabin_mode_preview_matches_create_pledge(days_before, expected, monkeypatch):
     async def body():
         await sync_leg_shells()
@@ -205,7 +205,7 @@ def test_near_cabin_authorize_no_vault_path(monkeypatch):
         departure = _leg_departure()
         monkeypatch.setenv(
             "ESCALES_CLOCK_NOW",
-            (departure - dt.timedelta(days=AUTH_MAX_DAYS)).isoformat(),
+            (departure - dt.timedelta(hours=695)).isoformat(),
         )
         spy = VaultSpy()
         created = await create_pledge(
@@ -233,7 +233,7 @@ def test_cabin_auth_expiring_before_departure_surfaces_in_review(monkeypatch):
         departure = _leg_departure()
         monkeypatch.setenv(
             "ESCALES_CLOCK_NOW",
-            (departure - dt.timedelta(days=AUTH_MAX_DAYS)).isoformat(),
+            (departure - dt.timedelta(hours=695)).isoformat(),
         )
         spy = VaultSpy()
         created = await create_pledge(

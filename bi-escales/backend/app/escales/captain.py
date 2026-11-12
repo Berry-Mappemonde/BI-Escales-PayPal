@@ -53,7 +53,7 @@ FIXED_PRICE_LABEL = "fixed price"
 FIXED_PRICE_LABEL_FR = "prix fixe"
 FREE_AMOUNT_LABEL = "free amount"
 FREE_AMOUNT_LABEL_FR = "montant libre"
-_FREE_AMOUNT_KINDS = frozenset({"project_pledge", "common_fund"})
+_FREE_AMOUNT_KINDS = frozenset({"project_pledge", "common_fund", "stop_gift"})
 
 
 def simulated_price_label(lang: str) -> str:

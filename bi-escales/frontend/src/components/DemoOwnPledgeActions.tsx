@@ -16,6 +16,7 @@ export interface DemoOwnPledgeActionsProps {
 
 /** Where the pledge stands, as one line. */
 function stepKey(play: DemoPlay): string | null {
+  if (play.status === "pending") return "pledge.cardConfirmPendingNext";
   if (play.actions.includes("simulate_arrival")) return "treasurer.demoPlay.stepHeld";
   if (play.actions.includes("approve")) return "treasurer.demoPlay.stepArrived";
   if (play.actions.includes("capture")) return "treasurer.demoPlay.stepApproved";
@@ -40,7 +41,7 @@ export function DemoOwnPledgeActions({ play, busy, onRun }: DemoOwnPledgeActions
             disabled={busy}
             onClick={() => onRun(action)}
           >
-            {t(`treasurer.demoPlay.actions.${action}`)}
+            {t(play.status === "pending" && action === "capture" ? "treasurer.checkPaymentStatus" : `treasurer.demoPlay.actions.${action}`)}
           </button>
         ))}
       </div>

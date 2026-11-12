@@ -493,3 +493,9 @@ it("creates a fresh order after the card SDK reports an instrument decline", asy
   expect(authorizePledge).toHaveBeenCalledTimes(1);
   expect(authorizePledge).toHaveBeenCalledWith("NEW-SDK");
 });
+
+
+it.each([["en", "Card verification was not completed"], ["fr", "La vérification de la carte n’a pas abouti"]])("translates missing card authentication evidence in %s", async (lang, text) => {
+  await i18n.changeLanguage(lang);
+  expect(formatCardFieldError("card authentication incomplete or declined; retry or choose another payment method", i18n.t)).toContain(text);
+});

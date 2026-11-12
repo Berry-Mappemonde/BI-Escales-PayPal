@@ -18,6 +18,7 @@ type CardFieldsFactory = (config: Record<string, unknown>) => {
 };
 
 const CARD_ERROR_I18N: Record<string, string> = {
+  "CARD AUTHENTICATION INCOMPLETE OR DECLINED": "pledge.cardErrorAuthentication",
   INVALID_EXPIRY: "pledge.cardErrorInvalidExpiry",
   INVALID_CVV: "pledge.cardErrorInvalidCvv",
   INVALID_NUMBER: "pledge.cardErrorInvalidNumber",
@@ -39,8 +40,8 @@ function isCabinLegKind(kind?: string): boolean {
 }
 
 function isExplicitCardDecline(error: unknown): boolean {
-  if (error instanceof Error) return /\b(INSTRUMENT_DECLINED|CARD_DECLINED)\b/.test(error.message);
-  if (typeof error === "string") return /\b(INSTRUMENT_DECLINED|CARD_DECLINED)\b/.test(error);
+  if (error instanceof Error) return /\b(INSTRUMENT_DECLINED|CARD_DECLINED)\b|card authentication incomplete or declined/i.test(error.message);
+  if (typeof error === "string") return /\b(INSTRUMENT_DECLINED|CARD_DECLINED)\b|card authentication incomplete or declined/i.test(error);
   if (!error || typeof error !== "object") return false;
   const body = error as { details?: { issue?: string }[]; code?: string };
   return [body.code, ...(Array.isArray(body.details) ? body.details.map(detail => detail.issue) : [])]

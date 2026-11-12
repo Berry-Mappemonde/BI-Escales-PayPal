@@ -150,8 +150,8 @@ def test_card_read_keeps_state_when_projection_omits_status(monkeypatch):
     _require_card_capture_approval(order)
 
 
-@pytest.mark.parametrize("auth,allowed", [(None,True),({},False),({"liability_shift":"UNKNOWN"},False),({"liability_shift":"NO","three_d_secure":{"enrollment_status":"Y","authentication_status":"N"}},False)])
-def test_approved_card_without_requested_sca_differs_from_failed_sca(auth,allowed):
+@pytest.mark.parametrize("auth,allowed", [(None,False),({},False),({"liability_shift":"UNKNOWN"},False),({"liability_shift":"NO","three_d_secure":{"enrollment_status":"Y","authentication_status":"N"}},False)])
+def test_approved_card_requires_authentication_evidence(auth,allowed):
     from app.escales.pledges import _require_card_capture_approval
     card={"last_digits":"9038","brand":"VISA"}
     if auth is not None:card['authentication_result']=auth
@@ -166,7 +166,7 @@ def test_pending_card_capture_reconciles_existing_capture_and_serializes_double_
     class CardSpy(Spy):
         def get_card_order(self, order_id):
             return {"id": order_id, "status": "APPROVED", "payment_source": {
-                "card": {"brand": "VISA", "last_digits": "1111"}}}
+                "card": {"brand": "VISA", "last_digits": "1111", "authentication_result": {"liability_shift": "POSSIBLE", "three_d_secure": {"enrollment_status": "Y", "authentication_status": "Y"}}}}}
 
         def capture_order(self, order_id, **kwargs):
             self.calls.append(("orders.capture", order_id))

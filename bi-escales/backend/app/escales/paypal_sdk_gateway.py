@@ -18,6 +18,7 @@ from __future__ import annotations
 import datetime as dt
 import importlib
 import logging
+from collections.abc import Callable, MutableMapping
 import math
 import os
 import random
@@ -48,6 +49,9 @@ _TIMEOUT_SECONDS = 30
 _MAX_RETRIES = 0
 _RESOURCE_ATTEMPTS = 3
 _CALL_BUDGET: ContextVar[Any] = ContextVar("paypal_call_budget", default=None)
+_PASSTHROUGH: ContextVar[dict[str, str] | None] = ContextVar(
+    "paypal_sdk_passthrough_headers", default=None,
+)
 
 _CLIENT: Any = None
 _CLIENT_LOCK = threading.Lock()
@@ -81,6 +85,56 @@ def _require_sandbox() -> None:
         raise RuntimeError(
             "PayPal SDK gateway refuses to build unless PAYPAL_ENV=sandbox"
         )
+
+
+class _PassthroughHeaders:
+    """Add headers the generated method cannot set, then call the test catcher.
+
+    SDK 2.4.0 omits PayPal-Mock-Response on reauthorize and setup-token creation,
+    and delete_payment_token accepts only the token id. The context var is empty
+    for every other call, so those requests are unchanged. OAuth is left alone.
+    """
+
+    def __init__(self, inner: Any = None) -> None:
+        self._inner = inner
+
+    def on_before_request(self, request: Any) -> None:
+        extra = _PASSTHROUGH.get()
+        url = str(getattr(request, "query_url", "") or "")
+        headers = getattr(request, "headers", None)
+        if extra and isinstance(headers, MutableMapping) and "/v1/oauth2/token" not in url:
+            present = {str(key).lower() for key in headers}
+            for key, value in extra.items():
+                if value and key.lower() not in present:
+                    request.add_header(key, value)
+        if self._inner is not None:
+            self._inner.on_before_request(request)
+
+    def on_after_response(self, http_response: Any) -> None:
+        if self._inner is not None:
+            self._inner.on_after_response(http_response)
+
+
+def _with_passthrough(
+    run: Callable[[], dict[str, Any]],
+    *,
+    mock_response: str | None = None,
+    request_id: str | None = None,
+    prefer: bool = False,
+) -> dict[str, Any]:
+    headers: dict[str, str] = {}
+    mock = (mock_response or "").strip()
+    if mock:
+        headers["PayPal-Mock-Response"] = mock
+    if request_id:
+        headers["PayPal-Request-Id"] = _request_id(request_id)
+    if prefer:
+        headers["Prefer"] = _PREFER_REPRESENTATION
+    token = _PASSTHROUGH.set(headers or None)
+    try:
+        return run()
+    finally:
+        _PASSTHROUGH.reset(token)
 
 
 def build_sandbox_client(
@@ -123,7 +177,7 @@ def build_sandbox_client(
         max_retries=_MAX_RETRIES,
         client_credentials_auth_credentials=credentials,
         http_client_instance=http_client_instance,
-        http_call_back=http_call_back,
+        http_call_back=_PassthroughHeaders(http_call_back),
     )
     if sdk.config.environment is not sandbox:
         raise RuntimeError("PayPal SDK gateway refuses a non-sandbox environment")
@@ -207,7 +261,7 @@ def _reraise_api_error(exc: BaseException) -> None:
 
 
 def _body_dict(body: Any) -> dict[str, Any]:
-    if body is None:
+    if body is None or body == "" or body == b"":
         return {}
     helper = _API_HELPER
     raw: Any = body if isinstance(body, dict) else helper.to_dictionary(body)
@@ -650,3 +704,70 @@ def create_billing_plan(payload: dict[str, Any], *, idempotency_key: str) -> dic
     body = _model("plan_request", "PlanRequest")(**payload)
     return _execute("subscriptions", "create_billing_plan",
                     _write_options(body=body, idempotency_key=idempotency_key))
+
+
+def reauthorize_payment(
+    authorization_id: str,
+    *,
+    idempotency_key: str,
+    mock_response: str | None = None,
+) -> dict[str, Any]:
+    """POST reauthorize. SDK 2.4.0 has no mock header on this operation."""
+    body = _model("reauthorize_request", "ReauthorizeRequest")()
+
+    def run() -> dict[str, Any]:
+        return _execute(
+            "payments",
+            "reauthorize_payment",
+            _write_options(
+                authorization_id=authorization_id,
+                idempotency_key=idempotency_key,
+                mock_response=mock_response,
+                body=body,
+            ),
+        )
+
+    return _with_passthrough(run, mock_response=mock_response)
+
+
+def create_card_setup_token(
+    body: dict[str, Any],
+    *,
+    idempotency_key: str,
+    mock_response: str | None = None,
+) -> dict[str, Any]:
+    """POST the card setup-token JSON unchanged.
+
+    ``SetupTokenRequestCard`` drops usage_type, usage_pattern,
+    permit_multiple_payment_tokens and attributes.verification.
+    """
+
+    def run() -> dict[str, Any]:
+        return _execute(
+            "vault",
+            "create_setup_token",
+            _write_options(
+                idempotency_key=idempotency_key,
+                body=body,
+                prefer=False,
+                mock_response=mock_response,
+            ),
+        )
+
+    return _with_passthrough(run, mock_response=mock_response, prefer=True)
+
+
+def delete_payment_token(
+    vault_id: str,
+    *,
+    idempotency_key: str,
+    mock_response: str | None = None,
+) -> dict[str, Any]:
+    """DELETE a vault payment token. SDK 2.4.0 accepts only the id."""
+
+    def run() -> dict[str, Any]:
+        return _execute("vault", "delete_payment_token", vault_id)
+
+    return _with_passthrough(
+        run, mock_response=mock_response, request_id=idempotency_key,
+    )

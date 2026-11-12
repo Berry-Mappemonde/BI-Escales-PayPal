@@ -516,6 +516,8 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
     sdkHost.current.dataset.paypalSdkReady = "1";
     const host = sdkHost.current;
     host.innerHTML = "";
+    let closed = false;
+    let message: PayPalSdkButtonInstance | null = null;
     if (paypal && payLaterEligible(values.amount_eur, values.kind)) {
       void safePayPalRender(
         paypal.Messages,
@@ -527,9 +529,12 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
         },
         host,
       ).then((result) => {
-        if (result.ok) host.dataset.payLaterMessages = "1";
+        message = result.instance;
+        if (closed) safePayPalClose(message);
+        else if (result.ok) host.dataset.payLaterMessages = "1";
       });
     }
+    return () => { closed = true; safePayPalClose(message); delete host.dataset.payLaterMessages; };
   }, [paypal, sdkReady, values.amount_eur, values.kind, sdkCurrency]);
 
   return (

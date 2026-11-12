@@ -122,6 +122,25 @@ const SCRIPT_SELECTOR = 'script[data-paypal-web-sdk="v6"]';
 const PAY_LATER_MIN = 30;
 const instances = new Map<string, Promise<PayPalNamespace>>();
 let corePending: Promise<V6Core> | null = null;
+const sdkInstances = new Map<string, Promise<V6Instance>>();
+type LearnMore = { open?: (config?: object) => Promise<void> | void };
+const messageControllers = new WeakMap<V6Instance, Map<string, Promise<LearnMore | undefined>>>();
+
+function learnMoreController(sdk: V6Instance, currencyCode: string): Promise<LearnMore | undefined> {
+  let controllers = messageControllers.get(sdk);
+  if (!controllers) { controllers = new Map(); messageControllers.set(sdk, controllers); }
+  let pending = controllers.get(currencyCode);
+  if (!pending) {
+    pending = (async () => {
+      const messages = sdk.createPayPalMessages!({ currencyCode, buyerCountry: "FR" }) as {
+        createLearnMore?: (config: object) => LearnMore | Promise<LearnMore>;
+      } | undefined;
+      return await messages?.createLearnMore?.({ currencyCode, buyerCountry: "FR", presentationMode: "MODAL" });
+    })().catch(error => { console.warn("PayPal Learn more unavailable", error); return undefined; });
+    controllers.set(currencyCode, pending);
+  }
+  return pending;
+}
 
 export type SdkIntent = "authorize" | "capture";
 
@@ -245,7 +264,7 @@ export function buildV6Adapter(
 ): PayPalNamespace {
   return {
     ...(walletPay && eligible.getDetails ? walletFactories(sdk, eligible as EligiblePaymentMethodsOutput) : {}),
-    ...(sdk.createPayPalMessages ? { Messages: (options: Record<string, unknown>): PayPalSdkButtonInstance => {
+    ...(typeof sdk.createPayPalMessages === "function" ? { Messages: (options: Record<string, unknown>): PayPalSdkButtonInstance => {
       const currencyCode = String(options.currencyCode || "EUR");
       const amount = String(options.amount || "");
       let message: HTMLElement | null = null;
@@ -255,6 +274,7 @@ export function buildV6Adapter(
         render: async target => {
           const host = typeof target === "string" ? document.querySelector<HTMLElement>(target) : target;
           if (!host) throw new Error("PayPal message host missing");
+          message?.remove();
           const element = document.createElement("paypal-message");
           element.amount = amount;
           element.currencyCode = currencyCode;
@@ -282,20 +302,17 @@ export function buildV6Adapter(
           message = element;
           // The data layer only picks up an element that is already in the page.
           host.replaceChildren(element);
-          const messages = sdk.createPayPalMessages!({ currencyCode, buyerCountry: "FR" }) as {
-            createLearnMore?: (learnMore: { amount?: string; currencyCode?: string; buyerCountry?: string; presentationMode?: "MODAL" }) => { open?: (config?: object) => Promise<void> | void } | Promise<{ open?: (config?: object) => Promise<void> | void }>;
-          } | undefined;
-          const learnMore = await Promise.resolve(messages?.createLearnMore?.({
-            amount,
-            currencyCode,
-            buyerCountry: "FR",
-            presentationMode: "MODAL",
-          }));
+          let learnMore: LearnMore | undefined;
           element.addEventListener("paypal-message-click", (event) => {
+            if (!learnMore?.open) return;
             event.preventDefault();
-            const config = (event as CustomEvent<{ config?: object }>).detail?.config;
-            void learnMore?.open?.(config);
+            const config = { amount, currencyCode, buyerCountry: "FR", presentationMode: "MODAL",
+              ...(event as CustomEvent<{ config?: object }>).detail?.config };
+            try {
+              void Promise.resolve(learnMore.open(config)).catch(error => console.warn("PayPal Learn more failed", error));
+            } catch (error) { console.warn("PayPal Learn more failed", error); }
           });
+          learnMore = await learnMoreController(sdk, currencyCode);
         },
         close: async () => {
           themeObserver?.disconnect();
@@ -509,24 +526,33 @@ function loadConfigured(clientId: string, appLang: string | undefined, currency:
   const existing = instances.get(key);
   if (existing) return existing;
   const promise = (async () => {
-    let core: V6Core;
-    try { core = await waitForCore(); }
-    catch (error) { reportPayPalV6LoadFailure(error); throw error; }
-    let sdk: V6Instance;
-    try {
-      sdk = await core.createInstance({
-        clientId: trimmed,
-        locale: paypalLocale(appLang).replace("_", "-"),
-        pageType: "checkout",
-        components: [
-          "paypal-payments",
-          "paypal-subscriptions",
-          "paypal-messages",
-          "card-fields",
-          ...(walletPay ? ["googlepay-payments", "applepay-payments"] as const : []),
-        ],
-      });
-    } catch (error) { reportPayPalV6LoadFailure(error); throw error; }
+    const sdkKey = [trimmed, paypalLocale(appLang), walletPay].join("|");
+    let pendingSdk = sdkInstances.get(sdkKey);
+    if (!pendingSdk) {
+      pendingSdk = (async () => {
+        let core: V6Core;
+        try { core = await waitForCore(); }
+        catch (error) { reportPayPalV6LoadFailure(error); throw error; }
+        let sdk: V6Instance;
+        try {
+          sdk = await core.createInstance({
+            clientId: trimmed,
+            locale: paypalLocale(appLang).replace("_", "-"),
+            pageType: "checkout",
+            components: [
+              "paypal-payments",
+              "paypal-subscriptions",
+              "paypal-messages",
+              "card-fields",
+              ...(walletPay ? ["googlepay-payments", "applepay-payments"] as const : []),
+            ],
+          });
+        } catch (error) { reportPayPalV6LoadFailure(error); throw error; }
+        return sdk;
+      })().catch(error => { sdkInstances.delete(sdkKey); throw error; });
+      sdkInstances.set(sdkKey, pendingSdk);
+    }
+    const sdk = await pendingSdk;
     const eligible = await sdk.findEligibleMethods({ currencyCode: currency.toUpperCase(), paymentFlow, ...(normalizedAmount ? { amount: normalizedAmount } : {}) });
     return buildV6Adapter(sdk, eligible, walletPay, intent, appLang);
   })().catch((error: unknown) => {

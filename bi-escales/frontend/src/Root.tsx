@@ -3,6 +3,7 @@ import { WishlistsPage } from "./wishlists/WishlistsPage";
 import { ProjectOnboardingPage } from "./projectOnboarding/ProjectOnboardingPage";
 import { ProjectOnboardingReturnPage } from "./projectOnboarding/ProjectOnboardingReturnPage";
 
+// Keep client routes in sync with is_known_spa_path in backend/app/main.py.
 function normalizedPath(): string {
   return (typeof window !== "undefined" ? window.location.pathname : "").replace(/\/$/, "") || "/";
 }

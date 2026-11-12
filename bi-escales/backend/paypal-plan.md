@@ -537,6 +537,15 @@ are available in development or CI.
 Skills used: `python-getting-started` under the vendored
 `.cursor/skills/paypal-server-sdk` directory. No PayPal operation or SDK call is added.
 
+## PAY-05 exact authorization window
+
+Before implementation: AUTHORIZE is permitted when arrival (stop) or departure
+(cabin) minus the UTC voyage instant is at most timedelta(hours=695), exactly 695 h (inclusive).
+Beyond that instant the existing resolver selects VAULT or refuses before order
+creation. No provider methods, request IDs, capture rules or Render clock change.
+Naive supplied instants retain the existing UTC interpretation.
+Skills: python-getting-started, python-calling-endpoints, python-testing.
+
 ## Order creation SDK completion (payment workstream)
 
 Before implementation: route PayPalClient POST /v2/checkout/orders through
@@ -551,6 +560,12 @@ Skills: python-getting-started, python-calling-endpoints, python-models,
 python-error-handling, python-configuration-resilience, python-testing.
 
 SDK source inspection: from_dictionary injects PayPal defaults and drops card experience locale/brand fields. Keep nested dictionaries inside the generated OrderRequest envelope; HTTP-boundary parity tests cover exact payload preservation.
+
+
+## PAY-05 review: one-hour capture safety margin
+
+AUTHORIZE opens at most 695 hours before the UTC arrival/departure anchor (29 days minus one hour). Later anchors select Vault through the existing resolver. Provider expiry remains 696 hours. Naive clock values are UTC in both authorization and capture guards. Arrival/departure wording follows the actual anchor. No provider operation, flags or scheduler changes. Validate exact boundaries, offsets, naive clocks, preview/creation parity and the full suites.
+
 ## Card coverage for immediate donations
 
 Before code: allow Card Fields on CAPTURE-intent project donations. The shared

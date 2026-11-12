@@ -65,8 +65,12 @@ export function TreasurerWebhookPanel({ adminKey }: TreasurerWebhookPanelProps) 
     }).format(at);
     return `${text} UTC`;
   };
-  const outcome = (value: string | undefined) =>
-    value && OUTCOMES.has(value) ? t(`treasurer.webhooks.outcomes.${value}`) : value || "—";
+  // "accepted" only means verified and recorded once: without a pledge, nothing in the ledger changed.
+  const outcome = (row: WebhookOutcomeRow) => {
+    const value = row.outcome;
+    if (value === "accepted" && !row.pledge_id) return t("treasurer.webhooks.outcomes.acceptedNothing");
+    return value && OUTCOMES.has(value) ? t(`treasurer.webhooks.outcomes.${value}`) : value || "—";
+  };
   const last = rows[0];
 
   return (
@@ -78,9 +82,17 @@ export function TreasurerWebhookPanel({ adminKey }: TreasurerWebhookPanelProps) 
         <p className="webhook-status" data-testid="paypal-notifications-status">
           <strong>{t("treasurer.webhooks.lastReceived", { when: when(last.time) })}</strong>
           {last.event_type ? ` · ${last.event_type}` : ""}
-          {last.outcome ? ` · ${outcome(last.outcome)}` : ""}
+          {last.outcome ? ` · ${outcome(last)}` : ""}
           <br />
           <span data-testid="paypal-notifications-count">{t("treasurer.webhooks.count", { count: total })}</span>
+          {error ? (
+            <>
+              <br />
+              <span className="hint" data-testid="paypal-notifications-stale">
+                {t("treasurer.webhooks.stale")}
+              </span>
+            </>
+          ) : null}
         </p>
       ) : null}
       {loaded && !last ? (
@@ -107,7 +119,7 @@ export function TreasurerWebhookPanel({ adminKey }: TreasurerWebhookPanelProps) 
                   <time dateTime={row.time || undefined}>{when(row.time)}</time>
                 </td>
                 <td>{row.event_type || "—"}</td>
-                <td>{outcome(row.outcome)}</td>
+                <td>{outcome(row)}</td>
                 <td title={row.pledge_id || undefined}>{row.pledge_id ? row.pledge_id.slice(0, 8) : "—"}</td>
               </tr>
             ))}

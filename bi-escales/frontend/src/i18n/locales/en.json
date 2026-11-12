@@ -513,10 +513,12 @@
       "latest_other": "The latest {{count}} notifications",
       "outcomes": {
         "accepted": "Verified, ledger updated",
+        "acceptedNothing": "Verified, nothing to apply",
         "duplicate": "Already recorded, ignored",
         "rejected": "Rejected, not applied"
       },
       "empty": "No notification received from PayPal yet.",
+      "stale": "Shown from the last successful refresh.",
       "refresh": "Refresh notifications",
       "time": "Time",
       "event": "Event",

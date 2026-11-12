@@ -105,6 +105,38 @@ describe("TreasurerWebhookPanel", () => {
     expect(status).toHaveTextContent("Vérifiée, registre mis à jour");
   });
 
+  it("does not claim the ledger changed when a verified notification matched no pledge", async () => {
+    vi.mocked(fetchRecentWebhooks).mockResolvedValue([
+      { transmission_id: "t9", event_type: "CHECKOUT.ORDER.APPROVED", outcome: "accepted", pledge_id: null, time: "2026-11-12T10:00:00Z" },
+      ...events,
+    ]);
+    show();
+    const status = await screen.findByTestId("paypal-notifications-status");
+    expect(status).toHaveTextContent("Verified, nothing to apply");
+    expect(status).not.toHaveTextContent("ledger updated");
+    const rows = screen.getAllByTestId("webhook-row");
+    expect(within(rows[0]).getByText("Verified, nothing to apply")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Verified, ledger updated")).toBeInTheDocument();
+  });
+
+  it("says nothing to apply in French too", async () => {
+    await i18n.changeLanguage("fr");
+    vi.mocked(fetchRecentWebhooks).mockResolvedValue([{ ...events[2], outcome: "accepted" }]);
+    show();
+    expect(await screen.findByTestId("paypal-notifications-status")).toHaveTextContent("Vérifiée, rien à appliquer");
+  });
+
+  it("marks the status as from the last good refresh when a refresh fails", async () => {
+    show();
+    await screen.findByTestId("paypal-notifications-status");
+    expect(screen.queryByTestId("paypal-notifications-stale")).toBeNull();
+    vi.mocked(fetchRecentWebhooks).mockRejectedValueOnce(new Error("Network down"));
+    screen.getByRole("button", { name: "Refresh notifications" }).click();
+    expect(await screen.findByText("Network down")).toBeInTheDocument();
+    expect(screen.getByTestId("paypal-notifications-stale")).toHaveTextContent("Shown from the last successful refresh.");
+    expect(screen.getByTestId("paypal-notifications-count")).toHaveTextContent("3 notifications recorded in total.");
+  });
+
   it("shows nothing and asks nothing without the treasurer key", async () => {
     show("  ");
     await waitFor(() => expect(screen.queryByTestId("treasurer-webhook-panel")).toBeNull());

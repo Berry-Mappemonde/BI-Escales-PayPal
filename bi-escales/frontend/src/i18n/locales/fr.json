@@ -513,10 +513,12 @@
       "latest_other": "Les {{count}} dernières notifications",
       "outcomes": {
         "accepted": "Vérifiée, registre mis à jour",
+        "acceptedNothing": "Vérifiée, rien à appliquer",
         "duplicate": "Déjà enregistrée, ignorée",
         "rejected": "Rejetée, non appliquée"
       },
       "empty": "Aucune notification reçue de PayPal pour l’instant.",
+      "stale": "Affiché depuis la dernière actualisation réussie.",
       "refresh": "Actualiser les notifications",
       "time": "Heure",
       "event": "Événement",

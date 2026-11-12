@@ -189,9 +189,11 @@
   color: var(--color-fg-2);
 }
 
-.treasurer-wishlists .wishlist-add-item > button,
-.treasurer-wishlists .wishlist-create > button {
+/* Three classes: the treasurer page stretches a form's submit button across it. */
+.treasurer-panel .treasurer-wishlists .wishlist-add-item > button,
+.treasurer-panel .treasurer-wishlists .wishlist-create > button {
   justify-self: start;
+  align-self: flex-start;
   width: auto;
 }
 

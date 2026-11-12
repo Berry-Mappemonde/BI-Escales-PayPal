@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "frontend" / "public" / "og-image.png"
 ROUTE = ROOT / "frontend" / "public" / "route.geojson"
+BUNDLED_FONT = ROOT / "backend" / "app" / "escales" / "assets" / "DejaVuSans.ttf"
 
 W, H = 1200, 630
 NAVY = (0, 61, 122)
@@ -58,7 +59,20 @@ def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.I
     for path in candidates:
         if Path(path).is_file():
             return ImageFont.truetype(path, size)
+    # The regular face the backend ships: the picture can be redrawn on any machine.
+    if BUNDLED_FONT.is_file():
+        return ImageFont.truetype(str(BUNDLED_FONT), size)
     return ImageFont.load_default()
+
+
+def _has_bold_face() -> bool:
+    return any(
+        Path(path).is_file()
+        for path in (
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        )
+    )
 
 
 def main() -> None:
@@ -96,19 +110,27 @@ def main() -> None:
     sub_font = _font(28, bold=False)
     small_font = _font(22, bold=False)
 
-    draw.text((72, 48), "BI Escales", font=title_font, fill=WHITE)
-    draw.text((72, 108), "Pay Only If We Sail", font=sub_font, fill=MUTED)
+    # Without a bold face on this machine, a one-pixel stroke thickens the regular one.
+    draw.text(
+        (72, 48),
+        "BI Escales",
+        font=title_font,
+        fill=WHITE,
+        stroke_width=0 if _has_bold_face() else 1,
+        stroke_fill=WHITE,
+    )
+    draw.text((72, 108), "Pay only when we arrive", font=sub_font, fill=MUTED)
     draw.text((72, H - 72), "Berry-Mappemonde", font=sub_font, fill=WHITE)
     draw.text(
         (72, H - 40),
-        "Expédition · départ 12 novembre 2026",
+        "Expedition · departure 12 November 2026",
         font=small_font,
         fill=MUTED,
     )
 
     badge_x, badge_y = W - 290, 48
     draw.rounded_rectangle((badge_x, badge_y, W - 48, badge_y + 44), radius=8, fill=ACCENT)
-    draw.text((badge_x + 16, badge_y + 9), "Carte du voyage", font=small_font, fill=WHITE)
+    draw.text((badge_x + 16, badge_y + 9), "Voyage map", font=small_font, fill=WHITE)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     img.save(OUT, format="PNG", optimize=True)

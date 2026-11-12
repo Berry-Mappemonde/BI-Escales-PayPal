@@ -12,6 +12,7 @@ from app.bi_marinas_catalog import build_escale_fiche, get_all_escale_marinas_ge
 from app.bi_projects_catalog import get_bi_projects_geojson
 from app.escales.config import cors_origins, resolve_apple_pay_domain_association_path
 from app.middleware.security_headers import install_security_headers
+from app.spa_client_routes import is_known_client_route
 
 app = FastAPI(title="BI Escales — Pay Only If We Sail")
 
@@ -123,7 +124,9 @@ def attach_frontend(application: FastAPI) -> None:
         candidate = (dist / full_path).resolve() if full_path else index
         if full_path and candidate.is_file() and str(candidate).startswith(str(dist)):
             return FileResponse(candidate)
-        return FileResponse(index)
+        # The page itself for every path, so the app always loads; 404 for a path
+        # the app does not know, so an address that does not exist says so.
+        return FileResponse(index, status_code=200 if is_known_client_route(full_path) else 404)
 
 
 attach_frontend(app)

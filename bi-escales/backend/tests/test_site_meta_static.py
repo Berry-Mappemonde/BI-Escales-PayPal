@@ -50,7 +50,8 @@ def test_robots_and_sitemap_from_dist(monkeypatch, tmp_path):
     assert favicon.status_code == 200
     assert client.head("/favicon.svg").status_code == 200
 
+    # An unknown path still gets the page, so the app loads, but says 404.
     spa = client.get("/unknown-spa-route")
-    assert spa.status_code == 200
+    assert spa.status_code == 404
     assert spa.headers["content-type"].startswith("text/html")
     assert "BI Escales" in spa.text

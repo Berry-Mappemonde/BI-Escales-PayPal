@@ -561,6 +561,18 @@ python-error-handling, python-configuration-resilience, python-testing.
 
 SDK source inspection: from_dictionary injects PayPal defaults and drops card experience locale/brand fields. Keep nested dictionaries inside the generated OrderRequest envelope; HTTP-boundary parity tests cover exact payload preservation.
 
+## v6 displayed annual plan and replay contract
+
+Before code: accept plan_id as a constraint, never as price authority. Resolve
+catalog v2 server-side, reject a different displayed plan before subscription
+creation, and GET the selected billing plan to require ACTIVE, one regular
+YEAR/1 cycle, EUR 10, no setup fee or tax. Keep SDK get_billing_plan and
+create_subscription operations and error mapping. Serialize same-process retries
+and reject cached results from another catalog; cross-worker provider replay still
+uses the same PayPal-Request-Id. No product or plan is created during verification.
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-error-handling, python-configuration-resilience, python-testing.
+
 ## PAY-03 common-fund immediate capture
 
 Before code: common_fund uses the existing CAPTURE order creation and buyer-approved

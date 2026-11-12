@@ -571,14 +571,16 @@ def simulated_prices(lang: Optional[str] = None) -> dict:
     if app_lang == "fr":
         note = (
             "Tarifs fixes pour le poste (place), la nuit, le repas, le soin et la cabine ; "
-            "1 € par mille nautique. Seuls le fonds commun et les dons projet sont en montant "
-            "libre (montant choisi par le parrain)."
+            "1 € par mille nautique. Le fonds commun, les dons projet et le cadeau à une escale "
+            "sont en montant libre (montant choisi par le parrain). Le cadeau à une escale "
+            "est réservé jusqu’à l’arrivée, débité à l’arrivée et libéré si l’escale est annulée."
         )
     else:
         note = (
             "Fixed prices for berth, night, meal, care, and cabin; 1 EUR per nautical mile. "
-            "Only the common fund and project donations are free amounts (amount chosen by "
-            "the supporter)."
+            "The common fund, project donations and stop gifts are free amounts (amount chosen by "
+            "the supporter). A stop gift is held until arrival, captured on arrival, and "
+            "voided if the stop is cancelled."
         )
     return {
         "simulated": True,

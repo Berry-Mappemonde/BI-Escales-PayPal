@@ -41,6 +41,10 @@ export interface PublicPledge {
   refunded_amount_eur?: string;
   pending_refund?: { key: string; amount: string } | null;
   created_at?: string;
+  /** Set by the server when an authorisation (or a saved payment method) is released, or a capture refunded. */
+  voided_at?: string;
+  vault_voided_at?: string;
+  refunded_at?: string;
   history?: string[];
 }
 

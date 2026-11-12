@@ -78,10 +78,9 @@ function toolIds(review: CaptainProposal | null, tool: string): string[] {
  */
 export function buildEvidence(
   review: CaptainProposal | null,
+  /** The queue's schedule arrival, used only when the review does not say which ETA it read. */
   arrivalIso: string | undefined,
   now: Date = new Date(),
-  /** The stop's logbook from the schedule; undefined when the schedule carries no logbook. */
-  logbook?: LogbookEntry[],
 ): { claims: CaptainClaim[]; sources: CaptainSource[] } {
   const claims: CaptainClaim[] = [];
   const sources: CaptainSource[] = [];
@@ -91,18 +90,22 @@ export function buildEvidence(
     return n;
   };
 
-  if (arrivalIso) {
-    claims.push({ key: "arrival", cite: addSource("schedule"), iso: arrivalIso });
+  // The ETA the review itself read. Only a review from an older server, which
+  // does not carry it, lets the queue's schedule stand in.
+  const eta = review && "naviguide_eta" in review ? review.naviguide_eta?.arrival_iso : arrivalIso;
+  if (eta) {
+    claims.push({ key: "arrival", cite: addSource("schedule"), iso: eta });
   }
 
-  // The logbook as it stood at the clock the Captain reviewed with: an entry the
-  // voyage has not reached yet is not evidence. Without that clock, no claim.
-  const reviewedAt = Date.parse(String(review?.at ?? ""));
-  if (logbook && Number.isFinite(reviewedAt)) {
-    const reached = logbook
-      .filter((entry) => {
+  // The logbook the review read server-side, already cut at its clock (the
+  // filter below only guards that). A review without one, such as a cabin leg's,
+  // makes no logbook claim.
+  if (Array.isArray(review?.logbook)) {
+    const reviewedAt = Date.parse(String(review.at ?? ""));
+    const reached = review.logbook
+      .filter((entry: LogbookEntry) => {
         const at = Date.parse(String(entry?.t ?? ""));
-        return Number.isFinite(at) && at <= reviewedAt;
+        return Number.isFinite(at) && !(at > reviewedAt);
       })
       .sort((a, b) => Date.parse(String(a.t)) - Date.parse(String(b.t)));
     const latest = reached[reached.length - 1];

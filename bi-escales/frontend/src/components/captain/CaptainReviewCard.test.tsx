@@ -100,37 +100,57 @@ describe("Captain review card", () => {
       expect(within(screen.getByTestId(`captain-card-${STOP}`).querySelector(".captain-sources") as HTMLElement).getByText("ORDER-1")).toBeInTheDocument();
     });
 
-    describe("logbook", () => {
-      const withLogbook = (at: string | undefined, entries: unknown[] | undefined) => {
-        vi.mocked(captainReview).mockResolvedValue({ ...review, at });
-        vi.mocked(fetchSchedule).mockResolvedValue({
-          export: { escales: [{ milestone_id: STOP, name: "Ajaccio (Corse)", arrival_iso: "2026-11-28T22:02:54.002Z" }] },
-          ...(entries ? { logbook: { [STOP]: entries } } : {}),
-        } as never);
-      };
-      const entries = [
-        { t: "2026-11-26T22:02:54Z", label_en: "Position — underway for Ajaccio", label_fr: "Position — en route vers Ajaccio" },
-        { t: "2026-11-28T22:02:54Z", label_en: "Stopover — arrival at Ajaccio", label_fr: "Escale — arrivée Ajaccio" },
+    describe("what the review read from NAVIGUIDE", () => {
+      // Shapes from test2's review and schedule (Ajaccio, local export): the
+      // server cuts the logbook at the review clock before sending it.
+      const reached = [
+        {
+          t: "2026-11-27T02:02:52Z",
+          pos: { lat: 43.8249, lon: 4.2811 },
+          label_fr: "Position — en route vers Ajaccio (Corse)",
+          label_en: "Position — underway for Ajaccio (Corse)",
+          kind: "position",
+        },
+        {
+          t: "2026-11-28T14:02:52Z",
+          pos: { lat: 42.4274, lon: 7.5499 },
+          label_fr: "Position — en route vers Ajaccio (Corse)",
+          label_en: "Position — underway for Ajaccio (Corse)",
+          kind: "position",
+        },
       ];
+      const arrived = {
+        t: "2026-11-29T02:02:52Z",
+        pos: { lat: 41.9192, lon: 8.7386 },
+        label_fr: "Escale — arrivée Ajaccio (Corse)",
+        label_en: "Stopover — arrival at Ajaccio (Corse)",
+        kind: "stop",
+      };
+      const reviewRead = (at: string, logbook: unknown[] | undefined, eta = "2026-11-29T02:02:52+00:00") =>
+        vi.mocked(captainReview).mockResolvedValue({
+          ...review,
+          at,
+          naviguide_eta: { arrival_iso: eta },
+          ...(logbook ? { logbook } : {}),
+        } as CaptainProposal);
 
-      it("quotes the latest logbook entry the review's clock has reached, and cites the logbook", async () => {
-        withLogbook("2026-11-27T08:00:00+00:00", entries);
+      it("quotes the latest logbook entry the review read, and cites the logbook", async () => {
+        reviewRead("2026-11-28T15:00:00+00:00", reached);
         await openCard();
-        await card().findByText(/Logbook, 26 Nov: Position — underway for Ajaccio/);
-        expect(card().queryByText(/arrival at Ajaccio/)).toBeNull();
+        await card().findByText("Logbook, 28 Nov: Position — underway for Ajaccio (Corse)");
         expect(card().getByRole("button", { name: "Source 2: NAVIGUIDE logbook" })).toBeInTheDocument();
         // The other sources follow, renumbered.
         expect(card().getAllByRole("button", { name: "Source 3: pending_authorizations" })).toHaveLength(2);
       });
 
-      it("quotes the arrival entry once the clock has passed it", async () => {
-        withLogbook("2026-11-29T08:00:00+00:00", entries);
+      it("quotes the arrival entry once the review has read it", async () => {
+        reviewRead("2026-11-29T08:00:00+00:00", [...reached, arrived]);
         await openCard();
-        await card().findByText(/Logbook, 28 Nov: Stopover — arrival at Ajaccio/);
+        await card().findByText("Logbook, 29 Nov: Stopover — arrival at Ajaccio (Corse)");
       });
 
-      it("says so when the logbook has no entry for the stop yet", async () => {
-        withLogbook("2026-11-20T08:00:00+00:00", entries);
+      it("says so when the review read an empty logbook", async () => {
+        reviewRead("2026-11-12T08:00:00+00:00", []);
         await openCard();
         await card().findByText("Logbook: no entry for this stop yet");
         expect(card().getByRole("button", { name: "Source 2: NAVIGUIDE logbook" })).toBeInTheDocument();
@@ -138,23 +158,30 @@ describe("Captain review card", () => {
 
       it("quotes the entry in French", async () => {
         await i18n.changeLanguage("fr");
-        withLogbook("2026-11-27T08:00:00+00:00", entries);
+        reviewRead("2026-11-28T15:00:00+00:00", reached);
         await openCard();
-        await card().findByText(/Journal de bord, 26 nov\. : Position — en route vers Ajaccio/);
+        await card().findByText(/Journal de bord, 28 nov\. : Position — en route vers Ajaccio \(Corse\)/);
         expect(card().getByRole("button", { name: /^Source 2\s: Journal de bord NAVIGUIDE$/ })).toBeInTheDocument();
       });
 
-      it("makes no logbook claim without the review's clock or without a logbook", async () => {
-        withLogbook(undefined, entries);
+      it("never takes the logbook from the browser's schedule", async () => {
+        // The schedule carries a logbook, the review does not (a cabin leg): no claim.
+        vi.mocked(fetchSchedule).mockResolvedValue({
+          export: { escales: [{ milestone_id: STOP, name: "Ajaccio (Corse)", arrival_iso: "2026-11-29T02:02:52+00:00" }] },
+          logbook: { [STOP]: [...reached, arrived] },
+        } as never);
+        reviewRead("2026-11-29T08:00:00+00:00", undefined);
         await openCard();
-        await card().findByText(/Scheduled arrival: 28 Nov/);
+        await card().findByText(/Scheduled arrival: 29 Nov/);
         expect(card().queryByText(/Logbook/)).toBeNull();
-        cleanup();
+      });
 
-        withLogbook("2026-11-27T08:00:00+00:00", undefined);
+      it("cites the ETA the review read, not the queue's schedule", async () => {
+        // The queue's schedule says 28 Nov (beforeEach); the review read 29 Nov.
+        reviewRead("2026-11-28T15:00:00+00:00", reached);
         await openCard();
-        await card().findByText(/Scheduled arrival: 28 Nov/);
-        expect(card().queryByText(/Logbook/)).toBeNull();
+        await card().findByText(/Scheduled arrival: 29 Nov/);
+        expect(card().queryByText(/Scheduled arrival: 28 Nov/)).toBeNull();
       });
     });
 

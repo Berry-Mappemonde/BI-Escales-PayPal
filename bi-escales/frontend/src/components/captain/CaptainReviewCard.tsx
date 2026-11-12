@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { CaptainProposal, LogbookEntry, PublicPledge } from "../../api/types";
+import type { CaptainProposal, PublicPledge } from "../../api/types";
 import {
   buildEvidence,
   sumEur,
@@ -17,9 +17,8 @@ import "./captain-card.css";
 export interface CaptainReviewCardProps {
   milestoneId: string;
   stopName?: string;
+  /** Fallback ETA, used only when the review does not carry the one it read. */
   arrivalIso?: string;
-  /** The stop's logbook from the schedule; undefined when the schedule carries none. */
-  logbook?: LogbookEntry[];
   /** null once the review failed, undefined while it loads. */
   review: CaptainProposal | null | undefined;
   /** Holds Override would release, from the live queue. */
@@ -53,7 +52,6 @@ export function CaptainReviewCard({
   milestoneId,
   stopName,
   arrivalIso,
-  logbook,
   review,
   holds,
   canMoveMoney,
@@ -71,7 +69,7 @@ export function CaptainReviewCard({
 
   const phase = release?.phase;
   const decisionRef = useFocusFirstButton<HTMLElement>(`${phase}:${confirming}:${approved}`);
-  const { claims, sources } = buildEvidence(review ?? null, arrivalIso, undefined, logbook);
+  const { claims, sources } = buildEvidence(review ?? null, arrivalIso);
 
   const total = format.money(sumEur(holds.map((pledge) => pledge.amount_eur)));
 

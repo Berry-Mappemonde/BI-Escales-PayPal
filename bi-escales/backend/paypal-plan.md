@@ -551,3 +551,8 @@ Skills: python-getting-started, python-calling-endpoints, python-models,
 python-error-handling, python-configuration-resilience, python-testing.
 
 SDK source inspection: from_dictionary injects PayPal defaults and drops card experience locale/brand fields. Keep nested dictionaries inside the generated OrderRequest envelope; HTTP-boundary parity tests cover exact payload preservation.
+
+
+## SDK review follow-up: budget and transient retries
+
+Keep one merchant SDK gateway. All resource attempts, reads and writes, consume the optional Captain budget before dispatch; OAuth is excluded. Disable SDK-internal retries and retry ApiException 429/5xx at most three attempts with stable arguments and request IDs, exponential backoff and Retry-After up to ten seconds. Do not replay uncertain transport/auth failures or fall back to httpx after dispatch. Map OrderRequest constructor TypeError to PayPalError. Test generated HTTP-boundary retry/accounting/identity and no-replay cases, plus full suites and strict gateway mypy.

@@ -4,7 +4,7 @@
    "id": "leg-0",
    "tA": "2026-11-12T08:00:00Z",
    "tB": "2026-11-28T22:02:54Z",
-   "text": "L’expédition Berry-Mappemonde a quitté La Rochelle le 12 novembre, cap au sud-ouest. Départ vers Ajaccio : 1 819 milles, une quinzaine de jours de mer. Arrivée à Ajaccio (Corse) le 28 novembre.",
+   "text": "L'expédition Berry-Mappemonde a quitté La Rochelle le 12 novembre, cap au sud-ouest. Départ vers Ajaccio : 1 819 milles, une quinzaine de jours de mer. Arrivée à Ajaccio (Corse) le 28 novembre.",
    "anchors": [
     {
      "charIdx": 0,
@@ -12,7 +12,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 153,
+     "charIdx": 152,
      "t": "2026-11-28T22:02:54Z",
      "place": "Ajaccio (Corse)",
      "kind": "escale"
@@ -33,7 +33,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 104,
+     "charIdx": 91,
      "t": "2026-12-30T04:34:48Z",
      "place": "Fort-de-France (Martinique)",
      "kind": "escale"
@@ -54,7 +54,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 215,
+     "charIdx": 181,
      "t": "2027-01-02T19:37:23Z",
      "place": "Pointe-à-Pitre (Guadeloupe)",
      "kind": "escale"
@@ -75,7 +75,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 76,
+     "charIdx": 65,
      "t": "2027-01-06T21:14:52Z",
      "place": "Gustavia (Saint-Barthélemy)",
      "kind": "escale"
@@ -96,7 +96,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 78,
+     "charIdx": 71,
      "t": "2027-01-10T05:44:43Z",
      "place": "Marigot (Saint-Martin)",
      "kind": "escale"
@@ -117,7 +117,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 104,
+     "charIdx": 69,
      "t": "2027-01-19T13:41:36Z",
      "place": "Cayenne (Guyane)",
      "kind": "escale"
@@ -129,19 +129,13 @@
   {
    "id": "leg-6",
    "tA": "2027-01-19T13:41:36Z",
-   "tB": "2027-01-20T07:41:36Z",
+   "tB": "2027-01-20T07:42:44Z",
    "text": "Le 19 janvier, l'équipage s'envole de Cayenne pour Halifax ; le catamaran attend à Cayenne.",
    "anchors": [
     {
      "charIdx": 0,
      "t": "2027-01-19T13:41:36Z",
      "kind": "depart"
-    },
-    {
-     "charIdx": 51,
-     "t": "2027-01-20T07:41:36Z",
-     "place": "Halifax (Nouvelle-Écosse)",
-     "kind": "escale"
     }
    ],
    "fromName": "Cayenne (Guyane)",
@@ -149,18 +143,18 @@
   },
   {
    "id": "leg-7",
-   "tA": "2027-01-20T07:41:36Z",
-   "tB": "2027-01-21T01:41:36Z",
-   "text": "Le 20 janvier, départ vers Saint-Pierre : un jour de mer. Arrivée à Saint-Pierre (Saint-Pierre-et-Miquelon) le 21 janvier.",
+   "tA": "2027-01-20T07:42:44Z",
+   "tB": "2027-01-20T21:40:45Z",
+   "text": "Le 20 janvier, à Halifax (Nouvelle-Écosse), l'équipage embarque sur un second voilier pour Saint-Pierre (Saint-Pierre-et-Miquelon). 497 milles, trois jours de mer. Arrivée à Saint-Pierre (Saint-Pierre-et-Miquelon) le 20 janvier.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2027-01-20T07:41:36Z",
+     "t": "2027-01-20T07:42:44Z",
      "kind": "depart"
     },
     {
-     "charIdx": 82,
-     "t": "2027-01-21T01:41:36Z",
+     "charIdx": 164,
+     "t": "2027-01-20T21:40:45Z",
      "place": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
      "kind": "escale"
     }
@@ -170,18 +164,18 @@
   },
   {
    "id": "leg-8",
-   "tA": "2027-01-21T01:41:36Z",
-   "tB": "2027-01-21T19:41:36Z",
-   "text": "Le 21 janvier, départ vers Halifax : un jour de mer. Arrivée à Halifax (Nouvelle-Écosse) le 21 janvier.",
+   "tA": "2027-01-20T21:40:45Z",
+   "tB": "2027-01-22T11:53:40Z",
+   "text": "Le 20 janvier, à Saint-Pierre (Saint-Pierre-et-Miquelon), l'équipage reprend un second voilier pour Halifax (Nouvelle-Écosse). 417 milles, cinq jours de mer. Arrivée à Halifax (Nouvelle-Écosse) le 22 janvier.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2027-01-21T01:41:36Z",
+     "t": "2027-01-20T21:40:45Z",
      "kind": "depart"
     },
     {
-     "charIdx": 63,
-     "t": "2027-01-21T19:41:36Z",
+     "charIdx": 158,
+     "t": "2027-01-22T11:53:40Z",
      "place": "Halifax (Nouvelle-Écosse)",
      "kind": "escale"
     }
@@ -191,20 +185,14 @@
   },
   {
    "id": "leg-9",
-   "tA": "2027-01-21T19:41:36Z",
+   "tA": "2027-01-22T11:53:40Z",
    "tB": "2027-01-22T13:41:36Z",
-   "text": "Le 21 janvier, départ vers Cayenne : un jour de mer. Arrivée à Cayenne (Guyane) le 22 janvier.",
+   "text": "Le 22 janvier, l'équipage s'envole d'Halifax pour Cayenne.",
    "anchors": [
     {
      "charIdx": 0,
-     "t": "2027-01-21T19:41:36Z",
+     "t": "2027-01-22T11:53:40Z",
      "kind": "depart"
-    },
-    {
-     "charIdx": 54,
-     "t": "2027-01-22T13:41:36Z",
-     "place": "Cayenne (Guyane)",
-     "kind": "escale"
     }
    ],
    "fromName": "Halifax (Nouvelle-Écosse)",
@@ -214,7 +202,7 @@
    "id": "leg-10",
    "tA": "2027-01-22T13:41:36Z",
    "tB": "2027-03-12T11:01:18Z",
-   "text": "Le 22 janvier, départ vers Papeete : 49 jours de mer. Arrivée à Papeete (Polynésie française) le 12 mars.",
+   "text": "Le 22 janvier, le catamaran reprend la mer, départ vers Papeete (Polynésie française). 6 671 milles, 49 jours de mer, à 6 nœuds de moyenne. Arrivée à Papeete (Polynésie française) le 12 mars.",
    "anchors": [
     {
      "charIdx": 0,
@@ -222,7 +210,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 65,
+     "charIdx": 140,
      "t": "2027-03-12T11:01:18Z",
      "place": "Papeete (Polynésie française)",
      "kind": "escale"
@@ -243,7 +231,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 87,
+     "charIdx": 78,
      "t": "2027-03-27T04:36:36Z",
      "place": "Mata-Utu (Wallis-et-Futuna)",
      "kind": "escale"
@@ -264,7 +252,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 125,
+     "charIdx": 76,
      "t": "2027-04-08T21:47:56Z",
      "place": "Nouméa (Nouvelle-Calédonie)",
      "kind": "escale"
@@ -306,7 +294,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 51,
+     "charIdx": 54,
      "t": "2027-06-19T06:35:44Z",
      "place": "Tromelin (TAAF)",
      "kind": "escale"
@@ -327,7 +315,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 65,
+     "charIdx": 58,
      "t": "2027-06-24T03:20:51Z",
      "place": "Saint-Gilles (La Réunion)",
      "kind": "escale"
@@ -348,7 +336,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 49,
+     "charIdx": 52,
      "t": "2027-07-03T16:04:24Z",
      "place": "Europa (TAAF)",
      "kind": "escale"
@@ -361,7 +349,7 @@
    "id": "leg-17",
    "tA": "2027-07-06T16:04:24Z",
    "tB": "2027-08-27T04:23:32Z",
-   "text": "Le 6 juillet, départ vers La Rochelle : 8 393 milles, 52 jours de mer. Arrivée à La Rochelle le 27 août. Puis, le bateau passe près de l'aire marine protégée Pointe d'Arçay.",
+   "text": "Le 6 juillet, départ vers La Rochelle : 8 393 milles, 52 jours de mer. Puis, le bateau passe près de l'aire marine protégée Pointe d'Arçay. Arrivée à La Rochelle le 27 août.",
    "anchors": [
     {
      "charIdx": 0,
@@ -369,13 +357,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 80,
-     "t": "2027-08-26T04:23:32Z",
-     "place": "Pointe d'Arçay",
-     "kind": "alert-on"
-    },
-    {
-     "charIdx": 133,
+     "charIdx": 140,
      "t": "2027-08-27T04:23:32Z",
      "place": "La Rochelle",
      "kind": "escale"

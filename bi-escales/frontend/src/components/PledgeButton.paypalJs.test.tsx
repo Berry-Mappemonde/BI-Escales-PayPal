@@ -55,6 +55,17 @@ describe("PledgeButton and features.paypal_js_v6", () => {
     resetPayPalJsVersionForTests();
   });
 
+  it.each([false, true])("common fund uses CAPTURE on v6=%s without Vault", async (v6) => {
+    notePayPalJsFeatures({ paypal_js_v6: v6 });
+    render(<PledgeButton values={{ ...values, kind: "common_fund", milestone_id: "", target_id: "fonds-commun" }} />);
+    const loader = v6 ? loadV6 : loadV5;
+    await waitFor(() => expect(loader).toHaveBeenCalled());
+    expect(vi.mocked(loader).mock.calls[0][2]).toBe("capture");
+    await waitFor(() => expect(v6 ? seen.v6 : seen.v5).toHaveLength(1));
+    expect((v6 ? seen.v6 : seen.v5)[0]).toHaveProperty("createOrder");
+    expect((v6 ? seen.v6 : seen.v5)[0]).not.toHaveProperty("createVaultSetupToken");
+  });
+
   describe("flag off", () => {
     it.each([
       ["no features answer yet", undefined],

@@ -1359,9 +1359,7 @@ def test_unplaced_project_and_fund_totals_are_readable(api, monkeypatch):
         "milestone_id": "",
         "kind": "common_fund",
     })
-    assert client.post(
-        f"/api/escales/pledges/{boat['id']}/capture", headers=ADMIN
-    ).status_code == 200
+    assert boat["status"] == "captured"
     fund = client.get("/api/escales/milestones/fonds-commun/fund", headers=ADMIN).json()
     assert fund["income_eur"] == "12.00"
     assert fund["spending_eur"] == "0.00"
@@ -1378,10 +1376,7 @@ def test_unplaced_project_and_fund_totals_are_readable(api, monkeypatch):
         "amount_eur": "9.00",
         "description": "caisse de l'escale",
     })
-    _approve_capture(stop["milestone_id"])
-    assert client.post(
-        f"/api/escales/pledges/{stop['id']}/capture", headers=ADMIN
-    ).status_code == 200
+    assert stop["status"] == "captured"
     assert client.get("/api/escales/milestones/mayotte/fund").json()["income_eur"] == "9.00"
     assert client.get("/api/escales/milestones/fund/fund", headers=ADMIN).json()["income_eur"] == "12.00"
 
@@ -1409,19 +1404,14 @@ def _capture_open_and_stopover(client, monkeypatch):
         "milestone_id": "",
         "kind": "common_fund",
     })
-    assert client.post(
-        f"/api/escales/pledges/{boat['id']}/capture", headers=ADMIN
-    ).status_code == 200
+    assert boat["status"] == "captured"
     _created_s, stop = _ready_mayotte(client, "chat-stop", monkeypatch, {
         **MAYOTTE_PLEDGE,
         "kind": "common_fund",
         "amount_eur": "9.00",
         "description": "caisse de l'escale",
     })
-    _approve_capture(stop["milestone_id"])
-    assert client.post(
-        f"/api/escales/pledges/{stop['id']}/capture", headers=ADMIN
-    ).status_code == 200
+    assert stop["status"] == "captured"
 
 
 def test_public_chat_withholds_project_and_common_fund_totals(api, monkeypatch):

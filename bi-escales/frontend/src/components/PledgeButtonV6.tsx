@@ -81,7 +81,7 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
   const sdkHost = useRef<HTMLDivElement | null>(null);
   const activePledgeIdRef = useRef<string | null>(null);
   const vault = created ? isVaultPledge(created) : false;
-  const isProjectPledge = (values.kind || "") === "project_pledge";
+  const isProjectPledge = ["project_pledge", "common_fund"].includes(values.kind || "");
   const isCabinLeg = (values.kind || "") === "cabin_leg";
   const [cabinLegId, setCabinLegId] = useState("");
   const sdkIntent = isProjectPledge ? "capture" : "authorize";

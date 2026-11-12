@@ -40,7 +40,13 @@ def isolated(monkeypatch):
     reset_ledger()
 
 
+from tests.test_escales_pledges import Spy as CaptureSpy
+
+
 class Spy:
+    create_capture_order = CaptureSpy.create_capture_order
+    capture_order = CaptureSpy.capture_order
+
     def __init__(self):
         self.calls = []
         self.n = 0
@@ -2570,7 +2576,6 @@ async def _captured_common_fund(spy, amount, key):
         client_key=key,
     )
     await authorize_pledge(pledge["_id"], spy)
-    await capture_pledge(pledge["_id"], spy)
     return pledge
 
 

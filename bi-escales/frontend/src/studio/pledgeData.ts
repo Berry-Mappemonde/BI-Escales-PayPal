@@ -28,7 +28,7 @@ export function pledgeStudioData(
         milestone_id: labelFor(row),
         kind: copy[row.type],
         amount_eur: row.pledged === null ? null : row.pledged / 100,
-        net_eur: row.captured === null ? null : (row.captured || row.authorized || row.vaulted || row.voided || 0) / 100,
+        net_eur: row.captured === null ? null : row.captured / 100,
       })),
       fields: [
         { id: "id", name: t("studio.colPledge"), format: "textFormat" },
@@ -44,10 +44,12 @@ export function pledgeStudioData(
       name: copy.chartTitle,
       data: totalFields.flatMap((field) => {
         const total = totals[field];
-        return total === null ? [] : [{ label: copy[field], amount: total / 100 }];
+        return total === null ? [] : [{ status: field, label: copy[field], amount: total / 100 }];
       }),
       fields: [
-        { id: "label", name: copy.status, format: "textFormat" },
+        { id: "status", name: copy.status, format: "textFormat",
+          createValueFormatter: () => (value) => ledgerStatus(String(value ?? ""), language) },
+        { id: "label", name: copy.chartTitle, format: "textFormat" },
         { id: "amount", name: t("studio.colAmount"), format: "decimalFormat", createValueFormatter: amountFormatter },
       ],
     }],

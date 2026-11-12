@@ -260,6 +260,16 @@ def test_email_preview_and_copy_link(onboarding_api, monkeypatch):
     assert copy.json()["action_url"]
 
 
+def test_onboarding_return_without_paypal_params_is_a_page(onboarding_api):
+    res = onboarding_api.get(
+        f"/api/escales/project-onboarding/projects/{DEMO_PROJECT_ID}/onboarding/return",
+    )
+    assert res.status_code == 200
+    assert "text/html" in res.headers["content-type"]
+    assert "Finish seller setup" in res.text
+    assert "Terminez l'inscription" in res.text
+
+
 def test_onboarding_return_marks_onboarded(onboarding_api, monkeypatch):
     onboarding_api.post("/api/escales/project-onboarding/seed", headers={"x-admin-key": "test-admin"})
     monkeypatch.setenv("PAYPAL_PARTNER_MERCHANT_ID", "PARTNER-MOCK")

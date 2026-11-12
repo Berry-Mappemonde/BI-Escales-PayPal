@@ -2,11 +2,13 @@
 import os
 from pathlib import Path
 
+from urllib.parse import urlencode
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.responses import FileResponse, Response
+from starlette.responses import FileResponse, RedirectResponse, Response
 
 from app.bi_marinas_catalog import build_escale_fiche, get_all_escale_marinas_geojson, get_escale_marinas_geojson
 from app.bi_projects_catalog import BROWSER_MAX_AGE, get_bi_projects_geojson, projects_geojson_body
@@ -116,6 +118,19 @@ def frontend_dist() -> Path:
     return Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 
+def language_or_unknown_redirect(full_path: str, query: dict[str, str]) -> str | None:
+    """`/en` and `/fr` become the same page with `?lang=`. Any other unknown path goes to `/`."""
+    head, _, rest = full_path.partition("/")
+    if head in {"en", "fr"}:
+        target = f"/{rest}" if rest else "/"
+        params = {key: value for key, value in query.items() if key != "lang"}
+        params["lang"] = head
+        return f"{target}?{urlencode(params)}"
+    if full_path:
+        return "/"
+    return None
+
+
 def attach_frontend(application: FastAPI) -> None:
     """Serve the built page from this process. Absent dist leaves the API alone."""
     dist = frontend_dist().resolve()
@@ -127,12 +142,15 @@ def attach_frontend(application: FastAPI) -> None:
         application.mount("/assets", StaticFiles(directory=assets), name="frontend-assets")
 
     @application.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
-    def spa(full_path: str):
+    def spa(full_path: str, request: Request):
         if full_path == "api" or full_path.startswith("api/"):
             raise HTTPException(status_code=404)
         candidate = (dist / full_path).resolve() if full_path else index
         if full_path and candidate.is_file() and str(candidate).startswith(str(dist)):
             return FileResponse(candidate)
+        target = language_or_unknown_redirect(full_path, dict(request.query_params))
+        if target is not None:
+            return RedirectResponse(url=target, status_code=301)
         return FileResponse(index)
 
 

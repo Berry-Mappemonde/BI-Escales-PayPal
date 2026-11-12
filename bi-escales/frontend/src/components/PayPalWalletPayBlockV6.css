@@ -1,10 +1,25 @@
 /*
- * The shell's `button { background: var(--accent) }` shorthand resets
- * background-repeat to repeat and background-size to auto. Google Pay's
- * createButton artwork is a single SVG, so a full-width button tiles it.
- * Size the control to one drawing.
+ * Form buttons paint with the `background` shorthand: accent on
+ * `.escale-sheet .pledge-form button` (and its :hover) and raised on
+ * `.ng-sidebar .project-pledge button`. That shorthand resets repeat to
+ * repeat and size to auto, so Google Pay's single SVG tiles, and it
+ * replaces the black button colour. Those rules exclude this button with
+ * :not(). The selectors here are also more specific than those rules,
+ * including :hover, :active, :focus and the coarse-pointer min-height, so
+ * one centred drawing on black wins whatever the bundle order.
+ *
+ * `button` and `.project-row button` use the same shorthand at a lower
+ * specificity, so they do not repaint this control. The map popup's
+ * `.pledge-button button` rule only sets min-height and font-size.
+ *
+ * Google Pay's createButton returns a div that wraps the button, so this
+ * must stay a descendant selector.
  */
-.paypal-wallet-pay [data-testid="paypal-google-pay"] button {
+.paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button,
+.escale-sheet .pledge-form .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button,
+.ng-sidebar .project-pledge .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button,
+.escale-sheet .pledge-form .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button:is(:hover, :active, :focus, :focus-visible),
+.ng-sidebar .project-pledge .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button:is(:hover, :active, :focus, :focus-visible) {
   box-sizing: border-box;
   width: 240px;
   max-width: 100%;
@@ -17,4 +32,25 @@
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
+}
+
+@media (pointer: coarse) {
+  .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button,
+  .escale-sheet .pledge-form .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button,
+  .ng-sidebar .project-pledge .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button,
+  .escale-sheet .pledge-form .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button:is(:hover, :active, :focus, :focus-visible),
+  .ng-sidebar .project-pledge .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button:is(:hover, :active, :focus, :focus-visible) {
+    box-sizing: border-box;
+    width: 240px;
+    max-width: 100%;
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background-color: #000;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+  }
 }

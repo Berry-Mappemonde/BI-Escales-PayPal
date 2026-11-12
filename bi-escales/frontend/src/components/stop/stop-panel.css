@@ -150,7 +150,7 @@
   line-height: var(--text-meta--line-height);
 }
 
-.escale-sheet .pledge-form button {
+.escale-sheet .pledge-form button:not([data-testid="paypal-google-pay"] button) {
   width: 100%;
   min-height: var(--space-10);
   margin-top: var(--space-1);
@@ -164,7 +164,7 @@
   transition: transform var(--duration-fast) var(--ease-out);
 }
 
-.escale-sheet .pledge-form button:active:not(:disabled),
+.escale-sheet .pledge-form button:active:not(:disabled):not([data-testid="paypal-google-pay"] button),
 .how-it-works-cta:active:not(:disabled) {
   transform: scale(0.97);
 }
@@ -263,7 +263,7 @@
 }
 
 .escale-sheet .escale-sheet-head button:focus-visible,
-.escale-sheet .pledge-form button:focus-visible,
+.escale-sheet .pledge-form button:focus-visible:not([data-testid="paypal-google-pay"] button),
 .stop-more summary:focus-visible,
 .stop-more-body a:focus-visible {
   outline: 2px solid var(--color-accent);
@@ -276,7 +276,7 @@
     color: var(--color-fg);
   }
 
-  .escale-sheet .pledge-form button:hover:not(:disabled),
+  .escale-sheet .pledge-form button:hover:not(:disabled):not([data-testid="paypal-google-pay"] button),
   .how-it-works-cta:hover:not(:disabled) {
     background: color-mix(in oklab, var(--color-accent) 86%, var(--color-fg));
   }
@@ -296,7 +296,7 @@
     height: 44px;
   }
 
-  .escale-sheet .pledge-form button {
+  .escale-sheet .pledge-form button:not([data-testid="paypal-google-pay"] button) {
     min-height: 44px;
   }
 
@@ -309,7 +309,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .escale-sheet .pledge-form button:active:not(:disabled),
+  .escale-sheet .pledge-form button:active:not(:disabled):not([data-testid="paypal-google-pay"] button),
   .how-it-works-cta:active {
     transform: none;
   }

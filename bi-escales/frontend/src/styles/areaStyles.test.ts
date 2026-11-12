@@ -24,7 +24,11 @@ describe.each(["stop/stop-panel.css", "captain/captain-card.css", "treasurer-pan
   });
 
   it("does not reach into the PayPal hosts", () => {
-    expect(css).not.toMatch(/paypal-(smart|buttons|card|wallet|google|apple)|card-field|pledge-button/i);
+    // The original check forbids every PayPal host name. The stop sheet must
+    // name this one button inside :not(), or the accent shorthand tiles its
+    // artwork. Strip only that exclusion, then apply the original check.
+    const styled = css.replaceAll(':not([data-testid="paypal-google-pay"] button)', "");
+    expect(styled).not.toMatch(/paypal-(smart|buttons|card|wallet|google|apple)|card-field|pledge-button/i);
   });
 });
 

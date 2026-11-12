@@ -748,7 +748,7 @@ body.ng-naviguide-shell {
   min-width: 0;
 }
 
-.ng-sidebar .project-pledge button {
+.ng-sidebar .project-pledge button:not([data-testid="paypal-google-pay"] button) {
   width: auto;
   min-height: 32px;
   margin: 0;

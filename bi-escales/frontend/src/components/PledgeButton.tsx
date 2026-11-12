@@ -84,7 +84,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   const [pledgeMode, setPledgeMode] = useState<{
     milestoneId: string;
     kind: string | undefined;
-    paymentMode: "AUTHORIZE" | "VAULT";
+    paymentMode: "AUTHORIZE" | "VAULT" | "CAPTURE";
   } | null>(null);
   const [cardFieldsEnabled, setCardFieldsEnabled] = useState(false);
   const [walletPayEnabled, setWalletPayEnabled] = useState(false);
@@ -543,7 +543,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
           onAuthorized={onAuthorized}
         />
       ) : null}
-      {cardFieldsEnabled && !isProjectPledge ? (
+      {cardFieldsEnabled ? (
         <PayPalCardFieldsBlock
           values={effectiveValues}
           appLang={appLang}

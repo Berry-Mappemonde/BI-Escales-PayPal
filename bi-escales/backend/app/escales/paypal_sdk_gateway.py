@@ -15,16 +15,16 @@ stay the values ``PayPalClient`` already used. See ``paypal-plan.md``.
 
 from __future__ import annotations
 
+import datetime as dt
 import importlib
 import logging
+import math
 import os
+import random
 import threading
 import time
-import math
-import random
 from contextvars import ContextVar
 from email.utils import parsedate_to_datetime
-import datetime as dt
 from typing import Any, NoReturn
 
 from .config import SANDBOX_BASE, paypal_sdk_reads_enabled as _flag_enabled
@@ -271,13 +271,24 @@ def _execute(controller_name: str, operation: str, *args: Any, sdk: Any = None) 
     sdk = sdk if sdk is not None else client()
     controller = getattr(sdk, controller_name)
     operation_fn = getattr(controller, operation)
+    last_error: Exception | None = None
     for attempt in range(_RESOURCE_ATTEMPTS):
         budget = _CALL_BUDGET.get()
         if budget is not None:
-            budget.consume()
+            try:
+                budget.consume()
+            except Exception as budget_error:
+                if last_error is not None:
+                    log.warning(
+                        "Captain PayPal budget exhausted after HTTP %s",
+                        getattr(last_error, "response_code", "unknown"),
+                    )
+                    raise budget_error from last_error
+                raise
         try:
             result = operation_fn(*args)
         except Exception as exc:
+            last_error = exc
             delay = _retry_delay(exc, attempt)
             if delay is not None and attempt < _RESOURCE_ATTEMPTS - 1:
                 time.sleep(delay)
@@ -316,8 +327,11 @@ def _sdk_reads(captain_budget: Any, method: str, *args: Any, **kwargs: Any) -> d
     return {str(key): value for key, value in result.items()}
 
 
-def get_order(order_id: str) -> dict[str, Any]:
-    return _execute("orders", "get_order", {"id": order_id})
+def get_order(order_id: str, *, fields: str | None = None) -> dict[str, Any]:
+    options = {"id": order_id}
+    if fields is not None:
+        options["fields"] = fields
+    return _execute("orders", "get_order", options)
 
 
 def get_authorized_payment(authorization_id: str) -> dict[str, Any]:
@@ -326,6 +340,10 @@ def get_authorized_payment(authorization_id: str) -> dict[str, Any]:
         "get_authorized_payment",
         {"authorization_id": authorization_id},
     )
+
+
+def get_captured_payment(capture_id: str) -> dict[str, Any]:
+    return _execute("payments", "get_captured_payment", {"capture_id": capture_id})
 
 
 def get_setup_token(setup_token_id: str) -> dict[str, Any]:

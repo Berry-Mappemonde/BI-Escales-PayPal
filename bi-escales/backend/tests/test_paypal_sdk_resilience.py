@@ -72,3 +72,84 @@ def test_bounded_retry_after(setup,monkeypatch,retry_after,attempts):
 def test_unsupported_model_field_is_mapped(setup):
     with pytest.raises(PayPalError) as exc:gateway.create_order({'intent':'CAPTURE','unsupported':True},idempotency_key='unsupported')
     assert exc.value.status==502
+
+
+def test_normal_capture_retries_after_a_captain_client_exhausts_its_budget(setup, monkeypatch, caplog):
+    captain, records, _ = setup
+    original = wire._dispatch
+    monkeypatch.setattr(wire, '_dispatch', lambda method, path:
+        original(method, path) if path == '/v1/oauth2/token' else (503, {'name': 'TEMPORARY'}))
+    captain.captain_budget = PayPalCallBudget(remaining=1)
+    with pytest.raises(PayPalCallLimitExceeded) as exhausted:
+        captain.get_order('ORDER-AUTH')
+    assert getattr(exhausted.value.__cause__, 'response_code', None) == 503
+    assert 'after HTTP 503' in caplog.text
+
+    attempts = 0
+    def dispatch(method, path):
+        nonlocal attempts
+        if path == '/v2/payments/authorizations/AUTH-1/capture':
+            attempts += 1
+            if attempts < 3:
+                return 503, {'name': 'TEMPORARY'}
+        return original(method, path)
+    monkeypatch.setattr(wire, '_dispatch', dispatch)
+    donor = PayPalClient(EscalesConfig('test-client-id', 'test-secret'))
+    assert donor.captain_budget is None
+    assert donor.capture_authorization('AUTH-1', idempotency_key='normal-capture')['status'] == 'COMPLETED'
+    captures = [r for r in records if r['path'].endswith('/AUTH-1/capture')]
+    assert len(captures) == 3
+    assert {r['request_id'] for r in captures} == {'normal-capture'}
+
+
+def test_pledge_capture_keeps_event_loop_alive_during_sdk_retry(setup, monkeypatch):
+    import asyncio
+    import threading
+    from app.escales.ledger import get_ledger, reset_ledger
+    from app.escales.pledges import authorize_pledge
+
+    client, records, _ = setup
+    monkeypatch.setenv('ESCALES_STORE', 'memory')
+    original = wire._dispatch
+    waiting = threading.Event()
+    heartbeat = threading.Event()
+    main_thread = threading.get_ident()
+    attempts = 0
+
+    def dispatch(method, path):
+        nonlocal attempts
+        assert threading.get_ident() != main_thread, 'SDK request blocked the event loop'
+        if path == '/v2/checkout/orders/ORDER-CAP/capture':
+            attempts += 1
+            if attempts == 1:
+                return 503, {'name': 'TEMPORARY'}
+        return original(method, path)
+
+    def backoff(delay):
+        waiting.set()
+        assert heartbeat.wait(2), 'event loop could not run while PayPal waited'
+
+    monkeypatch.setattr(wire, '_dispatch', dispatch)
+    monkeypatch.setattr(gateway.time, 'sleep', backoff)
+
+    async def run():
+        reset_ledger()
+        await get_ledger().save_pledge({
+            '_id': 'async-capture', 'status': 'created', 'order_id': 'ORDER-CAP',
+            'payment_mode': 'CAPTURE', 'kind': 'project_pledge',
+            'amount_eur': '15.00', 'currency': 'EUR', 'milestone_id': '',
+        })
+        task = asyncio.create_task(authorize_pledge('async-capture', client))
+        while not waiting.is_set():
+            await asyncio.sleep(0.001)
+        heartbeat.set()
+        assert (await task)['status'] == 'captured'
+        assert attempts == 2
+        captures = [r for r in records if r['path'].endswith('/ORDER-CAP/capture')]
+        assert captures[0]['request_id'] == captures[1]['request_id']
+        assert captures[0]['body'] == captures[1]['body']
+        reset_ledger()
+
+    async def bounded():
+        await asyncio.wait_for(run(), timeout=4)
+    asyncio.run(bounded())

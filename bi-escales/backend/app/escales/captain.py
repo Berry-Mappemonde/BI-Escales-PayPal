@@ -607,6 +607,7 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
             "The only date you may write is arrival_iso, copied exactly. "
             "distance_nm is the distance covered and planned_nm the planned distance. "
             "Write nautical miles or nm immediately after every distance number from the JSON. Never write nm alone. "
+            "logbook lists the NAVIGUIDE logbook entries reached so far, oldest first; you may say what the last one records. "
             "Do not repeat these instructions and do not write a Decision line."
         )
         if not reached:
@@ -632,6 +633,8 @@ def _report_system(milestone_id: str, reached: bool = False, lang: str = "fr") -
         "La seule date permise est arrival_iso, recopiée telle quelle. "
         "distance_nm est la distance parcourue et planned_nm la distance prévue. "
         "Écris milles ou nm juste après chaque nombre de distance du JSON. N'écris jamais nm seul. "
+        "logbook liste les entrées du journal de bord NAVIGUIDE atteintes, de la plus ancienne à la plus récente ; "
+        "tu peux dire ce que note la dernière. "
         "Ne répète pas ces consignes et n'écris pas de ligne Décision."
     )
     if not reached:
@@ -1922,6 +1925,71 @@ def _schedule_slice(milestone_id: str) -> dict[str, str]:
     return block
 
 
+_LOGBOOK_FIELDS = ("t", "kind", "label_en", "label_fr", "pos")
+
+
+async def _logbook_at(milestone_id: str, moment: dt.datetime) -> Optional[list[dict[str, Any]]]:
+    """The stop's NAVIGUIDE logbook, read as GET /schedule publishes it, cut at ``moment``.
+
+    An entry the voyage clock has not reached yet is not evidence, so it is left
+    out. None when the milestone is not a stop of the export (a cabin leg has no
+    logbook) or when the logbook cannot be read.
+    """
+    from .naviguide_bridge import fetch_naviguide_export, resolve_milestone
+    from .navigation_logbook import navigation_logbook
+
+    try:
+        book = navigation_logbook(await fetch_naviguide_export())
+    except Exception as exc:  # The review still runs on the clock evidence.
+        log.warning("captain review could not read the logbook: %s", type(exc).__name__)
+        return None
+    entries = None
+    for key in (milestone_id, resolve_milestone(milestone_id)):
+        if key and key in book:
+            entries = book[key]
+            break
+    if entries is None:
+        return None
+    reached = []
+    for entry in entries:
+        at = _parse_clock(str(entry.get("t") or ""))
+        if at is not None and at <= moment:
+            reached.append({field: entry[field] for field in _LOGBOOK_FIELDS if field in entry})
+    reached.sort(key=lambda entry: str(entry.get("t") or ""))
+    return reached
+
+
+def _naviguide_reads(
+    milestone_id: str,
+    eta: dict[str, str],
+    logbook: Optional[list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    """Read-only NAVIGUIDE reads behind a review, for the trace (no PayPal call here)."""
+    calls: list[dict[str, Any]] = []
+    if eta:
+        calls.append({"tool": "schedule.eta", "resource_id": milestone_id, "read_only": True, "status": "ok"})
+    if logbook is not None:
+        calls.append(
+            {
+                "tool": "logbook.read",
+                "resource_id": milestone_id,
+                "read_only": True,
+                "status": "ok",
+                "entries": len(logbook),
+            }
+        )
+    return calls
+
+
+def _logbook_for_model(entries: list[dict[str, Any]], lang: str) -> list[dict[str, str]]:
+    """What the model may read: the kind and the label, in the report language. No date."""
+    label = "label_en" if lang == "en" else "label_fr"
+    return [
+        {"kind": str(entry.get("kind") or ""), "entry": str(entry.get(label) or entry.get("label_en") or "")}
+        for entry in entries
+    ]
+
+
 def _with_known_facts(prompt: str) -> str:
     """Add the /schedule dates and the evidence distance. Nothing else is invented."""
     try:
@@ -2620,6 +2688,10 @@ async def review(
     ]
     for pledge in concerned:
         _read(reader, pledge)
+    # One clock for the whole review: the logbook is cut at it and ``at`` reports it.
+    reviewed_at = simulated_now()
+    eta = _schedule_slice(canonical) or _schedule_slice(milestone_id)
+    logbook = await _logbook_at(canonical, reviewed_at)
     visible = _evidence_for_model(evidence)
     allowed = {
         "evidence": visible,
@@ -2627,6 +2699,8 @@ async def review(
         "decision": decision,
         "language": report_lang,
     }
+    if logbook is not None:
+        allowed["logbook"] = _logbook_for_model(logbook, report_lang)
     prompt = json.dumps(allowed, ensure_ascii=False, default=str)
     known = _with_known_facts(prompt)
     usable, source, report_lang = await _narrative_for_language(
@@ -2706,8 +2780,13 @@ async def review(
         "evidence_flag": evidence.get("flag"),
         "model_source": source,
         "llm_proposal": advisory,
-        "at": simulated_now().isoformat(),
+        "at": reviewed_at.isoformat(),
+        # What the review read from NAVIGUIDE, so the card cites the review itself.
+        "naviguide_eta": eta,
+        "naviguide_tool_calls": _naviguide_reads(canonical, eta, logbook),
     }
+    if logbook is not None:
+        proposal["logbook"] = logbook
     from .provisioning_channel3 import attach_provisioning
 
     proposal = attach_provisioning(proposal, milestone_id)

@@ -1,6 +1,6 @@
-import type { CaptainProposal, PublicPledge, ScheduleResponse } from "../../api/types";
+import type { CaptainProposal, LogbookEntry, PublicPledge, ScheduleResponse } from "../../api/types";
 
-export type SourceKind = "schedule" | "pending_authorizations" | "authorizations.get" | "orders.get";
+export type SourceKind = "schedule" | "logbook" | "pending_authorizations" | "authorizations.get" | "orders.get";
 
 export interface CaptainSource {
   n: number;
@@ -9,7 +9,15 @@ export interface CaptainSource {
   ids: string[];
 }
 
-export type ClaimKey = "arrival" | "holds" | "validTo" | "expired" | "authorizationsRead" | "ordersRead";
+export type ClaimKey =
+  | "arrival"
+  | "logbook"
+  | "logbookEmpty"
+  | "holds"
+  | "validTo"
+  | "expired"
+  | "authorizationsRead"
+  | "ordersRead";
 
 export interface CaptainClaim {
   key: ClaimKey;
@@ -18,6 +26,8 @@ export interface CaptainClaim {
   iso?: string;
   count?: number;
   totalEur?: number;
+  /** The logbook entry a "logbook" claim quotes. */
+  entry?: LogbookEntry;
 }
 
 export interface StopOnSchedule {
@@ -68,6 +78,7 @@ function toolIds(review: CaptainProposal | null, tool: string): string[] {
  */
 export function buildEvidence(
   review: CaptainProposal | null,
+  /** The queue's schedule arrival, used only when the review does not say which ETA it read. */
   arrivalIso: string | undefined,
   now: Date = new Date(),
 ): { claims: CaptainClaim[]; sources: CaptainSource[] } {
@@ -79,8 +90,27 @@ export function buildEvidence(
     return n;
   };
 
-  if (arrivalIso) {
-    claims.push({ key: "arrival", cite: addSource("schedule"), iso: arrivalIso });
+  // The ETA the review itself read. Only a review from an older server, which
+  // does not carry it, lets the queue's schedule stand in.
+  const eta = review && "naviguide_eta" in review ? review.naviguide_eta?.arrival_iso : arrivalIso;
+  if (eta) {
+    claims.push({ key: "arrival", cite: addSource("schedule"), iso: eta });
+  }
+
+  // The logbook the review read server-side, already cut at its clock (the
+  // filter below only guards that). A review without one, such as a cabin leg's,
+  // makes no logbook claim.
+  if (Array.isArray(review?.logbook)) {
+    const reviewedAt = Date.parse(String(review.at ?? ""));
+    const reached = review.logbook
+      .filter((entry: LogbookEntry) => {
+        const at = Date.parse(String(entry?.t ?? ""));
+        return Number.isFinite(at) && !(at > reviewedAt);
+      })
+      .sort((a, b) => Date.parse(String(a.t)) - Date.parse(String(b.t)));
+    const latest = reached[reached.length - 1];
+    const cite = addSource("logbook");
+    claims.push(latest ? { key: "logbook", cite, iso: String(latest.t), entry: latest } : { key: "logbookEmpty", cite });
   }
 
   const pending = review?.pending_authorizations ?? [];

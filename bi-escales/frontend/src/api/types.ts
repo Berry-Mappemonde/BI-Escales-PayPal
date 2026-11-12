@@ -300,6 +300,12 @@ export interface CaptainProposal extends CaptainTrace {
   model_source?: { provider?: string; model?: string };
   llm_proposal?: { proposal?: string | null; reason?: string | null };
   at?: string;
+  /** The schedule dates the review read for this stop or leg. */
+  naviguide_eta?: { arrival_iso?: string; departure_iso?: string };
+  /** The stop's NAVIGUIDE logbook as the review read it, cut at `at`. Absent for a cabin leg. */
+  logbook?: LogbookEntry[];
+  /** Read-only NAVIGUIDE reads behind the review. */
+  naviguide_tool_calls?: { tool: string; resource_id?: string; read_only?: boolean; status?: string; entries?: number }[];
 }
 
 export interface CartPledge {

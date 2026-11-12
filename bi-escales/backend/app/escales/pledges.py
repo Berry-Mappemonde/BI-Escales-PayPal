@@ -880,6 +880,14 @@ async def _create_pledge(
         from .naviguide_bridge import resolve_schedule_milestone
 
         await resolve_schedule_milestone(milestone_id)
+    if pledge_kind == "common_fund":
+        return await _create_capture_pledge(
+            amount=amount, description=description, milestone_id=milestone_id,
+            client=client, client_key=client_key, contributor=contributor,
+            target_id=resolved_target, kind=pledge_kind, return_url=return_url,
+            cancel_url=cancel_url, caller_origin=caller_origin,
+            checkout_locale=checkout_locale, checkout_method=checkout_method,
+        )
     if pledge_kind == "project_pledge":
         pledge_currency = "EUR"
         from app.channel3_catalog import catalog_needs_confirmation, lookup_catalog_by_project_id
@@ -983,6 +991,7 @@ async def _create_capture_pledge(
     caller_origin: Optional[str] = None,
     checkout_locale: Optional[str] = None,
     checkout_method: Optional[str] = None,
+    kind: str = "project_pledge",
     currency: str = "EUR",
 ) -> dict:
     """Project crowdfunding: CAPTURE intent, charged when the buyer approves on return."""
@@ -1039,7 +1048,7 @@ async def _create_capture_pledge(
         "amount_eur": amount,
         "description": description,
         "milestone_id": milestone_id,
-        "kind": "project_pledge",
+        "kind": kind,
         "target_id": target_id,
         "contributor": (contributor or "").strip() or None,
         "order_id": order_id,
@@ -1456,7 +1465,7 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
             pledge = await require_pledge(pledge_id)
             if pledge.get("status") == "pending":
                 return await _refresh_pending_capture(pledge, client)
-            if pledge.get("status") in {"captured", "settled"}:
+            if pledge.get("status") in {"captured", "settled", "partially_refunded", "refunded"}:
                 return pledge
             return await _capture_order_pledge(pledge_id, client, pledge)
     async with _serialize_pledge_authorize(pledge_id):

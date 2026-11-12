@@ -561,6 +561,22 @@ python-error-handling, python-configuration-resilience, python-testing.
 
 SDK source inspection: from_dictionary injects PayPal defaults and drops card experience locale/brand fields. Keep nested dictionaries inside the generated OrderRequest envelope; HTTP-boundary parity tests cover exact payload preservation.
 
+## PAY-03 common-fund immediate capture
+
+Before code: common_fund uses the existing CAPTURE order creation and buyer-approved
+capture_order path, preserving the common_fund identity and target. The public
+mode preview returns CAPTURE. No Captain or treasurer approval is involved.
+Serialize approval callbacks and return an already captured receipt without another
+provider write. Project capture behavior stays on the same path. SDK operations:
+OrdersController.create_order and capture_order; PayPalError mapping unchanged.
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-error-handling, python-configuration-resilience, python-testing.
+
+PAY-03 review: preserve common-fund Card Fields and one-time Apple/Google wallets;
+use CAPTURE with card SCA_WHEN_REQUIRED for card donations. Distinguish common
+fund copy from project copy. A keyed treasurer capture after immediate capture
+must return a conflict and never issue a second provider capture.
+
 ## Sandbox Crew catalog v2 reuse
 
 Before code: reuse the annual EN/FR catalog set up by Hamid on test2. Do not run

@@ -253,6 +253,9 @@ export const EscaleSheet = memo(function EscaleSheet({
               {t("pledge.contributor")}
               <input value={pledge.contributor} onChange={(event) => pledge.onContributor(event.target.value)} />
             </label>
+            {pledge.kind === "mile" && !receiptPledge ? (
+              <p className="stop-note" data-testid="mile-certificate-promise">{t("certificate.promise")}</p>
+            ) : null}
             <div className="stop-checkout">
               <h4>{t("stopPanel.checkout")}</h4>
               <PledgeButton

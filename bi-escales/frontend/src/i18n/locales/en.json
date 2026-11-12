@@ -709,9 +709,10 @@
     }
   },
   "certificate": {
-    "heading": "Download my certificate",
-    "downloadPng": "PNG",
-    "downloadPdf": "PDF",
+    "promise": "Sponsoring miles? Right after your pledge, a personal certificate appears here to download: your mile numbers, where they are on the route, the nearest marine project, and a note written by the AI Captain.",
+    "heading": "Your mile certificate, with a note from the AI Captain",
+    "downloadPng": "Download PNG",
+    "downloadPdf": "Download PDF",
     "preparing": "Preparing your certificate…",
     "error": "Could not prepare the certificate. Try again in a moment."
   },

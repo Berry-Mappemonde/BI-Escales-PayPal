@@ -709,9 +709,10 @@
     }
   },
   "certificate": {
-    "heading": "Télécharger mon certificat",
-    "downloadPng": "PNG",
-    "downloadPdf": "PDF",
+    "promise": "Vous parrainez des milles ? Juste après votre promesse, un certificat personnel apparaît ici, à télécharger : vos numéros de milles, leur position sur la route, le projet marin le plus proche et un mot rédigé par le Capitaine IA.",
+    "heading": "Votre certificat de milles, avec un mot du Capitaine IA",
+    "downloadPng": "Télécharger en PNG",
+    "downloadPdf": "Télécharger en PDF",
     "preparing": "Préparation du certificat…",
     "error": "Impossible de préparer le certificat. Réessayez dans un instant."
   },

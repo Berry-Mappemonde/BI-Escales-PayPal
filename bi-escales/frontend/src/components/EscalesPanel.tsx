@@ -1,9 +1,10 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { captainChat, createPayPalInvoice } from "../api/escales";
 import { isCaptainRateLimitMessage } from "../api/captainRateLimit";
 import type { CaptainChatResponse, PublicPledge } from "../api/types";
 import { CaptainToolTrace } from "./captain/CaptainToolTrace";
+import { MileCertificateDownload } from "./MileCertificateDownload";
 import { PledgeButton } from "./PledgeButton";
 
 export interface EscalesPanelProps {
@@ -32,6 +33,18 @@ export function EscalesPanel({
   const [agenticNote, setAgenticNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Miles pledges made from this cart: each one's certificate is offered right under the cart.
+  const [mileReceipts, setMileReceipts] = useState<PublicPledge[]>([]);
+  // Stable, because the PayPal buttons are drawn again whenever this function changes.
+  const onCartAuthorized = useCallback(
+    (pledge: PublicPledge) => {
+      if (pledge?.kind === "mile") {
+        setMileReceipts((list) => [...list.filter((row) => row.id !== pledge.id), pledge]);
+      }
+      onAuthorized?.(pledge);
+    },
+    [onAuthorized],
+  );
 
   const onChat = async (event: FormEvent) => {
     event.preventDefault();
@@ -41,6 +54,8 @@ export function EscalesPanel({
     try {
       const asked = chatMessage.trim();
       const res = await captainChat(chatMessage, lang, adminKey);
+      // A new answer brings a new cart: certificates from the previous cart do not belong under it.
+      setMileReceipts([]);
       setChatResult(res);
       setAskedQuestion(asked);
       if (res.suggested_pledge) {
@@ -104,6 +119,10 @@ export function EscalesPanel({
           {chatResult.cart?.lines?.length ? (
             <div data-testid="captain-cart">
               <h3>{t("escales.cartHeading")}</h3>
+              {!mileReceipts.length
+                && chatResult.cart.lines.some((line) => (line.pledge?.kind || line.kind) === "mile") ? (
+                <p className="stop-note" data-testid="captain-cart-certificate-promise">{t("certificate.promise")}</p>
+              ) : null}
               {chatResult.cart.lines.map((line, index) => (
                 <div key={`${line.kind || "line"}-${index}`} data-testid="cart-line">
                   <p>
@@ -113,10 +132,13 @@ export function EscalesPanel({
                   {line.pledge ? (
                     <PledgeButton
                       values={{ ...line.pledge, quantity: Number.isInteger(Number(line.quantity)) ? Number(line.quantity) : undefined, lang: line.pledge.lang || lang }}
-                      onAuthorized={onAuthorized}
+                      onAuthorized={onCartAuthorized}
                     />
                   ) : null}
                 </div>
+              ))}
+              {mileReceipts.map((receipt) => (
+                <MileCertificateDownload key={receipt.id} pledge={receipt} contributor={receipt.contributor || undefined} />
               ))}
             </div>
           ) : null}

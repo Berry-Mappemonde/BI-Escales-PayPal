@@ -97,6 +97,28 @@ describe("stop panel", () => {
 
   afterEach(cleanup);
 
+  describe("mile certificate", () => {
+    it("says before paying that a certificate follows a miles pledge", async () => {
+      await show();
+      const note = screen.getByTestId("mile-certificate-promise");
+      expect(note).toHaveTextContent(/personal certificate appears here to download/);
+      expect(note).toHaveTextContent(/the nearest marine project, and a note written by the AI Captain/);
+      // Nothing to download yet: that block only comes with a successful pledge.
+      expect(screen.queryByTestId("mile-certificate-receipt")).toBeNull();
+    });
+
+    it("says it in French too", async () => {
+      await i18n.changeLanguage("fr");
+      await show();
+      expect(screen.getByTestId("mile-certificate-promise")).toHaveTextContent(/le projet marin le plus proche et un mot rédigé par le Capitaine IA/);
+    });
+
+    it("says nothing about a certificate for the other kinds", async () => {
+      await show({ pledge: pledge("berth_night") });
+      expect(screen.queryByTestId("mile-certificate-promise")).toBeNull();
+    });
+  });
+
   describe("status from the clock", () => {
     const chip = () => document.querySelector(".stop-chip");
 

@@ -58,6 +58,7 @@ _ARRIVAL_KINDS = frozenset({
     "meal",
     "care",
     "berth",
+    "stop_gift",
 })
 
 

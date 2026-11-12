@@ -566,6 +566,12 @@ SDK source inspection: from_dictionary injects PayPal defaults and drops card ex
 
 AUTHORIZE opens at most 695 hours before the UTC arrival/departure anchor (29 days minus one hour). Later anchors select Vault through the existing resolver. Provider expiry remains 696 hours. Naive clock values are UTC in both authorization and capture guards. Arrival/departure wording follows the actual anchor. No provider operation, flags or scheduler changes. Validate exact boundaries, offsets, naive clocks, preview/creation parity and the full suites.
 
+## Arrival gift for a stop: stop_gift
+
+Add a free positive EUR amount with kind=stop_gift, required known arrival milestone and no quantity. Reuse AUTHORIZE/Vault resolution (PAY-05 margin follows #249), order creation and human-reviewed arrival capture/cancellation void. Do not route this kind to immediate CAPTURE. Existing unit stop pledges and common_fund remain unchanged. Existing pledge fields/statuses and finance pledge_kind expose attribution; existing aggregate captured_eur/refunded_eur/authorized_eur keep held money out of Net. No row or donor/payment identifier is added to any LLM prompt. No UI, Studio, treasurer or dashboard changes. Test target validation, free amounts, preview/creation mode, arrival/human gate, cancellation, refund totals and model payload boundaries.
+
+#249 is merged into test/integration-2. This feature branch includes that integration merge, so the prerequisite diff is no longer part of the stop-gift PR. The remaining diff implements stop_gift only.
+
 ## Card coverage for immediate donations
 
 Before code: allow Card Fields on CAPTURE-intent project donations. The shared
@@ -617,3 +623,7 @@ python-error-handling, python-configuration-resilience, python-testing.
 The same fresh-attempt rule applies when Card Fields reports an explicit
 INSTRUMENT_DECLINED/CARD_DECLINED before the capture route is reached. Other SDK
 errors keep the original order because their financial outcome is uncertain.
+
+## Stop gift continuation: maximum amount and shared copy
+
+Before code: limit stop_gift to 1000.00 EUR per pledge, validated by the shared service before any provider call (including direct callers). Keep the existing positive-amount rule. Revert only the FR/EN pricing-note edits in captain.py; retain stop_gift in the existing free-amount label set so structured pricing cannot mislabel it as a fixed-price item. The user-facing gift description stays in the payment contract. Test the maximum and rejection above it, with no PayPal call on rejection.

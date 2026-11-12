@@ -149,3 +149,14 @@ def test_card_read_keeps_state_when_projection_omits_status(monkeypatch):
     order=client.get_card_order("CARD")
     assert order['status']=='APPROVED'
     _require_card_capture_approval(order)
+
+
+@pytest.mark.parametrize("auth,allowed", [(None,True),({},False),({"liability_shift":"UNKNOWN"},False),({"liability_shift":"NO","three_d_secure":{"enrollment_status":"Y","authentication_status":"N"}},False)])
+def test_approved_card_without_requested_sca_differs_from_failed_sca(auth,allowed):
+    from app.escales.pledges import _require_card_capture_approval
+    card={"last_digits":"9038","brand":"VISA"}
+    if auth is not None:card['authentication_result']=auth
+    order={"id":"CARD","status":"APPROVED","payment_source":{"card":card}}
+    if allowed:_require_card_capture_approval(order)
+    else:
+        with pytest.raises(ValueError):_require_card_capture_approval(order)

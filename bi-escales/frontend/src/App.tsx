@@ -1083,6 +1083,7 @@ export default function App() {
               <EscalesScheduler
                 schedule={schedule}
                 planningEnabled
+                clockNow={voyageNow}
                 onSelectEscale={onSchedulePick}
                 onAuthorized={onAuthorized}
               />
@@ -1225,6 +1226,7 @@ export default function App() {
               <EscalesScheduler
                 schedule={schedule}
                 planningEnabled
+                clockNow={voyageNow}
                 showCabins={false}
                 // Full names and every row where the page is wide; the compact timeline on a phone.
                 wide={!isNarrowScreen()}

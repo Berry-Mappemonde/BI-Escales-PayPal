@@ -123,6 +123,18 @@ describe("Bryntum timeline: theme and layout", () => {
     expect(props.readOnly).toBe(true);
     expect(props.startDate).toBe(events[0].startDate);
     expect(props.endDate).toBe(events.at(-1).endDate);
+    // No clock yet: open on the first stop, not the middle of the span.
+    expect(props.visibleDate).toEqual({ date: events[0].startDate, block: "center" });
+  });
+
+  it("opens the visible window on the voyage clock", async () => {
+    const clockNow = new Date("2026-11-12T08:00:00Z");
+    show({ clockNow });
+    await waitFor(() => expect(seen.props.length).toBeGreaterThan(0));
+    const props = seen.props.at(-1);
+    expect(props.startDate).toBe(events[0].startDate);
+    expect(props.endDate).toBe(events.at(-1).endDate);
+    expect(props.visibleDate).toEqual({ date: clockNow, block: "center" });
   });
 
   it("is as tall as its rows in the rail, up to a limit, with a narrow name column", async () => {

@@ -141,10 +141,24 @@ export function resolveSchedulerWidget(schedulerRef, hostRef) {
 }
 
 /**
+ * The date the timeline opens on. The voyage clock (`ESCALES_CLOCK_NOW`, via
+ * the API clock) keeps the current stops on screen. Without a clock, the first
+ * stop is used so the axis does not open on the middle of the voyage.
+ */
+export function timelineCenterDate(clockNow, events) {
+  const parsed = clockNow instanceof Date ? clockNow : clockNow ? new Date(clockNow) : null;
+  if (parsed && !Number.isNaN(parsed.getTime())) return parsed;
+  const first = events?.[0]?.startDate;
+  return first instanceof Date && !Number.isNaN(first.getTime()) ? first : null;
+}
+
+/**
  * Regenerate every time-axis header cell after a locale switch.
  * `refreshTimeAxis(true)` alone can leave the last partial day cell in the previous language (e.g. `16 nov.`).
+ * Reapplying the preset with both span dates and no center date scrolls to the
+ * middle of the voyage, so the center date is the voyage clock (or the axis start).
  */
-export function rebuildTimelineTimeAxisHeaders(widget) {
+export function rebuildTimelineTimeAxisHeaders(widget, centerDate) {
   if (!widget) return;
 
   if (widget.isPainted && typeof widget.onLocaleChange === "function") {
@@ -172,13 +186,19 @@ export function rebuildTimelineTimeAxisHeaders(widget) {
     if (presetRecord) {
       const startDate = widget.startDate;
       const endDate = widget.endDate;
-      presetRecord.options = { ...(presetRecord.options ?? {}), startDate, endDate };
+      const center = centerDate instanceof Date && !Number.isNaN(centerDate.getTime()) ? centerDate : startDate;
+      presetRecord.options = {
+        ...(presetRecord.options ?? {}),
+        startDate,
+        endDate,
+        ...(center ? { centerDate: center } : {}),
+      };
       widget.viewPreset = presetRecord;
     }
   }
 }
 
-export async function syncTimelineLocale({ schedulerRef, hostRef, modules, i18n, lng }) {
+export async function syncTimelineLocale({ schedulerRef, hostRef, modules, i18n, lng, centerDate }) {
   const localeName = bryntumLocaleForLanguage(lng);
   const widget = resolveSchedulerWidget(schedulerRef, hostRef);
   const localeManager = widget?.localeManager ?? modules?.LocaleManager;
@@ -188,7 +208,7 @@ export async function syncTimelineLocale({ schedulerRef, hostRef, modules, i18n,
       await applyResult;
     }
   }
-  rebuildTimelineTimeAxisHeaders(widget);
+  rebuildTimelineTimeAxisHeaders(widget, centerDate);
   const heading = i18n.t("scheduler.heading", { lng });
   const column = widget?.columns?.first;
   if (column) {
@@ -208,7 +228,7 @@ export function runTimelineLocaleSyncWithRetries(ctx) {
 
   const trySync = () => {
     if (cancelled) return;
-    void syncTimelineLocale(ctx).then(({ widget }) => {
+    void syncTimelineLocale({ ...ctx, centerDate: ctx.centerRef?.current ?? ctx.centerDate }).then(({ widget }) => {
       if (cancelled) return;
       if (widget || attempt >= TIMELINE_LOCALE_SYNC_MAX_ATTEMPTS - 1) {
         return;
@@ -238,12 +258,15 @@ export default function BryntumTimeline({
   maxHeight = MAX_HEIGHT,
   // More text columns beside the stop's name: [{ text, field, width }], the field read from each event.
   extraColumns = NO_EXTRA_COLUMNS,
+  /** Voyage clock (`ESCALES_CLOCK_NOW`). The visible window opens around this instant. */
+  clockNow = null,
 }) {
   const { t, i18n } = useTranslation();
   const [modules, setModules] = useState(null);
   const [failed, setFailed] = useState(false);
   const schedulerRef = useRef(null);
   const hostRef = useRef(null);
+  const centerRef = useRef(null);
   const loadGenerationRef = useRef(0);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -268,7 +291,7 @@ export default function BryntumTimeline({
 
   useEffect(() => {
     if (!modules) return undefined;
-    const ctx = { schedulerRef, hostRef, modules, i18n };
+    const ctx = { schedulerRef, hostRef, modules, i18n, centerRef };
 
     let cancelActiveSync = runTimelineLocaleSyncWithRetries({ ...ctx, lng: i18n.language });
 
@@ -323,6 +346,8 @@ export default function BryntumTimeline({
       endDate: events[events.length - 1].endDate,
     };
   }, [events]);
+  const centerDate = timelineCenterDate(clockNow, events);
+  centerRef.current = centerDate;
 
   const listeners = useMemo(
     () => ({
@@ -356,6 +381,9 @@ export default function BryntumTimeline({
       eventStyle: "filled",
       startDate,
       endDate,
+      // Opens on the voyage clock. Without this, reapplying the preset scrolls
+      // to the middle of the voyage (February–May 2027 when the clock is 12 Nov 2026).
+      ...(centerDate ? { visibleDate: { date: centerDate, block: "center" } } : {}),
       // Months over years: the voyage lasts most of a year.
       viewPreset: "monthAndYear",
       columns,
@@ -363,7 +391,7 @@ export default function BryntumTimeline({
       events: timelineEvents,
       listeners,
     }),
-    [startDate, endDate, columns, resources, timelineEvents, listeners, events.length, maxHeight],
+    [startDate, endDate, centerDate, columns, resources, timelineEvents, listeners, events.length, maxHeight],
   );
 
   if (!events.length) return fallback;

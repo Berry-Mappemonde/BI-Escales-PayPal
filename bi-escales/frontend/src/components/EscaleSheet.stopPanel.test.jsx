@@ -238,6 +238,28 @@ describe("stop panel", () => {
     });
   });
 
+  describe("port info links", () => {
+    it("names each link after its place, so two marinas do not share one link name", async () => {
+      await show({
+        fiche: {
+          sections: {
+            mooring: {
+              marinas: [
+                { name: "Tino Rossi", url: "https://example.org/tino", lat: 41.9, lon: 8.7 },
+                { name: "Charles Ornano", url: "https://example.org/ornano", lat: 41.93, lon: 8.74 },
+              ],
+            },
+          },
+        },
+      });
+      const info = screen.getByTestId("stop-port-info");
+      const names = [...info.querySelectorAll("a[aria-label]")].map((link) => link.getAttribute("aria-label"));
+      expect(names).toEqual(expect.arrayContaining(["Website: Tino Rossi", "Website: Charles Ornano"]));
+      expect(new Set(names).size).toBe(names.length);
+      expect(names).toEqual(expect.arrayContaining(["Google Maps: Tino Rossi", "Google Maps: Charles Ornano"]));
+    });
+  });
+
   describe("logbook", () => {
     const logbookSection = () => screen.getByTestId("escale-logbook");
 

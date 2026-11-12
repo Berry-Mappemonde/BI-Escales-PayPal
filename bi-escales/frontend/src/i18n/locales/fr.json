@@ -68,6 +68,8 @@
     "marina": {
       "website": "Site web",
       "maps": "Google Maps",
+      "mapsOf": "Google Maps : {{name}}",
+      "websiteOf": "Site web : {{name}}",
       "vhf": "VHF",
       "visitorBerths": "Places visiteurs",
       "maxDraft": "Tirant d'eau max.",
@@ -139,7 +141,8 @@
     "openHeading": "Totaux hors escale",
     "projectTotals": "Promesses projet",
     "boatTotals": "Fonds commun",
-    "publicCommon": "Caisse commune · {{balance}}"
+    "publicCommon": "Caisse commune · {{balance}}",
+    "publicCommonEmpty": "Caisse commune · Soyez le premier à donner"
   },
   "cabinLegPicker": {
     "label": "Choisir une jambe de voyage",
@@ -396,7 +399,7 @@
     "demoBanner": "Démo bac à sable : vous pouvez jouer le trésorier sur les promesses faites depuis ce navigateur. Les autres promesses sont en lecture seule ; la clé trésorier agit sur toutes.",
     "demoStop": {
       "heading": "Moment juge — La Rochelle",
-      "hint": "Bac à sable uniquement, clé trésorier requise : escale {{id}}. Simuler l'arrivée capture les promesses autorisées (l'approbation ne vaut que pour cette action, rien n'est enregistré) ; annuler vide les autorisations ; réinitialiser efface l'état démo sans toucher aux captures.",
+      "hint": "Bac à sable uniquement, clé trésorier requise : {{name}}. Simuler l'arrivée capture les promesses autorisées (l'approbation ne vaut que pour cette action, rien n'est enregistré) ; annuler vide les autorisations ; réinitialiser efface l'état démo sans toucher aux captures.",
       "working": "En cours… PayPal traite chaque promesse l’une après l’autre, cela peut prendre jusqu’à une minute.",
       "simulateArrival": "Simuler l'arrivée du bateau",
       "cancelStop": "Annuler l'escale",
@@ -452,7 +455,7 @@
     "description": "Description",
     "pledgeRef": "Promesse",
     "createdAt": "Créée le",
-    "milestoneFromStop": "La caisse et les dépenses utilisent le jalon de l’escale sélectionnée : {{id}}",
+    "milestoneFromStop": "La caisse et les dépenses utilisent l’escale sélectionnée : {{name}}",
     "milestone": "Jalon",
     "cabinLeg": "Cabine : {{from}} → {{to}}",
     "actions": "Actions",

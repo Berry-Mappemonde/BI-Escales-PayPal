@@ -94,7 +94,7 @@ export default function TreasurerStudio({ adminKey, demo, stopNames, onClose }: 
           <>
             <nav className="studio-nav" aria-label={copy.title}>
               <button type="button" aria-pressed={view === "ledger"} onClick={() => setView("ledger")}>{copy.ledger}</button>
-              <button type="button" aria-pressed={view === "crew"} onClick={() => setView("crew")}>{copy.crew}</button>
+              {!demo && adminKey.trim() && <button type="button" aria-pressed={view === "crew"} onClick={() => setView("crew")}>{copy.crew}</button>}
               {capabilities?.studio && (
                 <button type="button" aria-pressed={view === "report"} onClick={() => setView("report")}>
                   {capabilities.agent && !demo ? copy.agent : copy.report}
@@ -112,7 +112,7 @@ export default function TreasurerStudio({ adminKey, demo, stopNames, onClose }: 
                     <LedgerChart totals={totals} currency={currency} language={language} licenseKey={licenseKey} />
                   </Suspense> : undefined} />
             </div>
-            {view === "crew" && <CrewDashboard adminKey={adminKey} language={language} demo={demo} />}
+            {view === "crew" && !demo && adminKey.trim() && <CrewDashboard adminKey={adminKey} language={language} demo={demo} />}
             {view === "report" && capabilities?.studio && licenseKey && (
               <Suspense fallback={status}>
                 <StudioReport rows={rows} stopNames={stopNames} language={language} licenseKey={licenseKey}

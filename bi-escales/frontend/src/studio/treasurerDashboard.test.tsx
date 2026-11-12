@@ -58,8 +58,7 @@ describe("treasurer dashboard", () => {
     await within(dialog).findByText("Funding by destination");
     expect(listPledges).toHaveBeenCalledWith("", { demoTreasurer: true });
     expect(dialog.textContent).not.toMatch(/private@example.test|Private Supporter/);
-    fireEvent.click(within(dialog).getByRole("button", { name: "Crew memberships" }));
-    expect(within(dialog).getByText("Membership records are available with treasurer access.")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Crew memberships" })).not.toBeInTheDocument();
     expect(fetchPayPalSubscriptions).not.toHaveBeenCalled();
   });
 

@@ -568,3 +568,10 @@ result permitting continuation under the PayPal 3DS response matrix. Unknown,
 failed, rejected or still-challenged authentication fails closed without capture.
 Only a completed capture receipt may render the immediate-donation paid text.
 Reference: https://developer.paypal.com/platforms/checkout/advanced/customize/3d-secure/response-parameters
+
+
+### Card review: request server authentication fields explicitly
+
+The official Orders 3DS flow requires GET order with fields=payment_source to retrieve authentication_result. Include this query on the SDK and HTTP read paths before the existing 3DS gate. Test the generated request query, not just a permissive response fixture. Real sandbox SCA_ALWAYS confirmation returns PAYER_ACTION_REQUIRED until device authentication; do not capture while unresolved.
+
+Sandbox observation: fields=payment_source returns only id/payment_source, omitting status. A dedicated get_card_order combines the normal state read with that projection after verifying both order IDs. Other order reads stay unchanged; the card gate uses the combined response.

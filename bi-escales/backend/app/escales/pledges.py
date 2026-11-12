@@ -1370,7 +1370,7 @@ async def _capture_order_pledge(pledge_id: str, client: Any, pledge: dict) -> di
     _require_status(pledge, "created", "captured")
     order_id = str(pledge.get("order_id") or "")
     if pledge.get("checkout_method") == "card":
-        getter = getattr(client, "get_order", None)
+        getter = getattr(client, "get_card_order", None) or getattr(client, "get_order", None)
         if not callable(getter):
             raise ValueError("card approval cannot be verified")
         _require_card_capture_approval(getter(order_id) or {})

@@ -741,6 +741,16 @@ class PayPalClient:
             return delegated
         return self._req("GET", f"/v2/checkout/orders/{order_id}")
 
+    def get_card_order(self, order_id: str) -> dict:
+        """Keep order state and explicitly request the 3DS payment-source projection."""
+        order = self.get_order(order_id)
+        source = self._sdk_reads("get_order", order_id, fields="payment_source")
+        if source is None:
+            source = self._req("GET", f"/v2/checkout/orders/{order_id}?fields=payment_source")
+        if order.get("id") != order_id or source.get("id") != order_id:
+            raise PayPalError(502, "Card approval order identity mismatch")
+        return {**order, "payment_source": source.get("payment_source") or {}}
+
     def get_authorization(self, authorization_id: str) -> dict:
         delegated = self._sdk_reads("get_authorized_payment", authorization_id)
         if delegated is not None:

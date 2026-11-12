@@ -100,6 +100,52 @@ def test_card_create_approval_and_capture_use_the_generated_sdk(monkeypatch):
     try:
         asyncio.run(run())
         assert [r["path"] for r in wire._operations(records)] == [
-            "/v2/checkout/orders", "/v2/checkout/orders/CARD-DON", "/v2/checkout/orders/CARD-DON/capture"]
+            "/v2/checkout/orders", "/v2/checkout/orders/CARD-DON",
+            "/v2/checkout/orders/CARD-DON", "/v2/checkout/orders/CARD-DON/capture"]
     finally:
         reset_client(); reset_ledger()
+
+
+def test_card_approval_read_requests_authentication_fields(monkeypatch):
+    import httpx
+    import requests
+    from urllib.parse import urlparse, parse_qs
+    from app.escales.config import EscalesConfig
+    from app.escales.paypal_client import PayPalClient
+    from app.escales.paypal_sdk_gateway import reset_client
+    from tests import test_paypal_sdk_money_path as wire
+    monkeypatch.setenv("PAYPAL_ENV", "sandbox")
+    monkeypatch.setenv("PAYPAL_CLIENT_ID", "test-client-id")
+    monkeypatch.setenv("PAYPAL_CLIENT_SECRET", "test-secret")
+    monkeypatch.setenv("ESCALES_PAYPAL_SDK_ENABLED", "1")
+    reset_client()
+    seen = []
+    original = wire._Router.send
+    def checked(self, request, **kwargs):
+        if urlparse(request.url).path == "/v2/checkout/orders/ORDER-CAP":
+            seen.append(parse_qs(urlparse(request.url).query))
+        return original(self, request, **kwargs)
+    monkeypatch.setattr(wire._Router, "send", checked)
+    wire._install([])
+    try:
+        client = PayPalClient(EscalesConfig("test-client-id", "test-secret"), transport=httpx.MockTransport(lambda r: pytest.fail("no httpx")))
+        client.get_card_order("ORDER-CAP")
+        assert seen == [{}, {"fields": ["payment_source"]}]
+    finally:
+        reset_client()
+
+
+def test_card_read_keeps_state_when_projection_omits_status(monkeypatch):
+    monkeypatch.setenv("ESCALES_PAYPAL_SDK_ENABLED", "0")
+    def handler(request):
+        if request.url.path.endswith('/oauth2/token'):
+            return httpx.Response(200, json={"access_token":"test", "expires_in":300})
+        if request.url.params.get('fields') == 'payment_source':
+            return httpx.Response(200, json={"id":"CARD", "payment_source":{"card":{"authentication_result":{
+                "liability_shift":"POSSIBLE", "three_d_secure":{"enrollment_status":"Y", "authentication_status":"Y"}}}}})
+        return httpx.Response(200, json={"id":"CARD", "status":"APPROVED"})
+    client=PayPalClient(EscalesConfig("test-client", "test-secret"), transport=httpx.MockTransport(handler))
+    from app.escales.pledges import _require_card_capture_approval
+    order=client.get_card_order("CARD")
+    assert order['status']=='APPROVED'
+    _require_card_capture_approval(order)

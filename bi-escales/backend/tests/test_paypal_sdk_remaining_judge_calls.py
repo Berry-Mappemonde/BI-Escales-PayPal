@@ -163,6 +163,7 @@ def test_flag_off_keeps_httpx_for_the_three_calls(sandbox: None) -> None:
     assert body["payment_source"]["card"]["usage_type"] == "MERCHANT"
     assert body["payment_source"]["card"]["attributes"]["verification"]["method"] == "SCA_WHEN_REQUIRED"
     assert card.headers["PayPal-Request-Id"] == "card-setup-token-cust-1"
+    assert card.headers["Prefer"] == "return=representation"
     deleted = by_path["/v3/vault/payment-tokens/VAULT-1"]
     assert deleted.method == "DELETE"
     assert "PayPal-Request-Id" not in deleted.headers
@@ -196,6 +197,7 @@ def test_sdk_reauthorize_card_setup_and_delete_keep_wire_shape(
     assert body["payment_source"]["card"]["permit_multiple_payment_tokens"] is False
     assert body["payment_source"]["card"]["attributes"]["verification"]["method"] == "SCA_WHEN_REQUIRED"
     assert _header(card, "PayPal-Request-Id") == "card-setup-token-cust-1"
+    assert _header(card, "Prefer") == "return=representation"
     assert _header(card, "PayPal-Mock-Response") == MOCK
 
     deleted = _seen(catcher, "DELETE", "/v3/vault/payment-tokens/VAULT-1")

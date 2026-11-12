@@ -120,6 +120,7 @@ def _with_passthrough(
     *,
     mock_response: str | None = None,
     request_id: str | None = None,
+    prefer: bool = False,
 ) -> dict[str, Any]:
     headers: dict[str, str] = {}
     mock = (mock_response or "").strip()
@@ -127,6 +128,8 @@ def _with_passthrough(
         headers["PayPal-Mock-Response"] = mock
     if request_id:
         headers["PayPal-Request-Id"] = _request_id(request_id)
+    if prefer:
+        headers["Prefer"] = _PREFER_REPRESENTATION
     token = _PASSTHROUGH.set(headers or None)
     try:
         return run()
@@ -751,7 +754,7 @@ def create_card_setup_token(
             ),
         )
 
-    return _with_passthrough(run, mock_response=mock_response)
+    return _with_passthrough(run, mock_response=mock_response, prefer=True)
 
 
 def delete_payment_token(

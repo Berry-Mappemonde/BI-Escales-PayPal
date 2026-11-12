@@ -11,12 +11,15 @@
  * `button` and `.project-row button` use the same shorthand at a lower
  * specificity, so they do not repaint this control. The map popup's
  * `.pledge-button button` rule only sets min-height and font-size.
+ *
+ * Google Pay's createButton returns a div that wraps the button, so this
+ * must stay a descendant selector.
  */
-.paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] > button,
-.escale-sheet .pledge-form .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] > button,
-.ng-sidebar .project-pledge .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] > button,
-.escale-sheet .pledge-form .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] > button:is(:hover, :active, :focus, :focus-visible),
-.ng-sidebar .project-pledge .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] > button:is(:hover, :active, :focus, :focus-visible) {
+.paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button,
+.escale-sheet .pledge-form .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button,
+.ng-sidebar .project-pledge .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button,
+.escale-sheet .pledge-form .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button:is(:hover, :active, :focus, :focus-visible),
+.ng-sidebar .project-pledge .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button:is(:hover, :active, :focus, :focus-visible) {
   box-sizing: border-box;
   width: 240px;
   max-width: 100%;
@@ -32,11 +35,11 @@
 }
 
 @media (pointer: coarse) {
-  .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] > button,
-  .escale-sheet .pledge-form .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] > button,
-  .ng-sidebar .project-pledge .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] > button,
-  .escale-sheet .pledge-form .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] > button:is(:hover, :active, :focus, :focus-visible),
-  .ng-sidebar .project-pledge .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] > button:is(:hover, :active, :focus, :focus-visible) {
+  .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button,
+  .escale-sheet .pledge-form .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button,
+  .ng-sidebar .project-pledge .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button,
+  .escale-sheet .pledge-form .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button:is(:hover, :active, :focus, :focus-visible),
+  .ng-sidebar .project-pledge .paypal-wallet-pay[data-testid="paypal-wallet-pay"] [data-testid="paypal-google-pay"] button:is(:hover, :active, :focus, :focus-visible) {
     box-sizing: border-box;
     width: 240px;
     max-width: 100%;

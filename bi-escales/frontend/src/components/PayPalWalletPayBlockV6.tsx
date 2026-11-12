@@ -104,7 +104,6 @@ export function PayPalWalletPayBlockV6({
         {
           amount: values.amount_eur,
           currencyCode: values.currency?.trim().toUpperCase() || "EUR",
-          ...(appLang.toLowerCase().startsWith("fr") ? { buttonLocale: "fr" } : {}),
           createOrder: async () => {
             const row = await makeOrder();
             pledgeId = row.pledgeId;

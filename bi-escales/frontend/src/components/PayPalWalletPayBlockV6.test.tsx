@@ -9,7 +9,7 @@ import { PayPalWalletPayBlockV6 } from "./PayPalWalletPayBlockV6";
 
 vi.mock("../api/escales", () => ({ createPledge: vi.fn(), authorizePledge: vi.fn() }));
 
-type WalletConfig = { amount: string; currencyCode: string; buttonLocale?: string; createOrder: () => Promise<string>; onApprove: () => Promise<void>; onError: () => void };
+type WalletConfig = { amount: string; currencyCode: string; createOrder: () => Promise<string>; onApprove: () => Promise<void>; onError: () => void };
 const values = { amount_eur: "20.00", milestone_id: "dep-la-rochelle", kind: "mile", description: "La Rochelle" };
 
 function show(paypal: Record<string, unknown>, onAuthorized = vi.fn()) {
@@ -32,8 +32,9 @@ describe("Google Pay button artwork", () => {
     expect(css).toMatch(/background-position:\s*center/);
     expect(css).toMatch(/background-color:\s*#000/);
     expect(css).not.toMatch(/background-repeat:\s*repeat\b/);
-    expect(css).toMatch(/\.escale-sheet \.pledge-form \.paypal-wallet-pay\[data-testid="paypal-wallet-pay"\] \[data-testid="paypal-google-pay"\] > button:is\(:hover, :active, :focus, :focus-visible\)/);
-    expect(css).toMatch(/\.ng-sidebar \.project-pledge \.paypal-wallet-pay\[data-testid="paypal-wallet-pay"\] \[data-testid="paypal-google-pay"\] > button/);
+    expect(css).toMatch(/\.escale-sheet \.pledge-form \.paypal-wallet-pay\[data-testid="paypal-wallet-pay"\] \[data-testid="paypal-google-pay"\] button:is\(:hover, :active, :focus, :focus-visible\)/);
+    expect(css).toMatch(/\.ng-sidebar \.project-pledge \.paypal-wallet-pay\[data-testid="paypal-wallet-pay"\] \[data-testid="paypal-google-pay"\] button/);
+    expect(css).not.toMatch(/\[data-testid="paypal-google-pay"\] > button/);
     const coarse = css.slice(css.indexOf("@media (pointer: coarse)"));
     expect(coarse).toMatch(/paypal-google-pay/);
     expect(coarse).toMatch(/background-repeat:\s*no-repeat/);
@@ -125,14 +126,4 @@ it("passes the donation currency to the native wallet sheet", async () => {
     } } as never} />);
   await waitFor(() => expect(config).toBeDefined());
   expect(config.currencyCode).toBe("USD");
-  expect(config.buttonLocale).toBeUndefined();
-});
-
-it("asks Google Pay for a French label on a French page", async () => {
-  let config!: WalletConfig;
-  render(<PayPalWalletPayBlockV6 values={values} appLang="fr" sdkIntent="authorize" sdkReady paypal={{
-    Googlepay: (c: WalletConfig) => { config = c; return { render: async () => {}, close: async () => {} }; },
-  } as never} />);
-  await waitFor(() => expect(config).toBeDefined());
-  expect(config.buttonLocale).toBe("fr");
 });

@@ -15,8 +15,6 @@ type WalletOptions = {
   createOrder: () => Promise<string>;
   onApprove: () => Promise<void>;
   onError?: (error: Error) => void;
-  /** Google Pay button label locale. Only "fr" is passed, and only on French pages. */
-  buttonLocale?: string;
 };
 const scripts = new Map<string, Promise<void>>();
 function loadNativeScript(src: string): Promise<void> {
@@ -91,7 +89,7 @@ export function walletFactories(sdk: WalletSdk, eligible: Pick<EligiblePaymentMe
           const base = { apiVersion: config.apiVersion, apiVersionMinor: config.apiVersionMinor, allowedPaymentMethods };
           const ready = await client.isReadyToPay(base);
           if (!ready.result || closed) throw new Error("Google Pay device not ready");
-          button = client.createButton({ ...(options.buttonLocale ? { buttonLocale: options.buttonLocale } : {}), onClick: () => {
+          button = client.createButton({ onClick: () => {
             if (busy || closed) return;
             notePayPalV6CheckoutStarted();
             busy = true;

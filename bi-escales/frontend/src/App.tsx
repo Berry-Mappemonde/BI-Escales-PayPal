@@ -24,6 +24,7 @@ import { ShellSettings } from "./components/ShellSettings";
 import type { ToastItem } from "./components/Toast";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { useTheme } from "./hooks/useTheme";
+import { boatPosition, departureDate } from "./voyage/boatPosition.js";
 import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { resolveBoatStop } from "./voyage/boatStop.js";
@@ -162,8 +163,9 @@ export default function App() {
   const t0 = resolveDepartureT0(prod, devT0 || undefined);
   const lang = i18n.language?.startsWith("en") ? "en" : "fr";
   const voyage = useMemo(
-    () => (routeFc ? voyageFromRoute(routeFc, t0) : null),
-    [routeFc, t0],
+    () => (routeFc ? voyageFromRoute(routeFc, t0, schedule) : null),
+    // Not `schedule` itself: a price refresh copies it without changing the times.
+    [routeFc, t0, schedule?.export, schedule?.legs],
   );
   // The left rail follows the API's clock, so it cannot contradict the stop
   // statuses, which are computed from that same clock. No time at all while the
@@ -184,6 +186,9 @@ export default function App() {
       ? Math.max(0, Math.round(Number(sample.countdownHours)))
       : null;
   const sailedNm = Number.isFinite(cumNm) ? cumNm.toFixed(1).replace(/\.0$/, "") : "—";
+  // Where the boat is, in words: the map shows it, this line says it. The clock
+  // keeps the schedule's times once it is loaded, as the stop statuses do.
+  const boatWhere = useMemo(() => boatPosition(voyage?.stops, sample), [voyage?.stops, sample]);
   const sheetArrivalIso = useMemo(
     () => (stop?.milestoneId && schedule ? escaleArrivalIso(schedule, stop.milestoneId) : ""),
     [stop?.milestoneId, schedule],
@@ -1027,6 +1032,18 @@ export default function App() {
           <span className="voyage-clock-date">{voyageClockReady ? formatCivilDate(sample?.iso, lang) : "—"}</span>
           <span className="voyage-clock-distance">
             {voyageClockReady ? `${t("clock.sailed", { nm: sailedNm })} · ${t("clock.simulated")}` : "—"}
+          </span>
+        </p>
+        <p className="ng-clock-line voyage-where" data-testid="voyage-where">
+          {boatWhere ? (
+            <span className="voyage-clock-date voyage-boat-position" data-testid="voyage-boat-position">
+              {boatWhere.kind === "underway"
+                ? t("clock.boatUnderway", { from: boatWhere.from, to: boatWhere.to })
+                : t(boatWhere.kind === "waiting" ? "clock.boatWaiting" : "clock.boatAtStop", { stop: boatWhere.stop })}
+            </span>
+          ) : null}
+          <span className="voyage-clock-date" data-testid="voyage-departure">
+            {t("clock.departure", { date: departureDate(schedule, t0, lang) })}
           </span>
         </p>
         {!prod ? (

@@ -53,6 +53,10 @@
     "priceUnavailable": "prix indisponible"
   },
   "clock": {
+    "departure": "Départ : {{date}}",
+    "boatWaiting": "Bateau : {{stop}}, en attente du départ",
+    "boatAtStop": "Bateau : à l’escale, {{stop}}",
+    "boatUnderway": "Bateau : en route, {{from}} → {{to}}",
     "waiting": "Départ dans {{days}} j {{hours}} h",
     "devT0": "Départ de développement (ISO)",
     "sailed": "{{nm}} milles parcourus",

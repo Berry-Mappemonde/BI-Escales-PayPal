@@ -53,7 +53,7 @@ FIXED_PRICE_LABEL = "fixed price"
 FIXED_PRICE_LABEL_FR = "prix fixe"
 FREE_AMOUNT_LABEL = "free amount"
 FREE_AMOUNT_LABEL_FR = "montant libre"
-_FREE_AMOUNT_KINDS = frozenset({"project_pledge", "common_fund"})
+_FREE_AMOUNT_KINDS = frozenset({"project_pledge", "common_fund", "stop_gift"})
 
 
 def simulated_price_label(lang: str) -> str:
@@ -571,13 +571,13 @@ def simulated_prices(lang: Optional[str] = None) -> dict:
     if app_lang == "fr":
         note = (
             "Tarifs fixes pour le poste (place), la nuit, le repas, le soin et la cabine ; "
-            "1 € par mille nautique. Seuls le fonds commun et les dons projet sont en montant "
+            "1 € par mille nautique. Le fonds commun, les dons projet et les dons aux escales sont en montant "
             "libre (montant choisi par le parrain)."
         )
     else:
         note = (
             "Fixed prices for berth, night, meal, care, and cabin; 1 EUR per nautical mile. "
-            "Only the common fund and project donations are free amounts (amount chosen by "
+            "The common fund, project donations and stop gifts are free amounts (amount chosen by "
             "the supporter)."
         )
     return {

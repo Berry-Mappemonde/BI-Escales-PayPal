@@ -304,6 +304,7 @@ PLEDGE_KINDS = (
     "care",
     "cabin_leg",
     "common_fund",
+    "stop_gift",
 )
 
 
@@ -384,7 +385,7 @@ def _kind(raw: Optional[str]) -> str:
 
 
 _TARGET_SLUG = re.compile(r"^[a-z0-9-]+$")
-_TARGET_MUST_BE_KNOWN = {"mile", "berth", "night", "meal", "care"}
+_TARGET_MUST_BE_KNOWN = {"mile", "berth", "night", "meal", "care", "stop_gift"}
 # Escale kinds and the common fund name this stopover. A project pledge does not.
 _TARGET_MUST_MATCH_MILESTONE = _TARGET_MUST_BE_KNOWN | {"common_fund"}
 # No stopover required. An empty milestone keeps this default target.
@@ -450,6 +451,13 @@ async def _resolve_target(target_id: Optional[str], milestone_id: str, kind: str
     from .naviguide_bridge import resolve_milestone
 
     explicit = (target_id or "").strip()
+    if kind == "stop_gift":
+        from .departure_clock import arrival_milestone
+        arrival = await arrival_milestone(
+            {"kind": kind, "milestone_id": milestone_id}, read_only=True,
+        )
+        if arrival is None:
+            raise ValueError("stop_gift requires a known stop arrival milestone")
     if kind in _UNPLACED_TARGET and not (milestone_id or "").strip():
         if not explicit:
             return _UNPLACED_TARGET[kind]

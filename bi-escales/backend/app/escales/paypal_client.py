@@ -478,6 +478,7 @@ class PayPalClient:
         cancel_url: Optional[str] = None,
         checkout_locale: Optional[str] = None,
         currency_code: Optional[str] = None,
+        checkout_method: str = "paypal",
     ) -> dict:
         """Classic CAPTURE order (immediate payment after buyer approval)."""
         back = (return_url or "").strip() or order_return_url()
@@ -500,6 +501,13 @@ class PayPalClient:
                 )
             ],
         }
+        if checkout_method == "card":
+            body["payment_source"] = {"card": {
+                "attributes": {"verification": {"method": "SCA_WHEN_REQUIRED"}},
+                "experience_context": self._experience_context(back, cancel, locale=checkout_locale),
+            }}
+        elif checkout_method != "paypal":
+            raise ValueError("unsupported checkout method")
         return self._req(
             "POST",
             "/v2/checkout/orders",
@@ -704,7 +712,7 @@ class PayPalClient:
             return None
         from . import paypal_sdk_gateway
 
-        result = getattr(paypal_sdk_gateway, method)(*args, **kwargs)
+        result = paypal_sdk_gateway._sdk_reads(self.captain_budget, method, *args, **kwargs)
         if not isinstance(result, dict):
             raise PayPalError(502, "PayPal SDK response was not an object")
         return result
@@ -732,6 +740,22 @@ class PayPalClient:
         if delegated is not None:
             return delegated
         return self._req("GET", f"/v2/checkout/orders/{order_id}")
+
+    def get_card_order(self, order_id: str) -> dict:
+        """Keep order state and explicitly request the 3DS payment-source projection."""
+        order = self.get_order(order_id)
+        source = self._sdk_reads("get_order", order_id, fields="payment_source")
+        if source is None:
+            source = self._req("GET", f"/v2/checkout/orders/{order_id}?fields=payment_source")
+        if order.get("id") != order_id or source.get("id") != order_id:
+            raise PayPalError(502, "Card approval order identity mismatch")
+        return {**order, "payment_source": source.get("payment_source") or {}}
+
+    def get_capture(self, capture_id: str) -> dict:
+        delegated = self._sdk_reads("get_captured_payment", capture_id)
+        if delegated is not None:
+            return delegated
+        return self._req("GET", f"/v2/payments/captures/{capture_id}")
 
     def get_authorization(self, authorization_id: str) -> dict:
         delegated = self._sdk_reads("get_authorized_payment", authorization_id)

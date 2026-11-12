@@ -1,9 +1,8 @@
-import type { AgAiEvent, AgAiHarnessSetup, AgAiMessage, AgAiRunInput, AgLlmAdapter } from "ag-studio";
+import type { AgAiEvent, AgAiHarnessSetup, AgAiMessage, AgAiRunInput } from "ag-studio";
 import {
   AgStudioAiModule,
   clientToolRunner,
   createAiHarness,
-  directLlmRunner,
 } from "ag-studio";
 import {
   FUNDING_WIDGET_ID,
@@ -15,7 +14,7 @@ import {
 } from "./agentPlan";
 import { dashboardCopy } from "./dashboardLocale";
 import { studioLanguage, studioT } from "./locale";
-import { proxyLlmAdapter } from "./llmAdapter";
+import { askLedgerModel, type LedgerSummary } from "./llmAdapter";
 
 export { AgStudioAiModule };
 
@@ -85,13 +84,26 @@ export function treasurerAgentProfile(language?: string) {
   };
 }
 
-async function* runTreasurer(input: AgAiRunInput, language?: string): AsyncGenerator<AgAiEvent> {
+async function* runTreasurer(
+  input: AgAiRunInput,
+  language?: string,
+  summarize?: (question: string) => Promise<string | undefined>,
+  signal?: AbortSignal,
+): AsyncGenerator<AgAiEvent> {
   const userText = lastUserText(input.messages);
   const lastUser = input.messages.map((message) => message.role).lastIndexOf("user");
   const toolCount = toolMessageCount(input.messages.slice(lastUser + 1));
   const action = nextTreasurerAction(userText, toolCount, language);
   const stamp = `${input.runId}-${input.messages.length}`;
   if (action.kind === "delegate-data") {
+    if (summarize && nextTreasurerAction(userText, 1, language).kind === "reply") {
+      const summary = await summarize(userText);
+      if (signal?.aborted) return;
+      if (summary) {
+        yield* say(stamp, summary);
+        return;
+      }
+    }
     yield* say(stamp, treasurerSpeech(userText, toolCount, language));
     yield* callTool(`delegate-${stamp}`, "delegate_to", {
       type: { id: "data" },
@@ -139,23 +151,17 @@ async function* runBuiltInData(input: AgAiRunInput, language?: string): AsyncGen
   yield* callTool(`done-${stamp}`, "complete_task", { summary: action.summary, artifacts: [] });
 }
 
-export function createTreasurerHarness(endpoint: string | undefined, language?: string): AgAiHarnessSetup {
-  const adapter: AgLlmAdapter | undefined = endpoint ? proxyLlmAdapter(endpoint) : undefined;
+export function createTreasurerHarness(
+  endpoint: string | undefined, language: string, ledger: LedgerSummary,
+): AgAiHarnessSetup {
   return ({ api }) =>
     createAiHarness(api, ({ builtIn, tools }) => {
-      const dataAgent = adapter
-        ? directLlmRunner({ ...builtIn.data, adapter, schema: (shape) => shape.undefined() })
-        : clientToolRunner({
-            ...builtIn.data,
-            schema: (shape) => shape.undefined(),
-            maxTurns: 4,
-            run: (input) => runBuiltInData(input, language),
-          });
-      const llmSpecialists = adapter
-        ? (["page", "planning", "widget"] as const).map((id) =>
-            directLlmRunner({ ...builtIn[id], adapter }),
-          )
-        : [];
+      const dataAgent = clientToolRunner({
+        ...builtIn.data,
+        schema: (shape) => shape.undefined(),
+        maxTurns: 4,
+        run: (input) => runBuiltInData(input, language),
+      });
       const profile = treasurerAgentProfile(language);
       const tresorier = clientToolRunner({
         id: profile.id,
@@ -169,10 +175,14 @@ export function createTreasurerHarness(endpoint: string | undefined, language?: 
           tools.studio.addWidget(),
           tools.delegateTo(["data"]),
         ],
-        run: (input) => runTreasurer(input, language),
+        run: (input, { signal }) => runTreasurer(
+          input, language,
+          endpoint ? (question) => askLedgerModel(endpoint, ledger, question, language, signal) : undefined,
+          signal,
+        ),
       });
       return {
-        agents: [tresorier, dataAgent, ...llmSpecialists],
+        agents: [tresorier, dataAgent],
         primary: "tresorier",
         promptStarters: treasurerPromptStarters(language),
       };

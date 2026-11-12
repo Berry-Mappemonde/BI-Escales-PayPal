@@ -15,10 +15,16 @@ stay the values ``PayPalClient`` already used. See ``paypal-plan.md``.
 
 from __future__ import annotations
 
+import datetime as dt
 import importlib
 import logging
+import math
 import os
+import random
 import threading
+import time
+from contextvars import ContextVar
+from email.utils import parsedate_to_datetime
 from typing import Any, NoReturn
 
 from .config import SANDBOX_BASE, paypal_sdk_reads_enabled as _flag_enabled
@@ -40,6 +46,8 @@ _TRANSPORT_TYPES = frozenset({
 
 _TIMEOUT_SECONDS = 30
 _MAX_RETRIES = 0
+_RESOURCE_ATTEMPTS = 3
+_CALL_BUDGET: ContextVar[Any] = ContextVar("paypal_call_budget", default=None)
 
 _CLIENT: Any = None
 _CLIENT_LOCK = threading.Lock()
@@ -79,13 +87,16 @@ def build_sandbox_client(
     *,
     http_client_instance: Any = None,
     http_call_back: Any = None,
+    client_id: str | None = None,
+    client_secret: str | None = None,
 ) -> Any:
     """Build a sandbox client. Does not replace the cached client."""
     if not _flag_enabled():
         raise RuntimeError("PayPal SDK reads are disabled")
     _require_sandbox()
-    client_id = os.environ.get("PAYPAL_CLIENT_ID") or ""
-    client_secret = os.environ.get("PAYPAL_CLIENT_SECRET") or ""
+    if client_id is None and client_secret is None:
+        client_id = os.environ.get("PAYPAL_CLIENT_ID") or ""
+        client_secret = os.environ.get("PAYPAL_CLIENT_SECRET") or ""
     if not client_id or not client_secret:
         raise RuntimeError(
             "PayPal SDK gateway needs PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET"
@@ -233,49 +244,94 @@ def _reraise_transport_error(exc: BaseException) -> None:
         raise mapped from exc
 
 
-def _execute(controller_name: str, operation: str, *args: Any) -> dict[str, Any]:
-    sdk = client()
+def _retry_delay(exc: Exception, attempt: int) -> float | None:
+    if _API_EXCEPTION is None or not isinstance(exc, _API_EXCEPTION):
+        return None
+    code = getattr(exc, "response_code", None)
+    if code != 429 and not (isinstance(code, int) and 500 <= code <= 599):
+        return None
+    headers = getattr(getattr(exc, "response", None), "headers", {}) or {}
+    raw = next((str(value) for key, value in headers.items() if str(key).lower() == "retry-after"), "0")
+    try:
+        retry_after = max(0.0, float(raw))
+    except ValueError:
+        try:
+            target = parsedate_to_datetime(raw)
+            if target.tzinfo is None:
+                target = target.replace(tzinfo=dt.timezone.utc)
+            retry_after = max(0.0, (target - dt.datetime.now(dt.timezone.utc)).total_seconds())
+        except (ValueError, TypeError, OverflowError):
+            retry_after = 0.0
+    if not math.isfinite(retry_after) or retry_after > 10.0:
+        return None
+    return float(min(10.0, max(0.25 * (2 ** attempt), retry_after) + random.uniform(0, 0.25)))
+
+
+def _execute(controller_name: str, operation: str, *args: Any, sdk: Any = None) -> dict[str, Any]:
+    sdk = sdk if sdk is not None else client()
     controller = getattr(sdk, controller_name)
     operation_fn = getattr(controller, operation)
-    try:
-        result = operation_fn(*args)
-    except Exception as exc:
-        # OAuth failures are not ApiException and do not preserve an HTTP status.
-        # Do not replay a write through another transport or expose auth details.
-        auth_errors = importlib.import_module("apimatic_core.exceptions.auth_validation_exception")
-        if isinstance(exc, auth_errors.AuthValidationException):
+    last_error: Exception | None = None
+    for attempt in range(_RESOURCE_ATTEMPTS):
+        budget = _CALL_BUDGET.get()
+        if budget is not None:
             try:
-                _raise_paypal_error(502, "PayPal SDK authentication unavailable")
-            except Exception as mapped:
-                raise mapped from None
-        _reraise_api_error(exc)
-        _reraise_transport_error(exc)
-        raise
-    return _body_dict(getattr(result, "body", None))
+                budget.consume()
+            except Exception as budget_error:
+                if last_error is not None:
+                    log.warning(
+                        "Captain PayPal budget exhausted after HTTP %s",
+                        getattr(last_error, "response_code", "unknown"),
+                    )
+                    raise budget_error from last_error
+                raise
+        try:
+            result = operation_fn(*args)
+        except Exception as exc:
+            last_error = exc
+            delay = _retry_delay(exc, attempt)
+            if delay is not None and attempt < _RESOURCE_ATTEMPTS - 1:
+                time.sleep(delay)
+                continue
+            auth_errors = importlib.import_module("apimatic_core.exceptions.auth_validation_exception")
+            if isinstance(exc, auth_errors.AuthValidationException):
+                try:
+                    _raise_paypal_error(502, "PayPal SDK authentication unavailable")
+                except Exception as mapped:
+                    raise mapped from None
+            _reraise_api_error(exc)
+            _reraise_transport_error(exc)
+            raise
+        return _body_dict(getattr(result, "body", None))
+    raise AssertionError("unreachable")
 
 
 def _sdk_reads(captain_budget: Any, method: str, *args: Any, **kwargs: Any) -> dict[str, Any]:
-    """Charge the Captain budget, then run one SDK read.
+    """Apply the caller's budget to every SDK resource attempt, including writes.
 
-    Matches ``PayPalClient._request_with_retry``: one unit per resource read.
-    ``PayPalCallLimitExceeded`` leaves PayPal uncalled. OAuth stays inside the
-    SDK client and is not charged. A missing budget stays unlimited.
+    Context-local scope prevents concurrent callers from sharing their budgets.
+    OAuth remains internal to the SDK and is not charged.
     """
-    if captain_budget is not None:
-        captain_budget.consume()
     if method.startswith("_"):
         _raise_paypal_error(502, "PayPal SDK response was not an object")
     operation = globals().get(method)
     if not callable(operation):
         _raise_paypal_error(502, "PayPal SDK response was not an object")
-    result = operation(*args, **kwargs)
+    token = _CALL_BUDGET.set(captain_budget)
+    try:
+        result = operation(*args, **kwargs)
+    finally:
+        _CALL_BUDGET.reset(token)
     if not isinstance(result, dict):
         _raise_paypal_error(502, "PayPal SDK response was not an object")
     return {str(key): value for key, value in result.items()}
 
 
-def get_order(order_id: str) -> dict[str, Any]:
-    return _execute("orders", "get_order", {"id": order_id})
+def get_order(order_id: str, *, fields: str | None = None) -> dict[str, Any]:
+    options = {"id": order_id}
+    if fields is not None:
+        options["fields"] = fields
+    return _execute("orders", "get_order", options)
 
 
 def get_authorized_payment(authorization_id: str) -> dict[str, Any]:
@@ -284,6 +340,10 @@ def get_authorized_payment(authorization_id: str) -> dict[str, Any]:
         "get_authorized_payment",
         {"authorization_id": authorization_id},
     )
+
+
+def get_captured_payment(capture_id: str) -> dict[str, Any]:
+    return _execute("payments", "get_captured_payment", {"capture_id": capture_id})
 
 
 def get_setup_token(setup_token_id: str) -> dict[str, Any]:
@@ -369,7 +429,10 @@ def create_order(
     """Create AUTHORIZE/CAPTURE orders with generated request models."""
     # Nested dictionaries deliberately retain card experience fields that 2.4.0's
     # narrower generated submodels drop, and avoid injected checkout defaults.
-    body = _model("order_request", "OrderRequest")(**payload)
+    try:
+        body = _model("order_request", "OrderRequest")(**payload)
+    except TypeError:
+        _raise_paypal_error(502, "PayPal SDK order payload is unsupported")
     return _execute(
         "orders", "create_order",
         _write_options(body=body, idempotency_key=idempotency_key,

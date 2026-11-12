@@ -272,4 +272,16 @@
   .captain-card button:not(.captain-cite) {
     min-height: 44px;
   }
+
+  /* The citation number stays a 16px chip in its line; a finger gets a taller,
+     slightly wider area around it. Not 44 wide: two chips can sit side by side. */
+  .captain-card button.captain-cite {
+    position: relative;
+  }
+
+  .captain-card button.captain-cite::after {
+    content: "";
+    position: absolute;
+    inset: -14px -6px;
+  }
 }

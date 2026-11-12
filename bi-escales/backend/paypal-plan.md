@@ -536,3 +536,18 @@ are available in development or CI.
 
 Skills used: `python-getting-started` under the vendored
 `.cursor/skills/paypal-server-sdk` directory. No PayPal operation or SDK call is added.
+
+## Order creation SDK completion (payment workstream)
+
+Before implementation: route PayPalClient POST /v2/checkout/orders through
+OrdersController.create_order(options), using OrderRequest(**body) with existing nested wire dictionaries,
+PayPal-Request-Id and Prefer return=representation. This includes AUTHORIZE,
+CAPTURE, card/SCA, vault-on-purchase and saved-payment order bodies. Keep the
+existing SDK flag and sandbox guard, and never retry a failed SDK write via httpx.
+ApiException and transport/auth errors use the gateway's existing PayPalError mapping.
+Preserve the same request id across uncertain retries; no ledger transitions change.
+Shared onboarding files are excluded pending owner coordination.
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-error-handling, python-configuration-resilience, python-testing.
+
+SDK source inspection: from_dictionary injects PayPal defaults and drops card experience locale/brand fields. Keep nested dictionaries inside the generated OrderRequest envelope; HTTP-boundary parity tests cover exact payload preservation.

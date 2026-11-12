@@ -13,7 +13,7 @@ export interface ShellSettingsProps {
   theme: "light" | "dark";
   onToggleTheme: () => void;
   /** Where it is shown. Only the rail copy keeps the long-standing test ids. */
-  place?: "rail" | "treasurer-page";
+  place?: "rail" | "treasurer-page" | "wishlists";
 }
 
 export function ShellSettings({ theme, onToggleTheme, place = "rail" }: ShellSettingsProps) {

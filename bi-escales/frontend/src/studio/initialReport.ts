@@ -5,7 +5,7 @@ import { studioT } from "./locale";
 const PLEDGES = "pledges";
 
 /** Opening treasurer report: custom scoreboard, status chart, pledge grid. */
-export function treasurerInitialState(language?: string): AgReportState {
+export function treasurerInitialState(language?: string, hasCompleteCaptures = true): AgReportState {
   const t = studioT(language);
   return {
     selectedPageId: "tresorerie",
@@ -20,19 +20,19 @@ export function treasurerInitialState(language?: string): AgReportState {
         id: "tresorerie",
         layout: { columns: 24, rowHeight: 22 },
         widgets: {
-          validation: {
+          ...(hasCompleteCaptures ? { validation: {
             type: VALIDATION_WIDGET_TYPE,
             dataMapping: {
               status: [{ id: `${PLEDGES}.status` }],
               amount: [{ id: `${PLEDGES}.net_eur`, aggregation: "sum" }],
             },
             format: { title: { enabled: true, text: t("studio.scoreTitle") } },
-          },
+          } } : {}),
           "status-chart": {
             type: "column-chart-grouped",
             dataMapping: {
-              categoryKey: [{ id: `${PLEDGES}.status` }],
-              valueKey: [{ id: `${PLEDGES}.net_eur`, aggregation: "sum" }],
+              categoryKey: [{ id: "status_totals.label" }],
+              valueKey: [{ id: "status_totals.amount", aggregation: "sum" }],
             },
             format: { title: { enabled: true, text: t("studio.chartTitle") } },
           },
@@ -45,17 +45,16 @@ export function treasurerInitialState(language?: string): AgReportState {
                 { id: `${PLEDGES}.status` },
                 { id: `${PLEDGES}.amount_eur` },
                 { id: `${PLEDGES}.net_eur` },
-                { id: `${PLEDGES}.contributor` },
-                { id: `${PLEDGES}.description` },
+                { id: `${PLEDGES}.kind` },
               ],
             },
             format: { title: { enabled: true, text: t("studio.gridTitle") } },
           },
         },
         widgetLayout: {
-          validation: { xTrack: 0, yTrack: 0, xSpan: 24, ySpan: 11 },
-          "status-chart": { xTrack: 0, yTrack: 11, xSpan: 10, ySpan: 16 },
-          "pledge-grid": { xTrack: 10, yTrack: 11, xSpan: 14, ySpan: 16 },
+          ...(hasCompleteCaptures ? { validation: { xTrack: 0, yTrack: 0, xSpan: 24, ySpan: 11 } } : {}),
+          "status-chart": { xTrack: 0, yTrack: hasCompleteCaptures ? 11 : 0, xSpan: 10, ySpan: 16 },
+          "pledge-grid": { xTrack: 10, yTrack: hasCompleteCaptures ? 11 : 0, xSpan: 14, ySpan: 16 },
         },
       },
     ],

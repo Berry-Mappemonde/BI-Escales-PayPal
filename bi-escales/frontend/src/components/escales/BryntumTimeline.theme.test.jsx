@@ -145,4 +145,26 @@ describe("Bryntum timeline: theme and layout", () => {
     expect(seen.props.at(-1).height).toBe(64 + 17 * 32);
     expect(seen.props.at(-1).columns[0].width).toBe(220);
   });
+
+  it("adds the text columns it is given, filled from each stop", async () => {
+    const withStatus = events.map((event, index) => ({ ...event, statusLabel: index ? "Upcoming" : "Arrived", pledgesLabel: index ? "None" : "2 due for capture · €21.50" }));
+    show({ events: withStatus, extraColumns: [{ text: "Status", field: "statusLabel", width: 110 }, { text: "Held pledges", field: "pledgesLabel", width: 230 }] });
+    await waitFor(() => expect(seen.props.length).toBeGreaterThan(0));
+    const props = seen.props.at(-1);
+    expect(props.columns.map((column) => [column.text, column.field, column.width])).toEqual([
+      ["Stopover calendar", "name", 132],
+      ["Status", "statusLabel", 110],
+      ["Held pledges", "pledgesLabel", 230],
+    ]);
+    expect(props.resources[0]).toEqual({ id: "dep-0", name: "La Rochelle", statusLabel: "Arrived", pledgesLabel: "2 due for capture · €21.50" });
+    expect(props.resources[1]).toMatchObject({ statusLabel: "Upcoming", pledgesLabel: "None" });
+    expect(props.readOnly).toBe(true);
+  });
+
+  it("has only the name column when given none", async () => {
+    show();
+    await waitFor(() => expect(seen.props.length).toBeGreaterThan(0));
+    expect(seen.props.at(-1).columns).toHaveLength(1);
+    expect(seen.props.at(-1).resources[0]).toEqual({ id: "dep-0", name: "La Rochelle" });
+  });
 });

@@ -251,7 +251,18 @@
 
 @media (pointer: coarse) {
   .ng-layer-control .ng-layer-toggle {
-    min-height: 36px;
+    min-height: 44px;
+  }
+
+  /* A stop's flag stays 22 by 24 on the map; a finger gets 44 by 44 around it. */
+  .leaflet-container .flag-divicon::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
   }
 }
 

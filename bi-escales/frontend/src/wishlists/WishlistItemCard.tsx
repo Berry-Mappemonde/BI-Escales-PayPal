@@ -20,7 +20,9 @@ export function WishlistItemCard({ item, contributor = "", onAuthorized }: Wishl
   const currency = itemPresentmentCurrency(item);
   const defaultAmount = currencyUsesWholeUnits(currency) ? "1" : "1.00";
   const [amount, setAmount] = useState(defaultAmount);
-  const [who, setWho] = useState(contributor);
+  // The name follows the page's field until the visitor types one on this card.
+  const [ownName, setOwnName] = useState<string | null>(null);
+  const who = ownName ?? contributor;
   const pct = fundingPct(item);
   const priceLabel = formatNativePrice(item, lang);
   const qty = wishlistLineQuantity(item);
@@ -85,7 +87,7 @@ export function WishlistItemCard({ item, contributor = "", onAuthorized }: Wishl
             <input
               data-testid="wishlist-fund-contributor"
               value={who}
-              onChange={(event) => setWho(event.target.value)}
+              onChange={(event) => setOwnName(event.target.value)}
             />
           </label>
           <PledgeButton

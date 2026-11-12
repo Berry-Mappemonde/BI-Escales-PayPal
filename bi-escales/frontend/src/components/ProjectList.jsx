@@ -96,6 +96,8 @@ const isGearFeature = (feature) =>
 
 export default function ProjectList({
   projects,
+  // True while the projects file is on its way: neither "0" nor "no project found" is known yet.
+  loading = false,
   featureScope = "projects",
   searchQuery: searchQueryProp = undefined,
   onSearchQueryChange = undefined,
@@ -144,10 +146,14 @@ export default function ProjectList({
     <details ref={disclosure} className="panel project-disclosure" data-testid={listTestId}>
       <summary className="project-summary">
         <h2>{t(headingKey)}</h2>
-        <span aria-hidden="true">·</span>
-        <span className="project-list-total" data-testid="project-list-count">
-          {formatCount(scopedFeatures.length)}
-        </span>
+        {loading ? null : (
+          <>
+            <span aria-hidden="true">·</span>
+            <span className="project-list-total" data-testid="project-list-count">
+              {formatCount(scopedFeatures.length)}
+            </span>
+          </>
+        )}
         <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true"><path d="m5 6 3 3 3-3" stroke="currentColor" strokeWidth="1.5" /></svg>
       </summary>
       <input
@@ -163,7 +169,11 @@ export default function ProjectList({
           {t("projects.truncated", { shown: formatCount(LIST_CAP), total: formatCount(filtered.length) })}
         </p>
       ) : null}
-      {features.length === 0 ? <p className="hint">{t("projects.empty")}</p> : null}
+      {loading ? (
+        <p className="hint rail-loading" role="status" data-testid="project-list-loading">{t("projects.loading")}</p>
+      ) : features.length === 0 ? (
+        <p className="hint">{t("projects.empty")}</p>
+      ) : null}
       <div>
         {features.map((feature) => {
           const props = feature.properties || {};

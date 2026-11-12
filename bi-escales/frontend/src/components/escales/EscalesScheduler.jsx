@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PledgeButton } from "../PledgeButton";
 import BryntumTimeline from "./BryntumTimeline.jsx";
+import { formatEurAmount } from "../../voyage/stopStatus.js";
 
 function toDate(value) {
   if (!value) return null;
@@ -111,6 +112,8 @@ function LocalScheduleList({ events, onSelect }) {
             {event.milestoneId ? (
               <code>{withoutStoragePrefix(event.milestoneId)}</code>
             ) : null}
+            {event.statusLabel ? <span data-testid="schedule-stop-status">{event.statusLabel}</span> : null}
+            {event.pledgesLabel ? <span data-testid="schedule-stop-pledges">{event.pledgesLabel}</span> : null}
           </button>
         </li>
       ))}
@@ -125,11 +128,40 @@ export default function EscalesScheduler({
   planningEnabled = false,
   showCabins = true,
   wide = false,
+  // Treasurer only: by milestone id, whether the boat has arrived and the held pledges there.
+  stopOverview = /** @type {Record<string, { status: string | null, held: number, heldEur: number, due: boolean }> | null} */ (null),
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const escales = schedule?.export?.escales || schedule?.escales || localFallbackEscales();
   const legs = schedule?.legs || [];
-  const events = useMemo(() => buildEvents(escales, legs), [escales, legs]);
+  const lang = i18n.language?.startsWith("en") ? "en" : "fr";
+  // With the treasurer's overview, each stop also says its status and its held pledges, in words.
+  const events = useMemo(() => {
+    const base = buildEvents(escales, legs);
+    if (!stopOverview) return base;
+    return base.map((event) => {
+      const row = stopOverview[event.milestoneId];
+      if (!row) return { ...event, statusLabel: "", pledgesLabel: "" };
+      const amount = formatEurAmount(row.heldEur, lang);
+      return {
+        ...event,
+        statusLabel: row.status ? t(`stopPanel.status.${row.status}`) : "",
+        pledgesLabel: row.held
+          ? t(row.due ? "scheduler.pledgesDue" : "scheduler.pledgesHeld", { count: row.held, amount })
+          : t("scheduler.pledgesNone"),
+      };
+    });
+  }, [escales, legs, stopOverview, lang, t]);
+  const extraColumns = useMemo(
+    () =>
+      stopOverview
+        ? [
+            { text: t("scheduler.colStatus"), field: "statusLabel", width: 110 },
+            { text: t("scheduler.colPledges"), field: "pledgesLabel", width: 230 },
+          ]
+        : [],
+    [stopOverview, t],
+  );
   // The cabin checkouts are mounted only once the visitor asks for them: one PayPal
   // checkout per leg is a long list, and the calendar is the point of this section.
   const [cabinsOpen, setCabinsOpen] = useState(false);
@@ -146,11 +178,13 @@ export default function EscalesScheduler({
       <p className="hint escales-scheduler-lead">
         {t("scheduler.lead")}
         {onSelectEscale ? ` ${t("scheduler.leadSelect")}` : ""}
+        {stopOverview ? ` ${t("scheduler.leadTreasurer")}` : ""}
       </p>
       <BryntumTimeline
         events={events}
         onSelect={onSelectEscale}
         fallback={<LocalScheduleList events={events} onSelect={onSelectEscale} />}
+        extraColumns={extraColumns}
         // On a wide surface every stop's name and row fits; in the rail the list scrolls.
         {...(wide ? { nameWidth: 220, maxHeight: Number.POSITIVE_INFINITY } : {})}
       />

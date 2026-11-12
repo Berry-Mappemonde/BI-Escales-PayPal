@@ -28,12 +28,32 @@ _cache: dict[str, Any] = {"at": 0.0, "payload": None}
 _last_good: Optional[dict[str, Any]] = None
 
 
+# The encoded answer of GET /bi-projects.geojson, kept with the payload it was made
+# from: the payload is about 3 MB of JSON and is the same object for the whole cache
+# window, so it is encoded and fingerprinted once, not on every page load.
+_encoded: dict[str, Any] = {"payload": None, "body": b"", "etag": ""}
+
+# How long a browser may reuse the file without asking again.
+BROWSER_MAX_AGE = 300
+
+
+def projects_geojson_body(payload: dict[str, Any]) -> tuple[bytes, str]:
+    """The compact JSON bytes of ``payload`` and their ETag, encoded once per payload object."""
+    if _encoded["payload"] is not payload:
+        import hashlib
+
+        body = json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8")
+        _encoded.update(payload=payload, body=body, etag='"' + hashlib.sha256(body).hexdigest()[:32] + '"')
+    return _encoded["body"], _encoded["etag"]
+
+
 def reset_bi_projects_cache() -> None:
     """Test helper: drop in-memory cache and last-good copy."""
     global _last_good
     _cache["at"] = 0.0
     _cache["payload"] = None
     _last_good = None
+    _encoded.update(payload=None, body=b"", etag="")
 
 
 def bi_api_base() -> str:

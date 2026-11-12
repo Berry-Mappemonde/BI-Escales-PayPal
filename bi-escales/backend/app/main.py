@@ -2,14 +2,14 @@
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.responses import FileResponse
+from starlette.responses import FileResponse, Response
 
 from app.bi_marinas_catalog import build_escale_fiche, get_all_escale_marinas_geojson, get_escale_marinas_geojson
-from app.bi_projects_catalog import get_bi_projects_geojson
+from app.bi_projects_catalog import BROWSER_MAX_AGE, get_bi_projects_geojson, projects_geojson_body
 from app.escales.config import cors_origins, resolve_apple_pay_domain_association_path
 from app.middleware.security_headers import install_security_headers
 
@@ -57,9 +57,19 @@ def apple_pay_domain_association():
 
 
 @app.get("/bi-projects.geojson", include_in_schema=False)
-async def bi_projects_geojson():
+async def bi_projects_geojson(request: Request):
+    """The projects of the map and the list: about 3 MB of JSON, the same for minutes.
+
+    Encoded once per catalogue refresh, and sent with an ETag and a short max-age so a
+    reload reuses the browser's copy (304, or no request at all) instead of downloading it again.
+    """
     payload = await get_bi_projects_geojson()
-    return JSONResponse(content=payload, media_type="application/geo+json")
+    body, etag = projects_geojson_body(payload)
+    headers = {"Cache-Control": f"public, max-age={BROWSER_MAX_AGE}", "ETag": etag}
+    asked = {tag.strip() for tag in (request.headers.get("if-none-match") or "").split(",")}
+    if etag in asked or f"W/{etag}" in asked:
+        return Response(status_code=304, headers=headers)
+    return Response(content=body, media_type="application/geo+json", headers=headers)
 
 
 @app.get("/api/escale-fiche", include_in_schema=False)

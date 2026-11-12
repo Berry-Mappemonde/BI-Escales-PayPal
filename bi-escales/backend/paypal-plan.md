@@ -545,3 +545,22 @@ Beyond that instant the existing resolver selects VAULT or refuses before order
 creation. No provider methods, request IDs, capture rules or Render clock change.
 Naive supplied instants retain the existing UTC interpretation.
 Skills: python-getting-started, python-calling-endpoints, python-testing.
+## Order creation SDK completion (payment workstream)
+
+Before implementation: route PayPalClient POST /v2/checkout/orders through
+OrdersController.create_order(options), using OrderRequest(**body) with existing nested wire dictionaries,
+PayPal-Request-Id and Prefer return=representation. This includes AUTHORIZE,
+CAPTURE, card/SCA, vault-on-purchase and saved-payment order bodies. Keep the
+existing SDK flag and sandbox guard, and never retry a failed SDK write via httpx.
+ApiException and transport/auth errors use the gateway's existing PayPalError mapping.
+Preserve the same request id across uncertain retries; no ledger transitions change.
+Shared onboarding files are excluded pending owner coordination.
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-error-handling, python-configuration-resilience, python-testing.
+
+SDK source inspection: from_dictionary injects PayPal defaults and drops card experience locale/brand fields. Keep nested dictionaries inside the generated OrderRequest envelope; HTTP-boundary parity tests cover exact payload preservation.
+
+
+## PAY-05 review: one-hour capture safety margin
+
+AUTHORIZE opens at most 695 hours before the UTC arrival/departure anchor (29 days minus one hour). Later anchors select Vault through the existing resolver. Provider expiry remains 696 hours. Naive clock values are UTC in both authorization and capture guards. Arrival/departure wording follows the actual anchor. No provider operation, flags or scheduler changes. Validate exact boundaries, offsets, naive clocks, preview/creation parity and the full suites.

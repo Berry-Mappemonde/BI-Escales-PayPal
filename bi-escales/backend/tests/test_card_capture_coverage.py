@@ -39,9 +39,9 @@ from tests.test_escales_pledges import Spy
 
 @pytest.mark.parametrize("enrollment,authentication,shift,allowed", [
     ("Y", "Y", "POSSIBLE", True), ("Y", "A", "POSSIBLE", True),
-    ("N", "", "NO", True), ("U", "", "NO", True), ("B", "", "NO", True),
+    ("N", "", "NO", False), ("U", "", "NO", False), ("B", "", "NO", False),
     ("Y", "N", "NO", False), ("Y", "R", "NO", False), ("Y", "C", "UNKNOWN", False),
-    ("Y", "U", "UNKNOWN", False), ("Y", "", "NO", False), ("", "", "", False),
+    ("Y", "U", "UNKNOWN", False), ("Y", "", "NO", False), ("", "", "", True),
 ])
 def test_3ds_is_checked_before_card_capture(monkeypatch, enrollment, authentication, shift, allowed):
     monkeypatch.setenv("ESCALES_STORE", "memory")
@@ -150,8 +150,8 @@ def test_card_read_keeps_state_when_projection_omits_status(monkeypatch):
     _require_card_capture_approval(order)
 
 
-@pytest.mark.parametrize("auth,allowed", [(None,False),({},False),({"liability_shift":"UNKNOWN"},False),({"liability_shift":"NO","three_d_secure":{"enrollment_status":"Y","authentication_status":"N"}},False)])
-def test_approved_card_requires_authentication_evidence(auth,allowed):
+@pytest.mark.parametrize("auth,allowed", [(None,True),({},True),({"liability_shift":"UNKNOWN"},True),({"liability_shift":"NO","three_d_secure":{"enrollment_status":"Y","authentication_status":"N"}},False)])
+def test_approved_card_without_a_3ds_attempt_is_accepted(auth,allowed):
     from app.escales.pledges import _require_card_capture_approval
     card={"last_digits":"9038","brand":"VISA"}
     if auth is not None:card['authentication_result']=auth

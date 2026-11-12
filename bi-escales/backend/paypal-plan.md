@@ -754,3 +754,16 @@ milestone's pledges untouched. The treasurer key and pinned-clock override guard
 remain mandatory. This enables real cancellation verification on a dedicated
 `cursor-agent-test` stop without settling shared demo pledges. PayPal authorize,
 void and capture operations and idempotency keys are unchanged.
+
+### Card approval rule correction (12 November 2026, release blocker)
+
+Before code: supersede the missing-authentication rule above. Use one shared
+server-side card approval gate before both immediate Orders v2 capture and
+Orders v2 authorization. An APPROVED card with no authentication_result is
+accepted; failed/rejected enrollment or authentication (N/R) is refused, as is
+NO/UNKNOWN liability when a 3DS status shows an attempt. Declined/unapproved
+orders remain refused. Keep the expanded get_card_order read, the synchronous
+SDK work in asyncio.to_thread, existing exception mapping and stable write
+idempotency keys. No SDK signatures, request SCA methods or held-stop arrival
+capture paths change. Skills: python-getting-started, python-models,
+python-testing, python-error-handling, python-configuration-resilience.

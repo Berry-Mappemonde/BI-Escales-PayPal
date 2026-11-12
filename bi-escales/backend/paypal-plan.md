@@ -700,3 +700,15 @@ python-error-handling, python-configuration-resilience, python-testing.
 ## Stop gift continuation: maximum amount and shared copy
 
 Before code: limit stop_gift to 1000.00 EUR per pledge, validated by the shared service before any provider call (including direct callers). Keep the existing positive-amount rule. Revert only the FR/EN pricing-note edits in captain.py; retain stop_gift in the existing free-amount label set so structured pricing cannot mislabel it as a fixed-price item. The user-facing gift description stays in the payment contract. Test the maximum and rejection above it, with no PayPal call on rejection.
+
+## Remaining judge-path SDK calls
+
+Before code: route three PayPalClient methods through the existing sandbox gateway when ESCALES_PAYPAL_SDK_ENABLED is on. Flag off, or PAYPAL_ENV other than sandbox, keeps httpx. Captain budget still wraps every resource attempt. OAuth stays inside the SDK.
+
+| Call | SDK 2.4.0 | Idempotency | Notes |
+| --- | --- | --- | --- |
+| reauthorize | PaymentsController.reauthorize_payment(options) | PayPal-Request-Id from paypal_request_id(pledge or authorization, "reauthorize") | Body ReauthorizeRequest() (empty object, same as httpx {}). Prefer return=representation. The generated method has no PayPal-Mock-Response parameter; the gateway adds that header on the request when PayPalClient.mock_response is set. |
+| create_card_setup_token | VaultController.create_setup_token(options) | existing card-setup-token key | SetupTokenRequestCard drops usage_type, usage_pattern, permit_multiple_payment_tokens and attributes.verification. Pass the httpx dictionary as the body so the wire JSON stays the same. Mock header added the same way; this operation has no mock parameter. |
+| delete_payment_token | VaultController.delete_payment_token(id) | PayPal-Request-Id paypal_request_id(vault id, "delete-payment-token") | The generated method takes only the id. Request id and mock header are attached on the outgoing request. httpx DELETE still sends neither request id (only POST/PATCH do). Empty success body stays {}. |
+
+Errors: existing ApiException / transport mapping. No httpx replay after the SDK is selected. Skills: python-getting-started, python-calling-endpoints, python-models, python-error-handling, python-configuration-resilience, python-testing.

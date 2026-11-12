@@ -697,11 +697,20 @@ class PayPalClient:
 
     def reauthorize(self, authorization_id: str, *, pledge_id: Optional[str] = None) -> dict:
         ref = pledge_id or authorization_id
+        key = paypal_request_id(ref, "reauthorize")
+        delegated = self._sdk_writes(
+            "reauthorize_payment",
+            authorization_id,
+            idempotency_key=key,
+            mock_response=self.mock_response,
+        )
+        if delegated is not None:
+            return delegated
         return self._req(
             "POST",
             f"/v2/payments/authorizations/{authorization_id}/reauthorize",
             {},
-            idempotency_key=paypal_request_id(ref, "reauthorize"),
+            idempotency_key=key,
         )
 
     def _sdk_delegate(self, method: str, *args: Any, **kwargs: Any) -> Optional[dict]:
@@ -826,11 +835,20 @@ class PayPalClient:
                 },
             },
         }
+        key = idempotency_key or paypal_request_id(customer_id, "card-setup-token")
+        delegated = self._sdk_writes(
+            "create_card_setup_token",
+            body,
+            idempotency_key=key,
+            mock_response=self.mock_response,
+        )
+        if delegated is not None:
+            return delegated
         return self._req(
             "POST",
             "/v3/vault/setup-tokens",
             body,
-            idempotency_key=idempotency_key or paypal_request_id(customer_id, "card-setup-token"),
+            idempotency_key=key,
         )
 
     def create_payment_token(self, setup_token_id: str, *, pledge_id: Optional[str] = None) -> dict:
@@ -1214,6 +1232,14 @@ class PayPalClient:
         return self._req("GET", f"/v2/invoicing/invoices?page={page}&page_size={page_size}&total_required=true")
 
     def delete_payment_token(self, vault_id: str) -> dict:
+        delegated = self._sdk_writes(
+            "delete_payment_token",
+            vault_id,
+            idempotency_key=paypal_request_id(vault_id, "delete-payment-token"),
+            mock_response=self.mock_response,
+        )
+        if delegated is not None:
+            return delegated
         return self._req("DELETE", f"/v3/vault/payment-tokens/{vault_id}")
 
     def verify_webhook_signature(

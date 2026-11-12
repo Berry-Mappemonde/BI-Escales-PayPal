@@ -36,13 +36,20 @@ _OG_LOCALE_ALT = re.compile(r'<meta property="og:locale:alternate" content="[^"]
 _LOCALES = {"en": "en_US", "fr": "fr_FR"}
 
 
-def page_head(index_html: str, full_path: str, query: str = "") -> str:
+def page_head(index_html: str, full_path: str, query: str = "", *, image_origin: str | None = None) -> str:
     """``index.html`` with the canonical, hreflang, og:url and lang of this page and language.
 
     English is the default page (``/path``); French is ``/path?lang=fr``. Each
     alternate is its own canonical address. Unchanged if the file has no
     canonical link to start from.
     """
+    if image_origin:
+        image_url = html.escape(image_origin.rstrip("/") + "/og-image.png", quote=True)
+        index_html = re.sub(
+            r'(<meta (?:property="og:image"|name="twitter:image") content=")[^"]*(" />)',
+            lambda match: match.group(1) + image_url + match.group(2),
+            index_html,
+        )
     found = _CANONICAL.search(index_html)
     if not found:
         return index_html

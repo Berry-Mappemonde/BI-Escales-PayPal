@@ -182,7 +182,7 @@ def attach_frontend(application: FastAPI) -> None:
         if target is not None:
             return RedirectResponse(url=target, status_code=_REDIRECT_STATUS)
         # The page, with this page's own canonical address and language alternates.
-        return HTMLResponse(page_head(index.read_text(encoding="utf-8"), full_path, request.url.query))
+        return HTMLResponse(page_head(index.read_text(encoding="utf-8"), full_path, request.url.query, image_origin=str(request.base_url)))
 
 
 attach_frontend(app)

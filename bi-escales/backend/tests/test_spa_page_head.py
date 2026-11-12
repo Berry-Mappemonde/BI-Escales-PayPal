@@ -130,3 +130,10 @@ def test_helpers():
     assert page_lang("lang=FR") == "fr"
     assert page_lang("lang=de") == "en"
     assert page_lang("") == "en"
+
+
+def test_share_images_use_the_current_host(client):
+    response = client.get("/")
+    assert '<meta property="og:image" content="http://testserver/og-image.png" />' in response.text
+    assert '<meta name="twitter:image" content="http://testserver/og-image.png" />' in response.text
+    assert 'https://escales.naviguide.fr/og-image.png' not in response.text

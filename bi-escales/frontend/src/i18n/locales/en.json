@@ -515,7 +515,7 @@
   "grid": {
     "heading": "Treasurer view — gauges",
     "agGridOff": "AG Grid community is off (VITE_ENABLE_AG_GRID=0). HTML table. This is not AG Studio.",
-    "milestone": "Milestone",
+    "milestone": "Stop",
     "authorized": "Authorized",
     "captured": "Captured",
     "voided": "Voided",
@@ -526,10 +526,10 @@
     "humanValidation": "Human validation required — the captain never debits alone.",
     "applyCapture": "Capture (per proposal)",
     "applyVoid": "Void (per proposal)",
-    "noProposal": "No proposal stored for this milestone.",
+    "noProposal": "No proposal stored for this stop.",
     "marinaHeading": "Marinas — bookings, fees, refunds",
-    "marinaEmpty": "No berth pledges on the server.",
-    "marinaStop": "Stopover / milestone",
+    "marinaEmpty": "No berth pledge yet.",
+    "marinaStop": "Stop",
     "marinaBookings": "Bookings",
     "marinaGross": "Gross EUR",
     "marinaFees": "Platform fees",
@@ -599,7 +599,7 @@
     "statusFailed": "Failed"
   },
   "wishlists": {
-    "navLink": "Channel3 gear wishlists",
+    "navLink": "Gear wishlists",
     "pageTitle": "Gear wishlists",
     "pageLead": "Treasurer-published lists — sandbox PayPal pledges; the association never checks out on Channel3.",
     "backToMap": "Back to map",

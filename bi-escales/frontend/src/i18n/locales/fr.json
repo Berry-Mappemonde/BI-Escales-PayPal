@@ -203,7 +203,7 @@
       "cabin_leg": "Cabine sur une étape (simulation)",
       "common_fund": "Caisse commune (débitée immédiatement)"
     },
-    "milestone": "Jalon",
+    "milestone": "Escale",
     "contributor": "Votre nom (facultatif)",
     "simulatedPrice": "prix simulé",
     "returnPending": "Approuvez dans PayPal. Votre promesse est confirmée à votre retour.",
@@ -526,10 +526,10 @@
     "humanValidation": "Validation humaine requise — le capitaine ne débite jamais seul.",
     "applyCapture": "Encaisser (selon proposition)",
     "applyVoid": "Annuler (selon proposition)",
-    "noProposal": "Aucune proposition enregistrée pour ce jalon.",
+    "noProposal": "Aucune proposition enregistrée pour cette escale.",
     "marinaHeading": "Marinas — réservations, frais, remboursements",
-    "marinaEmpty": "Aucune promesse d’amarrage (berth) sur le serveur.",
-    "marinaStop": "Escale / jalon",
+    "marinaEmpty": "Aucune promesse de place de port pour l’instant.",
+    "marinaStop": "Escale",
     "marinaBookings": "Réservations",
     "marinaGross": "Brut EUR",
     "marinaFees": "Frais plateforme",
@@ -599,7 +599,7 @@
     "statusFailed": "Échouées"
   },
   "wishlists": {
-    "navLink": "Listes d’équipement Channel3",
+    "navLink": "Listes de matériel",
     "pageTitle": "Listes d’équipement",
     "pageLead": "Articles publiés par le trésorier — financement sandbox PayPal, sans achat Channel3 côté association.",
     "backToMap": "Retour à la carte",

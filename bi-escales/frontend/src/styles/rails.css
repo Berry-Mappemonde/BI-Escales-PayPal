@@ -54,9 +54,20 @@
   background: none;
 }
 
-.ng-shell .ng-sidebar > :is(.captain-chat, [data-testid="project-list"], [data-testid="gear-list"], .public-totals, .marinas-panel, .escales-scheduler, .wishlists-nav) {
+.ng-shell .ng-sidebar > :is(.captain-chat, [data-testid="project-list"], [data-testid="gear-list"], .public-totals, .marinas-panel, .escales-scheduler) {
   margin-top: var(--space-8);
   padding-block: 0;
+}
+
+/* The way to the gear wishlists: one quiet line under the tabs, not a section of its own. */
+.ng-shell .ng-sidebar > .wishlists-nav {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.ng-shell .ng-sidebar > .wishlists-nav a {
+  color: var(--color-fg-2);
 }
 
 /* Body copy reads at the second text level; the third is for metadata only. */

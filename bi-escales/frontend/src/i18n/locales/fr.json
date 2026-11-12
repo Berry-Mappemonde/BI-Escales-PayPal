@@ -203,7 +203,7 @@
       "cabin_leg": "Cabine sur une étape (simulation)",
       "common_fund": "Caisse commune (débitée immédiatement)"
     },
-    "milestone": "Escale",
+    "milestone": "Jalon",
     "contributor": "Votre nom (facultatif)",
     "simulatedPrice": "prix simulé",
     "returnPending": "Approuvez dans PayPal. Votre promesse est confirmée à votre retour.",
@@ -515,7 +515,7 @@
   "grid": {
     "heading": "Vue trésorier — jauges",
     "agGridOff": "AG Grid community est désactivé (VITE_ENABLE_AG_GRID=0) : tableau HTML. Ce n’est pas AG Studio.",
-    "milestone": "Jalon",
+    "milestone": "Escale",
     "authorized": "Autorisées",
     "captured": "Encaissées",
     "voided": "Annulées",

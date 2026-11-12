@@ -5,13 +5,55 @@
   min-height: 100vh;
 }
 
+/* Header: the title and its lead, the way back and the settings on one quiet row
+   beside it, then the one field of the page. Tokens only. */
 .wishlists-header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3) var(--space-5);
+  align-items: start;
+  margin-bottom: var(--space-6);
+}
+
+.wishlists-heading h1 {
+  margin: 0 0 var(--space-2);
+}
+
+.wishlists-heading .hint {
+  margin: 0;
+}
+
+.wishlists-controls {
+  justify-content: flex-end;
+}
+
+.wishlists-controls > a {
+  color: var(--color-fg-2);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+}
+
+.wishlists-contributor {
+  grid-column: 1 / -1;
+  max-width: 28rem;
+}
+
+.wishlists-contributor label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-fg-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+@media (max-width: 640px) {
+  .wishlists-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wishlists-controls {
+    justify-content: space-between;
+  }
 }
 
 .wishlist-grid {
@@ -44,6 +86,12 @@
 
 @media (prefers-reduced-motion: reduce) {
   .wishlist-skeleton-block { animation: none; }
+}
+
+/* Amount, name, then the payment block: one rhythm instead of fields that touch. */
+.wishlist-fund-block {
+  display: grid;
+  gap: var(--space-2);
 }
 
 .wishlist-item-card.unavailable {

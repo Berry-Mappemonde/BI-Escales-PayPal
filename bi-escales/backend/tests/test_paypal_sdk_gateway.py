@@ -749,3 +749,17 @@ def test_sdk_constructor_message_is_never_logged(
     monkeypatch.setattr("app.escales.paypal_sdk_gateway.client", refused)
     _assert_httpx_fallback(caplog, f"SDK client build failed: {error_type.__name__}")
     assert sentinel not in caplog.text
+
+
+@pytest.mark.parametrize("failures", [0, 3])
+def test_subscription_read_preserves_failed_payment_count(monkeypatch, failures):
+    _enable(monkeypatch)
+    payload = {**SUBSCRIPTION, "billing_info": {
+        "outstanding_balance": {"currency_code": "EUR", "value": "0.00"},
+        "failed_payments_count": failures,
+        "cycle_executions": [{"tenure_type": "REGULAR", "sequence": 1, "cycles_completed": 1, "cycles_remaining": 0, "total_cycles": 0}],
+    }}
+    catcher = _install(payload)
+    result = _httpx_client({}).get_subscription("I-SUB1")
+    assert result == payload
+    assert _operation(catcher).query_url.endswith("/v1/billing/subscriptions/I-SUB1")

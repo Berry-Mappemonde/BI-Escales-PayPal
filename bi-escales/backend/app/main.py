@@ -1,7 +1,7 @@
 """Standalone entry point for BI Escales (python -m uvicorn app.main:app)."""
 import os
+import re
 from pathlib import Path
-
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, HTTPException, Request
@@ -118,16 +118,42 @@ def frontend_dist() -> Path:
     return Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 
-def language_or_unknown_redirect(full_path: str, query: dict[str, str]) -> str | None:
-    """`/en` and `/fr` become the same page with `?lang=`. Any other unknown path goes to `/`."""
+# Same paths as frontend/src/Root.tsx. Anything else that is not a built file goes to the map.
+_SPA_EXACT = {"escales/wishlists"}
+_ONBOARDING_PATH = re.compile(r"^projects/[^/]+/onboarding(?:/return)?$")
+_REDIRECT_STATUS = 302
+
+
+def is_known_spa_path(full_path: str) -> bool:
+    path = full_path.strip("/")
+    if not path:
+        return True
+    return path in _SPA_EXACT or _ONBOARDING_PATH.fullmatch(path) is not None
+
+
+def _query_suffix(query: list[tuple[str, str]], *, lang: str | None = None) -> str:
+    pairs = [(key, value) for key, value in query if lang is None or key != "lang"]
+    if lang:
+        pairs.append(("lang", lang))
+    if not pairs:
+        return ""
+    return "?" + urlencode(pairs)
+
+
+def language_or_unknown_redirect(full_path: str, query: list[tuple[str, str]]) -> str | None:
+    """`/en` and `/fr` become the same path with `?lang=`. Unknown paths go to `/`.
+
+    Known client routes (Root.tsx) are served as the app. The redirect is temporary
+    so a wrong target is not cached in a judge's browser.
+    """
     head, _, rest = full_path.partition("/")
     if head in {"en", "fr"}:
         target = f"/{rest}" if rest else "/"
-        params = {key: value for key, value in query.items() if key != "lang"}
-        params["lang"] = head
-        return f"{target}?{urlencode(params)}"
+        return target + _query_suffix(query, lang=head)
+    if is_known_spa_path(full_path):
+        return None
     if full_path:
-        return "/"
+        return "/" + _query_suffix(query)
     return None
 
 
@@ -148,9 +174,9 @@ def attach_frontend(application: FastAPI) -> None:
         candidate = (dist / full_path).resolve() if full_path else index
         if full_path and candidate.is_file() and str(candidate).startswith(str(dist)):
             return FileResponse(candidate)
-        target = language_or_unknown_redirect(full_path, dict(request.query_params))
+        target = language_or_unknown_redirect(full_path, list(request.query_params.multi_items()))
         if target is not None:
-            return RedirectResponse(url=target, status_code=301)
+            return RedirectResponse(url=target, status_code=_REDIRECT_STATUS)
         return FileResponse(index)
 
 

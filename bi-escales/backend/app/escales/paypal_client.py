@@ -751,6 +751,12 @@ class PayPalClient:
             raise PayPalError(502, "Card approval order identity mismatch")
         return {**order, "payment_source": source.get("payment_source") or {}}
 
+    def get_capture(self, capture_id: str) -> dict:
+        delegated = self._sdk_reads("get_captured_payment", capture_id)
+        if delegated is not None:
+            return delegated
+        return self._req("GET", f"/v2/payments/captures/{capture_id}")
+
     def get_authorization(self, authorization_id: str) -> dict:
         delegated = self._sdk_reads("get_authorized_payment", authorization_id)
         if delegated is not None:

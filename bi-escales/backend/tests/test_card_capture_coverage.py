@@ -108,7 +108,6 @@ def test_card_create_approval_and_capture_use_the_generated_sdk(monkeypatch):
 
 def test_card_approval_read_requests_authentication_fields(monkeypatch):
     import httpx
-    import requests
     from urllib.parse import urlparse, parse_qs
     from app.escales.config import EscalesConfig
     from app.escales.paypal_client import PayPalClient
@@ -160,3 +159,65 @@ def test_approved_card_without_requested_sca_differs_from_failed_sca(auth,allowe
     if allowed:_require_card_capture_approval(order)
     else:
         with pytest.raises(ValueError):_require_card_capture_approval(order)
+
+
+def test_pending_card_capture_reconciles_existing_capture_and_serializes_double_click(monkeypatch):
+    monkeypatch.setenv("ESCALES_STORE", "memory")
+    class CardSpy(Spy):
+        def get_card_order(self, order_id):
+            return {"id": order_id, "status": "APPROVED", "payment_source": {
+                "card": {"brand": "VISA", "last_digits": "1111"}}}
+
+        def capture_order(self, order_id, **kwargs):
+            self.calls.append(("orders.capture", order_id))
+            return {"id": order_id, "purchase_units": [{"payments": {"captures": [
+                {"id": "CAP-P", "status": "PENDING"}]}}]}
+
+        def get_capture(self, capture_id):
+            return {"id": capture_id, "status": self.capture_status}
+
+    async def run():
+        reset_ledger()
+        spy = CardSpy()
+        spy.capture_status = "PENDING"
+        created = await create_pledge(amount_eur="10.00", description="Pending card", milestone_id="",
+            kind="project_pledge", checkout_method="card", client=spy)
+        results = await asyncio.gather(*[authorize_pledge(created["_id"], spy) for _ in range(2)])
+        assert [r["status"] for r in results] == ["pending", "pending"]
+        spy.capture_status = "COMPLETED"
+        assert (await authorize_pledge(created["_id"], spy))["status"] == "captured"
+        assert (await authorize_pledge(created["_id"], spy))["status"] == "captured"
+        assert len([c for c in spy.calls if c[0] == "orders.capture"]) == 1
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("sdk_enabled", [False, True])
+def test_pending_capture_read_uses_the_selected_transport(monkeypatch, sdk_enabled):
+    from app.escales.paypal_sdk_gateway import reset_client
+    from tests import test_paypal_sdk_money_path as wire
+    monkeypatch.setenv("PAYPAL_ENV", "sandbox")
+    monkeypatch.setenv("PAYPAL_CLIENT_ID", "test-client-id")
+    monkeypatch.setenv("PAYPAL_CLIENT_SECRET", "test-secret")
+    monkeypatch.setenv("ESCALES_PAYPAL_SDK_ENABLED", str(int(sdk_enabled)))
+    original = wire._dispatch
+    def dispatch(method, path):
+        if path == "/v2/payments/captures/CAP-P":
+            return 200, {"id": "CAP-P", "status": "PENDING", "amount": {"value": "10.00", "currency_code": "EUR"}}
+        return original(method, path)
+    monkeypatch.setattr(wire, "_dispatch", dispatch)
+    records = []
+    reset_client()
+    if sdk_enabled:
+        wire._install(records)
+    def handle(request):
+        assert not sdk_enabled, "SDK path fell back to httpx"
+        if request.url.path.endswith("/oauth2/token"):
+            return httpx.Response(200, json={"access_token": "test", "expires_in": 300})
+        records.append({"path": request.url.path})
+        return httpx.Response(200, json={"id": "CAP-P", "status": "PENDING"})
+    try:
+        client = PayPalClient(EscalesConfig("test-client-id", "test-secret"), transport=httpx.MockTransport(handle))
+        assert client.get_capture("CAP-P")["status"] == "PENDING"
+        assert any(r["path"] == "/v2/payments/captures/CAP-P" for r in records)
+    finally:
+        reset_client()

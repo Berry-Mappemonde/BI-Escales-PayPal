@@ -289,6 +289,10 @@ def get_authorized_payment(authorization_id: str) -> dict[str, Any]:
     )
 
 
+def get_captured_payment(capture_id: str) -> dict[str, Any]:
+    return _execute("payments", "get_captured_payment", {"capture_id": capture_id})
+
+
 def get_setup_token(setup_token_id: str) -> dict[str, Any]:
     return _execute("vault", "get_setup_token", setup_token_id)
 

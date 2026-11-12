@@ -8,6 +8,11 @@ it("looks up mode with a read-only GET", async () => {
   expect(fetch.mock.calls[0]).toEqual([expect.stringContaining("/pledges/mode?milestone_id=leg-test&kind=cabin_leg")]);
 });
 it("rejects unsupported modes before Card Fields can initialize", async () => {
-  vi.stubGlobal("fetch",vi.fn().mockResolvedValue({ok:true,json:async () => ({payment_mode:"CAPTURE"})}));
+  vi.stubGlobal("fetch",vi.fn().mockResolvedValue({ok:true,json:async () => ({payment_mode:"UNKNOWN"})}));
   await expect(fetchPledgeMode("dep-test")).rejects.toThrow("Invalid card payment mode");
+});
+
+it("accepts the immediate donation CAPTURE mode returned by the backend", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ payment_mode: "CAPTURE" }) }));
+  expect(await fetchPledgeMode("", "project_pledge")).toEqual({ payment_mode: "CAPTURE" });
 });

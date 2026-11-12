@@ -376,3 +376,22 @@ def test_wrong_keys_are_throttled_too(api, monkeypatch):
     codes = [_play(client, pledge["id"], "void", key=f"guess-{n}").status_code for n in range(5)]
     assert codes == [403, 403, 403, 429, 429]
     assert _stored(pledge["id"])["status"] == "authorized"
+
+
+def test_pending_demo_payment_can_refresh_without_replaying_capture(api, monkeypatch):
+    client, fake = api
+    pledge = _pledge(client)
+    for action in ("simulate-arrival", "approve", "capture"):
+        assert _play(client, pledge["id"], action).status_code == 200
+    async def make_pending():
+        row = await get_ledger().get_pledge(pledge["id"])
+        row["status"] = "pending"
+        row.pop("demo_play", None)
+        await get_ledger().save_pledge(row)
+    asyncio.run(make_pending())
+    monkeypatch.setattr(fake, "get_capture", lambda capture_id: {"id": capture_id, "status": "COMPLETED"}, raising=False)
+    before = list(_money_calls(fake))
+    response = _play(client, pledge["id"], "capture")
+    assert response.status_code == 200, response.text
+    assert response.json()["pledge"]["status"] == "captured"
+    assert _money_calls(fake) == before

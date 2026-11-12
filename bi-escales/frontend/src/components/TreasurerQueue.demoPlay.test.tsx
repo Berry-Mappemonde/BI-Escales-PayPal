@@ -222,3 +222,27 @@ describe("demo treasurer page hint", () => {
     expect(screen.queryByTestId("demo-play-hint")).toBeNull();
   });
 });
+
+it("offers only a status check for a pending own payment and never claims it was captured", async () => {
+  await i18n.changeLanguage("en");
+  vi.mocked(fetchOwnDemoPledges).mockResolvedValue([play("pending-own", ["capture"], "pending")]);
+  vi.mocked(demoPlay).mockResolvedValue({ pledge: row("pending-own", "pending"), play: play("pending-own", ["capture"], "pending") });
+  show({ pledges: [row("pending-own", "pending")] });
+  const button = await screen.findByTestId("own-capture-pending-own");
+  expect(button).toHaveTextContent("Check payment status");
+  fireEvent.click(button);
+  const note = await screen.findByTestId("demo-play-note");
+  expect(note).toHaveTextContent("Do not pay again");
+  expect(note).not.toHaveTextContent("captured in the PayPal sandbox");
+});
+
+it("lets the keyed treasurer check a pending payment without a new capture review", async () => {
+  await i18n.changeLanguage("en");
+  vi.mocked(capturePledge).mockResolvedValue(row("pending-keyed", "pending"));
+  show({ pledges: [row("pending-keyed", "pending")], adminKey: "treasurer", demoTreasurer: false });
+  const button = await screen.findByTestId("capture-pending-keyed");
+  expect(button).toHaveTextContent("Check payment status");
+  expect(button).toBeEnabled();
+  fireEvent.click(button);
+  await waitFor(() => expect(capturePledge).toHaveBeenCalledWith("pending-keyed", "treasurer", undefined));
+});

@@ -1441,7 +1441,13 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     pledge = await require_pledge(pledge_id)
     mode = str(pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE")
     if mode == "CAPTURE":
-        return await _capture_order_pledge(pledge_id, client, pledge)
+        async with _serialize_pledge_authorize(pledge_id):
+            pledge = await require_pledge(pledge_id)
+            if pledge.get("status") == "pending":
+                return await _refresh_pending_capture(pledge, client)
+            if pledge.get("status") in {"captured", "settled"}:
+                return pledge
+            return await _capture_order_pledge(pledge_id, client, pledge)
     async with _serialize_pledge_authorize(pledge_id):
         pledge = await require_pledge(pledge_id)
         if str(pledge.get("status") or "") == "authorized":
@@ -1709,7 +1715,38 @@ async def mark_token_delete_pending(pledge_id: str, detail: str) -> dict:
     return saved
 
 
+async def _refresh_pending_capture(pledge: dict, client: Any) -> dict:
+    """Reconcile the existing capture; PENDING never permits a second charge."""
+    capture_id = str(pledge.get("capture_id") or "")
+    if not capture_id:
+        raise ValueError("pending payment has no capture ID; await PayPal reconciliation")
+    payload = client.get_capture(capture_id)
+    status, returned_id, _ = read_capture_result(payload)
+    if returned_id != capture_id:
+        raise PayPalError(502, "Pending capture identity mismatch")
+    if status == "PENDING":
+        return pledge
+    if status not in {"COMPLETED", "DECLINED", "FAILED", "DENIED"}:
+        raise PayPalError(502, "Pending capture returned an unresolved status")
+    await _record_capture_attempt_outcome(pledge, payload)
+    return await _finish_capture(
+        pledge, payload,
+        finance={"payment_mode": pledge.get("payment_mode") or "AUTHORIZE"},
+        client=client,
+    )
+
+
 async def capture_pledge(
+    pledge_id: str,
+    client: Any,
+    *,
+    effective_at: Optional[dt.datetime] = None,
+) -> dict:
+    async with _serialize_pledge_authorize(pledge_id):
+        return await _capture_pledge_locked(pledge_id, client, effective_at=effective_at)
+
+
+async def _capture_pledge_locked(
     pledge_id: str,
     client: Any,
     *,
@@ -1717,6 +1754,9 @@ async def capture_pledge(
 ) -> dict:
     pledge = await require_pledge(pledge_id)
     from .departure_clock import refuse_early_capture
+
+    if pledge.get("status") == "pending":
+        return await _refresh_pending_capture(pledge, client)
 
     mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
     if mode == "VAULT":

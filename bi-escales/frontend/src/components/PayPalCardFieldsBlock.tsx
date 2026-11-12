@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { authorizePledge, createPledge, fetchPledgeMode, isVaultPledge, registerVault } from "../api/escales";
+import { authorizePledge, createPledge, fetchPledgeMode, fetchPledgeStatus, isVaultPledge, registerVault } from "../api/escales";
 import type { PublicPledge } from "../api/types";
 import type { PledgeFormValues } from "./PledgeButton";
 import type { PayPalNamespace } from "../paypal/paypalSdk";
@@ -37,6 +37,15 @@ function isCabinLegKind(kind?: string): boolean {
   return (kind || "") === "cabin_leg";
 }
 
+function isExplicitCardDecline(error: unknown): boolean {
+  if (error instanceof Error) return /\b(INSTRUMENT_DECLINED|CARD_DECLINED)\b/.test(error.message);
+  if (typeof error === "string") return /\b(INSTRUMENT_DECLINED|CARD_DECLINED)\b/.test(error);
+  if (!error || typeof error !== "object") return false;
+  const body = error as { details?: { issue?: string }[]; code?: string };
+  return [body.code, ...(Array.isArray(body.details) ? body.details.map(detail => detail.issue) : [])]
+    .some(code => code === "INSTRUMENT_DECLINED" || code === "CARD_DECLINED");
+}
+
 export interface PayPalCardFieldsBlockProps {
   values: PledgeFormValues;
   appLang: string;
@@ -64,11 +73,13 @@ export function PayPalCardFieldsBlock({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<PublicPledge | null>(null);
+  const [paymentMode, setPaymentMode] = useState<string | null>(null);
   const activePledgeRef = useRef<PublicPledge | null>(null);
   const submitRef = useRef<(() => Promise<void>) | null>(null);
   const attemptRef = useRef<{ key: string; values: PledgeFormValues; pledge?: Promise<PublicPledge> } | null>(null);
   const submittingRef = useRef(false);
   const confirmationErrorRef = useRef<Error | null>(null);
+  const confirmationDeclinedRef = useRef(false);
   const generationRef = useRef(0);
   const pledgeTargetRef = useRef(`${values.milestone_id}\0${values.kind ?? ""}`);
   valuesRef.current = values;
@@ -131,6 +142,7 @@ export function PayPalCardFieldsBlock({
       try {
         const { payment_mode } = await fetchPledgeMode(values.milestone_id, values.kind);
         if (cancelled) return;
+        setPaymentMode(payment_mode);
         const callbacks = payment_mode === "VAULT"
           ? { createVaultSetupToken: async () => {
               const pledge = await buildPledge();
@@ -150,7 +162,10 @@ export function PayPalCardFieldsBlock({
           onApprove: (data: { liabilityShift?: string }) => {
             if (data?.liabilityShift === "UNKNOWN") confirmationErrorRef.current = new Error("Card authentication incomplete");
           },
-          onError: () => { confirmationErrorRef.current = new Error("Card confirmation failed"); },
+          onError: (error: unknown) => {
+            confirmationDeclinedRef.current = isExplicitCardDecline(error);
+            confirmationErrorRef.current = new Error("Card confirmation failed");
+          },
         });
         if (!cardFields.isEligible()) return;
         for (const [field, el] of [
@@ -204,6 +219,7 @@ export function PayPalCardFieldsBlock({
     setError(null);
     try {
       confirmationErrorRef.current = null;
+      confirmationDeclinedRef.current = false;
       await submit();
       if (isClosed()) return;
       if (confirmationErrorRef.current) throw confirmationErrorRef.current;
@@ -214,11 +230,30 @@ export function PayPalCardFieldsBlock({
       if (isVaultPledge(current)) {
         current = await registerVault(current.id, current.setup_token_id || undefined);
       } else {
-        current = await authorizePledge(current.id);
+        try {
+          current = await authorizePledge(current.id);
+        } catch (captureError) {
+          // The server persists a decline before returning HTTP 409. A timeout
+          // may also hide a completed/pending capture: read before any new charge.
+          const stored = await fetchPledgeStatus(current.id).catch(() => null);
+          if (isClosed()) return;
+          if (stored && ["pending", "captured", "settled", "capture_failed"].includes(stored.status)) {
+            current = { ...current, status: stored.status };
+          } else {
+            throw captureError;
+          }
+        }
       }
       if (isClosed()) return;
+      if (current.status === "capture_failed" || current.status === "charge_failed") {
+        // A definite decline starts a fresh pledge/order on the next Pay click.
+        // Unknown transport outcomes keep their original key instead.
+        attemptRef.current = null;
+        activePledgeRef.current = null;
+        throw new Error(t("pledge.cardCaptureNotCompleted"));
+      }
       if ((current.payment_mode === "CAPTURE" || ["project_pledge", "common_fund"].includes(snapshot.kind || ""))
-          && !["captured", "settled"].includes(current.status)) {
+          && !["captured", "settled", "pending"].includes(current.status)) {
         throw new Error(t("pledge.cardCaptureNotCompleted"));
       }
       attemptRef.current = null;
@@ -226,7 +261,13 @@ export function PayPalCardFieldsBlock({
       setConfirmed(current);
       onAuthorized?.(current);
     } catch (e) {
-      if (!isClosed()) setError(formatCardFieldError(e instanceof Error ? e.message : String(e), t));
+      if (!isClosed()) {
+        if (confirmationDeclinedRef.current || isExplicitCardDecline(e)) {
+          attemptRef.current = null;
+          activePledgeRef.current = null;
+        }
+        setError(formatCardFieldError(e instanceof Error ? e.message : String(e), t));
+      }
     } finally {
       if (!isClosed()) {
         submittingRef.current = false;
@@ -239,20 +280,21 @@ export function PayPalCardFieldsBlock({
   const vaultConfirmed = confirmed ? isVaultPledge(confirmed) : false;
   const confirmKind = confirmed?.kind ?? values.kind;
   const paidImmediately = confirmed?.status === "captured" || confirmed?.status === "settled";
-  const immediateDonation = ["project_pledge", "common_fund"].includes(values.kind || "");
+  const paymentPending = confirmed?.status === "pending";
+  const immediateDonation = paymentMode === "CAPTURE";
 
   return (
     <div className="paypal-card-fields" data-testid="paypal-card-fields" ref={rootRef}>
       {confirmed ? (
         <div data-testid="paypal-card-confirm">
           <p className="status">
-            {t(paidImmediately ? "pledge.cardConfirmPaidTitle" : vaultConfirmed ? "pledge.cardConfirmVaultTitle" : "pledge.cardConfirmAuthorizeTitle")}
+            {t(paymentPending ? "pledge.cardConfirmPendingTitle" : paidImmediately ? "pledge.cardConfirmPaidTitle" : vaultConfirmed ? "pledge.cardConfirmVaultTitle" : "pledge.cardConfirmAuthorizeTitle")}
           </p>
           <p className="hint" data-testid="paypal-card-confirm-ref">
             {t("pledge.cardConfirmRef", { ref: shortRef })}
           </p>
           <p className="hint" data-testid="paypal-card-confirm-next">
-            {t(paidImmediately ? "pledge.cardConfirmPaidNext" : isCabinLegKind(confirmKind) ? "pledge.cardConfirmCabinNext" : "pledge.cardConfirmStopNext")}
+            {t(paymentPending ? "pledge.cardConfirmPendingNext" : paidImmediately ? "pledge.cardConfirmPaidNext" : isCabinLegKind(confirmKind) ? "pledge.cardConfirmCabinNext" : "pledge.cardConfirmStopNext")}
           </p>
         </div>
       ) : null}

@@ -33,7 +33,7 @@ PLAYABLE_FIELD = "demo_playable"
 STATE_FIELD = "demo_play"
 
 # Statuses in which money is held and the treasurer loop can still be played.
-_HELD = frozenset({"authorized", "capture_failed", "vaulted", "charge_failed"})
+_HELD = frozenset({"authorized", "capture_failed", "vaulted", "charge_failed", "pending"})
 # Statuses a void still applies to (the keyed void accepts the same ones).
 _VOIDABLE = frozenset({"authorized", "vaulted"})
 _REFUNDABLE = frozenset({"captured", "partially_refunded"})
@@ -97,7 +97,9 @@ def play_view(pledge: dict) -> dict:
     arrival = state.get("arrival_at")
     approved = state.get("approved_at")
     actions: list[str] = []
-    if status in _HELD:
+    if status == "pending":
+        actions.append("capture")  # Reads the existing capture; never charges again.
+    elif status in _HELD:
         if not arrival:
             actions.append("simulate_arrival")
         elif not approved:
@@ -164,6 +166,8 @@ async def approve(pledge: dict) -> dict:
 
 async def capture(pledge: dict, client: Any) -> dict:
     """Capture through the treasurer's own code path, dated at this pledge's simulated arrival."""
+    if pledge.get("status") == "pending":
+        return await capture_pledge(str(pledge["_id"]), client)
     state = _state(pledge)
     arrival = _parse_moment(str(state.get("arrival_at") or ""))
     if arrival is None:

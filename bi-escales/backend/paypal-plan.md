@@ -577,3 +577,28 @@ The official Orders 3DS flow requires GET order with fields=payment_source to re
 Sandbox observation: fields=payment_source returns only id/payment_source, omitting status. A dedicated get_card_order combines the normal state read with that projection after verifying both order IDs. Other order reads stay unchanged; the card gate uses the combined response.
 
 Real local MongoDB + PayPal observation: SCA_WHEN_REQUIRED confirmation can be APPROVED with a persisted card (brand/last_digits), and no authentication_result when PayPal does not request 3DS. Permit that explicit approved-card case; keep explicit unknown/failed 3DS and absent card data blocked. Capture outcome still determines paid status. Recheck completed and processor-declined cards against the real sandbox, using local bi_escales_test2 and scoped tagged cleanup.
+
+## PR #255 continuation: pending capture and declined-card retry
+
+Before application changes: PENDING is an existing capture awaiting settlement,
+never permission to submit another charge. Add PayPalClient.get_capture and the
+shared gateway get_captured_payment(capture_id), using SDK 2.4.0
+PaymentsController.get_captured_payment({"capture_id": capture_id}); its ApiResponse
+body is CapturedPayment and failures map through the existing ApiException /
+transport handling. A pending capture action reads that exact resource, verifies
+its ID, and updates the existing pledge only on a known terminal outcome. Repeated
+PENDING reads do not append finance events or advance capture_attempt. Serialize
+capture/approval for one pledge so concurrent clicks cannot submit two writes.
+
+The card receipt distinguishes PENDING from paid and hides further payment entry.
+After a definite declined capture, fetch the stored status and clear the checkout
+attempt; the next submission uses a new pledge, order and PayPal-Request-Id.
+Transport uncertainty keeps the original attempt/key. Mode preview accepts CAPTURE
+as returned by the API. Keep the original 3DS gate and common-fund merge contract.
+
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-error-handling, python-configuration-resilience, python-testing.
+
+The same fresh-attempt rule applies when Card Fields reports an explicit
+INSTRUMENT_DECLINED/CARD_DECLINED before the capture route is reached. Other SDK
+errors keep the original order because their financial outcome is uncertain.

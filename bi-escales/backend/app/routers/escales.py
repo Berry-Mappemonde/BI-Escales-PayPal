@@ -323,6 +323,7 @@ class SubscriptionRecordIn(BaseModel):
 
 
 class SubscriptionCreateIn(BaseModel):
+    plan_id: Optional[str] = None
     return_url: Optional[str] = None
     cancel_url: Optional[str] = None
     lang: Optional[str] = None
@@ -1117,6 +1118,7 @@ async def post_subscription_create(request: Request, body: SubscriptionCreateIn 
             cancel_url=cancel,
             client_key=request.headers.get("paypal-request-id"),
             lang=app_lang,
+            expected_plan_id=body.plan_id,
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc, lang=app_lang) from exc

@@ -4,7 +4,8 @@ import pytest
 from app.escales import paypal_subscriptions as crew
 
 
-@pytest.mark.parametrize("environment", ["live", "", "production"])
+@pytest.mark.parametrize("environment", ["live", "", "production"],
+                         ids=["reject-nonsandbox", "reject-empty", "reject-production"])
 def test_catalog_guard_precedes_provider_calls(monkeypatch, environment):
     monkeypatch.setenv("PAYPAL_ENV", environment)
     with pytest.raises(ValueError, match="sandbox"):

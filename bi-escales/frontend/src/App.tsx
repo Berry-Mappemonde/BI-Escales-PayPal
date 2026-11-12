@@ -66,6 +66,8 @@ function milestoneFundRequiresAdminKey(milestoneId: string): boolean {
 // Gear tab (Channel3 items placed on the map) stays hidden until local products tied to
 // stops are built (Clément, 10 Nov). The code is kept; the wishlist link stays visible.
 const GEAR_TAB_VISIBLE = false;
+/** Retry delay for the voyage clock while it has never answered (e.g. the API host is waking up). */
+const CLOCK_RETRY_MS = 10000;
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -286,17 +288,30 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const sync = () => {
+    // Until the API clock has answered once, a failed or timed-out request
+    // (a host waking up) is retried sooner than the regular minute.
+    let answered = false;
+    let retry: number | undefined;
+    const syncClock = () => {
+      window.clearTimeout(retry);
       void fetchClock()
         .then((clock) => {
           if (cancelled) return;
-          if (clock?.now) setApiNow(clock.now);
+          if (clock?.now) {
+            setApiNow(clock.now);
+            answered = true;
+          }
           setClockSettled(true);
         })
         .catch(() => {
-          /* keep the last answer; with none, the browser's time stands in from now on */
-          if (!cancelled) setClockSettled(true);
+          /* keep the last answer; with none, the browser's time stands in until one arrives */
+          if (cancelled) return;
+          setClockSettled(true);
+          if (!answered) retry = window.setTimeout(syncClock, CLOCK_RETRY_MS);
         });
+    };
+    const sync = () => {
+      syncClock();
       void listMilestones()
         .then((rows) => {
           if (!cancelled && Array.isArray(rows)) setMilestones(rows);
@@ -310,6 +325,7 @@ export default function App() {
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      window.clearTimeout(retry);
     };
   }, []);
 

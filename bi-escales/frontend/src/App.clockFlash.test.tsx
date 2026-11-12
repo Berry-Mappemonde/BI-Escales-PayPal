@@ -116,6 +116,26 @@ describe("voyage clock before the API clock answers", () => {
     expect(clock).not.toHaveAttribute("aria-busy");
   });
 
+  it("asks the clock again soon after a failure, and the API's time then replaces the browser's", async () => {
+    const setTimeoutSpy = vi.spyOn(window, "setTimeout");
+    vi.mocked(escalesApi.fetchClock)
+      .mockRejectedValueOnce(new Error("Clock request timed out after 12000 ms"))
+      .mockResolvedValue({ start: "2026-11-12", now: "2026-11-12T10:00:00+00:00" });
+    renderApp();
+    const clock = await screen.findByTestId("voyage-clock");
+    await waitFor(() => expect(clock).toHaveTextContent("15 Jun 2030"));
+
+    // The retry is scheduled well before the regular one-minute re-sync.
+    const retry = setTimeoutSpy.mock.calls.find(([, delay]) => delay === 10000);
+    expect(retry).toBeDefined();
+    await act(async () => {
+      (retry![0] as () => void)();
+    });
+    await waitFor(() => expect(clock).toHaveTextContent("12 Nov 2026 · 10:00 UTC"));
+    expect(clock).not.toHaveTextContent("2030");
+    setTimeoutSpy.mockRestore();
+  });
+
   it("does not name a next stop from the browser's time", async () => {
     vi.mocked(escalesApi.fetchClock).mockReturnValue(new Promise(() => undefined) as never);
     renderApp();

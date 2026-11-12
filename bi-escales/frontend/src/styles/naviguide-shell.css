@@ -1105,6 +1105,9 @@ body.ng-naviguide-shell {
   min-width: 0;
 }
 .treasurer-page-back { justify-self: start; }
+@media (pointer: coarse) {
+  .treasurer-page-back { min-height: 44px; }
+}
 /* Top bar of the treasurer page: the way back on one side, the app settings on the other. */
 .treasurer-page-bar {
   display: flex;

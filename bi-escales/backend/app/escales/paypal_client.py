@@ -891,7 +891,8 @@ class PayPalClient:
                 "payment_type": "UNSCHEDULED",
                 "usage": "SUBSEQUENT",
             }
-            source_body["attributes"] = {"verification": {"method": card_sca_method()}}
+            # Merchant-initiated charge: the payer is absent, so a challenge cannot be answered.
+            source_body["attributes"] = {"verification": {"method": "SCA_WHEN_REQUIRED"}}
         body = {
             "intent": "CAPTURE",
             "payment_source": {kind: source_body},

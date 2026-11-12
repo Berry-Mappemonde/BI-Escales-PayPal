@@ -1,4 +1,4 @@
-import { reportPayPalV6LoadFailure } from "../paypalJsVersion";
+import { notePayPalV6CheckoutStarted, reportPayPalV6LoadFailure } from "../paypalJsVersion";
 import { resumeCheckout } from "./checkoutAttempts";
 import { walletFactories } from "./paypalWallets";
 import { STACKED_BUTTON_GAP_PX, applyV6ButtonLook, v6CardFieldStyle, type V5ButtonStyle } from "./paypalLookV6";
@@ -307,19 +307,26 @@ export function buildV6Adapter(
       if (subscription) {
         const subscriptionSession = sdk.createPayPalSubscriptionPaymentSession(callbacks);
         session = subscriptionSession;
-        start = () => subscriptionSession.start({ presentationMode: "auto" },
+        start = () => {
+          notePayPalV6CheckoutStarted();
+          return subscriptionSession.start({ presentationMode: "auto" },
           Promise.resolve().then(() => config.createSubscription!({}, {
             subscription: { create: (body: unknown) => { selectedPlan = String((body as { plan_id?: unknown })?.plan_id || ""); return createSubscriptionOnServer(appLang, body).then(id => { selectedKey = sessionStorage.getItem(`escales-v6-subscription:${location.pathname}:${appLang || "fr"}:${selectedPlan}`) || undefined; return id; }); } },
           })).then(value => ({ subscriptionId: token(value) })));
+        };
       } else if (vault) {
         const saveSession = sdk.createPayPalSavePaymentSession(callbacks);
         session = saveSession;
-        start = () => saveSession.start({ presentationMode: "auto" },
+        start = () => {
+          notePayPalV6CheckoutStarted();
+          return saveSession.start({ presentationMode: "auto" },
           Promise.resolve().then(() => config.createVaultSetupToken!()).then(value => ({ vaultSetupToken: token(value) })));
+        };
       } else {
         const orderSession = sdk.createPayPalOneTimePaymentSession(callbacks);
         session = orderSession;
         start = () => {
+          notePayPalV6CheckoutStarted();
           let orderFailed = false;
           const payment = Promise.resolve().then(() => config.createOrder?.()).then(value => ({ orderId: token(value) }))
             .catch((error: unknown) => { orderFailed = true; throw error; });
@@ -378,6 +385,7 @@ export function buildV6Adapter(
             button.style.marginTop = `${STACKED_BUTTON_GAP_PX}px`;
             button.onclick = () => {
               if (closed || starting) return;
+              notePayPalV6CheckoutStarted();
               starting = true;
               void payLater.start({ presentationMode: "auto" }, Promise.resolve().then(() => config.createOrder?.()).then(value => ({ orderId: token(value) })))
                 .catch(error => { if (!closed) void config.onError?.(error); }).finally(() => { starting = false; });
@@ -433,6 +441,7 @@ export function buildV6Adapter(
         NameField: mountField("name"),
         submit: async () => {
           if (disposed || submitting) throw new Error("PayPal card session unavailable");
+          notePayPalV6CheckoutStarted();
           submitting = true;
           try {
             // The card entry is held in PayPal-hosted iframes; raw PAN/CVV never touches our code.
@@ -471,24 +480,29 @@ function loadConfigured(clientId: string, appLang: string | undefined, currency:
   const key = [trimmed, paypalLocale(appLang), currency.toUpperCase(), walletPay, paymentFlow, intent, normalizedAmount].join("|");
   const existing = instances.get(key);
   if (existing) return existing;
-  const promise = waitForCore().then(async (core) => {
-    const sdk = await core.createInstance({
-      clientId: trimmed,
-      locale: paypalLocale(appLang).replace("_", "-"),
-      pageType: "checkout",
-      components: [
-        "paypal-payments",
-        "paypal-subscriptions",
-        "paypal-messages",
-        "card-fields",
-        ...(walletPay ? ["googlepay-payments", "applepay-payments"] as const : []),
-      ],
-    });
+  const promise = (async () => {
+    let core: V6Core;
+    try { core = await waitForCore(); }
+    catch (error) { reportPayPalV6LoadFailure(error); throw error; }
+    let sdk: V6Instance;
+    try {
+      sdk = await core.createInstance({
+        clientId: trimmed,
+        locale: paypalLocale(appLang).replace("_", "-"),
+        pageType: "checkout",
+        components: [
+          "paypal-payments",
+          "paypal-subscriptions",
+          "paypal-messages",
+          "card-fields",
+          ...(walletPay ? ["googlepay-payments", "applepay-payments"] as const : []),
+        ],
+      });
+    } catch (error) { reportPayPalV6LoadFailure(error); throw error; }
     const eligible = await sdk.findEligibleMethods({ currencyCode: currency.toUpperCase(), paymentFlow, ...(normalizedAmount ? { amount: normalizedAmount } : {}) });
     return buildV6Adapter(sdk, eligible, walletPay, intent, appLang);
-  }).catch((error: unknown) => {
+  })().catch((error: unknown) => {
     instances.delete(key);
-    reportPayPalV6LoadFailure(error);
     throw error;
   });
   instances.set(key, promise);

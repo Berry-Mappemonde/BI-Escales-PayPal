@@ -5,6 +5,7 @@ import {
   currentPayPalJsVersion,
   expectPayPalJsFeatures,
   notePayPalJsFeatures,
+  notePayPalV6CheckoutStarted,
   reportPayPalV6LoadFailure,
   resetPayPalJsVersionForTests,
   usePayPalJsVersion,
@@ -150,6 +151,15 @@ describe("PayPal JS version (features.paypal_js_v6)", () => {
       expect(currentPayPalJsVersion()).toBe("v5");
       expect(warn).toHaveBeenCalledOnce();
       expect(warn).toHaveBeenCalledWith("PayPal Web SDK v6 failed to load; using the v5 checkout", reason);
+    });
+
+    it("logs a later load failure without leaving an open v6 checkout", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      notePayPalJsFeatures({ paypal_js_v6: true });
+      notePayPalV6CheckoutStarted();
+      reportPayPalV6LoadFailure(new Error("script"));
+      expect(currentPayPalJsVersion()).toBe("v6");
+      expect(warn).toHaveBeenCalledWith("PayPal Web SDK v6 failed to load; keeping the open v6 checkout", expect.any(Error));
     });
 
     it("every button on the page gets the same answer", () => {

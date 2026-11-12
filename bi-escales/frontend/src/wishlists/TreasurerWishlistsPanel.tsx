@@ -152,65 +152,75 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
   }
 
   const lines = linesFromTreasurerItems(selected?.items, catalogById);
+  const loadedOnce = !busy || wishlists.length > 0 || catalog.length > 0;
 
   return (
     <section className="panel treasurer-wishlists" data-testid="treasurer-wishlists-panel">
       <h3>{t("wishlists.treasurer.heading")}</h3>
+      <p className="hint">{t("wishlists.treasurer.lead")}</p>
       {error ? <p className="notice error">{error}</p> : null}
-      {notice ? <p className="notice">{notice}</p> : null}
-      <form className="stack-form" onSubmit={onCreate}>
-        <h3>{t("wishlists.treasurer.create")}</h3>
-        <label>
-          {t("wishlists.treasurer.title")}
-          <input value={title} onChange={(event) => setTitle(event.target.value)} data-testid="wishlist-create-title" />
-        </label>
-        <label>
-          {t("wishlists.treasurer.slug")}
-          <input value={slug} onChange={(event) => setSlug(event.target.value)} data-testid="wishlist-create-slug" />
-        </label>
-        <button type="submit" disabled={busy || !title.trim() || !slug.trim()} data-testid="wishlist-create-submit">
-          {t("wishlists.treasurer.createSubmit")}
-        </button>
-      </form>
+      {notice ? <p className="notice" role="status">{notice}</p> : null}
       <div className="wishlist-treasurer-lists">
-        <label>
-          {t("wishlists.treasurer.pickList")}
-          <select
-            value={selectedId}
-            onChange={(event) => setSelectedId(event.target.value)}
-            data-testid="wishlist-treasurer-select"
-          >
-            <option value="">{t("wishlists.treasurer.pickListEmpty")}</option>
-            {wishlists.map((row) => (
-              <option key={row._id} value={row._id}>
-                {row.title} {row.published ? `(${t("wishlists.treasurer.badgePublished")})` : `(${t("wishlists.treasurer.badgeDraft")})`}
-              </option>
-            ))}
-          </select>
-        </label>
+        {loadedOnce && wishlists.length === 0 ? (
+          <p className="hint" data-testid="wishlist-treasurer-none">{t("wishlists.treasurer.noLists")}</p>
+        ) : (
+          <label>
+            {t("wishlists.treasurer.pickList")}
+            <select
+              value={selectedId}
+              onChange={(event) => setSelectedId(event.target.value)}
+              data-testid="wishlist-treasurer-select"
+            >
+              <option value="">{t("wishlists.treasurer.pickListEmpty")}</option>
+              {wishlists.map((row) => (
+                <option key={row._id} value={row._id}>
+                  {row.title} {row.published ? `(${t("wishlists.treasurer.badgePublished")})` : `(${t("wishlists.treasurer.badgeDraft")})`}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {selected ? (
           <div className="wishlist-treasurer-selected" data-testid="wishlist-treasurer-selected">
-            <p data-testid="wishlist-published-state">
-              {selected.published ? t("wishlists.treasurer.badgePublished") : t("wishlists.treasurer.badgeDraft")}
-            </p>
-            <div className="wishlist-treasurer-actions">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void onPublish(true)}
-                data-testid="wishlist-publish"
-              >
-                {t("wishlists.treasurer.publish")}
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void onPublish(false)}
-                data-testid="wishlist-unpublish"
-              >
-                {t("wishlists.treasurer.unpublish")}
-              </button>
+            {/* What visitors see of this list, and the one action that changes it. */}
+            <div className="wishlist-treasurer-state">
+              <p data-testid="wishlist-published-state">
+                <strong>{selected.published ? t("wishlists.treasurer.badgePublished") : t("wishlists.treasurer.badgeDraft")}</strong>
+                {" · "}
+                {selected.published ? t("wishlists.treasurer.publishedMeans") : t("wishlists.treasurer.draftMeans")}{" "}
+                {selected.published ? (
+                  <a href="/escales/wishlists" target="_blank" rel="noopener noreferrer" data-testid="wishlist-public-link">
+                    {t("wishlists.treasurer.openPublic")}
+                  </a>
+                ) : null}
+              </p>
+              <div className="wishlist-treasurer-actions">
+                {selected.published ? (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => void onPublish(false)}
+                    data-testid="wishlist-unpublish"
+                  >
+                    {t("wishlists.treasurer.unpublish")}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void onPublish(true)}
+                    data-testid="wishlist-publish"
+                  >
+                    {t("wishlists.treasurer.publish")}
+                  </button>
+                )}
+              </div>
             </div>
+            <h4>{t("wishlists.treasurer.itemsHeading", { count: lines.length })}</h4>
+            {lines.length === 0 ? (
+              <p className="hint" data-testid="wishlist-treasurer-no-items">{t("wishlists.treasurer.noItems")}</p>
+            ) : null}
             <ul className="wishlist-treasurer-items">
               {lines.map((line) =>
                 line.state === "unavailable" ? (
@@ -218,6 +228,7 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
                     <WishlistItemUnavailable productId={line.channel3_product_id} />
                     <button
                       type="button"
+                      className="secondary"
                       disabled={busy}
                       onClick={() => void onRemove(line.channel3_product_id)}
                       data-testid={`wishlist-remove-${line.channel3_product_id}`}
@@ -233,7 +244,9 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
                     </span>
                     <button
                       type="button"
+                      className="secondary"
                       disabled={busy}
+                      aria-label={t("wishlists.treasurer.removeNamed", { name: line.item.name })}
                       onClick={() => void onRemove(line.item.channel3_product_id)}
                       data-testid={`wishlist-remove-${line.item.channel3_product_id}`}
                     >
@@ -249,7 +262,13 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
                 {t("wishlists.treasurer.catalogPick")}
                 <select
                   value={pickProductId}
-                  onChange={(event) => setPickProductId(event.target.value)}
+                  onChange={(event) => {
+                    const id = event.target.value;
+                    setPickProductId(id);
+                    // The catalogue knows how many the crew needs: 6 for a personal item, 1 for the boat.
+                    const needed = Number(catalogById.get(id)?.quantity_needed);
+                    if (Number.isInteger(needed) && needed > 0) setQuantity(String(needed));
+                  }}
                   data-testid="wishlist-catalog-pick"
                 >
                   <option value="">{t("wishlists.treasurer.catalogPickEmpty")}</option>
@@ -261,25 +280,30 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
                   ))}
                 </select>
               </label>
-              <label>
-                {t("wishlists.treasurer.quantity")}
-                <input
-                  type="number"
-                  min={1}
-                  value={quantity}
-                  onChange={(event) => setQuantity(event.target.value)}
-                  data-testid="wishlist-add-quantity"
-                />
-              </label>
-              <label>
-                {t("wishlists.treasurer.targetMinor")}
-                <input
-                  value={targetMinor}
-                  onChange={(event) => setTargetMinor(event.target.value)}
-                  placeholder={t("wishlists.treasurer.targetMinorHint")}
-                  data-testid="wishlist-add-target"
-                />
-              </label>
+              <div className="wishlist-add-row">
+                <label>
+                  {t("wishlists.treasurer.quantity")}
+                  <input
+                    type="number"
+                    min={1}
+                    value={quantity}
+                    onChange={(event) => setQuantity(event.target.value)}
+                    aria-describedby="wishlist-quantity-hint"
+                    data-testid="wishlist-add-quantity"
+                  />
+                </label>
+                <label>
+                  {t("wishlists.treasurer.targetMinor")}
+                  <input
+                    inputMode="numeric"
+                    value={targetMinor}
+                    onChange={(event) => setTargetMinor(event.target.value)}
+                    placeholder={t("wishlists.treasurer.targetMinorHint")}
+                    data-testid="wishlist-add-target"
+                  />
+                </label>
+              </div>
+              <p className="hint" id="wishlist-quantity-hint">{t("wishlists.treasurer.quantityHint")}</p>
               <label className="checkbox-row">
                 <input
                   type="checkbox"
@@ -287,7 +311,7 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
                   onChange={(event) => setAllowOptional(event.target.checked)}
                   data-testid="wishlist-allow-optional"
                 />
-                {t("wishlists.treasurer.allowOptionalToggle")}
+                <span>{t("wishlists.treasurer.allowOptionalToggle")}</span>
               </label>
               <button type="button" disabled={busy || !pickProductId} onClick={() => void onAddItem()} data-testid="wishlist-add-submit">
                 {t("wishlists.treasurer.addSubmit")}
@@ -296,6 +320,22 @@ export function TreasurerWishlistsPanel({ adminKey }: TreasurerWishlistsPanelPro
           </div>
         ) : null}
       </div>
+      <form className="stack-form wishlist-create" onSubmit={onCreate}>
+        <h4>{t("wishlists.treasurer.create")}</h4>
+        <div className="wishlist-add-row">
+          <label>
+            {t("wishlists.treasurer.title")}
+            <input value={title} onChange={(event) => setTitle(event.target.value)} data-testid="wishlist-create-title" />
+          </label>
+          <label>
+            {t("wishlists.treasurer.slug")}
+            <input value={slug} onChange={(event) => setSlug(event.target.value)} data-testid="wishlist-create-slug" />
+          </label>
+        </div>
+        <button type="submit" className="secondary" disabled={busy || !title.trim() || !slug.trim()} data-testid="wishlist-create-submit">
+          {t("wishlists.treasurer.createSubmit")}
+        </button>
+      </form>
     </section>
   );
 }

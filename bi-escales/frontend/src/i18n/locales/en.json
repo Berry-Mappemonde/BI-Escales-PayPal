@@ -269,6 +269,7 @@
     "cardConfirmRef": "Reference: {{ref}}",
     "cardConfirmStopNext": "Charged only after the boat arrives at this stop and the treasurer approves.",
     "cardConfirmCabinNext": "Charged only when this leg departs.",
+    "cardErrorAuthentication": "Card verification was not completed. Try again or choose another payment method.",
     "cardErrorInvalidExpiry": "Card expiry date is invalid. Check month and year.",
     "cardErrorInvalidCvv": "Security code (CVV) is invalid.",
     "cardErrorInvalidNumber": "Card number is invalid.",

@@ -269,6 +269,7 @@
     "cardConfirmRef": "Référence : {{ref}}",
     "cardConfirmStopNext": "Débité uniquement après l’arrivée du bateau à cette escale et l’approbation du trésorier.",
     "cardConfirmCabinNext": "Débité uniquement au départ de cette étape.",
+    "cardErrorAuthentication": "La vérification de la carte n’a pas abouti. Réessayez ou choisissez un autre moyen de paiement.",
     "cardErrorInvalidExpiry": "Date d’expiration invalide. Vérifiez le mois et l’année.",
     "cardErrorInvalidCvv": "Cryptogramme (CVV) invalide.",
     "cardErrorInvalidNumber": "Numéro de carte invalide.",

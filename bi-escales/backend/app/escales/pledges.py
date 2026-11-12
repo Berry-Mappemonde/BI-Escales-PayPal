@@ -1383,11 +1383,6 @@ def _require_card_capture_approval(order: dict) -> None:
         raise ValueError("card order not approved yet")
     card = (order.get("payment_source") or {}).get("card") or {}
     auth = card.get("authentication_result") or {}
-    # SCA_WHEN_REQUIRED may not request authentication. PayPal then returns an
-    # approved card source without authentication_result, not an UNKNOWN result.
-    if ("authentication_result" not in card and str(order.get("status") or "").upper() == "APPROVED"
-            and card.get("last_digits") and card.get("brand")):
-        return
     three_ds = auth.get("three_d_secure") or {}
     enrolled = str(three_ds.get("enrollment_status") or "").upper()
     status = str(three_ds.get("authentication_status") or "").upper()

@@ -735,3 +735,13 @@ make no fallback HTTP call and no additional PayPal write. Approval still verifi
 subscription ID, ACTIVE status, known plan, price and interval. Skills used:
 `python-getting-started`, `python-models`, `python-error-handling`,
 `python-testing`, `python-configuration-resilience`.
+
+### Missing card authentication evidence (12 November 2026)
+
+The review checklist requires refusing card captures with no authentication data.
+Remove the brand/last-digits exemption from `_require_card_capture_approval`.
+Keep `SCA_WHEN_REQUIRED` on buyer orders and merchant-initiated vault charges.
+`get_card_order` still reads the expanded server-side payment source before
+`Orders.capture_order`. No new PayPal operation or idempotency key is introduced.
+The existing authenticated/exempt matrix remains authoritative; incomplete or
+absent evidence returns the existing translated card-decline message before capture.

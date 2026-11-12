@@ -556,3 +556,11 @@ SDK source inspection: from_dictionary injects PayPal defaults and drops card ex
 ## Onboarding Orders via an isolated Platform SDK client
 
 Only project_onboarding/paypal_orders.py PayPal transport changes. Use SDK 2.4.0 OrdersController.create_order(options), get_order(options), capture_order(options), ApiResponse.body and APIHelper.to_dictionary. Build a separate sandbox PaypalServersdkClient with load_platform_config() credentials, never the merchant singleton; keep existing flag-off Platform HTTP behavior. Preserve create-order BN via paypal_partner_attribution_id, body/payee/locale and deterministic request IDs. Capture uses an order-derived idempotency key. Map ApiException/auth/transport failures without HTTP fallback replay. SDK 2.4.0 has no partner referrals or merchant integrations controllers; partner_referrals.py stays unchanged. Tests use distinct merchant/Platform credentials at the generated HTTP boundary. No onboarding business rules, emails or UI changes.
+## SDK review follow-up: budget and transient retries
+
+Keep one merchant SDK gateway. All resource attempts, reads and writes, consume the optional Captain budget before dispatch; OAuth is excluded. Disable SDK-internal retries and retry ApiException 429/5xx at most three attempts with stable arguments and request IDs, exponential backoff and Retry-After up to ten seconds. Do not replay uncertain transport/auth failures or fall back to httpx after dispatch. Map OrderRequest constructor TypeError to PayPalError. Test generated HTTP-boundary retry/accounting/identity and no-replay cases, plus full suites and strict gateway mypy.
+
+
+### Shared gateway for the isolated Platform client
+
+Include #265 as a prerequisite. Extend build_sandbox_client with an explicit credential pair and _execute with an explicit sdk keyword. Onboarding uses these same gateway model/error/retry functions, with its own cached Platform client. Never install it in the merchant singleton. This avoids a parallel executor and gives Platform calls the same bounded 429/5xx retry policy after a real sandbox 500 was observed. No PayPal calls outside paypal_orders.py are migrated.

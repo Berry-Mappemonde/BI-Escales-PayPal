@@ -807,6 +807,7 @@ def test_replayed_writes_keep_request_id_and_payload(
     finally:
         reset_client()
 
+
 @pytest.mark.parametrize("flow", ["authorize", "capture", "card", "vault"])
 def test_create_order_generated_wire_parity(flow, pins, monkeypatch):
     """Real generated serializer preserves the existing order request contract."""

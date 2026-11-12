@@ -34,13 +34,16 @@ def sdk_transport(monkeypatch):
             else:
                 assert request.headers['Authorization']=='Bearer platform-token'
                 status=422 if state['error'] else 200
+                if state.get('transient',0):
+                    state['transient']-=1;status=503
                 payload={'name':'UNPROCESSABLE_ENTITY','details':[{'issue':'INSTRUMENT_DECLINED'}]} if state['error'] else {'id':'ORDER-PLATFORM','status':'COMPLETED'}
             response=requests.Response();response.status_code=status;response._content=json.dumps(payload).encode();response.headers['Content-Type']='application/json';response.request=request;response.url=request.url
             return response
     original=module.PaypalServersdkClient
     def build(**kwargs):
         session=requests.Session();session.mount('https://',Adapter())
-        sdk=original(**kwargs,http_client_instance=session);created.append(sdk);return sdk
+        kwargs['http_client_instance']=session
+        sdk=original(**kwargs);created.append(sdk);return sdk
     monkeypatch.setattr(module,'PaypalServersdkClient',build)
     client=PayPalClient(EscalesConfig('merchant-test','merchant-secret'),transport=httpx.MockTransport(lambda r:pytest.fail('no HTTP fallback')))
     return client,rows,created,state
@@ -74,3 +77,14 @@ def test_platform_client_rejects_non_sandbox(sdk_transport,monkeypatch):
     client,*_=sdk_transport
     monkeypatch.setenv('PAYPAL_ENV','live')
     with pytest.raises(RuntimeError,match='sandbox'):orders.read_order(client,'ORDER-PLATFORM')
+
+
+def test_platform_uses_shared_gateway_transient_retry(sdk_transport,monkeypatch):
+    from app.escales import paypal_sdk_gateway as gateway
+    client,rows,_,state=sdk_transport
+    state['transient']=1
+    pauses=[];monkeypatch.setattr(gateway.time,'sleep',pauses.append)
+    assert orders.capture_order_once(client,'ORDER-PLATFORM')['id']=='ORDER-PLATFORM'
+    resources=[r for r in rows if urlparse(r.url).path!='/v1/oauth2/token']
+    assert len(resources)==2 and len(pauses)==1
+    assert resources[0].headers['PayPal-Request-Id']==resources[1].headers['PayPal-Request-Id']

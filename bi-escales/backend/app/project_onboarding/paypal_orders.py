@@ -23,50 +23,23 @@ def bn_code_header() -> dict[str, str]:
 
 def _platform_sdk(client: PayPalClient) -> Any:
     """Cache on the onboarding HTTP client; never read/install the merchant SDK."""
-    from paypalserversdk.paypal_serversdk_client import PaypalServersdkClient
-    from paypalserversdk.configuration import Environment
-    from paypalserversdk.http.auth.o_auth_2 import ClientCredentialsAuthCredentials
-    from app.escales.paypal_sdk_gateway import _require_sandbox
+    from app.escales.paypal_sdk_gateway import build_sandbox_client
 
-    _require_sandbox()
     cfg = load_platform_config() if platform_credentials_active() else client.cfg
     if cfg.env != "sandbox" or cfg.base_url.rstrip("/") != SANDBOX_BASE:
         raise ValueError("Onboarding SDK is sandbox only")
     sdk = getattr(client, "_onboarding_server_sdk", None)
     if sdk is None:
-        sdk = PaypalServersdkClient(
-            environment=Environment.SANDBOX,
-            timeout=30, max_retries=0,
-            client_credentials_auth_credentials=ClientCredentialsAuthCredentials(
-                o_auth_client_id=cfg.client_id, o_auth_client_secret=cfg.client_secret,
-            ),
-        )
+        sdk = build_sandbox_client(client_id=cfg.client_id, client_secret=cfg.client_secret)
         client._onboarding_server_sdk = sdk
     return sdk
 
 
 def _sdk_order_call(client: PayPalClient, operation: str, options: dict) -> dict:
-    from paypalserversdk.api_helper import APIHelper
-    from paypalserversdk.exceptions.api_exception import ApiException
-    from apimatic_core.exceptions.auth_validation_exception import AuthValidationException
-    from app.escales.paypal_sdk_gateway import _reraise_transport_error
+    from app.escales.paypal_sdk_gateway import _execute
 
-    sdk = _platform_sdk(client)
-    try:
-        result = getattr(sdk.orders, operation)(options)
-    except ApiException as exc:
-        response = getattr(exc, "response", None)
-        raise PayPalError(exc.response_code, getattr(response, "text", "")) from exc
-    except AuthValidationException:
-        raise PayPalError(502, "PayPal SDK authentication unavailable") from None
-    except Exception as exc:
-        _reraise_transport_error(exc)
-        raise
-    body = result.body
-    payload = body if isinstance(body, dict) else APIHelper.to_dictionary(body)
-    if not isinstance(payload, dict):
-        raise PayPalError(502, "PayPal SDK response was not an object")
-    return payload
+    return _execute("orders", operation, options, sdk=_platform_sdk(client))
+
 
 def create_unlinked_payee_capture_order(
     client: PayPalClient,

@@ -67,3 +67,12 @@ def test_known_spa_routes_are_the_app(tmp_path: Path, monkeypatch):
     assert french_onboarding.status_code == 302
     assert french_onboarding.headers["location"] == "/projects/demo/onboarding?lang=fr"
     assert client.get("/projects/demo/onboarding", params={"lang": "fr"}).status_code == 200
+
+
+def test_language_redirects_never_leave_the_site(tmp_path: Path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    for lang in ("en", "fr"):
+        for suffix in ("//evil.example", "/%5Cevil.example", "///evil.example"):
+            response = client.get(f"/{lang}{suffix}?paypal=return&paypal=again", follow_redirects=False)
+            assert response.status_code == 302
+            assert response.headers["location"] == f"/evil.example?paypal=return&paypal=again&lang={lang}"

@@ -149,7 +149,7 @@ def language_or_unknown_redirect(full_path: str, query: list[tuple[str, str]]) -
     """
     head, _, rest = full_path.partition("/")
     if head in {"en", "fr"}:
-        target = f"/{rest}" if rest else "/"
+        target = "/" + rest.replace("\\", "/").lstrip("/")
         return target + _query_suffix(query, lang=head)
     if is_known_spa_path(full_path):
         return None

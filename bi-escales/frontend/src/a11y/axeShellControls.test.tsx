@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
 import i18n from "../i18n";
 
+// label-content-name-mismatch never fires under jsdom (axe needs layout it does not have):
+// it stays listed for a real browser, and labelsMissingTheirText below is what checks it here.
 const AXE_RULES = ["button-name", "link-name", "label-content-name-mismatch"] as const;
 
 vi.mock("../hooks/usePledgeQueue", () => ({
@@ -72,7 +74,7 @@ vi.mock("../marinas/escaleFiche.js", () => ({
 /**
  * WCAG 2.5.3 (label in name), checked directly: axe's own rule needs a real
  * layout to know which text is visible, and reports nothing under jsdom.
- * Returns the controls whose aria-label does not contain their visible text.
+ * Returns the controls whose aria-label does not start with their visible text (WCAG 2.5.3, best practice).
  */
 function labelsMissingTheirText(root: HTMLElement): string[] {
   const squash = (text: string) => text.replace(/\s+/g, " ").trim().toLowerCase();
@@ -86,7 +88,7 @@ function labelsMissingTheirText(root: HTMLElement): string[] {
       );
       // Symbols alone (an arrow, a dot) are not a spoken label.
       if (!/[\p{L}\p{N}]/u.test(text)) return false;
-      return !squash(control.getAttribute("aria-label") ?? "").includes(text);
+      return !squash(control.getAttribute("aria-label") ?? "").startsWith(text);
     })
     .map((control) => control.outerHTML.slice(0, 160));
 }
@@ -144,11 +146,14 @@ describe("axe shell controls (SITE-A11Y-2)", () => {
   it("finds a control without a name, so an empty result means something", async () => {
     document.body.innerHTML =
       '<button type="button"></button><a href="/x"></a><button type="button" aria-label="Close">Open</button>' +
-      '<button type="button" aria-label="FR, Français">FR</button><a href="/y" aria-label="Google Maps">◎</a>';
+      '<button type="button" aria-label="FR, Français">FR</button><a href="/y" aria-label="Google Maps">◎</a>' +
+      '<button type="button" aria-label="Switch to FR">FR</button>';
     const results = await runAxe(document.body);
     expect(results.violations.map((v) => v.id).sort()).toEqual(["button-name", "link-name"]);
     expect(labelsMissingTheirText(document.body)).toEqual([
       '<button type="button" aria-label="Close">Open</button>',
+      // Contains the visible text but does not start with it.
+      '<button type="button" aria-label="Switch to FR">FR</button>',
     ]);
     document.body.innerHTML = "";
   });

@@ -1714,3 +1714,22 @@ def test_treasurer_cannot_capture_an_already_paid_common_fund_again(api):
     assert response.status_code == 409
     assert len([c for c in fake.calls if c[0] == "orders.capture"]) == before == 1
     assert client.get(f"/api/escales/pledges/{paid['id']}").json()["status"] == "captured"
+
+
+def test_scoped_clock_settle_requires_key_and_never_runs_global_settlement(api, monkeypatch):
+    client, _fake = api
+    calls = []
+    async def one(_client, milestone_id, *, now=None):
+        calls.append(milestone_id)
+        return {"milestone_id": milestone_id, "actions": []}
+    async def all_stops(*args, **kwargs):
+        raise AssertionError("scoped settlement must not touch other stops")
+    monkeypatch.setattr("app.escales.departure_clock.run_departure_clock_for_milestone", one)
+    monkeypatch.setattr("app.escales.departure_clock.run_departure_clock", all_stops)
+    body = {"milestone_id": "dep-cursor-agent-test-cancel"}
+    assert client.post("/api/escales/clock/settle", json=body).status_code == 401
+    assert calls == []
+    response = client.post("/api/escales/clock/settle", json=body, headers=ADMIN)
+    assert response.status_code == 200
+    assert response.json()["settled"]["milestone_id"] == body["milestone_id"]
+    assert calls == [body["milestone_id"]]

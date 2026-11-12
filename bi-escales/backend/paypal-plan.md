@@ -745,3 +745,12 @@ Keep `SCA_WHEN_REQUIRED` on buyer orders and merchant-initiated vault charges.
 `Orders.capture_order`. No new PayPal operation or idempotency key is introduced.
 The existing authenticated/exempt matrix remains authoritative; incomplete or
 absent evidence returns the existing translated card-decline message before capture.
+
+### Scope a treasurer settlement to one milestone (12 November 2026)
+
+`POST /api/escales/clock/settle` accepts an optional `milestone_id`. When supplied,
+use the existing `run_departure_clock_for_milestone` helper, leaving every other
+milestone's pledges untouched. The treasurer key and pinned-clock override guard
+remain mandatory. This enables real cancellation verification on a dedicated
+`cursor-agent-test` stop without settling shared demo pledges. PayPal authorize,
+void and capture operations and idempotency keys are unchanged.

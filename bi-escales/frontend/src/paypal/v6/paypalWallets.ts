@@ -3,6 +3,7 @@ import type {
   GooglePayPaymentMethodData, EligiblePaymentMethodsOutput,
 } from "@paypal/paypal-js/sdk-v6";
 import type { PayPalSdkButtonInstance } from "./paypalSdkV6";
+import { notePayPalV6CheckoutStarted } from "../paypalJsVersion";
 
 export type WalletSdk = {
   createGooglePayOneTimePaymentSession?: () => GooglePayOneTimePaymentSession;
@@ -90,6 +91,7 @@ export function walletFactories(sdk: WalletSdk, eligible: Pick<EligiblePaymentMe
           if (!ready.result || closed) throw new Error("Google Pay device not ready");
           button = client.createButton({ onClick: () => {
             if (busy || closed) return;
+            notePayPalV6CheckoutStarted();
             busy = true;
             authorization = null;
             confirmation = null;
@@ -124,6 +126,7 @@ export function walletFactories(sdk: WalletSdk, eligible: Pick<EligiblePaymentMe
           button.setAttribute("type", "donate");
           button.onclick = () => {
             if (closed || native) return;
+            notePayPalV6CheckoutStarted();
             const sheet = new ApplePaySession(4, { ...config, countryCode: config.merchantCountry || "FR", currencyCode: options.currencyCode, requiredBillingContactFields: ["postalAddress"], total: { label: "BI Escales", amount: price, type: "final" } });
             native = sheet;
             let validated = false;

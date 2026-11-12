@@ -28,6 +28,8 @@ export function EscalesPanel({
   const lang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const [chatMessage, setChatMessage] = useState("");
   const [chatResult, setChatResult] = useState<CaptainChatResponse | null>(null);
+  // The question the reply on screen answers: shown above it, since the field is free to change.
+  const [askedQuestion, setAskedQuestion] = useState("");
   const [agenticNote, setAgenticNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,10 +52,12 @@ export function EscalesPanel({
     setBusy(true);
     setError(null);
     try {
+      const asked = chatMessage.trim();
       const res = await captainChat(chatMessage, lang, adminKey);
       // A new answer brings a new cart: certificates from the previous cart do not belong under it.
       setMileReceipts([]);
       setChatResult(res);
+      setAskedQuestion(asked);
       if (res.suggested_pledge) {
         onSuggested?.(res.suggested_pledge);
         onMilestoneId?.(res.suggested_pledge.milestone_id);
@@ -75,6 +79,11 @@ export function EscalesPanel({
       {error ? <p className="notice error">{error}</p> : null}
       {chatResult ? (
         <div className="chat-result">
+          {askedQuestion ? (
+            <p className="hint captain-asked" data-testid="captain-question">
+              {t("escales.youAsked", { question: askedQuestion })}
+            </p>
+          ) : null}
           <h3>{t("escales.chatReply")}</h3>
           <p className="captain-bubble">{chatResult.reply}</p>
           <CaptainToolTrace trace={chatResult} modelTestId="captain-model-label" />
@@ -136,7 +145,8 @@ export function EscalesPanel({
         </div>
       ) : null}
       {busy ? <p className="captain-thinking" role="status">{t("escales.working")}</p> : null}
-      {!chatResult && !busy ? (
+      {/* The example questions stay after an answer, so the next one is one click away. */}
+      {!busy ? (
         <ul className="captain-prompts" aria-label={t("escales.exampleQuestions")}>
           {/* Example questions fill the field; the visitor still chooses to send. */}
           <li>

@@ -1,6 +1,8 @@
 import type { AgDefaultRegistry, AgWidgetFormParams, AgWidgetsConfig } from "ag-studio";
 import { createWidgets } from "ag-studio-react";
-import { VALIDATION_WIDGET_TYPE } from "./agentPlan";
+import { FUNDING_WIDGET_TYPE, VALIDATION_WIDGET_TYPE } from "./agentPlan";
+import { dashboardCopy } from "./dashboardLocale";
+import { FundingWidget } from "./FundingWidget";
 import { studioT } from "./locale";
 import { ValidationScoreboard } from "./validationWidget";
 
@@ -53,10 +55,21 @@ export function escalesWidgets(
   widgetConfig: AgWidgetsConfig<AgDefaultRegistry>,
   language?: string,
 ): AgWidgetsConfig<AgDefaultRegistry> {
+  const title = dashboardCopy(language ?? "en").fundingTitle;
   const params = {
-    additionalTypes: [humanValidationWidget(language)],
+    additionalTypes: [humanValidationWidget(language), {
+      id: FUNDING_WIDGET_TYPE,
+      label: title,
+      icon: ICON,
+      dataMapping: {},
+      form: (params: AgWidgetFormParams) => params.createDefaults({}),
+      comp: FundingWidget,
+      defaultSize: { width: 900, height: 320 },
+      minSize: { width: 320, height: 200 },
+      ai: { description: title, usage: title },
+    }],
     menu: [
-      { label: "BI Escales", widgetIds: [VALIDATION_WIDGET_TYPE] },
+      { label: "BI Escales", widgetIds: [VALIDATION_WIDGET_TYPE, FUNDING_WIDGET_TYPE] },
       ...widgetConfig.menu,
     ],
   };

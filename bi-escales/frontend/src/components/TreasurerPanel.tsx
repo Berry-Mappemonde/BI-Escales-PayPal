@@ -228,6 +228,7 @@ export function TreasurerPanel({
           )}
             </>
           )}
+          <TreasurerStudioSection adminKey={adminKey} demo={demoMode} stopNames={stopNames} />
           {showQueue ? (
           <TreasurerQueue
             pledges={pledges}
@@ -259,7 +260,6 @@ export function TreasurerPanel({
             onPledgeUpdated={onPledgeUpdated}
             stopNames={stopNames}
           />
-          <TreasurerStudioSection pledges={pledges} />
           <form className="stack-form" onSubmit={onSpendSubmit}>
             <h3>{t("fund.heading")}</h3>
             <label>

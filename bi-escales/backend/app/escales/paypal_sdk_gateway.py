@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime as dt
 import importlib
+import json
 import logging
 from collections.abc import Callable, MutableMapping
 import math
@@ -356,6 +357,18 @@ def _execute(controller_name: str, operation: str, *args: Any, sdk: Any = None) 
             _reraise_api_error(exc)
             _reraise_transport_error(exc)
             raise
+        if controller_name == "subscriptions" and operation == "get_subscription":
+            # SDK 2.4.0 turns a legitimate failed_payments_count=0 into None,
+            # then refuses to serialize its own model. Preserve the same response.
+            wire = getattr(result, "text", None)
+            if isinstance(wire, (str, bytes)) and wire:
+                try:
+                    payload = json.loads(wire)
+                except (ValueError, UnicodeDecodeError):
+                    _raise_paypal_error(502, "PayPal SDK subscription response was not JSON")
+                if not isinstance(payload, dict):
+                    _raise_paypal_error(502, "PayPal SDK subscription response was not an object")
+                return _body_dict(payload)
         return _body_dict(getattr(result, "body", None))
     raise AssertionError("unreachable")
 

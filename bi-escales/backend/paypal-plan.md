@@ -722,3 +722,16 @@ and `capture_on=departure`, matching the existing timing resolver. It must still
 reject unknown targets, stop arrivals, and mismatched milestone/target IDs.
 No PayPal operation, SDK signature, exception handling or idempotency key changes:
 creation continues through the existing Orders v2 / Vault setup-token methods.
+
+### Active subscription reads with zero failed payments (12 November 2026)
+
+`subscriptions.get_subscription({"id": subscription_id}) -> ApiResponse` performs
+one GET on `/v1/billing/subscriptions/{id}`. SDK 2.4.0 deserializes
+`billing_info.failed_payments_count=0` as `None`; serializing that generated model
+then fails required-field validation. For this read only, preserve the JSON from
+the same successful `ApiResponse.text` rather than serializing the lossy model.
+Accept only a JSON object. Keep SDK ApiException/transport mapping and retries;
+make no fallback HTTP call and no additional PayPal write. Approval still verifies
+subscription ID, ACTIVE status, known plan, price and interval. Skills used:
+`python-getting-started`, `python-models`, `python-error-handling`,
+`python-testing`, `python-configuration-resilience`.

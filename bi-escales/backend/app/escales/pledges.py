@@ -1377,21 +1377,56 @@ def _require_status(pledge: dict, expected: str | tuple[str, ...], target: str) 
         raise IllegalTransition(str(current), target)
 
 
+_CARD_AUTH_DECLINED = (
+    "card authentication incomplete or declined; retry or choose another payment method"
+)
+
+
+_CARD_ORDER_READY = frozenset({"APPROVED", "COMPLETED"})
+# Card confirm (including v6 card-fields submit) can leave a succeeded 3DS order CREATED.
+_CARD_ORDER_WITH_SUCCESSFUL_3DS = _CARD_ORDER_READY | {"CREATED"}
+
+
 def _require_card_capture_approval(order: dict) -> None:
-    """Accept approved cards; reject a failed or rejected 3DS attempt."""
-    if str(order.get("status") or "").upper() not in {"APPROVED", "COMPLETED"}:
+    """Accept an approved card, or a confirmed card whose 3DS attempt succeeded."""
+    order_status = str(order.get("status") or "").upper()
+    if order_status in {"DECLINED", "DENIED", "VOIDED"}:
         raise ValueError("card order not approved yet")
     card = (order.get("payment_source") or {}).get("card") or {}
+    if "authentication_result" not in card:
+        if order_status not in _CARD_ORDER_READY:
+            raise ValueError("card order not approved yet")
+        return
     auth = card.get("authentication_result") or {}
+    if not auth:
+        if order_status not in _CARD_ORDER_READY:
+            raise ValueError("card order not approved yet")
+        return
     three_ds = auth.get("three_d_secure") or {}
     enrolled = str(three_ds.get("enrollment_status") or "").upper()
     status = str(three_ds.get("authentication_status") or "").upper()
     liability = str(auth.get("liability_shift") or "").upper()
-    attempted = bool(enrolled or status)
-    if enrolled in {"N", "R"} or status in {"N", "R"} or (
-        attempted and liability in {"NO", "UNKNOWN"}
-    ):
-        raise ValueError("card authentication incomplete or declined; retry or choose another payment method")
+    if liability == "UNKNOWN":
+        raise ValueError(_CARD_AUTH_DECLINED)
+    if status in {"N", "R"} or enrolled == "R":
+        raise ValueError(_CARD_AUTH_DECLINED)
+    # Liability stays with the merchant after an authentication was attempted.
+    if status and liability == "NO":
+        raise ValueError(_CARD_AUTH_DECLINED)
+    if status in {"Y", "A"} and liability in {"POSSIBLE", "YES"}:
+        if order_status not in _CARD_ORDER_WITH_SUCCESSFUL_3DS:
+            raise ValueError("card order not approved yet")
+        return
+    # Not enrolled, 3DS unavailable, or bypassed: no authentication was attempted.
+    if enrolled in {"N", "U", "B"} and not status and liability == "NO":
+        if order_status not in _CARD_ORDER_READY:
+            raise ValueError("card order not approved yet")
+        return
+    if order_status not in _CARD_ORDER_READY:
+        raise ValueError("card order not approved yet")
+    if not enrolled and not status and not liability:
+        return
+    raise ValueError(_CARD_AUTH_DECLINED)
 
 
 async def _require_buyer_approval(pledge: dict, client: Any, order_id: str) -> None:

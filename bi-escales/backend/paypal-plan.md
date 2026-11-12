@@ -760,10 +760,17 @@ void and capture operations and idempotency keys are unchanged.
 Before code: supersede the missing-authentication rule above. Use one shared
 server-side card approval gate before both immediate Orders v2 capture and
 Orders v2 authorization. An APPROVED card with no authentication_result is
-accepted; failed/rejected enrollment or authentication (N/R) is refused, as is
-NO/UNKNOWN liability when a 3DS status shows an attempt. Declined/unapproved
-orders remain refused. Keep the expanded get_card_order read, the synchronous
-SDK work in asyncio.to_thread, existing exception mapping and stable write
-idempotency keys. No SDK signatures, request SCA methods or held-stop arrival
-capture paths change. Skills: python-getting-started, python-models,
-python-testing, python-error-handling, python-configuration-resilience.
+accepted. enrollment_status N, U, or B with an empty authentication_status and
+liability_shift NO is accepted (no authentication attempted). authentication_status
+N or R, enrollment_status R, and liability_shift UNKNOWN (including when
+three_d_secure is absent) are refused. liability_shift NO is refused once an
+authentication_status is present. A successful 3DS result (authentication_status
+Y or A, liability_shift POSSIBLE or YES) is accepted when the order is APPROVED,
+COMPLETED, or still CREATED: v6 card-fields submit and confirm-payment-source
+leave a succeeded challenge in CREATED until capture or authorize. CREATED with
+no successful 3DS, and PAYER_ACTION_REQUIRED, stay refused. Declined orders
+remain refused. Keep the expanded get_card_order read, the synchronous SDK work
+in asyncio.to_thread, existing exception mapping and stable write idempotency
+keys. No SDK signatures, request SCA methods or held-stop arrival capture paths
+change. Skills: python-getting-started, python-models, python-testing,
+python-error-handling, python-configuration-resilience.

@@ -39,7 +39,8 @@ from tests.test_escales_pledges import Spy
 
 @pytest.mark.parametrize("enrollment,authentication,shift,allowed", [
     ("Y", "Y", "POSSIBLE", True), ("Y", "A", "POSSIBLE", True),
-    ("N", "", "NO", False), ("U", "", "NO", False), ("B", "", "NO", False),
+    ("Y", "Y", "YES", True), ("Y", "A", "YES", True),
+    ("N", "", "NO", True), ("U", "", "NO", True), ("B", "", "NO", True),
     ("Y", "N", "NO", False), ("Y", "R", "NO", False), ("Y", "C", "UNKNOWN", False),
     ("Y", "U", "UNKNOWN", False), ("Y", "", "NO", False), ("", "", "", True),
 ])
@@ -150,7 +151,10 @@ def test_card_read_keeps_state_when_projection_omits_status(monkeypatch):
     _require_card_capture_approval(order)
 
 
-@pytest.mark.parametrize("auth,allowed", [(None,True),({},True),({"liability_shift":"UNKNOWN"},True),({"liability_shift":"NO","three_d_secure":{"enrollment_status":"Y","authentication_status":"N"}},False)])
+@pytest.mark.parametrize("auth,allowed", [
+    (None, True), ({}, True), ({"liability_shift": "UNKNOWN"}, False),
+    ({"liability_shift": "NO", "three_d_secure": {"enrollment_status": "Y", "authentication_status": "N"}}, False),
+])
 def test_approved_card_without_a_3ds_attempt_is_accepted(auth,allowed):
     from app.escales.pledges import _require_card_capture_approval
     card={"last_digits":"9038","brand":"VISA"}

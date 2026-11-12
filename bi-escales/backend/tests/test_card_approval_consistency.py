@@ -24,9 +24,9 @@ class CardOrderSpy(Spy):
     pytest.param("APPROVED", {"liability_shift": "POSSIBLE", "three_d_secure": {
         "enrollment_status": "Y", "authentication_status": "Y",
     }}, True, id="successful-3ds"),
-    pytest.param("APPROVED", {"liability_shift": "POSSIBLE", "three_d_secure": {
+    pytest.param("APPROVED", {"liability_shift": "NO", "three_d_secure": {
         "enrollment_status": "N",
-    }}, False, id="negative-enrollment"),
+    }}, True, id="negative-enrollment"),
     pytest.param("APPROVED", {"liability_shift": "POSSIBLE", "three_d_secure": {
         "enrollment_status": "R",
     }}, False, id="rejected-enrollment"),
@@ -42,6 +42,23 @@ class CardOrderSpy(Spy):
     pytest.param("APPROVED", {"liability_shift": "UNKNOWN", "three_d_secure": {
         "enrollment_status": "Y", "authentication_status": "C",
     }}, False, id="attempted-with-unknown-liability"),
+    pytest.param("APPROVED", {"liability_shift": "UNKNOWN"}, False, id="unknown-liability-without-3ds"),
+    pytest.param("APPROVED", {"liability_shift": "YES", "three_d_secure": {
+        "enrollment_status": "Y", "authentication_status": "Y",
+    }}, True, id="liability-yes"),
+    pytest.param("CREATED", {"liability_shift": "POSSIBLE", "three_d_secure": {
+        "enrollment_status": "Y", "authentication_status": "Y",
+    }}, True, id="created-after-successful-3ds"),
+    pytest.param("CREATED", {"liability_shift": "YES", "three_d_secure": {
+        "enrollment_status": "Y", "authentication_status": "A",
+    }}, True, id="created-after-attempted-3ds"),
+    pytest.param("CREATED", None, False, id="created-without-3ds"),
+    pytest.param("CREATED", {"liability_shift": "NO", "three_d_secure": {
+        "enrollment_status": "Y", "authentication_status": "N",
+    }}, False, id="created-failed-3ds"),
+    pytest.param("CREATED", {"liability_shift": "NO", "three_d_secure": {
+        "enrollment_status": "Y", "authentication_status": "R",
+    }}, False, id="created-rejected-3ds"),
     pytest.param("DECLINED", None, False, id="declined-card"),
     pytest.param("PAYER_ACTION_REQUIRED", None, False, id="buyer-action-required"),
 ])

@@ -551,3 +551,14 @@ Skills: python-getting-started, python-calling-endpoints, python-models,
 python-error-handling, python-configuration-resilience, python-testing.
 
 SDK source inspection: from_dictionary injects PayPal defaults and drops card experience locale/brand fields. Keep nested dictionaries inside the generated OrderRequest envelope; HTTP-boundary parity tests cover exact payload preservation.
+## Sandbox Crew catalog v2 reuse
+
+Before code: reuse the annual EN/FR catalog set up by Hamid on test2. Do not run
+catalog creation or alter existing plans as part of verification. Serialize catalog
+ensure calls per event loop; retain stable v2 PayPal request IDs across processes.
+Refuse catalog provisioning outside explicit sandbox before any provider call.
+Route supported plan creation through SubscriptionsController.create_billing_plan
+(options, PlanRequest); Catalog Products are not included in Server SDK 2.4.0.
+Public plan GET stays read-only; intentional checkout/setup retains existing ensure.
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-error-handling, python-configuration-resilience, python-testing.

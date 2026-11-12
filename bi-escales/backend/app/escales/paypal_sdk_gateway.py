@@ -581,3 +581,9 @@ def create_subscription(
         "create_subscription",
         _write_options(idempotency_key=idempotency_key, body=request, prefer=True),
     )
+
+
+def create_billing_plan(payload: dict[str, Any], *, idempotency_key: str) -> dict[str, Any]:
+    body = _model("plan_request", "PlanRequest")(**payload)
+    return _execute("subscriptions", "create_billing_plan",
+                    _write_options(body=body, idempotency_key=idempotency_key))

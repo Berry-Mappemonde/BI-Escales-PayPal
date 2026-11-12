@@ -1040,6 +1040,9 @@ class PayPalClient:
                 "payment_failure_threshold": 3,
             },
         }
+        delegated = self._sdk_writes("create_billing_plan", body, idempotency_key=idempotency_key)
+        if delegated is not None:
+            return delegated
         return self._req("POST", "/v1/billing/plans", body, idempotency_key=idempotency_key)
 
     def get_subscription(self, subscription_id: str) -> dict:

@@ -259,6 +259,21 @@
   margin: var(--space-3) 0 0;
 }
 
+/* "Settle at this date" sits like "Run departure-day settle" above it: its own width, at the end. */
+.treasurer-panel .treasurer-panel-body [data-testid="settle-at-chosen"] > button:not(.captain-card button) {
+  /* The form is a column, whether it is laid out as a grid or as a flex box. */
+  justify-self: end;
+  align-self: flex-end;
+  width: auto;
+}
+
+/* The three demo actions: a gap between them, and they wrap on a narrow page. */
+.treasurer-panel .treasurer-panel-body .demo-stop-moment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 /* The spending form has no .panel of its own, so it gets the same frame. */
 .treasurer-panel .treasurer-panel-body > form.stack-form {
   padding: var(--space-3);

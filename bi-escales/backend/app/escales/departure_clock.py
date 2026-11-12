@@ -66,10 +66,6 @@ def _parse_moment(value: Optional[str]) -> Optional[dt.datetime]:
     return moment.astimezone(dt.timezone.utc)
 
 
-def _days_before(anchor: dt.datetime, now: dt.datetime) -> int:
-    return (anchor.date() - now.date()).days
-
-
 def _cancelled(milestone: dict) -> bool:
     evidence = milestone.get("evidence") or []
     if evidence:
@@ -176,7 +172,9 @@ async def refuse_early_authorization(pledge: dict, *, now: Optional[dt.datetime]
     if anchor is None:
         return
     moment = now or simulated_now()
-    if _days_before(anchor, moment) > AUTH_MAX_DAYS:
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    if anchor - moment.astimezone(dt.timezone.utc) > dt.timedelta(days=AUTH_MAX_DAYS):
         raise ValueError("authorization is more than 29 days before departure")
 
 

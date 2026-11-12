@@ -536,3 +536,12 @@ are available in development or CI.
 
 Skills used: `python-getting-started` under the vendored
 `.cursor/skills/paypal-server-sdk` directory. No PayPal operation or SDK call is added.
+
+## PAY-05 exact authorization window
+
+Before implementation: AUTHORIZE is permitted when arrival (stop) or departure
+(cabin) minus the UTC voyage instant is at most timedelta(days=29), exactly 696h.
+Beyond that instant the existing resolver selects VAULT or refuses before order
+creation. No provider methods, request IDs, capture rules or Render clock change.
+Naive supplied instants retain the existing UTC interpretation.
+Skills: python-getting-started, python-calling-endpoints, python-testing.

@@ -92,4 +92,36 @@ describe("TreasurerGrid fallback", () => {
     expect(within(table).getByRole("columnheader", { name: word })).toBeInTheDocument();
     await i18n.changeLanguage("en");
   });
+  it.each([
+    ["en", "Stop gift (held until arrival)"],
+    ["fr", "Don d’escale (retenu jusqu’à l’arrivée)"],
+  ])("lists a stop's gifts on a line of their own in %s", async (lang, label) => {
+    await i18n.changeLanguage(lang);
+    vi.stubEnv("VITE_ENABLE_AG_GRID", "0");
+    const base = { intent: "AUTHORIZE", currency: "EUR", description: "x", milestone_id: "dep-mayotte" };
+    wrap(
+      <TreasurerGrid
+        pledges={[
+          { ...base, id: "m1", status: "captured" as const, amount_eur: "20.00", kind: "mile" },
+          { ...base, id: "g1", status: "authorized" as const, amount_eur: "17.35", kind: "stop_gift" },
+        ]}
+        milestones={[]}
+        adminKey=""
+        selectedMilestoneId="dep-mayotte"
+        onSelectMilestone={() => {}}
+        onMilestonesChange={() => {}}
+        onPledgeUpdated={() => {}}
+        stopNames={{ "dep-mayotte": "Mamoudzou (Mayotte)" }}
+      />,
+    );
+    const table = screen.getByTestId("treasurer-fallback-table");
+    const rows = within(table).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).not.toHaveTextContent(label);
+    const gift = screen.getByTestId("ledger-stop-gift-row");
+    expect(gift).toBe(rows[1]);
+    expect(within(gift).getAllByRole("cell")[0]).toHaveTextContent(`Mamoudzou (Mayotte)${label}`);
+    expect(gift).toHaveTextContent("1 (17.35 €)");
+    await i18n.changeLanguage("en");
+  });
 });

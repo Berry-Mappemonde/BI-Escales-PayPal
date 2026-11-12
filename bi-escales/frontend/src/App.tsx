@@ -27,6 +27,7 @@ import { useTheme } from "./hooks/useTheme";
 import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { resolveBoatStop } from "./voyage/boatStop.js";
+import { publicCommonFundMessage } from "./utils/publicCommonFund";
 import { nextOpenStop } from "./voyage/nextStop.js";
 import { treasurerStopOverview } from "./voyage/treasurerStopOverview.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
@@ -1072,14 +1073,7 @@ export default function App() {
               <CrewSupporterPublicSection adminKey={adminKey.trim() || undefined} />
               {publicCommonFund ? (
                 <p className="hint public-common-fund" data-testid="public-common-fund">
-                  {t("fund.publicCommon", {
-                    balance: Number.isFinite(Number(publicCommonFund.balance_eur))
-                      ? new Intl.NumberFormat(lang, {
-                          style: "currency",
-                          currency: publicCommonFund.currency,
-                        }).format(Number(publicCommonFund.balance_eur))
-                      : `${publicCommonFund.balance_eur} ${publicCommonFund.currency}`,
-                  })}
+                  {publicCommonFundMessage(publicCommonFund, lang, t)}
                 </p>
               ) : null}
             </>

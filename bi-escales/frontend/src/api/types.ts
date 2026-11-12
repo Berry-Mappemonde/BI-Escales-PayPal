@@ -64,6 +64,8 @@ export interface FundView {
   refunded_eur?: string;
   spending_eur: string;
   balance_eur: string;
+  /** Captured minus refunded, when the server sends it. */
+  received_net_eur?: string;
   overdrawn?: boolean;
   income?: FundLine[];
   spending?: FundLine[];

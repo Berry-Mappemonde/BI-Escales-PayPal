@@ -30,6 +30,60 @@ vi.mock("./components/PledgeButton", () => ({
   PledgeButton: () => <button type="button">pledge</button>,
 }));
 
+describe("treasurer milestone hint", () => {
+  const panel = (stopNames?: Record<string, string>) => (
+    <I18nextProvider i18n={i18n}>
+      <TreasurerPanel
+        open
+        onOpenChange={() => {}}
+        adminKey="tk"
+        onAdminKeyChange={() => {}}
+        settleBusy={false}
+        settleNote={null}
+        onSettle={() => {}}
+        clockPinned={false}
+        settleAt=""
+        onSettleAtChange={() => {}}
+        onSettleAt={() => {}}
+        milestoneId="dep-mayotte"
+        onMilestoneIdChange={() => {}}
+        projectFund={undefined}
+        boatFund={undefined}
+        pledges={[]}
+        loading={false}
+        error={null}
+        needsKey
+        onRefreshQueue={() => {}}
+        onPledgeUpdated={() => {}}
+        spendAmount="1.00"
+        onSpendAmountChange={() => {}}
+        spendNote=""
+        onSpendNoteChange={() => {}}
+        spendError={null}
+        fund={null}
+        onSpendSubmit={(event) => event.preventDefault()}
+        stopNames={stopNames}
+      />
+    </I18nextProvider>
+  );
+
+  it("names the selected stop instead of showing its id", async () => {
+    await i18n.changeLanguage("en");
+    const { unmount } = render(panel({ "dep-mayotte": "Mayotte" }));
+    const hint = screen.getByTestId("treasurer-milestone-hint");
+    expect(hint).toHaveTextContent("Spending and fund use the selected stop: Mayotte");
+    expect(hint).not.toHaveTextContent("dep-mayotte");
+    unmount();
+
+    await i18n.changeLanguage("fr");
+    render(panel({ "dep-mayotte": "Mayotte" }));
+    expect(screen.getByTestId("treasurer-milestone-hint")).toHaveTextContent(
+      "La caisse et les dépenses utilisent l’escale sélectionnée : Mayotte",
+    );
+    await i18n.changeLanguage("en");
+  });
+});
+
 describe("minimix lot 2 removed controls", () => {
   it("does not render the treasurer milestone text field (stop selection drives the milestone)", async () => {
     await i18n.changeLanguage("en");
@@ -68,6 +122,7 @@ describe("minimix lot 2 removed controls", () => {
       </I18nextProvider>,
     );
     expect(screen.queryByRole("textbox", { name: /milestone/i })).toBeNull();
+    // No stop names passed: the id is shown as it is, never hidden.
     expect(screen.getByTestId("treasurer-milestone-hint")).toHaveTextContent("dep-mayotte");
   });
 

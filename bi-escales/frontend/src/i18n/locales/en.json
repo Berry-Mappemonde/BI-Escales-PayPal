@@ -68,6 +68,8 @@
     "marina": {
       "website": "Website",
       "maps": "Google Maps",
+      "mapsOf": "Google Maps: {{name}}",
+      "websiteOf": "Website: {{name}}",
       "vhf": "VHF",
       "visitorBerths": "Visitor berths",
       "maxDraft": "Max. draft",
@@ -140,7 +142,9 @@
     "openHeading": "Totals with no stopover",
     "projectTotals": "Project pledges",
     "boatTotals": "Common fund",
-    "publicCommon": "Common fund · {{balance}}"
+    "publicCommon": "Common fund · {{balance}}",
+    "publicCommonEmpty": "Common fund · Be the first to give",
+    "publicCommonUsed": "Common fund · {{balance}} · {{received}} received, all put to use"
   },
   "cabinLegPicker": {
     "label": "Choose a voyage leg",
@@ -417,7 +421,7 @@
     "demoBanner": "Sandbox demo: you can play the treasurer on pledges made from this browser. Every other pledge is view-only; the treasurer key acts on all of them.",
     "demoStop": {
       "heading": "Judge moment — La Rochelle",
-      "hint": "Sandbox only, treasurer key required: stop {{id}}. Simulate arrival captures authorized pledges (approval applies to this action only, nothing is stored); cancel voids authorizations; reset clears demo state without undoing captures.",
+      "hint": "Sandbox only, treasurer key required: {{name}}. Simulate arrival captures authorized pledges (approval applies to this action only, nothing is stored); cancel voids authorizations; reset clears demo state without undoing captures.",
       "working": "Working… PayPal handles each pledge in turn, this can take up to a minute.",
       "simulateArrival": "Simulate boat arrival",
       "cancelStop": "Cancel stop",
@@ -474,7 +478,7 @@
     "description": "Description",
     "pledgeRef": "Pledge",
     "createdAt": "Created",
-    "milestoneFromStop": "Spending and fund use the selected stop milestone: {{id}}",
+    "milestoneFromStop": "Spending and fund use the selected stop: {{name}}",
     "milestone": "Milestone",
     "cabinLeg": "Cabin: {{from}} → {{to}}",
     "actions": "Actions",

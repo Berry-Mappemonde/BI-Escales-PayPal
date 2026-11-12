@@ -20,7 +20,7 @@ describe("EscalesPanel cart", () => {
   });
 
   it.each([
-    ["fr", "20 milles près de Mayotte", "Demander au capitaine"],
+    ["fr", "Parrainer 20 milles près de Mayotte", "Demander au capitaine"],
     ["en", "Sponsor 20 miles near Mayotte", "Ask the Captain"],
   ])("starts empty with a localized placeholder in %s and refuses blank submissions", async (lang, placeholder, action) => {
     await i18n.changeLanguage(lang);

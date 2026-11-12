@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { walletFactories } from "./paypalWallets";
+import { currentPayPalJsVersion, notePayPalJsFeatures, reportPayPalV6LoadFailure, resetPayPalJsVersionForTests } from "../paypalJsVersion";
 
 const details = { config: { merchantCountry: "FR", supportedNetworks: ["visa"], merchantCapabilities: ["supports3DS"] } };
 const eligible = { isEligible: (name: string) => ["googlepay", "applepay"].includes(name), getDetails: () => details } as never;
@@ -19,7 +20,7 @@ function googleHarness(status = "APPROVED") {
   const sdk = { createGooglePayOneTimePaymentSession: vi.fn(() => session) };
   return { session, client, options, sdk, ctor, click: () => click(), authorize: () => callbacks.onPaymentAuthorized({ paymentMethodData: {} }) };
 }
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); document.querySelectorAll('script[src*="applepay"]').forEach(s => s.remove()); });
+afterEach(() => { resetPayPalJsVersionForTests(); vi.unstubAllGlobals(); vi.restoreAllMocks(); document.querySelectorAll('script[src*="applepay"]').forEach(s => s.remove()); });
 
 describe("independent Google Pay eligibility", () => {
   it("requires merchant eligibility before loading native APIs or creating orders", async () => {
@@ -52,6 +53,18 @@ describe("Google Pay confirmation and 3DS", () => {
     expect(h.client.loadPaymentData).toHaveBeenCalledOnce();
     expect(h.client.loadPaymentData).toHaveBeenCalledWith(expect.objectContaining({ transactionInfo: expect.objectContaining({ totalPrice: "12.50", currencyCode: "EUR" }) }));
     expect(h.session.confirmOrder).toHaveBeenCalledWith({ orderId: "ORDER", paymentMethodData: {} });
+  });
+  it("keeps v6 as soon as the Google sheet starts, before payment authorization", async () => {
+    resetPayPalJsVersionForTests();
+    notePayPalJsFeatures({ paypal_js_v6: true });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const h = googleHarness();
+    h.client.loadPaymentData.mockImplementation(() => new Promise(() => {}));
+    await walletFactories(h.sdk as never, eligible).Googlepay(h.options).render(document.createElement("div"));
+    h.click();
+    reportPayPalV6LoadFailure(new Error("another instance failed"));
+    expect(currentPayPalJsVersion()).toBe("v6");
+    expect(h.options.createOrder).not.toHaveBeenCalled();
   });
   it("waits until the native sheet closes to start 3DS; rejection forbids approval", async () => {
     const h = googleHarness("PAYER_ACTION_REQUIRED");
@@ -88,6 +101,9 @@ describe("Google Pay confirmation and 3DS", () => {
 });
 
 it("Apple Pay validates the merchant before confirming and closes its native session", async () => {
+  resetPayPalJsVersionForTests();
+  notePayPalJsFeatures({ paypal_js_v6: true });
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
   const native = { begin: vi.fn(), abort: vi.fn(), completeMerchantValidation: vi.fn(), completePayment: vi.fn() } as any;
   const Apple = Object.assign(vi.fn(function () { return native; }), { canMakePayments: () => true, STATUS_SUCCESS: 1, STATUS_FAILURE: 0 });
   vi.stubGlobal("ApplePaySession", Apple);
@@ -98,6 +114,9 @@ it("Apple Pay validates the merchant before confirming and closes its native ses
   document.querySelector<HTMLScriptElement>('script[src*="applepay"]')!.dispatchEvent(new Event("load"));
   await rendering; host.firstElementChild!.dispatchEvent(new MouseEvent("click"));
   expect(native.begin).toHaveBeenCalledOnce();
+  reportPayPalV6LoadFailure(new Error("another instance failed"));
+  expect(currentPayPalJsVersion()).toBe("v6");
+  expect(options.createOrder).not.toHaveBeenCalled();
   native.onvalidatemerchant({ validationURL: "https://apple-pay-gateway.apple.com/paymentservices/startSession" });
   await vi.waitFor(() => expect(native.completeMerchantValidation).toHaveBeenCalledOnce());
   native.onpaymentauthorized({ payment: { token: {}, billingContact: {} } });

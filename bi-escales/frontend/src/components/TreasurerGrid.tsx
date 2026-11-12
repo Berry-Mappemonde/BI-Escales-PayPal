@@ -6,9 +6,9 @@ import { buildGaugeRows, buildMarinaDashboardRows, gaugePercent } from "../utils
 import { milestoneLabel } from "../utils/milestoneLabel";
 import type { StopNames } from "../utils/milestoneLabel";
 
-type AgTableProps = { rows: ReturnType<typeof buildGaugeRows>; stopNames?: StopNames };
+type AgTableProps = { rows: ReturnType<typeof buildGaugeRows>; stopNames?: StopNames; giftLabel?: string };
 
-function OptionalAgGrid({ rows, stopNames }: AgTableProps) {
+function OptionalAgGrid({ rows, stopNames, giftLabel }: AgTableProps) {
   const [Table, setTable] = useState<ComponentType<AgTableProps> | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -33,7 +33,7 @@ function OptionalAgGrid({ rows, stopNames }: AgTableProps) {
   }, []);
 
   if (failed || !Table) return <FallbackTreasurerTable rows={rows} stopNames={stopNames} />;
-  return <Table rows={rows} stopNames={stopNames} />;
+  return <Table rows={rows} stopNames={stopNames} giftLabel={giftLabel} />;
 }
 
 export interface TreasurerGridProps {
@@ -76,8 +76,14 @@ function FallbackTreasurerTable({ rows, stopNames }: { rows: ReturnType<typeof b
       </thead>
       <tbody>
         {rows.map((row) => (
-          <tr key={row.milestone_id}>
-            <td title={row.milestone_id || undefined}>{milestoneLabel(stopNames, row.milestone_id, t)}</td>
+          <tr
+            key={`${row.milestone_id}-${row.kind || ""}`}
+            data-testid={row.kind === "stop_gift" ? "ledger-stop-gift-row" : undefined}
+          >
+            <td title={row.milestone_id || undefined}>
+              {milestoneLabel(stopNames, row.milestone_id, t)}
+              {row.kind === "stop_gift" ? <small className="ledger-line-kind">{t("grid.stopGiftLine")}</small> : null}
+            </td>
             <td>
               {row.authorized_count} ({row.authorized_total_eur.toFixed(2)} €)
               <GaugeBar
@@ -116,7 +122,7 @@ export function TreasurerGrid(props: TreasurerGridProps) {
     <section className="panel treasurer-grid">
       <h3>{t("grid.heading")}</h3>
       {agGrid ? (
-        <OptionalAgGrid rows={rows} stopNames={props.stopNames} />
+        <OptionalAgGrid rows={rows} stopNames={props.stopNames} giftLabel={t("grid.stopGiftLine")} />
       ) : (
         <FallbackTreasurerTable rows={rows} stopNames={props.stopNames} />
       )}

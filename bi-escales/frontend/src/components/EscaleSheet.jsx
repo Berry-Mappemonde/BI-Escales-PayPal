@@ -28,7 +28,19 @@ import { MileCertificateDownload } from "./MileCertificateDownload";
 import { useStopContext } from "./stop/useStopContext.js";
 import { evaluateGooglePlaceLink, googleMapsSearchUrl } from "../marinas/marinaPlaceLink.js";
 
-const STOP_KINDS = ["mile", "berth", "night", "meal", "care", "cabin_leg", "common_fund"];
+// stop_gift (held until the boat arrives) sits beside common_fund (charged at once): two different promises.
+const STOP_KINDS = ["mile", "berth", "night", "meal", "care", "cabin_leg", "stop_gift", "common_fund"];
+
+/** Largest gift to a stop the server accepts (pledges.STOP_GIFT_MAX_EUR). */
+export const STOP_GIFT_MAX_EUR = 1000;
+
+/** A stop gift is a positive EUR amount with at most two decimals, up to the maximum. */
+export function stopGiftAmountValid(raw) {
+  const text = String(raw ?? "").trim().replace(",", ".");
+  if (!/^\d+(\.\d{1,2})?$/.test(text)) return false;
+  const amount = Number(text);
+  return amount > 0 && amount <= STOP_GIFT_MAX_EUR;
+}
 
 const SECTION_KEYS = [
   "mooring",
@@ -128,6 +140,8 @@ export const EscaleSheet = memo(function EscaleSheet({
   const perUnit = pledge && ["mile", "night", "meal", "care", "berth", "cabin_leg"].includes(pledge.kind);
   const orderAmount = pledge ? pledgeOrderAmount(pledge.kind, pledge.amount, priceCatalog, perUnit ? quantity : undefined) : "";
   const readOnlyAmount = pledge ? perUnit || pledgeAmountReadOnly(pledge.kind, priceCatalog) : false;
+  const isStopGift = pledge?.kind === "stop_gift";
+  const giftInvalid = isStopGift && !stopGiftAmountValid(orderAmount);
   const pledgeMilestoneId = pledge
     ? (pledge.kind === "cabin_leg"
       ? cabinLegMilestoneId(schedule, pledge.milestoneId, stop.name) || pledge.milestoneId
@@ -243,6 +257,9 @@ export const EscaleSheet = memo(function EscaleSheet({
                   data-testid="pledge-amount"
                   value={orderAmount}
                   readOnly={readOnlyAmount}
+                  inputMode={isStopGift ? "decimal" : undefined}
+                  aria-invalid={giftInvalid || undefined}
+                  aria-describedby={isStopGift ? "stop-gift-note" : undefined}
                   onChange={(event) => {
                     if (!readOnlyAmount) pledge.onAmount(event.target.value);
                   }}
@@ -253,11 +270,21 @@ export const EscaleSheet = memo(function EscaleSheet({
               {t("pledge.contributor")}
               <input value={pledge.contributor} onChange={(event) => pledge.onContributor(event.target.value)} />
             </label>
+            {isStopGift ? (
+              <p className="stop-note" id="stop-gift-note" data-testid="stop-gift-note">
+                {t("stopPanel.stopGiftNote", { max: formatEurAmount(STOP_GIFT_MAX_EUR, lang) })}
+              </p>
+            ) : null}
             {pledge.kind === "mile" && !receiptPledge ? (
               <p className="stop-note" data-testid="mile-certificate-promise">{t("certificate.promise")}</p>
             ) : null}
             <div className="stop-checkout">
               <h4>{t("stopPanel.checkout")}</h4>
+              {giftInvalid ? (
+                <p className="notice error" role="alert" data-testid="stop-gift-invalid">
+                  {t("stopPanel.stopGiftInvalid", { max: formatEurAmount(STOP_GIFT_MAX_EUR, lang) })}
+                </p>
+              ) : (
               <PledgeButton
                 values={{
                   amount_eur: orderAmount,
@@ -270,6 +297,7 @@ export const EscaleSheet = memo(function EscaleSheet({
                 }}
                 onAuthorized={onAuthorized}
               />
+              )}
             </div>
           </div>
           <MileCertificateDownload pledge={receiptPledge} contributor={pledge.contributor} />

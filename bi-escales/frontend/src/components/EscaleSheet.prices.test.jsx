@@ -29,6 +29,7 @@ const catalog = {
     { kind: "meal", amount_eur: "60.00", free_amount: false },
     { kind: "care", amount_eur: "40.00", free_amount: false },
     { kind: "cabin_leg", amount_eur: "80.00", free_amount: false },
+    { kind: "stop_gift", free_amount: true },
     { kind: "common_fund", free_amount: true },
   ],
 };
@@ -64,6 +65,7 @@ describe("stop sheet: fixed prices and what is already pledged", () => {
       "Meal (simulation) — €60",
       "Wellness programme (simulation) — €40",
       "Cabin on a leg (simulation) — €80",
+      "Gift to this stop (held until arrival)",
       "Common fund (charged immediately)",
     ]);
   });
@@ -91,7 +93,7 @@ describe("stop sheet: fixed prices and what is already pledged", () => {
   it("keeps the option values the checkout reads", async () => {
     await show();
     expect(within(screen.getByTestId("pledge-kind")).getAllByRole("option").map((option) => option.value)).toEqual([
-      "mile", "berth", "night", "meal", "care", "cabin_leg", "common_fund",
+      "mile", "berth", "night", "meal", "care", "cabin_leg", "stop_gift", "common_fund",
     ]);
   });
 

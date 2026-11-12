@@ -311,3 +311,6 @@
     transform: none;
   }
 }
+
+/* A stop's gift line in the ledger: the stop name, then what the line holds. */
+.treasurer-panel .treasurer-panel-body .ledger-line-kind { display: block; color: var(--color-fg-2); font-size: var(--text-meta); line-height: var(--text-meta--line-height); }

@@ -33,6 +33,47 @@ describe("treasurer dashboard ledger", () => {
     ]);
   });
 
+  it("keeps a stop's held gifts on a line of their own, apart from its pledges and the common fund", () => {
+    const rows = ledgerPledges([
+      pledge({ kind: "mile", milestone_id: "dep-brest", status: "captured", amount_eur: "20.00" }),
+      pledge({ kind: "stop_gift", milestone_id: "dep-brest", target_id: "dep-brest", status: "authorized", amount_eur: "17.35" }),
+      pledge({ kind: "stop_gift", milestone_id: "dep-brest", target_id: "dep-brest", status: "vaulted", amount_eur: "50.00" }),
+      pledge({ kind: "common_fund", milestone_id: "", target_id: "fonds-commun", amount_eur: "5.00" }),
+    ]);
+    const names = { "dep-brest": "Brest" };
+    const groups = groupLedger(rows, "target", (row) => fundingLabel(row, names, "en"));
+    expect(groups.map(({ type, label, count, captured, authorized, vaulted }) => [type, label, count, captured, authorized, vaulted])).toEqual([
+      ["stop", "Brest", 1, 2000, 0, 0],
+      // Held and saved, nothing captured: a gift is not money received before arrival.
+      ["gift", "Brest", 2, 0, 1735, 5000],
+      ["common", "Common fund", 1, 500, 0, 0],
+    ]);
+    const byType = groupLedger(rows, "type", (row) => row.type);
+    expect(byType.map((group) => group.id)).toEqual(["stop", "gift", "common"]);
+  });
+
+  it("files the real stop gifts read from test2 under their stops", () => {
+    // GET /api/escales/pledges on test2, 12 Nov 2026 (demo shape): the server stores the target as the stop slug.
+    const real = [
+      { id: "81ad32287e1d4c1e9f22927f627c66a4", kind: "stop_gift", status: "created", milestone_id: "dep-la-rochelle", target_id: "la-rochelle", amount_eur: "1.00", payment_mode: "AUTHORIZE", currency: "EUR" },
+      { id: "f766b7926e0242afa4d1ae1559d38ea5", kind: "stop_gift", status: "created", milestone_id: "dep-ajaccio-corse", target_id: "ajaccio-corse", amount_eur: "1000.00", payment_mode: "AUTHORIZE", currency: "EUR" },
+      { id: "4926582e2b734c1098796b6f26cbe79b", kind: "stop_gift", status: "refunded", milestone_id: "dep-ajaccio-corse", target_id: "ajaccio-corse", amount_eur: "1.00", payment_mode: "AUTHORIZE", currency: "EUR" },
+    ] as PublicPledge[];
+    const names = { "dep-la-rochelle": "La Rochelle", "dep-ajaccio-corse": "Ajaccio (Corse)" };
+    const groups = groupLedger(ledgerPledges(real), "target", (row) => fundingLabel(row, names, "en"));
+    expect(groups.map(({ type, label, count, captured, authorized, refunded }) => [type, label, count, captured, authorized, refunded])).toEqual([
+      // Not yet approved in PayPal: counted, but neither held nor received.
+      ["gift", "La Rochelle", 1, 0, 0, 0],
+      ["gift", "Ajaccio (Corse)", 2, 0, 0, 100],
+    ]);
+  });
+
+  it("names the gift type in both languages", () => {
+    const [row] = ledgerPledges([pledge({ kind: "stop_gift", status: "authorized" })]);
+    expect(row.type).toBe("gift");
+    expect(fundingLabel(row, { "dep-brest": "Brest" }, "fr")).toBe("Brest");
+  });
+
   it("keeps status buckets separate and adds exact cents", () => {
     const rows = ledgerPledges([
       pledge({ amount_eur: "0.10" }),

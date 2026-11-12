@@ -1,6 +1,7 @@
 import type { PublicPledge } from "../api/types";
 
-export const fundingTypes = ["stop", "leg", "common", "project", "unassigned"] as const;
+// "gift" is a stop_gift: a free amount for one stop, held until arrival (not the immediate common fund).
+export const fundingTypes = ["stop", "gift", "leg", "common", "project", "unassigned"] as const;
 export type FundingType = typeof fundingTypes[number];
 
 export interface LedgerPledge {
@@ -30,6 +31,7 @@ function destination(pledge: PublicPledge): Pick<LedgerPledge, "type" | "target"
   const target = pledge.target_id?.trim() ?? "";
   if (pledge.kind === "project_pledge") return { type: "project", target: target || milestone };
   if (pledge.kind === "common_fund") return { type: "common", target: "fonds-commun" };
+  if (pledge.kind === "stop_gift") return { type: "gift", target: milestone || target };
   if (pledge.kind === "cabin_leg" || milestone.startsWith("leg-") || target.startsWith("leg-")) {
     return { type: "leg", target: milestone.startsWith("leg-") ? milestone : target || milestone };
   }

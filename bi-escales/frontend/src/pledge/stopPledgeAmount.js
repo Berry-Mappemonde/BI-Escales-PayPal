@@ -29,6 +29,8 @@ export function defaultAmountForKind(kind, catalog) {
   const exact = catalogExactPrice(kind, catalog);
   if (exact) return exact;
   if (kind === "mile" || kind === "common_fund") return "1.00";
+  // A gift to a stop: a round starting amount the supporter changes.
+  if (kind === "stop_gift") return "10.00";
   return null;
 }
 

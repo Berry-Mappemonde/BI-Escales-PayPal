@@ -17,16 +17,21 @@ export interface AgProps {
   rows: PledgeGaugeRow[];
   /** Stop names by milestone id, from the voyage the app has loaded. */
   stopNames?: StopNames;
+  /** Label of a stop's gift line, in the page's language. */
+  giftLabel?: string;
 }
 
-export default function TreasurerGridAg({ rows, stopNames }: AgProps) {
+export default function TreasurerGridAg({ rows, stopNames, giftLabel }: AgProps) {
   const columnDefs = useMemo<ColDef<PledgeGaugeRow>[]>(
     () => [
       {
         field: "milestone_id",
         headerName: "Milestone",
         // The stop's name; an id the voyage does not know is shown as it is.
-        valueFormatter: (p) => milestoneLabel(stopNames, p.value),
+        valueFormatter: (p) => {
+          const name = milestoneLabel(stopNames, p.value);
+          return p.data?.kind === "stop_gift" ? `${name} · ${giftLabel || "Stop gift"}` : name;
+        },
         tooltipField: "milestone_id",
         flex: 1,
       },
@@ -53,7 +58,7 @@ export default function TreasurerGridAg({ rows, stopNames }: AgProps) {
         flex: 1,
       },
     ],
-    [stopNames],
+    [stopNames, giftLabel],
   );
 
   return (

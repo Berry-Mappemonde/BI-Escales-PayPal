@@ -365,6 +365,8 @@ export interface CaptainChatResponse extends CaptainTrace {
 
 export interface PledgeGaugeRow {
   milestone_id: string;
+  /** Set on the line that holds a stop's free-amount gifts (kept apart from its other pledges). */
+  kind?: "stop_gift";
   authorized_count: number;
   authorized_total_eur: number;
   captured_count: number;

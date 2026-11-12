@@ -2,7 +2,7 @@
 
 PayPal AI Hackathon 2026 — Association Berry-Mappemonde.
 
-**Built with:** the [APIMatic Context Plugin for the PayPal Server SDK](bi-escales/docs/apimatic/README.md) (vendored Python agent skills). The running app does not call `paypalserversdk`.
+**Built with:** the [APIMatic Context Plugin for the PayPal Server SDK](bi-escales/docs/apimatic/README.md) (vendored Python agent skills). Server-side PayPal calls (order creation, authorize, capture, void, refund, Vault) go through the APIMatic-generated **PayPal Server SDK** (`paypalserversdk`, flag `ESCALES_PAYPAL_SDK_ENABLED`, on for the hosted demo); project onboarding uses a separate Server SDK client with the Platform app credentials.
 
 ## Judges — start here
 
@@ -25,7 +25,7 @@ PayPal **sandbox only**: no live money moves, on any host. The voyage departs on
 
 Optional: ask the **AI Captain** a question in the left panel (for example the **Where is the boat?** chip). Each answer says whether it came from a fixed rule or from NVIDIA Nemotron.
 
-A far stop shows the other payment mode: **Mayotte** is more than 29 days away on the demo clock, so its pledges save the payment method with PayPal **Vault** instead of opening an authorization. Check both with `GET /api/escales/pledges/mode?milestone_id=dep-la-rochelle&kind=mile` (`AUTHORIZE`) and `...milestone_id=dep-dzaoudzi-mayotte&kind=mile` (`VAULT`).
+A far stop shows the other payment mode: **Mayotte** is more than 695 hours (about 29 days) away on the demo clock, so its pledges save the payment method with PayPal **Vault** instead of opening an authorization. Check both with `GET /api/escales/pledges/mode?milestone_id=dep-la-rochelle&kind=mile` (`AUTHORIZE`) and `...milestone_id=dep-dzaoudzi-mayotte&kind=mile` (`VAULT`).
 
 ### What needs the treasurer key
 
@@ -41,18 +41,19 @@ To see a capture without the key, watch the treasurer flow in the [demo video (v
 
 - **Stop pledges** (miles, nights, meals, care, berths): **captured** when the boat **arrives**; **voided** if the stop is **cancelled**.
 - **Cabins:** **captured** at leg **departure**.
+- **Gift to a stop** (free amount, up to 1,000 €): held like a stop pledge, **captured** when the boat **arrives**, **voided** if the stop is cancelled. Separate from the common fund.
 - **Common fund** and **project donations:** **captured immediately** (no Captain/treasurer gate on those paths).
 - For held stop and cabin pledges the AI Captain reviews the evidence and proposes; a human treasurer captures or voids. The Captain never moves money.
 
 **No tax receipts:** BI Escales does not issue tax receipts for pledges, cabins, fund contributions or project donations.
 
-- Authorizations are not opened more than **29 days** before the relevant arrival or departure; farther horizons use PayPal **Vault** (`ESCALES_VAULT_ENABLED`, on for the hosted demo).
+- Authorizations are not opened more than **695 hours** (just under PayPal's 29-day limit) before the relevant arrival or departure; farther horizons use PayPal **Vault** (`ESCALES_VAULT_ENABLED`, on for the hosted demo).
 - **Crew membership (association adhésion) — 10 € per year** (French UI: **Adhésion Crew**), paid through PayPal Subscriptions. It is the association's membership itself: one product, not a second membership SKU. The plans are created once per host by the treasurer's **Ensure Crew membership plan (sandbox)** action (`POST /api/escales/paypal/subscriptions/setup`); until then the Crew button is not shown. Subscriptions made on the earlier 5 € per month sandbox plans still verify.
 - The expedition **crew is six people** (capacity checks on safety gear in the Channel3 seed catalogue; see [CHANNEL3_WISHLISTS.md](bi-escales/docs/CHANNEL3_WISHLISTS.md)).
 
 ### What is switched on for the hosted demo
 
-Read from `GET https://escales.naviguide.fr/api/escales/features` on 11 Nov 2026. Every optional feature is behind an environment flag and is off unless set.
+Read from `GET https://escales.naviguide.fr/api/escales/features` on 12 Nov 2026 (release af03b71). Every optional feature is behind an environment flag and is off unless set.
 
 | Feature | Flag | Hosted demo |
 | --- | --- | --- |
@@ -61,16 +62,18 @@ Read from `GET https://escales.naviguide.fr/api/escales/features` on 11 Nov 2026
 | Crew membership, 10 € per year (PayPal subscription) | plan created on the host with the treasurer's setup action | **On** once the setup action has been run on the host |
 | Gear wishlists (Channel3 catalogue) | `ESCALES_WISHLISTS_ENABLED`, `ESCALES_CHANNEL3_ENABLED` | **On** |
 | PayPal webhooks | `ESCALES_WEBHOOKS_ENABLED` | **On** |
-| Card Fields (pay by card in the page) | `ESCALES_CARD_FIELDS_ENABLED` | Off |
-| Apple Pay / Google Pay | `ESCALES_WALLET_PAY_ENABLED` | Off |
-| Project onboarding after payment | `ESCALES_ONBOARD_AFTER_PAYMENT_ENABLED` | Off |
-| PayPal Web SDK v6 checkout | `ESCALES_PAYPAL_JS_V6_ENABLED` | Off |
+| Card Fields (pay by card in the page, with 3-D Secure) | `ESCALES_CARD_FIELDS_ENABLED` | **On** |
+| Apple Pay / Google Pay | `ESCALES_WALLET_PAY_ENABLED` | **On** (Apple Pay not completed end to end in sandbox) |
+| Project onboarding after payment (PayPal Platform, partner referrals) | `ESCALES_ONBOARD_AFTER_PAYMENT_ENABLED` | **On** |
+| PayPal Web SDK v6 checkout | `ESCALES_PAYPAL_JS_V6_ENABLED` | **On** |
+| PayPal Server SDK (APIMatic) for server-side calls | `ESCALES_PAYPAL_SDK_ENABLED` | **On** |
 | Save the payment method during an authorised checkout | `ESCALES_VAULT_ON_PURCHASE_ENABLED` | Off |
-| Bryntum timeline | `ESCALES_BRYNTUM_ENABLED` | Off |
+| Bryntum stopover calendar | `ESCALES_BRYNTUM_ENABLED` | **On** |
+| AG Studio treasurer dashboard (AG Grid) | `VITE_ENABLE_AG_STUDIO` (build time) | **On** |
 
 The onboarding flag is not reported by the features endpoint; its state above is the deployment setting.
 
-**PayPal Web SDK v6.** The checkout runs on PayPal's JS SDK v5 Smart Buttons. A second checkout path on the Web SDK v6 is merged behind `ESCALES_PAYPAL_JS_V6_ENABLED` ([#222](https://github.com/Berry-Mappemonde/BI-Escales-PayPal/pull/222)): off by default, off on the hosted demo, and refused outside the PayPal sandbox. With the flag off the page loads and uses v5 only. The v6 path is covered by tests but has not yet completed a real sandbox payment; see [PAYPAL_JS_V6_FLAG.md](bi-escales/docs/PAYPAL_JS_V6_FLAG.md).
+**PayPal Web SDK v6.** The hosted demo's checkout runs on PayPal's Web SDK v6 (`ESCALES_PAYPAL_JS_V6_ENABLED`, [#222](https://github.com/Berry-Mappemonde/BI-Escales-PayPal/pull/222)): PayPal button, Card Fields, Pay Later messaging and Google Pay. The flag is refused outside the PayPal sandbox; with it off the page falls back to the JS SDK v5 Smart Buttons. See [PAYPAL_JS_V6_FLAG.md](bi-escales/docs/PAYPAL_JS_V6_FLAG.md).
 
 ### Sandbox buyer
 
@@ -82,12 +85,12 @@ A default local setup uses **placeholder** `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_S
 
 ### Tests
 
-CI runs on every push and pull request (`.github/workflows/ci.yml`). On `test/integration-2` at `e729a5b` (11 Nov 2026):
+CI runs on every push and pull request (`.github/workflows/ci.yml`). On `test/integration-2` at `af03b71` (12 Nov 2026, the judging release):
 
 | Suite | Result |
 | --- | --- |
-| Backend (`python -m pytest tests -q`) | 1078 passed, 2 skipped |
-| Frontend (`npm test`: vitest, then the node test) | 797 passed in 127 files, plus 3 node tests |
+| Backend (`python -m pytest tests -q`) | 1437 passed, 2 skipped |
+| Frontend (`npm test`: vitest, then the node test) | 1181 passed in 165 files, plus 3 node tests |
 | Frontend build (`npm run build`) | passes |
 
 The 2 skipped backend tests make real PayPal sandbox or NVIDIA NIM calls and run only with `ESCALES_RUN_LIVE=1`.

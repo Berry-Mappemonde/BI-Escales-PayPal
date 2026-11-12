@@ -56,7 +56,8 @@
     "waiting": "Departure in {{days}}d {{hours}}h",
     "devT0": "Development departure (ISO)",
     "sailed": "{{nm}} nm sailed",
-    "simulated": "Demo clock"
+    "simulated": "Demo clock",
+    "pending": "Voyage clock loading"
   },
   "sheet": {
     "title": "Stop",

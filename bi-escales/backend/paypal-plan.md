@@ -545,6 +545,7 @@ Beyond that instant the existing resolver selects VAULT or refuses before order
 creation. No provider methods, request IDs, capture rules or Render clock change.
 Naive supplied instants retain the existing UTC interpretation.
 Skills: python-getting-started, python-calling-endpoints, python-testing.
+
 ## Order creation SDK completion (payment workstream)
 
 Before implementation: route PayPalClient POST /v2/checkout/orders through

@@ -551,3 +551,13 @@ Skills: python-getting-started, python-calling-endpoints, python-models,
 python-error-handling, python-configuration-resilience, python-testing.
 
 SDK source inspection: from_dictionary injects PayPal defaults and drops card experience locale/brand fields. Keep nested dictionaries inside the generated OrderRequest envelope; HTTP-boundary parity tests cover exact payload preservation.
+## Card coverage for immediate donations
+
+Before code: allow Card Fields on CAPTURE-intent project donations. The shared
+capture creator accepts checkout_method=card, sends card attributes with
+SCA_WHEN_REQUIRED, and preserves immediate capture on approval. The existing
+mode-preview GET returns CAPTURE for project donations without ledger writes.
+Both JS version entry points render the existing card component. This adds no
+new page or layout. Common-fund CAPTURE uses the same creator after PAY-03 merges.
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-error-handling, python-configuration-resilience, python-testing.

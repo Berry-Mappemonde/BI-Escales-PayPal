@@ -984,8 +984,6 @@ async def _create_capture_pledge(
     pledge_id = uuid.uuid4().hex
     idempotency_key = key or uuid.uuid4().hex
     method = _normalize_checkout_method(checkout_method)
-    if method == "card":
-        raise ValueError("project_pledge uses PayPal wallet checkout only")
     back = _callback_url(
         _http_url(return_url, order_return_url(), "return_url", caller_origin=caller_origin),
         pledge_id,
@@ -1000,6 +998,7 @@ async def _create_capture_pledge(
     from app.channel3_paypal import format_paypal_amount_value
 
     paypal_amount = format_paypal_amount_value(amount, pledge_currency)
+    method_options = {"checkout_method": "card"} if method == "card" else {}
     order = _create_capture_order(
         client,
         amount_eur=paypal_amount,
@@ -1010,6 +1009,7 @@ async def _create_capture_pledge(
         cancel_url=cancel,
         checkout_locale=checkout_locale,
         currency_code=pledge_currency,
+        **method_options,
     )
     order_id = order.get("id")
     if not order_id:

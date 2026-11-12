@@ -85,7 +85,6 @@ def test_cabin_preview_uses_leg_departure(days, monkeypatch):
 
 @pytest.mark.parametrize('milestone,kind', [
     ('dep-mayotte', 'invalid'),
-    ('dep-mayotte', 'project_pledge'),
     ('dep-dakar', 'cabin_leg'),
     ('', 'mile'),
 ])

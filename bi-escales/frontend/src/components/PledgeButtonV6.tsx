@@ -574,7 +574,7 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
           onAuthorized={onAuthorized}
         />
       ) : null}
-      {cardFieldsEnabled && !isProjectPledge ? (
+      {cardFieldsEnabled ? (
         <PayPalCardFieldsBlock
           values={effectiveValues}
           appLang={appLang}

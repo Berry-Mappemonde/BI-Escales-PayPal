@@ -478,6 +478,7 @@ class PayPalClient:
         cancel_url: Optional[str] = None,
         checkout_locale: Optional[str] = None,
         currency_code: Optional[str] = None,
+        checkout_method: str = "paypal",
     ) -> dict:
         """Classic CAPTURE order (immediate payment after buyer approval)."""
         back = (return_url or "").strip() or order_return_url()
@@ -500,6 +501,13 @@ class PayPalClient:
                 )
             ],
         }
+        if checkout_method == "card":
+            body["payment_source"] = {"card": {
+                "attributes": {"verification": {"method": "SCA_WHEN_REQUIRED"}},
+                "experience_context": self._experience_context(back, cancel, locale=checkout_locale),
+            }}
+        elif checkout_method != "paypal":
+            raise ValueError("unsupported checkout method")
         return self._req(
             "POST",
             "/v2/checkout/orders",

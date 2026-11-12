@@ -543,7 +543,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
           onAuthorized={onAuthorized}
         />
       ) : null}
-      {cardFieldsEnabled && !isProjectPledge ? (
+      {cardFieldsEnabled ? (
         <PayPalCardFieldsBlock
           values={effectiveValues}
           appLang={appLang}

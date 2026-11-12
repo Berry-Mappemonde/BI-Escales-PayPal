@@ -562,6 +562,10 @@ python-error-handling, python-configuration-resilience, python-testing.
 SDK source inspection: from_dictionary injects PayPal defaults and drops card experience locale/brand fields. Keep nested dictionaries inside the generated OrderRequest envelope; HTTP-boundary parity tests cover exact payload preservation.
 
 
+## SDK review follow-up: budget and transient retries
+
+Keep one merchant SDK gateway. All resource attempts, reads and writes, consume the optional Captain budget before dispatch; OAuth is excluded. Disable SDK-internal retries and retry ApiException 429/5xx at most three attempts with stable arguments and request IDs, exponential backoff and Retry-After up to ten seconds. Do not replay uncertain transport/auth failures or fall back to httpx after dispatch. Map OrderRequest constructor TypeError to PayPalError. Test generated HTTP-boundary retry/accounting/identity and no-replay cases, plus full suites and strict gateway mypy.
+
 ## PAY-05 review: one-hour capture safety margin
 
 AUTHORIZE opens at most 695 hours before the UTC arrival/departure anchor (29 days minus one hour). Later anchors select Vault through the existing resolver. Provider expiry remains 696 hours. Naive clock values are UTC in both authorization and capture guards. Arrival/departure wording follows the actual anchor. No provider operation, flags or scheduler changes. Validate exact boundaries, offsets, naive clocks, preview/creation parity and the full suites.
@@ -623,6 +627,27 @@ python-error-handling, python-configuration-resilience, python-testing.
 The same fresh-attempt rule applies when Card Fields reports an explicit
 INSTRUMENT_DECLINED/CARD_DECLINED before the capture route is reached. Other SDK
 errors keep the original order because their financial outcome is uncertain.
+
+## SDK retry continuation: keep the event loop available
+
+Before code: the generated SDK is synchronous, including its backoff. Offload
+PayPal calls from the async pledge state machine with asyncio.to_thread, including
+creation, approval reads, capture, pending reconciliation, vault registration,
+reauthorization, void and refund. Keep asynchronous ledger work on its original
+event loop and preserve per-pledge serialization and idempotency keys. The worker
+owns both the SDK request and retry wait; no blocking join runs on the event loop.
+Onboarding transport calls will receive the same treatment in #266.
+
+Keep the optional Captain budget scoped to its client and ContextVar, with normal
+route clients unbudgeted. Add a generated-HTTP-boundary regression proving a
+normal capture retries after another client's budget is exhausted. If a Captain
+budget interrupts a transient retry, chain the last PayPal exception and log its
+HTTP status only. No secrets or bodies in logs. Preserve three total attempts,
+stable request IDs/bodies, bounded Retry-After and no uncertain-write transport
+replay. Verify a live event-loop heartbeat while a generated-SDK retry waits.
+
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-error-handling, python-configuration-resilience, python-testing.
 
 ## Stop gift continuation: maximum amount and shared copy
 

@@ -712,7 +712,7 @@ class PayPalClient:
             return None
         from . import paypal_sdk_gateway
 
-        result = getattr(paypal_sdk_gateway, method)(*args, **kwargs)
+        result = paypal_sdk_gateway._sdk_reads(self.captain_budget, method, *args, **kwargs)
         if not isinstance(result, dict):
             raise PayPalError(502, "PayPal SDK response was not an object")
         return result

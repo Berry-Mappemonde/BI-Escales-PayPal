@@ -56,7 +56,8 @@
     "waiting": "Départ dans {{days}} j {{hours}} h",
     "devT0": "Départ de développement (ISO)",
     "sailed": "{{nm}} milles parcourus",
-    "simulated": "Horloge de démonstration"
+    "simulated": "Horloge de démonstration",
+    "pending": "Chargement de l’horloge du voyage"
   },
   "sheet": {
     "title": "Escale",

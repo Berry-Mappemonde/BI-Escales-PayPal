@@ -281,10 +281,22 @@ export async function fetchPrices(lang?: string): Promise<PriceCatalog> {
 }
 
 /** Public voyage clock. ``now`` is the simulated instant, real UTC unless pinned. */
-export async function fetchClock(): Promise<{ start?: string; now?: string }> {
-  const res = await fetch(url("/api/escales/clock"));
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json();
+/** A sleeping host can hold a request for most of a minute; the clock gives up before that. */
+export const CLOCK_TIMEOUT_MS = 12000;
+
+export async function fetchClock(timeoutMs = CLOCK_TIMEOUT_MS): Promise<{ start?: string; now?: string }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url("/api/escales/clock"), { signal: controller.signal });
+    if (!res.ok) throw new Error(await parseError(res));
+    return await res.json();
+  } catch (err) {
+    if (controller.signal.aborted) throw new Error(`Clock request timed out after ${timeoutMs} ms`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function fetchFeatures(): Promise<FeatureFlags> {

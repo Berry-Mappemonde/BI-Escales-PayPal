@@ -68,6 +68,8 @@ function milestoneFundRequiresAdminKey(milestoneId: string): boolean {
 // Gear tab (Channel3 items placed on the map) stays hidden until local products tied to
 // stops are built (Clément, 10 Nov). The code is kept; the wishlist link stays visible.
 const GEAR_TAB_VISIBLE = false;
+/** Retry delay for the voyage clock while it has never answered (e.g. the API host is waking up). */
+const CLOCK_RETRY_MS = 10000;
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -150,6 +152,10 @@ export default function App() {
   const [scheduleSettled, setScheduleSettled] = useState(false);
   // The API's clock and milestones: what the stop sheet's status chip is built from.
   const [apiNow, setApiNow] = useState<string | null>(null);
+  // False until the clock request has answered or failed. Until then the voyage
+  // clock shows a placeholder: with a demo clock the browser's own time would
+  // flash a date and a distance that the answer then replaces.
+  const [clockSettled, setClockSettled] = useState(false);
   const [milestones, setMilestones] = useState<Milestone[] | null>(null);
 
   const prod = Boolean(import.meta.env.PROD);
@@ -159,14 +165,17 @@ export default function App() {
     () => (routeFc ? voyageFromRoute(routeFc, t0) : null),
     [routeFc, t0],
   );
-  // The left rail follows the API's clock once it is known, so it cannot contradict
-  // the stop statuses, which are computed from that same clock.
+  // The left rail follows the API's clock, so it cannot contradict the stop
+  // statuses, which are computed from that same clock. No time at all while the
+  // first clock request is on its way; the browser's time only if that request failed.
   const voyageNow = useMemo(() => {
     const fromApi = apiNow ? new Date(apiNow) : null;
-    return fromApi && Number.isFinite(fromApi.getTime()) ? fromApi : now;
-  }, [apiNow, now]);
+    if (fromApi && Number.isFinite(fromApi.getTime())) return fromApi;
+    return clockSettled ? now : null;
+  }, [apiNow, clockSettled, now]);
+  const voyageClockReady = voyageNow !== null;
   const sample = useMemo(
-    () => (voyage ? sampleAt(voyage.clock, voyageNow) : null),
+    () => (voyage && voyageNow ? sampleAt(voyage.clock, voyageNow) : null),
     [voyage, voyageNow],
   );
   const cumNm = Number(sample?.sailNm ?? sample?.cumNm ?? 0);
@@ -288,14 +297,30 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const sync = () => {
+    // Until the API clock has answered once, a failed or timed-out request
+    // (a host waking up) is retried sooner than the regular minute.
+    let answered = false;
+    let retry: number | undefined;
+    const syncClock = () => {
+      window.clearTimeout(retry);
       void fetchClock()
         .then((clock) => {
-          if (!cancelled && clock?.now) setApiNow(clock.now);
+          if (cancelled) return;
+          if (clock?.now) {
+            setApiNow(clock.now);
+            answered = true;
+          }
+          setClockSettled(true);
         })
         .catch(() => {
-          /* keep the last answer; the wall clock stands in until the first one */
+          /* keep the last answer; with none, the browser's time stands in until one arrives */
+          if (cancelled) return;
+          setClockSettled(true);
+          if (!answered) retry = window.setTimeout(syncClock, CLOCK_RETRY_MS);
         });
+    };
+    const sync = () => {
+      syncClock();
       void listMilestones()
         .then((rows) => {
           if (!cancelled && Array.isArray(rows)) setMilestones(rows);
@@ -309,6 +334,7 @@ export default function App() {
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      window.clearTimeout(retry);
     };
   }, []);
 
@@ -452,12 +478,14 @@ export default function App() {
   // stop is often one the schedule says is already reached.
   const nextStop = useMemo(
     () =>
-      (schedule
-        ? nextOpenStop(voyage?.stops, schedule, apiNow ?? now.toISOString(), milestones)
-        : scheduleSettled
-          ? resolveBoatStop(voyage?.stops, sample)
-          : null) as VoyageStop | null,
-    [voyage?.stops, schedule, scheduleSettled, apiNow, now, milestones, sample],
+      (!voyageNow
+        ? null // the clock is on its way: no stop is named from the browser's time
+        : schedule
+          ? nextOpenStop(voyage?.stops, schedule, apiNow ?? voyageNow.toISOString(), milestones)
+          : scheduleSettled
+            ? resolveBoatStop(voyage?.stops, sample)
+            : null) as VoyageStop | null,
+    [voyage?.stops, schedule, scheduleSettled, apiNow, voyageNow, milestones, sample],
   );
 
   const locateBoat = useCallback(() => {
@@ -982,8 +1010,13 @@ export default function App() {
             <a href="/escales/wishlists">{t("wishlists.navLink")}</a>
           </p>
         ) : null}
-        <p className="ng-clock-line voyage-clock" data-testid="voyage-clock">
-          {countdownHours !== null ? (
+        <p
+          className="ng-clock-line voyage-clock"
+          data-testid="voyage-clock"
+          aria-busy={voyageClockReady ? undefined : true}
+          aria-label={voyageClockReady ? undefined : t("clock.pending")}
+        >
+          {voyageClockReady && countdownHours !== null ? (
             <span className="voyage-clock-countdown">
               {t("clock.waiting", {
                 days: Math.floor(countdownHours / 24),
@@ -991,9 +1024,9 @@ export default function App() {
               })}
             </span>
           ) : null}
-          <span className="voyage-clock-date">{formatCivilDate(sample?.iso, lang)}</span>
+          <span className="voyage-clock-date">{voyageClockReady ? formatCivilDate(sample?.iso, lang) : "—"}</span>
           <span className="voyage-clock-distance">
-            {t("clock.sailed", { nm: sailedNm })} · {t("clock.simulated")}
+            {voyageClockReady ? `${t("clock.sailed", { nm: sailedNm })} · ${t("clock.simulated")}` : "—"}
           </span>
         </p>
         {!prod ? (
@@ -1132,7 +1165,7 @@ export default function App() {
         ) : (
           <HowItWorks
             nextStopName={nextStop?.name}
-            nextStopPending={!scheduleSettled}
+            nextStopPending={!scheduleSettled || !voyageClockReady}
             onBackNextStop={nextStop ? () => chooseStop(nextStop) : undefined}
           />
         )}

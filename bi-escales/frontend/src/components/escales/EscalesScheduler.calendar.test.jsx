@@ -153,6 +153,46 @@ describe("EscalesScheduler layout", () => {
     expect(screen.getByText("Réserver une cabine sur une étape")).toBeInTheDocument();
   });
 
+  it("for the treasurer: says each stop's status and its held pledges in words", () => {
+    show({
+      showCabins: false, wide: true, onSelectEscale: undefined, onAuthorized: undefined,
+      stopOverview: {
+        "dep-la-rochelle": { status: "arrived", held: 2, heldEur: 21.5, due: true },
+        "dep-ajaccio-corse": { status: "upcoming", held: 1, heldEur: 60, due: false },
+        "ret-la-rochelle": { status: "upcoming", held: 0, heldEur: 0, due: false },
+      },
+    });
+    const props = timelineProps.at(-1);
+    expect(props.extraColumns).toEqual([
+      { text: "Status", field: "statusLabel", width: 110 },
+      { text: "Held pledges", field: "pledgesLabel", width: 230 },
+    ]);
+    expect(props.events.map((event) => [event.name, event.statusLabel, event.pledgesLabel])).toEqual([
+      ["La Rochelle", "Arrived", "2 due for capture · €21.50"],
+      ["Ajaccio (Corse)", "Upcoming", "1 held · €60"],
+      ["La Rochelle (retour)", "Upcoming", "None"],
+    ]);
+    expect(screen.getByText(/Status follows the voyage clock; pledges are the held ones in the queue below\./)).toBeInTheDocument();
+  });
+
+  it("for a visitor: no status or pledge column", () => {
+    show();
+    expect(timelineProps.at(-1).extraColumns).toEqual([]);
+    expect(timelineProps.at(-1).events[0]).not.toHaveProperty("statusLabel");
+    expect(screen.queryByText(/Status follows the voyage clock/)).toBeNull();
+  });
+
+  it("for the treasurer, in French", async () => {
+    await i18n.changeLanguage("fr");
+    show({ showCabins: false, stopOverview: { "dep-la-rochelle": { status: "arrived", held: 2, heldEur: 21.5, due: true }, "dep-ajaccio-corse": { status: "en_route", held: 1, heldEur: 60, due: false } } });
+    const props = timelineProps.at(-1);
+    expect(props.extraColumns.map((column) => column.text)).toEqual(["Statut", "Promesses retenues"]);
+    expect(props.events[0].statusLabel).toBe(i18n.t("stopPanel.status.arrived"));
+    expect(props.events[0].pledgesLabel.replace(/\s/g, " ")).toBe("2 à encaisser · 21,50 €");
+    expect(props.events[1].pledgesLabel.replace(/\s/g, " ")).toBe("1 retenue · 60 €");
+    expect(props.events[2].pledgesLabel).toBe("");
+  });
+
   it("renders nothing when the flag is off", () => {
     const view = show({ planningEnabled: false });
     expect(view.container).toBeEmptyDOMElement();

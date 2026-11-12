@@ -666,6 +666,12 @@ body.ng-naviguide-shell {
   line-height: var(--text-meta--line-height);
 }
 
+/* The question the reply answers, kept above it. */
+.ng-sidebar .captain-chat .captain-asked {
+  margin: 0 0 var(--space-2);
+  overflow-wrap: anywhere;
+}
+
 .ng-sidebar .captain-chat .captain-draft {
   color: var(--color-fg-2);
   font-size: var(--text-support);
@@ -811,6 +817,10 @@ body.ng-naviguide-shell {
   font-size: var(--text-meta);
   line-height: var(--text-meta--line-height);
 }
+/* Where the boat is: the one line of the clock block a visitor is looking for. */
+.ng-shell .ng-clock-line .voyage-boat-position {
+  color: var(--color-fg);
+}
 .ng-shell .ng-tools-panel .escale-popup-card { background: var(--color-panel); padding: var(--space-4); }
 .ng-shell .ng-sidebar, .ng-shell .ng-tools-panel { transition-duration: var(--duration-base); }
 
@@ -856,6 +866,12 @@ body.ng-naviguide-shell {
 .treasurer-queue-table td > small.queue-stop-primary { font: inherit; color: var(--color-fg); }
 .treasurer-queue-table .queue-value { text-align: end; font-variant-numeric: tabular-nums; }
 .queue-value > button { display: block; margin-inline: auto 0; max-width: 100%; white-space: normal; }
+/* What each status means, in words, above the rows that carry them. */
+.queue-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-5); margin: var(--space-3) 0; padding: 0; list-style: none; color: var(--color-fg-2); font-size: var(--text-meta); line-height: var(--text-meta--line-height); }
+.queue-legend li { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.queue-legend .pledge-chip { flex: none; }
+.queue-closed { margin-top: var(--space-5); }
+.queue-closed > h4 { margin: 0 0 var(--space-1); }
 .treasurer-queue .captain-decision { background: var(--color-raised); border-block-start: 1px solid var(--color-line-strong); }
 .captain-chat .captain-draft { gap: var(--space-1); color: var(--color-fg-2); font-size: var(--text-meta); }
 .ng-sidebar .treasurer-panel .treasurer-queue,
@@ -1105,6 +1121,9 @@ body.ng-naviguide-shell {
   min-width: 0;
 }
 .treasurer-page-back { justify-self: start; }
+@media (pointer: coarse) {
+  .treasurer-page-back { min-height: 44px; }
+}
 /* Top bar of the treasurer page: the way back on one side, the app settings on the other. */
 .treasurer-page-bar {
   display: flex;

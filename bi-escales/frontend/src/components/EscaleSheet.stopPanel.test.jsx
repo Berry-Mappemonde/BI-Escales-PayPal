@@ -97,6 +97,28 @@ describe("stop panel", () => {
 
   afterEach(cleanup);
 
+  describe("mile certificate", () => {
+    it("says before paying that a certificate follows a miles pledge", async () => {
+      await show();
+      const note = screen.getByTestId("mile-certificate-promise");
+      expect(note).toHaveTextContent(/personal certificate appears here to download/);
+      expect(note).toHaveTextContent(/the nearest marine project, and a note written by the AI Captain/);
+      // Nothing to download yet: that block only comes with a successful pledge.
+      expect(screen.queryByTestId("mile-certificate-receipt")).toBeNull();
+    });
+
+    it("says it in French too", async () => {
+      await i18n.changeLanguage("fr");
+      await show();
+      expect(screen.getByTestId("mile-certificate-promise")).toHaveTextContent(/le projet marin le plus proche et un mot rédigé par le Capitaine IA/);
+    });
+
+    it("says nothing about a certificate for the other kinds", async () => {
+      await show({ pledge: pledge("berth_night") });
+      expect(screen.queryByTestId("mile-certificate-promise")).toBeNull();
+    });
+  });
+
   describe("status from the clock", () => {
     const chip = () => document.querySelector(".stop-chip");
 
@@ -235,6 +257,28 @@ describe("stop panel", () => {
       for (const block of [en.stopPanel, fr.stopPanel]) {
         expect(JSON.stringify(block)).not.toMatch(/20\d\d|\d{1,2} (Nov|Dec|nov|déc)/);
       }
+    });
+  });
+
+  describe("port info links", () => {
+    it("names each link after its place, so two marinas do not share one link name", async () => {
+      await show({
+        fiche: {
+          sections: {
+            mooring: {
+              marinas: [
+                { name: "Tino Rossi", url: "https://example.org/tino", lat: 41.9, lon: 8.7 },
+                { name: "Charles Ornano", url: "https://example.org/ornano", lat: 41.93, lon: 8.74 },
+              ],
+            },
+          },
+        },
+      });
+      const info = screen.getByTestId("stop-port-info");
+      const names = [...info.querySelectorAll("a[aria-label]")].map((link) => link.getAttribute("aria-label"));
+      expect(names).toEqual(expect.arrayContaining(["Website: Tino Rossi", "Website: Charles Ornano"]));
+      expect(new Set(names).size).toBe(names.length);
+      expect(names).toEqual(expect.arrayContaining(["Google Maps: Tino Rossi", "Google Maps: Charles Ornano"]));
     });
   });
 

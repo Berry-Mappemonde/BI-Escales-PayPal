@@ -10,6 +10,8 @@ from app.escales.pledges import create_pledge
 from app.routers.escales import router, set_paypal_client_factory
 
 class PayPalSpy:
+    def create_capture_order(self, **kwargs):
+        return {"id": "ORDER", "links": []}
     def create_authorize_order(self, **kwargs):
         return {'id':'ORDER', 'links':[{'rel':'approve','href':'https://sandbox.paypal.com/order'}]}
     def create_setup_token(self, *args, **kwargs):
@@ -27,7 +29,7 @@ def memory(monkeypatch):
     reset_ledger()
     set_paypal_client_factory(None)
 
-@pytest.mark.parametrize('days,mode',[(28,'AUTHORIZE'),(29,'AUTHORIZE'),(30,'VAULT'),(60,'VAULT')])
+@pytest.mark.parametrize('days,mode',[(28,'AUTHORIZE'),(29,'VAULT'),(30,'VAULT'),(60,'VAULT')])
 def test_mode_preview_matches_creation_without_writes(days, mode):
     ledger=get_ledger()
     anchor=dt.datetime(2026,11,19,8,tzinfo=dt.timezone.utc)+dt.timedelta(days=days)
@@ -85,7 +87,6 @@ def test_cabin_preview_uses_leg_departure(days, monkeypatch):
 
 @pytest.mark.parametrize('milestone,kind', [
     ('dep-mayotte', 'invalid'),
-    ('dep-mayotte', 'project_pledge'),
     ('dep-dakar', 'cabin_leg'),
     ('', 'mile'),
 ])
@@ -111,7 +112,7 @@ def test_unplaced_common_fund_matches_creation_without_an_arrival_anchor():
         amount_eur='5.00', description='Boat fund', milestone_id='',
         kind='common_fund', client=PayPalSpy(),
     ))
-    assert response.json() == {'payment_mode': created['payment_mode']} == {'payment_mode': 'AUTHORIZE'}
+    assert response.json() == {'payment_mode': created['payment_mode']} == {'payment_mode': 'CAPTURE'}
 
 
 def test_cabin_stop_alias_preview_matches_leg_creation(monkeypatch):

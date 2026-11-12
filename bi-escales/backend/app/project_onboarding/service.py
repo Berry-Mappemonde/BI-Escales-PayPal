@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import logging
 import uuid
@@ -187,7 +188,8 @@ async def create_donation_order(
     donation_id = uuid.uuid4().hex
     payee = project_contact_email(project, override=contact_override)
     client = client or _paypal()
-    order = create_unlinked_payee_capture_order(
+    order = await asyncio.to_thread(
+        create_unlinked_payee_capture_order,
         client,
         amount_eur=amount,
         description=f"Donation {project_id}",
@@ -259,7 +261,7 @@ async def finalize_donation_capture(
     if not order_id:
         raise DonationCaptureRejected(400, "donation has no PayPal order")
     try:
-        order = read_order(client, order_id)
+        order = await asyncio.to_thread(read_order, client, order_id)
     except PayPalError as exc:
         if exc.status == 404:
             raise DonationCaptureRejected(404, "PayPal order not found") from exc
@@ -270,7 +272,7 @@ async def finalize_donation_capture(
     if not order_belongs_to_donation(order, donation):
         raise DonationCaptureRejected(400, "PayPal order does not match this donation")
     try:
-        payload = capture_order_once(client, order_id)
+        payload = await asyncio.to_thread(capture_order_once, client, order_id)
         status, capture_id = capture_status_and_id(payload)
         captured_at = now_iso()
         if status in {"COMPLETED", "PENDING"}:

@@ -24,6 +24,11 @@ _PAYPAL_SCRIPT = (
     "https://*.paypal.com",
     "https://*.paypalobjects.com",
 )
+# Google Pay and Apple Pay scripts loaded by the v6 wallet buttons.
+_WALLET_SCRIPT = (
+    "https://pay.google.com",
+    "https://applepay.cdn-apple.com",
+)
 _PAYPAL_FRAME = (
     "https://www.paypal.com",
     "https://www.sandbox.paypal.com",
@@ -58,7 +63,7 @@ def build_csp_report_only() -> str:
     """Single-line CSP for Report-Only (monitoring only; does not block)."""
     parts = [
         "default-src 'self'",
-        "script-src 'self' " + " ".join(_PAYPAL_SCRIPT),
+        "script-src 'self' " + " ".join(_PAYPAL_SCRIPT + _WALLET_SCRIPT),
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob: " + " ".join(_MAP_TILES + _PAYPAL_SCRIPT),
         "font-src 'self'",

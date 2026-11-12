@@ -54,9 +54,20 @@
   background: none;
 }
 
-.ng-shell .ng-sidebar > :is(.captain-chat, [data-testid="project-list"], [data-testid="gear-list"], .public-totals, .marinas-panel, .escales-scheduler, .wishlists-nav) {
+.ng-shell .ng-sidebar > :is(.captain-chat, [data-testid="project-list"], [data-testid="gear-list"], .public-totals, .marinas-panel, .escales-scheduler) {
   margin-top: var(--space-8);
   padding-block: 0;
+}
+
+/* The way to the gear wishlists: one quiet line under the tabs, not a section of its own. */
+.ng-shell .ng-sidebar > .wishlists-nav {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+}
+
+.ng-shell .ng-sidebar > .wishlists-nav a {
+  color: var(--color-fg-2);
 }
 
 /* Body copy reads at the second text level; the third is for metadata only. */
@@ -110,13 +121,13 @@
   line-height: var(--text-meta--line-height);
 }
 
-.ng-shell :is(.rail-masthead, .treasurer-page-bar) .ng-controls {
+:is(.ng-shell :is(.rail-masthead, .treasurer-page-bar), .wishlists-controls) .ng-controls {
   display: flex;
   align-items: center;
   gap: var(--space-1);
 }
 
-.ng-shell :is(.ng-sidebar, .treasurer-page-bar) .lang-switch {
+:is(.ng-shell :is(.ng-sidebar, .treasurer-page-bar), .wishlists-controls) .lang-switch {
   display: flex;
   flex: none;
   gap: 2px;
@@ -126,7 +137,7 @@
   border-radius: 0;
 }
 
-.ng-shell :is(.ng-sidebar, .treasurer-page-bar) :is(.lang-switch, .theme-switch) button {
+:is(.ng-shell :is(.ng-sidebar, .treasurer-page-bar), .wishlists-controls) :is(.lang-switch, .theme-switch) button {
   flex: none;
   width: auto;
   min-width: 28px;
@@ -143,39 +154,39 @@
   font-weight: 500;
 }
 
-.ng-shell :is(.ng-sidebar, .treasurer-page-bar) .lang-switch button[aria-pressed="true"] {
+:is(.ng-shell :is(.ng-sidebar, .treasurer-page-bar), .wishlists-controls) .lang-switch button[aria-pressed="true"] {
   background: var(--color-selected);
   color: var(--color-fg);
 }
 
-.ng-shell :is(.ng-sidebar, .treasurer-page-bar) .theme-switch button {
+:is(.ng-shell :is(.ng-sidebar, .treasurer-page-bar), .wishlists-controls) .theme-switch button {
   width: 28px;
   padding: 0;
 }
 
-.ng-shell :is(.ng-sidebar, .treasurer-page-bar) .theme-switch svg {
+:is(.ng-shell :is(.ng-sidebar, .treasurer-page-bar), .wishlists-controls) .theme-switch svg {
   width: 14px;
   height: 14px;
 }
 
 @media (hover: hover) {
-  .ng-shell :is(.ng-sidebar, .treasurer-page-bar) :is(.lang-switch, .theme-switch) button:hover {
+  :is(.ng-shell :is(.ng-sidebar, .treasurer-page-bar), .wishlists-controls) :is(.lang-switch, .theme-switch) button:hover {
     box-shadow: none;
     color: var(--color-fg);
   }
 
-  .ng-shell :is(.ng-sidebar, .treasurer-page-bar) :is(.lang-switch button:not([aria-pressed="true"]), .theme-switch button):hover {
+  :is(.ng-shell :is(.ng-sidebar, .treasurer-page-bar), .wishlists-controls) :is(.lang-switch button:not([aria-pressed="true"]), .theme-switch button):hover {
     background: var(--color-raised);
   }
 }
 
 @media (pointer: coarse) {
-  .ng-shell :is(.ng-sidebar, .treasurer-page-bar) :is(.lang-switch, .theme-switch) button {
+  :is(.ng-shell :is(.ng-sidebar, .treasurer-page-bar), .wishlists-controls) :is(.lang-switch, .theme-switch) button {
     min-width: 34px;
     height: 34px;
   }
 
-  .ng-shell :is(.ng-sidebar, .treasurer-page-bar) .theme-switch button {
+  :is(.ng-shell :is(.ng-sidebar, .treasurer-page-bar), .wishlists-controls) .theme-switch button {
     width: 34px;
   }
 }

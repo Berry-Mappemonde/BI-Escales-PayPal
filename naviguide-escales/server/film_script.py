@@ -8815,7 +8815,8 @@ _WATERS_SENT = re.compile(
 )
 # P1/P2 : ouverture, escales, cap — pas les côtes / climo / stations, pas les eaux en trop.
 _CORE_KEEP_SENT = re.compile(
-    r"arriv|Berry-Mappemonde|quitte|leaves |jours de mer|days at sea|"
+    # « jour de mer » au singulier : « 497 milles, moins d'un jour de mer » est un bilan d'étape.
+    r"arriv|Berry-Mappemonde|quitte|leaves |jours? de mer|days? at sea|"
     r"nœuds de moyenne|knots on average|amarré|moored|d['’]escale|stopover|"
     r"départ|departure|left |quitté|approche|approaching|avion|flies|flight|"
     r"envole|par la route|by road|attend à|waits at|aujourd|today|"
@@ -8828,7 +8829,8 @@ _CORE_KEEP_SENT = re.compile(
 )
 _KEEP_SENT = re.compile(
     r"aire marine|marine protected area|le projet |project |"
-    r"arriv|Berry-Mappemonde|quitte|leaves |jours de mer|days at sea|"
+    # « jour de mer » au singulier : « 497 milles, moins d'un jour de mer » est un bilan d'étape.
+    r"arriv|Berry-Mappemonde|quitte|leaves |jours? de mer|days? at sea|"
     r"nœuds de moyenne|knots on average|amarré|moored|d['’]escale|stopover|"
     r"départ|departure|left |quitté|approche|approaching|avion|flies|flight|"
     r"envole|par la route|by road|attend à|waits at|aujourd|today|"

@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core import llm
+from app.escales import certificates
 from app.escales.certificates import (
     _CAPTAIN_FALLBACK,
     load_certificate,
@@ -54,8 +55,26 @@ class FakePayPal:
         }
 
 
+def _project(title, lon, lat, pid=None):
+    return {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [lon, lat]},
+        "properties": {"id": pid or title.lower().replace(" ", "-"), "title": title, "funder": "Test Funder"},
+    }
+
+
+# The route starts at Saint-Maur (Berry, Indre), about 46.81°N 1.64°E.
+NEAR_START = _project("River Otter Watch", 1.5, 46.7)
+FAR_AWAY = _project("Caribbean Reef Survey", -61.0, 14.6)
+
+
 @pytest.fixture
 def api(monkeypatch):
+    async def stub_projects():
+        return [FAR_AWAY, NEAR_START]
+
+    # No network in tests: the live projects catalogue is replaced by two known points.
+    monkeypatch.setattr(certificates, "_project_features", stub_projects)
     monkeypatch.setenv("ESCALES_ENABLED", "1")
     monkeypatch.setenv("ESCALES_STORE", "memory")
     monkeypatch.delenv("ESCALES_LLM_ENABLED", raising=False)
@@ -281,3 +300,86 @@ def test_created_mile_pledge_cannot_issue(api):
         json={"payer_proof": proof},
     )
     assert denied.status_code in {400, 422}
+
+
+def test_nearest_project_is_the_closest_to_the_segment():
+    segment = certificates.segment_for_miles(1, 3)
+    found = certificates.nearest_project(segment, [FAR_AWAY, NEAR_START])
+    assert found["title"] == "River Otter Watch"
+    assert found["id"] == "river-otter-watch"
+    assert found["funder"] == "Test Funder"
+    assert 0 < found["distance_nm"] < 20
+
+
+def test_nearest_project_skips_unusable_features():
+    segment = certificates.segment_for_miles(1, 1)
+    untitled = _project("", 1.6, 46.8)
+    line = {
+        "type": "Feature",
+        "geometry": {"type": "LineString", "coordinates": [[1.6, 46.8], [1.7, 46.9]]},
+        "properties": {"title": "Line"},
+    }
+    assert certificates.nearest_project(segment, [untitled, line, None]) is None
+    assert certificates.nearest_project(segment, []) is None
+
+
+def test_certificate_names_the_nearest_project_in_en_and_fr(api):
+    client = api
+    pledge_id, _ = _ready_mile(client)
+    token = _issue(client, pledge_id, lang="en").json()["token"]
+    doc = asyncio.run(load_certificate(token))
+    assert doc["nearby_project"]["title"] == "River Otter Watch"
+    en = [text for _style, text in certificates._render_lines(doc, "en")]
+    fr = [text for _style, text in certificates._render_lines(doc, "fr")]
+    assert any(
+        line.startswith("Nearest marine project: River Otter Watch (") and line.endswith(" nm)")
+        for line in en
+    )
+    assert any(
+        line.startswith("Projet marin le plus proche : River Otter Watch (") and line.endswith(" milles)")
+        for line in fr
+    )
+    for ext in ("png", "pdf"):
+        assert client.get(f"/api/escales/certificates/{token}.{ext}?lang=fr").status_code == 200
+
+
+def test_certificate_without_projects_omits_the_line(api, monkeypatch):
+    async def none():
+        return []
+
+    monkeypatch.setattr(certificates, "_project_features", none)
+    client = api
+    pledge_id, _ = _ready_mile(client)
+    token = _issue(client, pledge_id, lang="en").json()["token"]
+    doc = asyncio.run(load_certificate(token))
+    assert doc["nearby_project"] is None
+    lines = [text for _style, text in certificates._render_lines(doc, "en")]
+    assert not any("marine project" in line for line in lines)
+    assert client.get(f"/api/escales/certificates/{token}.png").status_code == 200
+
+
+def test_certificates_issued_before_the_project_line_still_render(api):
+    client = api
+    pledge_id, _ = _ready_mile(client)
+    token = _issue(client, pledge_id, lang="en").json()["token"]
+    doc = asyncio.run(load_certificate(token))
+    doc.pop("nearby_project")
+    assert certificates.render_certificate_png(doc, "en").startswith(b"\x89PNG")
+    assert certificates.render_certificate_pdf(doc, "fr").startswith(b"%PDF")
+
+
+def test_projects_fall_back_to_the_bundled_snapshot(monkeypatch):
+    from app import bi_projects_catalog
+
+    async def down():
+        raise RuntimeError("catalogue down")
+
+    monkeypatch.setattr(bi_projects_catalog, "get_bi_projects_geojson", down)
+    features = asyncio.run(certificates._project_features())
+    assert len(features) > 1000
+
+
+def test_long_lines_wrap_instead_of_running_off_the_page():
+    pieces = certificates._wrap("one two three four five six", lambda s: len(s) <= 9)
+    assert pieces == ["one two", "three", "four five", "six"]
+    assert certificates._wrap("unbreakable", lambda s: len(s) <= 3) == ["unbreakable"]

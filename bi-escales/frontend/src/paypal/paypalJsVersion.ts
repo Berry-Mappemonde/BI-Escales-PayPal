@@ -92,9 +92,44 @@ export function usePayPalJsVersion(): PayPalJsVersion | null {
   return useSyncExternalStore(subscribe, currentPayPalJsVersion, () => "v5" as const);
 }
 
+let v6LoadFailureLogged = false;
+let v6CheckoutStarted = false;
+
+/** A v6 payment session is open. A later load failure must not remount the page as v5. */
+export function notePayPalV6CheckoutStarted(): void {
+  v6CheckoutStarted = true;
+}
+
+/**
+ * The v6 script or createInstance failed. Log once and use v5 for this page load.
+ * If a v6 checkout is already open, log only and leave that checkout on v6.
+ * Eligibility and payment errors must not call this.
+ */
+export function reportPayPalV6LoadFailure(reason: unknown): void {
+  const keepOpenCheckout = v6CheckoutStarted;
+  if (!v6LoadFailureLogged) {
+    v6LoadFailureLogged = true;
+    console.warn(
+      keepOpenCheckout
+        ? "PayPal Web SDK v6 failed to load; keeping the open v6 checkout"
+        : "PayPal Web SDK v6 failed to load; using the v5 checkout",
+      reason,
+    );
+  }
+  if (keepOpenCheckout) return;
+  if (waiting !== null) clearTimeout(waiting);
+  waiting = null;
+  if (decided !== "v5") {
+    decided = "v5";
+    notify();
+  }
+}
+
 /** Tests only: forget the decision and any pending wait. */
 export function resetPayPalJsVersionForTests(): void {
   decided = null;
+  v6LoadFailureLogged = false;
+  v6CheckoutStarted = false;
   if (waiting !== null) clearTimeout(waiting);
   waiting = null;
   notify();

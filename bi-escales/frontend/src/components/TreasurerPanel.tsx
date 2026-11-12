@@ -11,7 +11,7 @@ import { TreasurerGrid } from "./TreasurerGrid";
 import { TreasurerStudioSection } from "./TreasurerStudioSection";
 import { DemoStopMoment } from "./DemoStopMoment";
 import { TreasurerWishlistsPanel } from "../wishlists/TreasurerWishlistsPanel";
-import type { StopNames } from "../utils/milestoneLabel";
+import { milestoneLabel, type StopNames } from "../utils/milestoneLabel";
 import "./treasurer-panel.css";
 
 function OpenFundTotals({
@@ -175,7 +175,7 @@ export function TreasurerPanel({
           ) : (
           <>
           <p className="hint" data-testid="treasurer-milestone-hint">
-            {t("treasurer.milestoneFromStop", { id: milestoneId.trim() || "—" })}
+            {t("treasurer.milestoneFromStop", { name: milestoneLabel(stopNames, milestoneId, t) || "—" })}
           </p>
           <button
             type="button"
@@ -228,6 +228,7 @@ export function TreasurerPanel({
           )}
             </>
           )}
+          <TreasurerStudioSection adminKey={adminKey} demo={demoMode} stopNames={stopNames} />
           {showQueue ? (
           <TreasurerQueue
             pledges={pledges}
@@ -259,7 +260,6 @@ export function TreasurerPanel({
             onPledgeUpdated={onPledgeUpdated}
             stopNames={stopNames}
           />
-          <TreasurerStudioSection pledges={pledges} />
           <form className="stack-form" onSubmit={onSpendSubmit}>
             <h3>{t("fund.heading")}</h3>
             <label>

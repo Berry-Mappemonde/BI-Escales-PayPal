@@ -81,6 +81,53 @@ function paintSegment(group, segment) {
   addRouteLine(group, segment.coords, { color: "#0077ff", weight: ROUTE_MAIN_WEIGHT });
 }
 
+/**
+ * Which marker of a kind has keyboard focus right now, by the key `keepFocus` gave it.
+ * @param {"stopId" | "boatMarker"} dataKey
+ */
+export function focusedMarkerKey(dataKey) {
+  const active = typeof document !== "undefined" ? document.activeElement : null;
+  const key = active instanceof HTMLElement ? active.dataset?.[dataKey] : undefined;
+  return key || null;
+}
+
+/**
+ * Names a marker's element so it can be found again after a redraw, and gives focus
+ * back to it when the marker it replaces had focus. `preventScroll`: the page must not
+ * jump, and the map is already where the keyboard user put it.
+ */
+export function keepFocus(marker, dataKey, key, focusedKey) {
+  const element = marker.getElement?.();
+  if (!element) return;
+  element.dataset[dataKey] = key;
+  if (focusedKey && focusedKey === key) element.focus({ preventScroll: true });
+}
+
+/**
+ * Enter or Space on a focused marker does what a click does. Leaflet only wires the
+ * keyboard for layers that open a popup; the flags and the boat open a panel instead.
+ */
+export function activateWithKeyboard(marker, activate) {
+  const element = marker.getElement?.();
+  if (!element) return;
+  element.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    event.stopPropagation();
+    activate();
+  });
+}
+
+/**
+ * Takes a dot out of the Tab order. Leaflet makes every layer with a tooltip focusable,
+ * which put thousands of project and marina dots between the stop flags and the rest of
+ * the page. They stay clickable; the same projects and marinas are in the rail's lists,
+ * which a keyboard reaches.
+ */
+export function outOfTabOrder(marker) {
+  marker.getElement?.()?.setAttribute("tabindex", "-1");
+}
+
 /** Room kept between a popup and the edges of the map, on each side (px). */
 const POPUP_SIDE_ROOM = 24;
 
@@ -241,6 +288,8 @@ export function MapScene({
     const group = layers.update("stops", () => L.layerGroup().addTo(map), (layer) => layer.clearLayers());
 
     const renderStops = () => {
+      // A flag that has keyboard focus keeps it across the redraw.
+      const focusedStop = focusedMarkerKey("stopId");
       group.clearLayers();
       const project = (lon, lat) => {
         const point = map.latLngToLayerPoint([lat, lon]);
@@ -265,6 +314,8 @@ export function MapScene({
         }).addTo(group);
         marker.bindTooltip(stop.name, { direction: "top" });
         nameMarker(marker, t("map.stopMarker", { name: stop.name }));
+        keepFocus(marker, "stopId", String(stop.milestoneId || stop.name || index), focusedStop);
+        activateWithKeyboard(marker, () => onSelectRef.current?.(stop));
         marker.on("click", (event) => {
           L.DomEvent.stopPropagation(event);
           const target = event?.target?.options?.stopData || stop;
@@ -274,11 +325,13 @@ export function MapScene({
     };
 
     renderStops();
+    // Redrawn after a zoom only: the offsets that keep flags off the route are in pixels,
+    // and a pan moves every flag by the same amount. Redrawing after each pan threw away
+    // the flag a keyboard user had just focused (focusing a flag near the edge pans the
+    // map), so focus fell back to the page and Tab could never get past the map.
     map.on("zoomend", renderStops);
-    map.on("moveend", renderStops);
     return () => {
       map.off("zoomend", renderStops);
-      map.off("moveend", renderStops);
     };
   }, [stops, segments, i18nInstance.language, t]);
 
@@ -294,6 +347,7 @@ export function MapScene({
     const boatLabel = t("map.boatMarker");
 
     const renderBoat = () => {
+      const focusedBoat = focusedMarkerKey("boatMarker");
       group.clearLayers();
       const project = (lon, lat) => {
         const point = map.latLngToLayerPoint([lat, lon]);
@@ -318,6 +372,8 @@ export function MapScene({
       }).addTo(group);
       applyMarkerRotation(marker, boat.bearing || 0);
       nameMarker(marker, boatLabel);
+      keepFocus(marker, "boatMarker", "boat", focusedBoat);
+      activateWithKeyboard(marker, () => onSelectBoatRef.current?.());
       marker.on("click", (event) => {
         L.DomEvent.stopPropagation(event);
         onSelectBoatRef.current?.();
@@ -325,11 +381,10 @@ export function MapScene({
     };
 
     renderBoat();
+    // After a zoom only, for the same reason as the flags above.
     map.on("zoomend", renderBoat);
-    map.on("moveend", renderBoat);
     return () => {
       map.off("zoomend", renderBoat);
-      map.off("moveend", renderBoat);
     };
   }, [boat, stops, segments, i18nInstance.language, t]);
 
@@ -363,6 +418,7 @@ export function MapScene({
         pane: LAYER_PANES.projects,
       }).addTo(group);
       if (feature.properties?.title) marker.bindTooltip(feature.properties.title, { direction: "top" });
+      outOfTabOrder(marker);
       const popupContainer = document.createElement("div");
       popupContainer.className = "project-map-popup";
       let popupRoot = null;
@@ -446,6 +502,7 @@ export function MapScene({
         pane: LAYER_PANES.marinas,
       }).addTo(group);
       if (props.name) marker.bindTooltip(props.name, { direction: "top" });
+      outOfTabOrder(marker);
       const container = document.createElement("div");
       let popupRoot = null;
       const mountPopup = () => {

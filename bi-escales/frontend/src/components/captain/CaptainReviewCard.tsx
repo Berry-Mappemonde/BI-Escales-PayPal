@@ -17,6 +17,7 @@ import "./captain-card.css";
 export interface CaptainReviewCardProps {
   milestoneId: string;
   stopName?: string;
+  /** Fallback ETA, used only when the review does not carry the one it read. */
   arrivalIso?: string;
   /** null once the review failed, undefined while it loads. */
   review: CaptainProposal | null | undefined;
@@ -77,12 +78,22 @@ export function CaptainReviewCard({
   }, [phase]);
 
   const sourceName = (source: CaptainSource) =>
-    source.kind === "schedule" ? t("captainCard.sourceSchedule") : source.kind;
+    source.kind === "schedule"
+      ? t("captainCard.sourceSchedule")
+      : source.kind === "logbook"
+        ? t("captainCard.sourceLogbook")
+        : source.kind;
 
   const claimText = (claim: CaptainClaim) => {
     switch (claim.key) {
       case "arrival":
         return t("captainCard.claimArrival", { date: format.day(claim.iso ?? "") });
+      case "logbook": {
+        const label = (i18n.language === "fr" ? claim.entry?.label_fr : claim.entry?.label_en) || "";
+        return t("captainCard.claimLogbook", { date: format.day(claim.iso ?? ""), entry: label });
+      }
+      case "logbookEmpty":
+        return t("captainCard.claimLogbookEmpty");
       case "holds":
         return t("captainCard.claimHolds", { count: claim.count, total: format.money(claim.totalEur ?? 0) });
       case "validTo":
@@ -156,7 +167,8 @@ export function CaptainReviewCard({
       ) : null}
 
       {claims.length ? (
-        <section className="captain-section">
+        <section className="captain-section" data-testid={`captain-basis-${milestoneId}`}>
+          <p className="captain-label">{t("captainCard.basis")}</p>
           <ul className="captain-claims">
             {claims.map((claim) => {
               const source = sources[claim.cite - 1];
@@ -193,7 +205,7 @@ export function CaptainReviewCard({
                 <span className="captain-cite-num" aria-hidden="true">
                   {source.n}
                 </span>
-                <span className={source.kind === "schedule" ? undefined : "captain-mono"}>{sourceName(source)}</span>
+                <span className={source.kind === "schedule" || source.kind === "logbook" ? undefined : "captain-mono"}>{sourceName(source)}</span>
                 {source.ids.length ? <span className="captain-mono captain-ids">{source.ids.join(", ")}</span> : null}
               </li>
             ))}

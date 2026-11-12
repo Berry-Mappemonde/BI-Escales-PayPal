@@ -70,4 +70,26 @@ describe("TreasurerGrid fallback", () => {
     const cabin = within(table).getByRole("cell", { name: "Cabin: Mamoudzou (Mayotte) → Le Port (La Réunion)" });
     expect(cabin).toHaveAttribute("title", "leg-mayotte-to-la-reunion");
   });
+
+  it.each([
+    ["en", "Stop"],
+    ["fr", "Escale"],
+  ])("heads the stop column with the same word in %s", async (lang, word) => {
+    await i18n.changeLanguage(lang);
+    vi.stubEnv("VITE_ENABLE_AG_GRID", "0");
+    wrap(
+      <TreasurerGrid
+        pledges={[]}
+        milestones={[]}
+        adminKey=""
+        selectedMilestoneId="dep-mayotte"
+        onSelectMilestone={() => {}}
+        onMilestonesChange={() => {}}
+        onPledgeUpdated={() => {}}
+      />,
+    );
+    const table = screen.getByTestId("treasurer-fallback-table");
+    expect(within(table).getByRole("columnheader", { name: word })).toBeInTheDocument();
+    await i18n.changeLanguage("en");
+  });
 });

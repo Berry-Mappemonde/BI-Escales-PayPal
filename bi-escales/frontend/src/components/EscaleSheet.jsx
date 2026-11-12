@@ -253,6 +253,9 @@ export const EscaleSheet = memo(function EscaleSheet({
               {t("pledge.contributor")}
               <input value={pledge.contributor} onChange={(event) => pledge.onContributor(event.target.value)} />
             </label>
+            {pledge.kind === "mile" && !receiptPledge ? (
+              <p className="stop-note" data-testid="mile-certificate-promise">{t("certificate.promise")}</p>
+            ) : null}
             <div className="stop-checkout">
               <h4>{t("stopPanel.checkout")}</h4>
               <PledgeButton
@@ -333,12 +336,12 @@ export const EscaleSheet = memo(function EscaleSheet({
                               {Number.isFinite(item.nm) ? <span className="hint"> {item.nm} nm</span> : null}
                               {item.phone ? <a href={`tel:${item.phone}`}>{item.phone}</a> : null}
                               {site ? (
-                                <a href={site} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.website")}>
+                                <a href={site} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.websiteOf", { name: item.name })}>
                                   ↗
                                 </a>
                               ) : null}
                               {maps ? (
-                                <a href={maps} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.maps")}>
+                                <a href={maps} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.mapsOf", { name: item.name })}>
                                   ◎
                                 </a>
                               ) : null}

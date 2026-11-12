@@ -72,3 +72,25 @@ describe("PayPalWalletPayBlockV6", () => {
     expect(screen.getByTestId("paypal-apple-pay")).toBeEmptyDOMElement();
   });
 });
+
+it("reuses the request id after an uncertain wallet order creation", async () => {
+  vi.clearAllMocks();
+  vi.mocked(createPledge).mockRejectedValueOnce(new Error("timeout"));
+  vi.mocked(createPledge).mockResolvedValueOnce({ id: "RETRY", order_id: "ORDER-RETRY" } as never);
+  let config!: WalletConfig;
+  show({ Googlepay: (c: WalletConfig) => { config = c; return { render: async () => {}, close: async () => {} }; } });
+  await waitFor(() => expect(config).toBeDefined());
+  await expect(config.createOrder()).rejects.toThrow("timeout");
+  expect(await config.createOrder()).toBe("ORDER-RETRY");
+  expect(vi.mocked(createPledge).mock.calls[0][1]).toBe(vi.mocked(createPledge).mock.calls[1][1]);
+});
+
+it("passes the donation currency to the native wallet sheet", async () => {
+  let config!: WalletConfig;
+  render(<PayPalWalletPayBlockV6 values={{ ...values, kind: "project_pledge", currency: "USD" }}
+    appLang="en" sdkIntent="capture" sdkReady paypal={{ Googlepay: (c: WalletConfig) => {
+      config = c; return { render: async () => {}, close: async () => {} };
+    } } as never} />);
+  await waitFor(() => expect(config).toBeDefined());
+  expect(config.currencyCode).toBe("USD");
+});

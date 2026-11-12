@@ -1,69 +1,22 @@
-"""Which paths the single-page app knows, and what the other paths do.
+"""The page head for each page and language.
 
-Mirrors ``frontend/src/Root.tsx``: the map at ``/``, the wishlist page, and the
-two project onboarding pages (the second one is where PayPal sends a project
-back after it signs up).
-
-No address answers 404 with the page: links already shared (old ``/en`` and
-``/fr`` addresses, or any path the app does not have) must keep working.
-
-- ``/en/...`` and ``/fr/...`` move permanently (301) to the same page with
-  ``?lang=``, which is how the app picks its language.
-- Any other unknown path moves (302) to the map at ``/``, query string kept, so
-  one page is never served under many addresses.
-
-Each known page also gets its own canonical address and hreflang alternates
-(``page_head``), instead of every page and language declaring ``/``.
+Which paths are pages and where old ``/en``, ``/fr`` and unknown links go is
+decided in ``app.main`` (``language_or_unknown_redirect``, #272). This module
+only writes, for a page that is served, its own canonical address and hreflang
+alternates (``page_head``), instead of every page and language declaring ``/``.
 """
 from __future__ import annotations
 
 import html
 import re
-from typing import Optional
-from urllib.parse import parse_qsl, urlencode
+from urllib.parse import parse_qsl
 
-_WISHLISTS = "escales/wishlists"
-_ONBOARDING = re.compile(r"^projects/[^/]+/onboarding(/return)?$")
-_LANG_PREFIX = re.compile(r"^(en|fr)(?:/(.*))?$", re.IGNORECASE)
 _LANGS = ("en", "fr")
 
 
 def normalize_client_path(full_path: str) -> str:
     """``/``, ``/escales/wishlists/`` and ``escales/wishlists`` in one form: no outer slashes."""
     return (full_path or "").strip().strip("/")
-
-
-def is_known_client_route(full_path: str) -> bool:
-    path = normalize_client_path(full_path)
-    if path == "":
-        return True
-    # Root.tsx shows the wishlist page for any path that ends with it.
-    if path == _WISHLISTS or path.endswith("/" + _WISHLISTS):
-        return True
-    return bool(_ONBOARDING.match(path))
-
-
-def client_redirect(full_path: str, query: str = "") -> Optional[tuple[str, int]]:
-    """Where an address the app does not serve should go, as ``(location, status)``.
-
-    ``None`` for a path the app serves. A language prefix keeps the rest of the
-    path when the app knows it, and becomes ``?lang=``.
-    """
-    path = normalize_client_path(full_path)
-    prefixed = _LANG_PREFIX.match(path)
-    if not prefixed and is_known_client_route(path):
-        return None
-    params = parse_qsl(query or "", keep_blank_values=True)
-    if prefixed:
-        lang = prefixed.group(1).lower()
-        rest = normalize_client_path(prefixed.group(2) or "")
-        target = "/" + rest if rest and is_known_client_route(rest) else "/"
-        params = [("lang", lang)] + [(key, value) for key, value in params if key != "lang"]
-        status = 301
-    else:
-        target = "/"
-        status = 302
-    return (target + ("?" + urlencode(params) if params else "")), status
 
 
 def page_lang(query: str = "") -> str:

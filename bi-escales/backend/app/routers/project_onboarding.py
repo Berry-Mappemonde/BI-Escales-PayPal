@@ -192,6 +192,21 @@ async def post_email_send(project_id: str, request: Request, donation_id: str = 
         raise HTTPException(status_code=exc.status, detail="PayPal error") from exc
 
 
+def _friendly_onboarding_return() -> HTMLResponse:
+    """A seller who lands here before PayPal adds its return parameters sees a page, not JSON."""
+    return HTMLResponse(
+        """<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>PayPal seller return</title></head>
+<body>
+<p>PayPal has not sent the seller return yet. Finish seller setup in the PayPal sandbox, then come back.</p>
+<p>PayPal n'a pas encore renvoyé le vendeur. Terminez l'inscription dans le bac à sable PayPal, puis revenez.</p>
+<p><a href="/">BI Escales</a></p>
+</body>
+</html>"""
+    )
+
+
 @router.get("/projects/{project_id}/onboarding/return")
 async def get_onboarding_return(
     project_id: str,
@@ -200,6 +215,8 @@ async def get_onboarding_return(
     isEmailConfirmed: str = "",
 ):
     _require_feature()
+    if not any(str(value or "").strip() for value in (merchantIdInPayPal, permissionsGranted, isEmailConfirmed)):
+        return _friendly_onboarding_return()
     perms = str(permissionsGranted or "").strip().lower() in {"1", "true", "yes"}
     email_ok = str(isEmailConfirmed or "").strip().lower() in {"1", "true", "yes"}
     try:

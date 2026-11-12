@@ -806,3 +806,71 @@ def test_replayed_writes_keep_request_id_and_payload(
             assert calls[0]["request_id"] == key[:127]
     finally:
         reset_client()
+
+
+@pytest.mark.parametrize("flow", ["authorize", "capture", "card", "vault"])
+def test_create_order_generated_wire_parity(flow, pins, monkeypatch):
+    """Real generated serializer preserves the existing order request contract."""
+    original = _dispatch
+    monkeypatch.setattr(sys.modules[__name__], "_dispatch", lambda method, path:
+        (201, {"id": "ORDER-NEW", "status": "CREATED"})
+        if method == "POST" and path == "/v2/checkout/orders" else original(method, path))
+    def call(client):
+        args = dict(amount_eur="30.00", description="Berth", reference_id="pledge-create",
+                    idempotency_key="stable-create", return_url="https://example.com/return",
+                    cancel_url="https://example.com/cancel", checkout_locale="fr_FR")
+        if flow == "capture": return client.create_capture_order(**args)
+        if flow == "card": return client.create_card_authorize_order(**args)
+        if flow == "vault": return client.create_authorize_vault_order(**args)
+        return client.create_authorize_order(**args, payee_merchant_id="MERCHANT",
+            platform_fee_eur="1.00", platform_merchant_id="PLATFORM")
+    off = []
+    monkeypatch.setenv("ESCALES_PAYPAL_SDK_ENABLED", "0")
+    call(_httpx_client(off))
+    on = []
+    monkeypatch.setenv("ESCALES_PAYPAL_SDK_ENABLED", "1")
+    _install(on)
+    def forbidden(request):
+        raise AssertionError("SDK order creation must not use httpx, including OAuth")
+    client = PayPalClient(EscalesConfig("test-client-id", "test-secret"), transport=httpx.MockTransport(forbidden))
+    assert call(client)["id"] == "ORDER-NEW"
+    assert _operations(on) == _operations(off)
+    if flow == "capture":
+        context = _operations(on)[0]["body"]["payment_source"]["paypal"]["experience_context"]
+        assert context["user_action"] == "PAY_NOW"
+
+
+def test_create_order_sdk_failure_never_replays(pins, monkeypatch):
+    monkeypatch.setenv("ESCALES_PAYPAL_SDK_ENABLED", "1")
+    original = _dispatch
+    monkeypatch.setattr(sys.modules[__name__], "_dispatch", lambda method, path:
+        (422, DECLINED) if path == "/v2/checkout/orders" else original(method, path))
+    rows = []
+    _install(rows)
+    def forbidden(request):
+        raise AssertionError("Failed SDK write must not fall back to httpx")
+    client = PayPalClient(EscalesConfig("test-client-id", "test-secret"), transport=httpx.MockTransport(forbidden))
+    with pytest.raises(PayPalError) as error:
+        client.create_capture_order("30.00", "Fund", "create", idempotency_key="stable")
+    assert error.value.status == 422
+    assert len(_operations(rows)) == 1
+
+def test_annual_plan_creation_uses_generated_sdk(pins, monkeypatch):
+    monkeypatch.setenv("ESCALES_PAYPAL_SDK_ENABLED", "1")
+    original = _dispatch
+    monkeypatch.setattr(sys.modules[__name__], "_dispatch", lambda method, path:
+        (201, {"id": "ANNUAL", "status": "ACTIVE"})
+        if path == "/v1/billing/plans" else original(method, path))
+    rows = []
+    _install(rows)
+    def forbidden(request):
+        raise AssertionError("Plan SDK must not fall back")
+    client = PayPalClient(EscalesConfig("test-client-id", "test-secret"), transport=httpx.MockTransport(forbidden))
+    result = client.create_billing_plan(product_id="PRODUCT", name="Crew annual",
+        amount_eur="10.00", interval_unit="YEAR", idempotency_key="catalog-v2-plan-en")
+    assert result["id"] == "ANNUAL"
+    call = _operations(rows)[0]
+    assert call["request_id"] == "catalog-v2-plan-en"
+    cycle = call["body"]["billing_cycles"][0]
+    assert cycle["frequency"] == {"interval_unit": "YEAR", "interval_count": 1}
+    assert cycle["pricing_scheme"]["fixed_price"] == {"value": "10.00", "currency_code": "EUR"}

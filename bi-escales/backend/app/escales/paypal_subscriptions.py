@@ -7,6 +7,10 @@ and a subscription on one of its plans still verifies as a Crew subscription.
 
 from __future__ import annotations
 
+import asyncio
+import os
+import weakref
+from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 import secrets
@@ -242,7 +246,20 @@ async def _ensure_lang_catalog(client: Any, lang: str) -> dict[str, str]:
     return {"product_id": product_id, "plan_id": plan_id}
 
 
+_catalog_locks: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
 async def ensure_crew_supporter_catalog(client: Any) -> dict:
+    """Sandbox-only provisioning; reuse catalog v2 and serialize local callers."""
+    if os.environ.get("PAYPAL_ENV", "").strip().lower() != "sandbox":
+        raise ValueError("Crew catalog provisioning requires PAYPAL_ENV=sandbox")
+    loop = asyncio.get_running_loop()
+    lock = _catalog_locks.setdefault(loop, asyncio.Lock())
+    async with lock:
+        return await _ensure_crew_supporter_catalog(client)
+
+
+async def _ensure_crew_supporter_catalog(client: Any) -> dict:
     """Create the bilingual product and the 10 EUR per year plans once (idempotent).
 
     Works on catalog v2 only. A v1 catalog on the host is left exactly as it is.
@@ -405,13 +422,24 @@ def _subscription_create_response(
     }
 
 
-async def create_crew_subscription(
+_subscription_locks: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
+async def create_crew_subscription(client: Any, **kwargs: Any) -> dict:
+    loop = asyncio.get_running_loop()
+    lock = _subscription_locks.setdefault(loop, asyncio.Lock())
+    async with lock:
+        return await _create_crew_subscription(client, **kwargs)
+
+
+async def _create_crew_subscription(
     client: Any,
     *,
     return_url: str,
     cancel_url: str,
     client_key: Optional[str] = None,
     lang: Optional[str] = None,
+    expected_plan_id: Optional[str] = None,
 ) -> dict:
     """Public buyer checkout: ensure catalog + create PayPal subscription."""
     app_lang = normalize_app_lang(lang)
@@ -421,6 +449,27 @@ async def create_crew_subscription(
         plan_id = str(await resolve_crew_supporter_plan_id(client, lang=app_lang) or "")
     if not plan_id:
         raise ValueError("Crew membership plan is not configured")
+    if expected_plan_id is not None:
+        if expected_plan_id.strip() != plan_id:
+            raise ValueError("subscription plan does not match the displayed selection")
+        plan = client.get_billing_plan(plan_id)
+        cycles = plan.get("billing_cycles") or []
+        valid = plan.get("id") == plan_id and plan.get("status") == "ACTIVE" and len(cycles) == 1
+        if valid:
+            cycle = cycles[0]
+            price = (cycle.get("pricing_scheme") or {}).get("fixed_price") or {}
+            setup = (plan.get("payment_preferences") or {}).get("setup_fee") or {}
+            try:
+                valid = (cycle.get("tenure_type") == "REGULAR"
+                    and cycle.get("frequency") == {"interval_unit": "YEAR", "interval_count": 1}
+                    and price.get("currency_code") == "EUR"
+                    and Decimal(str(price.get("value", "0"))) == Decimal("10.00")
+                    and Decimal(str(setup.get("value", "0"))) == 0
+                    and Decimal(str((plan.get("taxes") or {}).get("percentage", "0"))) == 0)
+            except (InvalidOperation, TypeError, ValueError):
+                valid = False
+        if not valid:
+            raise ValueError("subscription plan must be ACTIVE at 10 EUR per year without extras")
     replay_key = _client_key(client_key)
     body_hash = _subscription_create_body_hash(
         return_url=return_url,
@@ -430,6 +479,8 @@ async def create_crew_subscription(
     if replay_key:
         cached = await _subscription_create_cache_get(replay_key, body_hash)
         if cached:
+            if cached.get("plan_id") != plan_id:
+                raise ValueError("subscription retry requires reconciliation after catalog change")
             return cached
     idempotency = replay_key[:127] if replay_key else secrets.token_hex(16)
     payload = client.create_billing_subscription(

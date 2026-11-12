@@ -1,3 +1,4 @@
+import { notePayPalV6CheckoutStarted, reportPayPalV6LoadFailure } from "../paypalJsVersion";
 import { resumeCheckout } from "./checkoutAttempts";
 import { walletFactories } from "./paypalWallets";
 import { STACKED_BUTTON_GAP_PX, applyV6ButtonLook, v6CardFieldStyle, type V5ButtonStyle } from "./paypalLookV6";
@@ -33,12 +34,66 @@ type ButtonCallbacks = {
   subscriptionPlanId?: string;
 };
 
+type BillingAddress = {
+  addressLine1?: string;
+  addressLine2?: string;
+  adminArea1?: string;
+  adminArea2?: string;
+  postalCode?: string;
+  countryCode?: string;
+};
+
 type CardCallbacks = {
   createOrder?: Callback;
   createVaultSetupToken?: Callback;
   onApprove?: Callback;
+  onCancel?: Callback;
   onError?: Callback;
+  billingAddress?: () => BillingAddress | undefined;
 };
+
+/** Phones and tablets can open the PayPal app. Desktop stays on auto so checkout does not leave the page. */
+export function paypalAppSwitchEligible(userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent): boolean {
+  return /Android|iPhone|iPad|iPod/i.test(userAgent);
+}
+
+function recoverableCheckoutError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return true;
+  const record = error as { code?: unknown; name?: unknown; isRecoverable?: unknown };
+  const label = `${record.code ?? ""} ${record.name ?? ""}`;
+  if (/cancel/i.test(label)) return false;
+  return record.isRecoverable !== false;
+}
+
+async function startWithFallback(
+  attempts: Array<(payment: Promise<{ orderId: string }>) => Promise<unknown>>,
+  payment: Promise<{ orderId: string }>,
+  orderFailed: () => boolean,
+): Promise<void> {
+  let last: unknown;
+  for (let index = 0; index < attempts.length; index += 1) {
+    let pending: Promise<unknown>;
+    try {
+      // Invoke before the first await so the click gesture can open the first mode.
+      pending = attempts[index](payment);
+      await pending;
+      return;
+    } catch (error) {
+      last = error;
+      if (orderFailed() || index === attempts.length - 1 || !recoverableCheckoutError(error)) throw error;
+    }
+  }
+  throw last;
+}
+
+function cardBillingOptions(config: CardCallbacks): { billingAddress: BillingAddress } | undefined {
+  const billingAddress = config.billingAddress?.();
+  if (!billingAddress) return undefined;
+  const filled = Object.fromEntries(
+    Object.entries(billingAddress).filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0),
+  ) as BillingAddress;
+  return Object.keys(filled).length ? { billingAddress: filled } : undefined;
+}
 
 type V6Instance = Pick<SdkInstance<Components[]>,
   "findEligibleMethods" | "createPayPalOneTimePaymentSession" |
@@ -192,22 +247,61 @@ export function buildV6Adapter(
     ...(walletPay && eligible.getDetails ? walletFactories(sdk, eligible as EligiblePaymentMethodsOutput) : {}),
     ...(sdk.createPayPalMessages ? { Messages: (options: Record<string, unknown>): PayPalSdkButtonInstance => {
       const currencyCode = String(options.currencyCode || "EUR");
-      sdk.createPayPalMessages!({ currencyCode });
+      const amount = String(options.amount || "");
       let message: HTMLElement | null = null;
+      let themeObserver: MutationObserver | null = null;
+      const textColor = () => (document.documentElement.dataset.theme === "light" ? "BLACK" : "WHITE");
       return {
         render: async target => {
           const host = typeof target === "string" ? document.querySelector<HTMLElement>(target) : target;
           if (!host) throw new Error("PayPal message host missing");
           const element = document.createElement("paypal-message");
-          element.amount = String(options.amount || "");
+          element.amount = amount;
           element.currencyCode = currencyCode;
+          element.buyerCountry = "FR";
+          element.setAttribute("amount", amount);
+          element.setAttribute("currency-code", currencyCode);
+          element.setAttribute("buyer-country", "FR");
+          // The shell is dark by default. Black Pay Later text disappears on it.
+          const applyColor = () => {
+            const color = textColor();
+            element.textColor = color;
+            element.setAttribute("text-color", color);
+          };
+          applyColor();
+          themeObserver?.disconnect();
+          themeObserver = new MutationObserver(applyColor);
+          themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+          // Without this listener the Learn more control is an href="#" and the page
+          // stays put. PayPal requires preventDefault, then learnMore.open.
+          // https://developer.paypal.com/pay-later/integrate
+          element.presentationMode = "MODAL";
+          element.setAttribute("presentation-mode", "MODAL");
           element.autoBootstrap = true;
           element.setAttribute("auto-bootstrap", "");
           message = element;
+          // The data layer only picks up an element that is already in the page.
           host.replaceChildren(element);
-
+          const messages = sdk.createPayPalMessages!({ currencyCode, buyerCountry: "FR" }) as {
+            createLearnMore?: (learnMore: { amount?: string; currencyCode?: string; buyerCountry?: string; presentationMode?: "MODAL" }) => { open?: (config?: object) => Promise<void> | void } | Promise<{ open?: (config?: object) => Promise<void> | void }>;
+          } | undefined;
+          const learnMore = await Promise.resolve(messages?.createLearnMore?.({
+            amount,
+            currencyCode,
+            buyerCountry: "FR",
+            presentationMode: "MODAL",
+          }));
+          element.addEventListener("paypal-message-click", (event) => {
+            event.preventDefault();
+            const config = (event as CustomEvent<{ config?: object }>).detail?.config;
+            void learnMore?.open?.(config);
+          });
         },
-        close: async () => { message?.remove(); },
+        close: async () => {
+          themeObserver?.disconnect();
+          themeObserver = null;
+          message?.remove();
+        },
       };
     } } : {}),
     Buttons: (opts: Record<string, unknown>): PayPalSdkButtonInstance => {
@@ -241,20 +335,40 @@ export function buildV6Adapter(
       if (subscription) {
         const subscriptionSession = sdk.createPayPalSubscriptionPaymentSession(callbacks);
         session = subscriptionSession;
-        start = () => subscriptionSession.start({ presentationMode: "auto" },
+        start = () => {
+          notePayPalV6CheckoutStarted();
+          return subscriptionSession.start({ presentationMode: "auto" },
           Promise.resolve().then(() => config.createSubscription!({}, {
             subscription: { create: (body: unknown) => { selectedPlan = String((body as { plan_id?: unknown })?.plan_id || ""); return createSubscriptionOnServer(appLang, body).then(id => { selectedKey = sessionStorage.getItem(`escales-v6-subscription:${location.pathname}:${appLang || "fr"}:${selectedPlan}`) || undefined; return id; }); } },
           })).then(value => ({ subscriptionId: token(value) })));
+        };
       } else if (vault) {
         const saveSession = sdk.createPayPalSavePaymentSession(callbacks);
         session = saveSession;
-        start = () => saveSession.start({ presentationMode: "auto" },
+        start = () => {
+          notePayPalV6CheckoutStarted();
+          return saveSession.start({ presentationMode: "auto" },
           Promise.resolve().then(() => config.createVaultSetupToken!()).then(value => ({ vaultSetupToken: token(value) })));
+        };
       } else {
         const orderSession = sdk.createPayPalOneTimePaymentSession(callbacks);
         session = orderSession;
-        start = () => orderSession.start({ presentationMode: "auto" },
-          Promise.resolve().then(() => config.createOrder?.()).then(value => ({ orderId: token(value) })));
+        start = () => {
+          notePayPalV6CheckoutStarted();
+          let orderFailed = false;
+          const payment = Promise.resolve().then(() => config.createOrder?.()).then(value => ({ orderId: token(value) }))
+            .catch((error: unknown) => { orderFailed = true; throw error; });
+          // Desktop: auto keeps the PayPal popup inside the click gesture.
+          // direct-app-switch with autoRedirect would navigate the page away.
+          if (!paypalAppSwitchEligible()) return orderSession.start({ presentationMode: "auto" }, payment);
+          // Phone or tablet: app switch, then popup, modal, and redirect.
+          return startWithFallback([
+            (order) => orderSession.start({ presentationMode: "direct-app-switch", autoRedirect: { enabled: true } }, order),
+            (order) => orderSession.start({ presentationMode: "popup" }, order),
+            (order) => orderSession.start({ presentationMode: "modal" }, order),
+            (order) => orderSession.start({ presentationMode: "redirect", autoRedirect: { enabled: true } }, order),
+          ], payment, () => orderFailed);
+        };
       }
       return {
         render: async (target) => {
@@ -299,6 +413,7 @@ export function buildV6Adapter(
             button.style.marginTop = `${STACKED_BUTTON_GAP_PX}px`;
             button.onclick = () => {
               if (closed || starting) return;
+              notePayPalV6CheckoutStarted();
               starting = true;
               void payLater.start({ presentationMode: "auto" }, Promise.resolve().then(() => config.createOrder?.()).then(value => ({ orderId: token(value) })))
                 .catch(error => { if (!closed) void config.onError?.(error); }).finally(() => { starting = false; });
@@ -354,15 +469,26 @@ export function buildV6Adapter(
         NameField: mountField("name"),
         submit: async () => {
           if (disposed || submitting) throw new Error("PayPal card session unavailable");
+          notePayPalV6CheckoutStarted();
           submitting = true;
           try {
             // The card entry is held in PayPal-hosted iframes; raw PAN/CVV never touches our code.
             const token = vault ? await config.createVaultSetupToken?.() : await config.createOrder?.();
             if (!token || typeof token !== "string") throw new Error("PayPal order or vault token missing");
             if (disposed) throw new Error("PayPal card session closed");
-            const result = await session.submit(token);
+            const billing = cardBillingOptions(config);
+            const result = billing ? await session.submit(token, billing) : await session.submit(token);
             if (disposed) throw new Error("PayPal card session closed");
-            if (result.state !== "succeeded") throw new Error(result.data?.message || "Card confirmation was not completed");
+            // A dismissed 3DS challenge is state "canceled": the buyer can try again.
+            if (result.state === "canceled") {
+              await config.onCancel?.();
+              return;
+            }
+            if (result.state !== "succeeded") {
+              const error = new Error(result.data?.message || "Card confirmation was not completed");
+              await config.onError?.(error);
+              throw error;
+            }
             const confirmedToken = "orderId" in result.data ? result.data.orderId : result.data.vaultSetupToken;
             if (confirmedToken !== token) throw new Error("PayPal confirmation token mismatch");
             await config.onApprove?.(result.data);
@@ -382,22 +508,28 @@ function loadConfigured(clientId: string, appLang: string | undefined, currency:
   const key = [trimmed, paypalLocale(appLang), currency.toUpperCase(), walletPay, paymentFlow, intent, normalizedAmount].join("|");
   const existing = instances.get(key);
   if (existing) return existing;
-  const promise = waitForCore().then(async (core) => {
-    const sdk = await core.createInstance({
-      clientId: trimmed,
-      locale: paypalLocale(appLang).replace("_", "-"),
-      pageType: "checkout",
-      components: [
-        "paypal-payments",
-        "paypal-subscriptions",
-        "paypal-messages",
-        "card-fields",
-        ...(walletPay ? ["googlepay-payments", "applepay-payments"] as const : []),
-      ],
-    });
+  const promise = (async () => {
+    let core: V6Core;
+    try { core = await waitForCore(); }
+    catch (error) { reportPayPalV6LoadFailure(error); throw error; }
+    let sdk: V6Instance;
+    try {
+      sdk = await core.createInstance({
+        clientId: trimmed,
+        locale: paypalLocale(appLang).replace("_", "-"),
+        pageType: "checkout",
+        components: [
+          "paypal-payments",
+          "paypal-subscriptions",
+          "paypal-messages",
+          "card-fields",
+          ...(walletPay ? ["googlepay-payments", "applepay-payments"] as const : []),
+        ],
+      });
+    } catch (error) { reportPayPalV6LoadFailure(error); throw error; }
     const eligible = await sdk.findEligibleMethods({ currencyCode: currency.toUpperCase(), paymentFlow, ...(normalizedAmount ? { amount: normalizedAmount } : {}) });
     return buildV6Adapter(sdk, eligible, walletPay, intent, appLang);
-  }).catch((error: unknown) => {
+  })().catch((error: unknown) => {
     instances.delete(key);
     throw error;
   });

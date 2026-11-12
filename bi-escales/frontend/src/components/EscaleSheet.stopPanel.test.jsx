@@ -102,7 +102,7 @@ describe("stop panel", () => {
       await show();
       const note = screen.getByTestId("mile-certificate-promise");
       expect(note).toHaveTextContent(/personal certificate appears here to download/);
-      expect(note).toHaveTextContent(/a note written by the AI Captain/);
+      expect(note).toHaveTextContent(/the nearest marine project, and a note written by the AI Captain/);
       // Nothing to download yet: that block only comes with a successful pledge.
       expect(screen.queryByTestId("mile-certificate-receipt")).toBeNull();
     });
@@ -110,7 +110,7 @@ describe("stop panel", () => {
     it("says it in French too", async () => {
       await i18n.changeLanguage("fr");
       await show();
-      expect(screen.getByTestId("mile-certificate-promise")).toHaveTextContent(/un mot rédigé par le Capitaine IA/);
+      expect(screen.getByTestId("mile-certificate-promise")).toHaveTextContent(/le projet marin le plus proche et un mot rédigé par le Capitaine IA/);
     });
 
     it("says nothing about a certificate for the other kinds", async () => {

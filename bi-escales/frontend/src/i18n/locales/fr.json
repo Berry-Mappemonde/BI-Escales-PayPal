@@ -677,7 +677,7 @@
     }
   },
   "certificate": {
-    "promise": "Vous parrainez des milles ? Juste après votre promesse, un certificat personnel apparaît ici, à télécharger : vos numéros de milles, leur position sur la route et un mot rédigé par le Capitaine IA.",
+    "promise": "Vous parrainez des milles ? Juste après votre promesse, un certificat personnel apparaît ici, à télécharger : vos numéros de milles, leur position sur la route, le projet marin le plus proche et un mot rédigé par le Capitaine IA.",
     "heading": "Votre certificat de milles, avec un mot du Capitaine IA",
     "downloadPng": "Télécharger en PNG",
     "downloadPdf": "Télécharger en PDF",

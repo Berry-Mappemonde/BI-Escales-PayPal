@@ -677,7 +677,7 @@
     }
   },
   "certificate": {
-    "promise": "Sponsoring miles? Right after your pledge, a personal certificate appears here to download: your mile numbers, where they are on the route, and a note written by the AI Captain.",
+    "promise": "Sponsoring miles? Right after your pledge, a personal certificate appears here to download: your mile numbers, where they are on the route, the nearest marine project, and a note written by the AI Captain.",
     "heading": "Your mile certificate, with a note from the AI Captain",
     "downloadPng": "Download PNG",
     "downloadPdf": "Download PDF",

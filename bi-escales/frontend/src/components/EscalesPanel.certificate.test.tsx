@@ -112,6 +112,73 @@ describe("mile certificate under the Captain's cart", () => {
     expect(escalesApi.issueMileCertificate).not.toHaveBeenCalled();
   });
 
+  it("says before paying that a miles line comes with a certificate, then gives way to it", async () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EscalesPanel milestoneId="dep-mayotte" />
+      </I18nextProvider>,
+    );
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Sponsor 20 miles near Mayotte" } });
+    fireEvent.submit(screen.getByRole("textbox").closest("form")!);
+    const promise = await screen.findByTestId("captain-cart-certificate-promise");
+    expect(promise).toHaveTextContent(/the nearest marine project/);
+    authorized = milePledge();
+    fireEvent.click(screen.getByTestId("fake-paypal"));
+    await screen.findByTestId("mile-certificate-receipt");
+    expect(screen.queryByTestId("captain-cart-certificate-promise")).toBeNull();
+  });
+
+  it("drops the previous certificate when the Captain answers with a new cart", async () => {
+    authorized = milePledge();
+    await askAndPay();
+    await screen.findByTestId("mile-certificate-receipt");
+
+    vi.mocked(escalesApi.captainChat).mockResolvedValue({
+      reply: "One berth night in Ajaccio: 35 EUR.",
+      cart: {
+        currency: "EUR",
+        lines: [
+          {
+            kind: "berth_night",
+            description: "1 berth night",
+            amount_eur: "35.00",
+            quantity: 1,
+            pledge: { amount_eur: "35.00", description: "1 berth night", milestone_id: "dep-ajaccio-corse", kind: "berth_night" },
+          },
+        ],
+      },
+    } as unknown as CaptainChatResponse);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "A berth night in Ajaccio" } });
+    fireEvent.submit(screen.getByRole("textbox").closest("form")!);
+    await waitFor(() => expect(screen.getByTestId("captain-cart")).toHaveTextContent("1 berth night"));
+    expect(screen.queryByTestId("mile-certificate-receipt")).toBeNull();
+    expect(screen.queryByTestId("captain-cart-certificate-promise")).toBeNull();
+  });
+
+  it("keeps one certificate per miles pledge when the cart has two miles lines", async () => {
+    const line = reply.cart!.lines![0]!;
+    vi.mocked(escalesApi.captainChat).mockResolvedValue({
+      ...reply,
+      cart: { currency: "EUR", lines: [line, { ...line, description: "5 nautical miles", amount_eur: "5.00", quantity: 5 }] },
+    } as unknown as CaptainChatResponse);
+    render(
+      <I18nextProvider i18n={i18n}>
+        <EscalesPanel milestoneId="dep-mayotte" />
+      </I18nextProvider>,
+    );
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Two batches of miles" } });
+    fireEvent.submit(screen.getByRole("textbox").closest("form")!);
+    await screen.findByTestId("captain-cart");
+    const [first, second] = screen.getAllByTestId("fake-paypal");
+    authorized = milePledge({ id: "p-mile-1" });
+    fireEvent.click(first);
+    authorized = milePledge({ id: "p-mile-2", order_id: "ORDER-2" });
+    fireEvent.click(second);
+    await waitFor(() => expect(screen.getAllByTestId("mile-certificate-receipt")).toHaveLength(2));
+    expect(escalesApi.issueMileCertificate).toHaveBeenCalledWith("p-mile-1", "ORDER-1", "Ada", "en");
+    expect(escalesApi.issueMileCertificate).toHaveBeenCalledWith("p-mile-2", "ORDER-2", "Ada", "en");
+  });
+
   it("hands the PayPal button one stable function, so the buttons are not redrawn", async () => {
     authorized = milePledge();
     await askAndPay();

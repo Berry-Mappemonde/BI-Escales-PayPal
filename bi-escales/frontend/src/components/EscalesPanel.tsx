@@ -31,12 +31,14 @@ export function EscalesPanel({
   const [agenticNote, setAgenticNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // A miles pledge made from the cart: its certificate is offered right under the cart.
-  const [mileReceipt, setMileReceipt] = useState<PublicPledge | null>(null);
+  // Miles pledges made from this cart: each one's certificate is offered right under the cart.
+  const [mileReceipts, setMileReceipts] = useState<PublicPledge[]>([]);
   // Stable, because the PayPal buttons are drawn again whenever this function changes.
   const onCartAuthorized = useCallback(
     (pledge: PublicPledge) => {
-      if (pledge?.kind === "mile") setMileReceipt(pledge);
+      if (pledge?.kind === "mile") {
+        setMileReceipts((list) => [...list.filter((row) => row.id !== pledge.id), pledge]);
+      }
       onAuthorized?.(pledge);
     },
     [onAuthorized],
@@ -49,6 +51,8 @@ export function EscalesPanel({
     setError(null);
     try {
       const res = await captainChat(chatMessage, lang, adminKey);
+      // A new answer brings a new cart: certificates from the previous cart do not belong under it.
+      setMileReceipts([]);
       setChatResult(res);
       if (res.suggested_pledge) {
         onSuggested?.(res.suggested_pledge);
@@ -106,6 +110,10 @@ export function EscalesPanel({
           {chatResult.cart?.lines?.length ? (
             <div data-testid="captain-cart">
               <h3>{t("escales.cartHeading")}</h3>
+              {!mileReceipts.length
+                && chatResult.cart.lines.some((line) => (line.pledge?.kind || line.kind) === "mile") ? (
+                <p className="stop-note" data-testid="captain-cart-certificate-promise">{t("certificate.promise")}</p>
+              ) : null}
               {chatResult.cart.lines.map((line, index) => (
                 <div key={`${line.kind || "line"}-${index}`} data-testid="cart-line">
                   <p>
@@ -120,7 +128,9 @@ export function EscalesPanel({
                   ) : null}
                 </div>
               ))}
-              <MileCertificateDownload pledge={mileReceipt} contributor={mileReceipt?.contributor || undefined} />
+              {mileReceipts.map((receipt) => (
+                <MileCertificateDownload key={receipt.id} pledge={receipt} contributor={receipt.contributor || undefined} />
+              ))}
             </div>
           ) : null}
         </div>

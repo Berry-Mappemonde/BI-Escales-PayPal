@@ -104,6 +104,43 @@ describe("PayPal Web SDK v6 core", () => {
     resetPayPalJsVersionForTests();
   });
 
+  it("stays on v6 when adapter construction fails", async () => {
+    resetPayPalJsVersionForTests();
+    notePayPalJsFeatures({ paypal_js_v6: true });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    v6Window.paypal = { createInstance: vi.fn().mockResolvedValue({
+      findEligibleMethods: async () => ({ isEligible: () => true }),
+      get createPayPalMessages(): never { throw new Error("adapter failed"); },
+    }) };
+    await expect(loadPayPalSdk("adapter-failure", "en")).rejects.toThrow("adapter failed");
+    expect(currentPayPalJsVersion()).toBe("v6");
+    expect(warn).not.toHaveBeenCalled();
+    resetPayPalJsVersionForTests();
+  });
+
+  it("keeps an open checkout on v6 when a different instance fails", async () => {
+    resetPayPalJsVersionForTests();
+    notePayPalJsFeatures({ paypal_js_v6: true });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const start = vi.fn().mockResolvedValue(undefined);
+    v6Window.paypal = { createInstance: vi.fn().mockResolvedValue({
+      findEligibleMethods: async () => ({ isEligible: () => true }),
+      createPayPalOneTimePaymentSession: () => ({ start, destroy: vi.fn() }),
+    }) };
+    const ns = await loadPayPalSdk("already-open", "en");
+    const button = ns.Buttons!({ createOrder: () => "ORDER" });
+    const host = document.createElement("div");
+    await button.render(host);
+    host.firstElementChild!.dispatchEvent(new MouseEvent("click"));
+    await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+    v6Window.paypal = { createInstance: vi.fn().mockRejectedValue(new Error("another merchant failed")) };
+    await expect(loadPayPalSdk("another-merchant", "en")).rejects.toThrow("another merchant failed");
+    expect(currentPayPalJsVersion()).toBe("v6");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("keeping the open v6 checkout"), expect.any(Error));
+    await button.close!();
+    resetPayPalJsVersionForTests();
+  });
+
   it("requires a client ID", async () => {
     await expect(loadPayPalSubscriptionSdk("  ")).rejects.toThrow(/client id/);
     await expect(loadPayPalSdk("")).rejects.toThrow(/client id/);

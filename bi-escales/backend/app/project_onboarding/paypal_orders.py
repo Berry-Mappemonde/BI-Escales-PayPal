@@ -5,8 +5,11 @@ from __future__ import annotations
 import os
 from typing import Any, Optional
 
-from app.escales.config import order_cancel_url, order_return_url, platform_credentials_active
-from app.escales.paypal_client import PayPalClient, approve_link
+from app.escales.config import (
+    order_cancel_url, order_return_url, platform_credentials_active,
+    load_platform_config, paypal_sdk_reads_enabled, SANDBOX_BASE,
+)
+from app.escales.paypal_client import PayPalClient, PayPalError, approve_link
 from app.escales.paypal_idempotency import paypal_request_id
 
 
@@ -16,6 +19,54 @@ def bn_code_header() -> dict[str, str]:
         return {"PayPal-Partner-Attribution-Id": code}
     return {}
 
+
+
+def _platform_sdk(client: PayPalClient) -> Any:
+    """Cache on the onboarding HTTP client; never read/install the merchant SDK."""
+    from paypalserversdk.paypal_serversdk_client import PaypalServersdkClient
+    from paypalserversdk.configuration import Environment
+    from paypalserversdk.http.auth.o_auth_2 import ClientCredentialsAuthCredentials
+    from app.escales.paypal_sdk_gateway import _require_sandbox
+
+    _require_sandbox()
+    cfg = load_platform_config() if platform_credentials_active() else client.cfg
+    if cfg.env != "sandbox" or cfg.base_url.rstrip("/") != SANDBOX_BASE:
+        raise ValueError("Onboarding SDK is sandbox only")
+    sdk = getattr(client, "_onboarding_server_sdk", None)
+    if sdk is None:
+        sdk = PaypalServersdkClient(
+            environment=Environment.SANDBOX,
+            timeout=30, max_retries=0,
+            client_credentials_auth_credentials=ClientCredentialsAuthCredentials(
+                o_auth_client_id=cfg.client_id, o_auth_client_secret=cfg.client_secret,
+            ),
+        )
+        client._onboarding_server_sdk = sdk
+    return sdk
+
+
+def _sdk_order_call(client: PayPalClient, operation: str, options: dict) -> dict:
+    from paypalserversdk.api_helper import APIHelper
+    from paypalserversdk.exceptions.api_exception import ApiException
+    from apimatic_core.exceptions.auth_validation_exception import AuthValidationException
+    from app.escales.paypal_sdk_gateway import _reraise_transport_error
+
+    sdk = _platform_sdk(client)
+    try:
+        result = getattr(sdk.orders, operation)(options)
+    except ApiException as exc:
+        response = getattr(exc, "response", None)
+        raise PayPalError(exc.response_code, getattr(response, "text", "")) from exc
+    except AuthValidationException:
+        raise PayPalError(502, "PayPal SDK authentication unavailable") from None
+    except Exception as exc:
+        _reraise_transport_error(exc)
+        raise
+    body = result.body
+    payload = body if isinstance(body, dict) else APIHelper.to_dictionary(body)
+    if not isinstance(payload, dict):
+        raise PayPalError(502, "PayPal SDK response was not an object")
+    return payload
 
 def create_unlinked_payee_capture_order(
     client: PayPalClient,
@@ -54,6 +105,13 @@ def create_unlinked_payee_capture_order(
         ],
     }
     idem = paypal_request_id(donation_id, "onboard-capture-order")[:127]
+    if paypal_sdk_reads_enabled():
+        from paypalserversdk.models.order_request import OrderRequest
+        return _sdk_order_call(client, "create_order", {
+            "body": OrderRequest(**body), "paypal_request_id": idem,
+            "prefer": "return=representation",
+            "paypal_partner_attribution_id": bn_code_header().get("PayPal-Partner-Attribution-Id"),
+        })
     hdrs = {
         "Authorization": f"Bearer {client._access_token()}",
         "Content-Type": "application/json",
@@ -70,21 +128,26 @@ def create_unlinked_payee_capture_order(
 
 
 def read_order(client: PayPalClient, order_id: str) -> dict:
-    """Read a donation order with the credentials that created it.
+    """Read with the isolated Platform SDK, or the existing Platform HTTP path.
 
-    ``PayPalClient.get_order`` may hand the read to the Server SDK gateway, a
-    process-wide client that only ever holds the main app's credentials. An order
-    created by the Platform app has to be read with the Platform app's token, so
-    with the platform credentials active the read goes through the client's own
-    request path. Without them nothing changes.
+    Neither selection uses the process-wide merchant SDK token.
     """
+    if paypal_sdk_reads_enabled():
+        return _sdk_order_call(client, "get_order", {"id": order_id})
     if platform_credentials_active():
         return client._req("GET", f"/v2/checkout/orders/{order_id}")
     return client.get_order(order_id)
 
 
 def capture_order_once(client: PayPalClient, order_id: str) -> dict:
-    return client._req("POST", f"/v2/checkout/orders/{order_id}/capture", {})
+    idem = paypal_request_id(order_id, "onboard-capture")
+    if paypal_sdk_reads_enabled():
+        from paypalserversdk.models.order_capture_request import OrderCaptureRequest
+        return _sdk_order_call(client, "capture_order", {
+            "id": order_id, "body": OrderCaptureRequest(),
+            "paypal_request_id": idem, "prefer": "return=representation",
+        })
+    return client._req("POST", f"/v2/checkout/orders/{order_id}/capture", {}, idempotency_key=idem)
 
 
 def order_belongs_to_donation(order: dict, donation: dict) -> bool:

@@ -551,3 +551,8 @@ Skills: python-getting-started, python-calling-endpoints, python-models,
 python-error-handling, python-configuration-resilience, python-testing.
 
 SDK source inspection: from_dictionary injects PayPal defaults and drops card experience locale/brand fields. Keep nested dictionaries inside the generated OrderRequest envelope; HTTP-boundary parity tests cover exact payload preservation.
+
+
+## Onboarding Orders via an isolated Platform SDK client
+
+Only project_onboarding/paypal_orders.py PayPal transport changes. Use SDK 2.4.0 OrdersController.create_order(options), get_order(options), capture_order(options), ApiResponse.body and APIHelper.to_dictionary. Build a separate sandbox PaypalServersdkClient with load_platform_config() credentials, never the merchant singleton; keep existing flag-off Platform HTTP behavior. Preserve create-order BN via paypal_partner_attribution_id, body/payee/locale and deterministic request IDs. Capture uses an order-derived idempotency key. Map ApiException/auth/transport failures without HTTP fallback replay. SDK 2.4.0 has no partner referrals or merchant integrations controllers; partner_referrals.py stays unchanged. Tests use distinct merchant/Platform credentials at the generated HTTP boundary. No onboarding business rules, emails or UI changes.

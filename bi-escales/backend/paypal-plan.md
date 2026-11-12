@@ -551,3 +551,54 @@ Skills: python-getting-started, python-calling-endpoints, python-models,
 python-error-handling, python-configuration-resilience, python-testing.
 
 SDK source inspection: from_dictionary injects PayPal defaults and drops card experience locale/brand fields. Keep nested dictionaries inside the generated OrderRequest envelope; HTTP-boundary parity tests cover exact payload preservation.
+## Card coverage for immediate donations
+
+Before code: allow Card Fields on CAPTURE-intent project donations. The shared
+capture creator accepts checkout_method=card, sends card attributes with
+SCA_WHEN_REQUIRED, and preserves immediate capture on approval. The existing
+mode-preview GET returns CAPTURE for project donations without ledger writes.
+Both JS version entry points render the existing card component. This adds no
+new page or layout. Common-fund CAPTURE uses the same creator after PAY-03 merges.
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-error-handling, python-configuration-resilience, python-testing.
+
+Card review: before CAPTURE, reread the order through PayPalClient.get_order
+(the generated SDK when enabled), require approval and a card authentication
+result permitting continuation under the PayPal 3DS response matrix. Unknown,
+failed, rejected or still-challenged authentication fails closed without capture.
+Only a completed capture receipt may render the immediate-donation paid text.
+Reference: https://developer.paypal.com/platforms/checkout/advanced/customize/3d-secure/response-parameters
+
+
+### Card review: request server authentication fields explicitly
+
+The official Orders 3DS flow requires GET order with fields=payment_source to retrieve authentication_result. Include this query on the SDK and HTTP read paths before the existing 3DS gate. Test the generated request query, not just a permissive response fixture. Real sandbox SCA_ALWAYS confirmation returns PAYER_ACTION_REQUIRED until device authentication; do not capture while unresolved.
+
+Sandbox observation: fields=payment_source returns only id/payment_source, omitting status. A dedicated get_card_order combines the normal state read with that projection after verifying both order IDs. Other order reads stay unchanged; the card gate uses the combined response.
+
+Real local MongoDB + PayPal observation: SCA_WHEN_REQUIRED confirmation can be APPROVED with a persisted card (brand/last_digits), and no authentication_result when PayPal does not request 3DS. Permit that explicit approved-card case; keep explicit unknown/failed 3DS and absent card data blocked. Capture outcome still determines paid status. Recheck completed and processor-declined cards against the real sandbox, using local bi_escales_test2 and scoped tagged cleanup.
+
+## PR #255 continuation: pending capture and declined-card retry
+
+Before application changes: PENDING is an existing capture awaiting settlement,
+never permission to submit another charge. Add PayPalClient.get_capture and the
+shared gateway get_captured_payment(capture_id), using SDK 2.4.0
+PaymentsController.get_captured_payment({"capture_id": capture_id}); its ApiResponse
+body is CapturedPayment and failures map through the existing ApiException /
+transport handling. A pending capture action reads that exact resource, verifies
+its ID, and updates the existing pledge only on a known terminal outcome. Repeated
+PENDING reads do not append finance events or advance capture_attempt. Serialize
+capture/approval for one pledge so concurrent clicks cannot submit two writes.
+
+The card receipt distinguishes PENDING from paid and hides further payment entry.
+After a definite declined capture, fetch the stored status and clear the checkout
+attempt; the next submission uses a new pledge, order and PayPal-Request-Id.
+Transport uncertainty keeps the original attempt/key. Mode preview accepts CAPTURE
+as returned by the API. Keep the original 3DS gate and common-fund merge contract.
+
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-error-handling, python-configuration-resilience, python-testing.
+
+The same fresh-attempt rule applies when Card Fields reports an explicit
+INSTRUMENT_DECLINED/CARD_DECLINED before the capture route is reached. Other SDK
+errors keep the original order because their financial outcome is uncertain.

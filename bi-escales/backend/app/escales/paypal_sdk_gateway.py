@@ -274,8 +274,11 @@ def _sdk_reads(captain_budget: Any, method: str, *args: Any, **kwargs: Any) -> d
     return {str(key): value for key, value in result.items()}
 
 
-def get_order(order_id: str) -> dict[str, Any]:
-    return _execute("orders", "get_order", {"id": order_id})
+def get_order(order_id: str, *, fields: str | None = None) -> dict[str, Any]:
+    options = {"id": order_id}
+    if fields is not None:
+        options["fields"] = fields
+    return _execute("orders", "get_order", options)
 
 
 def get_authorized_payment(authorization_id: str) -> dict[str, Any]:
@@ -284,6 +287,10 @@ def get_authorized_payment(authorization_id: str) -> dict[str, Any]:
         "get_authorized_payment",
         {"authorization_id": authorization_id},
     )
+
+
+def get_captured_payment(capture_id: str) -> dict[str, Any]:
+    return _execute("payments", "get_captured_payment", {"capture_id": capture_id})
 
 
 def get_setup_token(setup_token_id: str) -> dict[str, Any]:

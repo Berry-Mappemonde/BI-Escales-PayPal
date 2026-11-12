@@ -656,3 +656,36 @@ def test_pending_capture_is_recorded_and_can_be_retried(monkeypatch):
         assert pending["capture_id"] == "CAP-P"
 
     asyncio.run(body())
+
+
+def test_pending_capture_refresh_never_submits_another_charge(monkeypatch):
+    class PendingSpy(Spy):
+        def capture_authorization(self, authorization_id, **kwargs):
+            self.calls.append(("capture", authorization_id))
+            return {"id": "CAP-P", "status": "PENDING"}
+
+        def get_capture(self, capture_id):
+            self.calls.append(("capture.read", capture_id))
+            return {"id": capture_id, "status": self.capture_status}
+
+    async def run():
+        spy = PendingSpy()
+        spy.capture_status = "PENDING"
+        created = await create_pledge(amount_eur="20.00", description="Pending", milestone_id="dep-mayotte", client=spy)
+        await authorize_pledge(created["_id"], spy)
+        monkeypatch.setenv("ESCALES_CLOCK_NOW", near_mayotte_clock())
+        first = await capture_pledge(created["_id"], spy)
+        history = list(first["history"])
+        for _ in range(2):
+            pending = await capture_pledge(created["_id"], spy)
+            assert pending["status"] == "pending"
+            assert pending["history"] == history
+            assert pending["capture_idempotency_key"] == first["capture_idempotency_key"]
+        spy.capture_status = "COMPLETED"
+        paid = await capture_pledge(created["_id"], spy)
+        assert paid["status"] == "captured"
+        assert paid["capture_id"] == "CAP-P"
+        assert len([c for c in spy.calls if c[0] == "capture"]) == 1
+        with pytest.raises(IllegalTransition):
+            await capture_pledge(created["_id"], spy)
+    asyncio.run(run())

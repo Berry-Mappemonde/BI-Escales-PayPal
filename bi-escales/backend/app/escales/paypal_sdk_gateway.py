@@ -360,6 +360,23 @@ def _write_options(
     return options
 
 
+def create_order(
+    payload: dict[str, Any],
+    *,
+    idempotency_key: str,
+    mock_response: str | None = None,
+) -> dict[str, Any]:
+    """Create AUTHORIZE/CAPTURE orders with generated request models."""
+    # Nested dictionaries deliberately retain card experience fields that 2.4.0's
+    # narrower generated submodels drop, and avoid injected checkout defaults.
+    body = _model("order_request", "OrderRequest")(**payload)
+    return _execute(
+        "orders", "create_order",
+        _write_options(body=body, idempotency_key=idempotency_key,
+                       mock_response=mock_response),
+    )
+
+
 def authorize_order(
     order_id: str,
     *,

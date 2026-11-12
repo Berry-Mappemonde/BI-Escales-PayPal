@@ -178,10 +178,13 @@ export function PayPalCardFieldsBlock({
           onCancel: () => {
             confirmationCanceledRef.current = true;
           },
-          billingAddress: () => ({
-            countryCode: countryRef.current.trim().toUpperCase() || "FR",
-            ...(postalRef.current.trim() ? { postalCode: postalRef.current.trim().toUpperCase() } : {}),
-          }),
+          billingAddress: () => {
+            const country = countryRef.current.trim();
+            return {
+              countryCode: /^[A-Za-z]{2}$/.test(country) ? country.toUpperCase() : "FR",
+              ...(postalRef.current.trim() ? { postalCode: postalRef.current.trim().toUpperCase() } : {}),
+            };
+          },
         });
         if (!cardFields.isEligible()) return;
         for (const [field, el] of [

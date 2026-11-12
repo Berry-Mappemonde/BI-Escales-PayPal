@@ -51,6 +51,11 @@ type CardCallbacks = {
   billingAddress?: () => BillingAddress | undefined;
 };
 
+/** Phones and tablets can open the PayPal app. Desktop stays on auto so checkout does not leave the page. */
+export function paypalAppSwitchEligible(userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent): boolean {
+  return /Android|iPhone|iPad|iPod/i.test(userAgent);
+}
+
 function recoverableCheckoutError(error: unknown): boolean {
   if (!error || typeof error !== "object") return true;
   const record = error as { code?: unknown; name?: unknown; isRecoverable?: unknown };
@@ -245,14 +250,13 @@ export function buildV6Adapter(
       const messages = sdk.createPayPalMessages!({ currencyCode, buyerCountry: "FR" }) as {
         createLearnMore?: (learnMore: { amount?: string; currencyCode?: string; buyerCountry?: string; presentationMode?: "MODAL" }) => { open?: () => Promise<void> };
       } | undefined;
-      const learnMore = messages?.createLearnMore?.({
+      messages?.createLearnMore?.({
         amount,
         currencyCode,
         buyerCountry: "FR",
         presentationMode: "MODAL",
       });
       let message: HTMLElement | null = null;
-      let openLearnMore: EventListener | null = null;
       return {
         render: async target => {
           const host = typeof target === "string" ? document.querySelector<HTMLElement>(target) : target;
@@ -260,17 +264,15 @@ export function buildV6Adapter(
           const element = document.createElement("paypal-message");
           element.amount = amount;
           element.currencyCode = currencyCode;
+          // The bootstrapped message already opens Learn more from its own control.
+          // A second click listener would open another modal on the same click.
+          element.presentationMode = "MODAL";
           element.autoBootstrap = true;
           element.setAttribute("auto-bootstrap", "");
-          openLearnMore = () => { void learnMore?.open?.(); };
-          element.addEventListener("click", openLearnMore);
           message = element;
           host.replaceChildren(element);
         },
-        close: async () => {
-          if (message && openLearnMore) message.removeEventListener("click", openLearnMore);
-          message?.remove();
-        },
+        close: async () => { message?.remove(); },
       };
     } } : {}),
     Buttons: (opts: Record<string, unknown>): PayPalSdkButtonInstance => {
@@ -320,8 +322,10 @@ export function buildV6Adapter(
           let orderFailed = false;
           const payment = Promise.resolve().then(() => config.createOrder?.()).then(value => ({ orderId: token(value) }))
             .catch((error: unknown) => { orderFailed = true; throw error; });
-          // App switch, then popup, modal, and redirect. Each call stays a
-          // separate object literal so the SDK overload keeps its mode.
+          // Desktop: auto keeps the PayPal popup inside the click gesture.
+          // direct-app-switch with autoRedirect would navigate the page away.
+          if (!paypalAppSwitchEligible()) return orderSession.start({ presentationMode: "auto" }, payment);
+          // Phone or tablet: app switch, then popup, modal, and redirect.
           return startWithFallback([
             (order) => orderSession.start({ presentationMode: "direct-app-switch", autoRedirect: { enabled: true } }, order),
             (order) => orderSession.start({ presentationMode: "popup" }, order),

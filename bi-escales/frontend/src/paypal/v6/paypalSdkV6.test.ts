@@ -112,7 +112,7 @@ describe("v6 payment session adapters", () => {
     expect(host.querySelector("paypal-button")).toBeTruthy();
     host.querySelector("paypal-button")!.dispatchEvent(new MouseEvent("click"));
     await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
-    expect(start.mock.calls[0][0]).toEqual({ presentationMode: "direct-app-switch", autoRedirect: { enabled: true } });
+    expect(start.mock.calls[0][0]).toEqual({ presentationMode: "auto" });
     await expect(start.mock.calls[0][1]).resolves.toEqual({ orderId: "TEST-ORDER" });
     await sessionCallbacks.onApprove({ orderId: "TEST-ORDER" });
     expect(onApprove).toHaveBeenCalledOnce();
@@ -121,7 +121,8 @@ describe("v6 payment session adapters", () => {
     host.remove();
   });
 
-  it("falls back from app switch to popup, and stops when the buyer cancels", async () => {
+  it("falls back from app switch to popup on a phone, and stops when the buyer cancels", async () => {
+    const agent = vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X)");
     const start = vi.fn()
       .mockRejectedValueOnce(Object.assign(new Error("switch unavailable"), { isRecoverable: true, code: "APP_SWITCH_FAILED" }))
       .mockResolvedValueOnce(undefined);
@@ -144,6 +145,7 @@ describe("v6 payment session adapters", () => {
     await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
     expect(cancelled).toHaveBeenCalledOnce();
     safePayPalClose(second.instance);
+    agent.mockRestore();
     host.remove();
   });
 
@@ -302,8 +304,9 @@ it("renders v6 Pay Later messages using the native element and currency", async 
   expect(createLearnMore).toHaveBeenCalledWith({
     amount: "50.00", currencyCode: "EUR", buyerCountry: "FR", presentationMode: "MODAL",
   });
+  expect(element.presentationMode).toBe("MODAL");
   element.dispatchEvent(new MouseEvent("click"));
-  expect(open).toHaveBeenCalledOnce();
+  expect(open).not.toHaveBeenCalled();
   await message.close!(); expect(host.children).toHaveLength(0);
 });
 

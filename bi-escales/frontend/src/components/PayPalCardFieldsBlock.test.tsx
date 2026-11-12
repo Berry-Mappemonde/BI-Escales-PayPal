@@ -85,6 +85,40 @@ describe("Card Fields checkout", () => {
     expect(screen.queryByText(/Pledge error/)).toBeNull();
     expect(authorizePledge).not.toHaveBeenCalled();
     expect(callbacks.billingAddress()).toEqual({ countryCode: "FR", postalCode: "17000" });
+    fireEvent.change(screen.getByTestId("paypal-card-country"), { target: { value: "9" } });
+    expect(callbacks.billingAddress().countryCode).toBe("FR");
+  });
+  it("shows one decline message and accepts a later card", async () => {
+    vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "AUTHORIZE" });
+    const pledge = stubPledge({ id: "P", payment_mode: "AUTHORIZE", order_id: "O", intent: "AUTHORIZE" });
+    vi.mocked(createPledge).mockResolvedValue(pledge);
+    vi.mocked(authorizePledge).mockResolvedValue(pledge);
+    let attempt = 0;
+    const CardFields = vi.fn((config) => ({
+      isEligible: () => true,
+      NumberField: () => ({ render: vi.fn().mockResolvedValue(undefined), close: vi.fn() }),
+      ExpiryField: () => ({ render: vi.fn().mockResolvedValue(undefined), close: vi.fn() }),
+      CVVField: () => ({ render: vi.fn().mockResolvedValue(undefined), close: vi.fn() }),
+      submit: async () => {
+        await config.createOrder();
+        attempt += 1;
+        if (attempt === 1) {
+          const error = new Error("INSTRUMENT_DECLINED");
+          config.onError(error);
+          throw error;
+        }
+      },
+    }));
+    render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={{ CardFields } as never} />);
+    await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("paypal-card-submit"));
+    await waitFor(() => expect(screen.getAllByText(/Pledge error/)).toHaveLength(1));
+    expect(screen.getByText(/INSTRUMENT_DECLINED/)).toBeTruthy();
+    expect(authorizePledge).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("paypal-card-submit"));
+    await waitFor(() => expect(authorizePledge).toHaveBeenCalledWith("P"));
+    expect(screen.queryByText(/Pledge error/)).toBeNull();
+    expect(createPledge).toHaveBeenCalledTimes(2);
   });
   it("closes all rendered fields on unmount", async () => {
     vi.mocked(createPledge).mockResolvedValue(stubPledge({ id: "P", order_id: "O" }));

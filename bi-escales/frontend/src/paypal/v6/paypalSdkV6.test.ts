@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { currentPayPalJsVersion, notePayPalJsFeatures, resetPayPalJsVersionForTests } from "../paypalJsVersion";
 import {
   buildV6Adapter,
   loadPayPalSdk,
@@ -75,6 +76,32 @@ describe("PayPal Web SDK v6 core", () => {
     } finally {
       script.remove();
     }
+  });
+
+  it("uses v5 only when the v6 core fails to load", async () => {
+    resetPayPalJsVersionForTests();
+    notePayPalJsFeatures({ paypal_js_v6: true });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    v6Window.paypal = { createInstance: vi.fn().mockRejectedValue(new Error("createInstance down")) };
+    await expect(loadPayPalSdk("load-fail-client", "en")).rejects.toThrow(/createInstance down/);
+    expect(currentPayPalJsVersion()).toBe("v5");
+    expect(warn).toHaveBeenCalledOnce();
+    resetPayPalJsVersionForTests();
+  });
+
+  it("stays on v6 when eligibility fails", async () => {
+    resetPayPalJsVersionForTests();
+    notePayPalJsFeatures({ paypal_js_v6: true });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    v6Window.paypal = {
+      createInstance: vi.fn().mockResolvedValue({
+        findEligibleMethods: vi.fn().mockRejectedValue(new Error("eligibility down")),
+      }),
+    };
+    await expect(loadPayPalSdk("eligibility-client", "en", "capture", false, "EUR")).rejects.toThrow(/eligibility down/);
+    expect(currentPayPalJsVersion()).toBe("v6");
+    expect(warn).not.toHaveBeenCalled();
+    resetPayPalJsVersionForTests();
   });
 
   it("requires a client ID", async () => {

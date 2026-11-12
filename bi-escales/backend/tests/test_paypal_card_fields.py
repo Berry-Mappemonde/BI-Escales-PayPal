@@ -104,6 +104,8 @@ def test_card_sca_always_is_sandbox_only(monkeypatch):
         return_url="https://example.com/r", cancel_url="https://example.com/c",
     )
     assert bodies[0]["payment_source"]["card"]["attributes"]["verification"]["method"] == "SCA_ALWAYS"
+    client.charge_vaulted("VAULT1", "10.00", "ref-vault", "card", idempotency_key="vault-charge-1")
+    assert bodies[1]["payment_source"]["card"]["attributes"]["verification"]["method"] == "SCA_WHEN_REQUIRED"
     monkeypatch.setenv("PAYPAL_ENV", "live")
     assert card_sca_method() == "SCA_WHEN_REQUIRED"
 

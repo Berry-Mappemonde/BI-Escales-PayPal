@@ -699,23 +699,36 @@ async def sync_milestone_shells(export: Optional[dict[str, Any]] = None) -> list
     payload = export if export is not None else await fetch_naviguide_export()
     rows = escales_to_milestones(payload)
     ledger = get_ledger()
+    # One read of every milestone, then a write only for a stop that is missing or
+    # whose schedule fields changed. The schedule is read on every page load: writing
+    # each stop back unchanged cost three database round trips per stop, every time.
+    stored = {str(doc.get("_id")): doc for doc in await ledger.list_milestones() if doc}
     synced: list[dict[str, Any]] = []
     for row in rows:
-        doc = await ledger.ensure_milestone(
-            row["_id"],
-            meta={
-                "title": row.get("title"),
-                "display_name": row.get("display_name"),
-                "arrival_iso": row.get("arrival_iso"),
-                "departure_iso": row.get("departure_iso") or row.get("arrival_iso"),
-                "capture_on": "arrival",
-                "lat": row.get("lat"),
-                "lon": row.get("lon"),
-                "source": row.get("source"),
-            },
-        )
-        synced.append(doc)
+        meta = {
+            "title": row.get("title"),
+            "display_name": row.get("display_name"),
+            "arrival_iso": row.get("arrival_iso"),
+            "departure_iso": row.get("departure_iso") or row.get("arrival_iso"),
+            "capture_on": "arrival",
+            "lat": row.get("lat"),
+            "lon": row.get("lon"),
+            "source": row.get("source"),
+        }
+        existing = stored.get(str(row["_id"]))
+        if existing is not None and _meta_already_stored(existing, meta):
+            synced.append(existing)
+            continue
+        synced.append(await ledger.ensure_milestone(row["_id"], meta=meta))
     return synced
+
+
+def _meta_already_stored(doc: dict[str, Any], meta: dict[str, Any]) -> bool:
+    """True when writing ``meta`` onto ``doc`` would change nothing (``ensure_milestone`` merges keys)."""
+    current = doc.get("meta")
+    if not isinstance(current, dict):
+        return False
+    return all(key in current and current[key] == value for key, value in meta.items())
 
 
 async def sync_leg_shells() -> list[dict[str, Any]]:

@@ -1,32 +1,31 @@
 import { studioTheme } from "ag-studio";
 
-/** Night theme aligned with the BI Escales shell (see styles/app.css). */
-export const escalesStudioTheme = studioTheme.withParams(
-  {
-    fontFamily: '"Segoe UI", system-ui, sans-serif',
-    fontSize: 14,
-    backgroundColor: "#122a42",
-    foregroundColor: "#e8f1facc",
-    textColor: "#e8f1fa",
-    subtleTextColor: "#9fb6cc",
-    accentColor: "#3d9be9",
-    borderColor: "#3d9be955",
-    iconColor: "#9fb6cc",
-    rowHoverColor: "#3d9be922",
-    browserColorScheme: "dark",
-    studioWrapperBackgroundColor: "#0b1f33",
-    studioCanvasBackgroundColor: "#0b1f33",
-    studioCanvasPadding: 12,
-    studioWidgetBackgroundColor: "#122a42",
-    studioWidgetBorderRadius: 8,
-    gridHeaderBackgroundColor: "#0e2438",
-    gridHeaderTextColor: "#9fb6cc",
-    gridCellTextColor: "#e8f1fa",
-    chartAxisLineColor: "#3d9be955",
-    chartPaletteFills1Color: "#3d9be9",
-    chartPaletteFills2Color: "#7fd992",
-    chartPaletteFills3Color: "#e8b84a",
-    chartPaletteFills4Color: "#f07178",
-  },
-  "escales-night",
-);
+const theme = studioTheme.withParams({
+  fontFamily: "var(--font-sans)",
+  fontSize: 13,
+  backgroundColor: "var(--color-panel)",
+  foregroundColor: "var(--color-fg)",
+  textColor: "var(--color-fg)",
+  subtleTextColor: "var(--color-fg-2)",
+  accentColor: "var(--color-accent)",
+  borderColor: "var(--color-line)",
+  iconColor: "var(--color-fg-2)",
+  rowHoverColor: "var(--color-raised)",
+  studioWrapperBackgroundColor: "var(--color-canvas)",
+  studioCanvasBackgroundColor: "var(--color-canvas)",
+  studioCanvasPadding: 12,
+  studioWidgetBackgroundColor: "var(--color-panel)",
+  studioWidgetBorderRadius: "var(--radius-panel)",
+  gridHeaderBackgroundColor: "var(--color-raised)",
+  gridHeaderTextColor: "var(--color-fg-2)",
+  gridCellTextColor: "var(--color-fg)",
+  chartAxisLineColor: "var(--color-line)",
+  chartPaletteFills1Color: "var(--color-accent)",
+  chartPaletteFills2Color: "var(--color-status-captured)",
+  chartPaletteFills3Color: "var(--color-status-held)",
+  chartPaletteFills4Color: "var(--color-status-refunded)",
+});
+
+export const escalesStudioTheme = theme
+  .withParams({ browserColorScheme: "dark" }, "dark")
+  .withParams({ browserColorScheme: "light" }, "light");

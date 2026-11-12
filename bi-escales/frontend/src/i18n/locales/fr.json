@@ -168,6 +168,7 @@
     "cancelledStop": "Que se passe-t-il si une escale est annulée ?",
     "whereIsBoat": "Où est le bateau ?",
     "yourMessage": "Votre question",
+    "youAsked": "Votre question : {{question}}",
     "chatPlaceholder": "20 milles près de Mayotte",
     "sendChat": "Demander au capitaine",
     "agenticConfirmInvoice": "Confirmer — créer la facture PayPal (bac à sable)",

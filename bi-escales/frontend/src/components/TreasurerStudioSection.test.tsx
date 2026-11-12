@@ -20,13 +20,15 @@ vi.mock("./TreasurerStudio", () => {
   };
 });
 
-async function renderSection() {
+async function renderSection(adminKey = "test-key", demo = false) {
   const { TreasurerStudioSection } = await import("./TreasurerStudioSection");
-  return render(
+  const section = (key: string, isDemo: boolean) => (
     <I18nextProvider i18n={i18n}>
-      <TreasurerStudioSection pledges={[]} />
-    </I18nextProvider>,
+      <TreasurerStudioSection adminKey={key} demo={isDemo} />
+    </I18nextProvider>
   );
+  const rendered = render(section(adminKey, demo));
+  return { ...rendered, changeAccess: (key: string, isDemo: boolean) => rendered.rerender(section(key, isDemo)) };
 }
 
 afterEach(() => {
@@ -55,6 +57,20 @@ describe("TreasurerStudioSection", () => {
     expect(imported.count).toBe(1);
     expect(screen.queryByTestId("studio-stub")).not.toBeInTheDocument();
     expect(screen.getByTestId("treasurer-studio-open")).toHaveFocus();
+  });
+
+  it("hides the entry until access is available and closes an open dashboard when access changes", async () => {
+    vi.stubEnv("VITE_ENABLE_AG_STUDIO", "1");
+    const { changeAccess } = await renderSection("", false);
+    expect(screen.queryByTestId("treasurer-studio-open")).not.toBeInTheDocument();
+
+    changeAccess("test-key", false);
+    fireEvent.click(screen.getByTestId("treasurer-studio-open"));
+    expect(await screen.findByTestId("studio-stub")).toBeInTheDocument();
+
+    changeAccess("", true);
+    expect(screen.queryByTestId("studio-stub")).not.toBeInTheDocument();
+    expect(screen.getByTestId("treasurer-studio-open")).toBeInTheDocument();
   });
 
   it("garde l’app en vie si Studio échoue", async () => {

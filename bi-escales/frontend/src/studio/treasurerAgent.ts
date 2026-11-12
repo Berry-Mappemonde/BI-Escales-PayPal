@@ -6,12 +6,15 @@ import {
   directLlmRunner,
 } from "ag-studio";
 import {
+  FUNDING_WIDGET_ID,
+  FUNDING_WIDGET_TYPE,
   nextDataAgentAction,
   nextTreasurerAction,
   VALIDATION_NOTE_ID,
   VALIDATION_WIDGET_TYPE,
 } from "./agentPlan";
-import { studioT } from "./locale";
+import { dashboardCopy } from "./dashboardLocale";
+import { studioLanguage, studioT } from "./locale";
 import { proxyLlmAdapter } from "./llmAdapter";
 
 export { AgStudioAiModule };
@@ -53,15 +56,23 @@ export function treasurerSpeech(userText: string, toolMessageCount: number, lang
   const action = nextTreasurerAction(userText, toolMessageCount, language);
   if (action.kind === "delegate-data") return t("studio.agentDelegating");
   if (action.kind === "add-validation-widget") return t("studio.agentAdding");
-  const added = userText.length > 0 && toolMessageCount > 1;
-  return added ? t("studio.agentReplyAdded") : t("studio.agentReply");
+  const copy = dashboardCopy(studioLanguage(language));
+  if (action.kind === "add-funding-widget") return copy.agentAdding;
+  if (toolMessageCount > 1) {
+    const placed = nextTreasurerAction(userText, 1, language);
+    if (placed.kind === "add-funding-widget") return copy.agentAdded;
+    if (placed.kind === "add-validation-widget") return t("studio.agentReplyAdded");
+  }
+  return t("studio.agentReply");
 }
 
 export function treasurerPromptStarters(language?: string) {
   const t = studioT(language);
+  const copy = dashboardCopy(studioLanguage(language));
   return [
     { label: t("studio.promptTotals"), prompt: t("studio.promptTotalsText") },
     { label: t("studio.promptWidget"), prompt: t("studio.promptWidgetText") },
+    { label: copy.promptFunding, prompt: copy.promptFundingText },
   ];
 }
 
@@ -74,32 +85,34 @@ export function treasurerAgentProfile(language?: string) {
   };
 }
 
-async function* runTreasurer(input: AgAiRunInput): AsyncGenerator<AgAiEvent> {
+async function* runTreasurer(input: AgAiRunInput, language?: string): AsyncGenerator<AgAiEvent> {
   const userText = lastUserText(input.messages);
-  const toolCount = toolMessageCount(input.messages);
-  const action = nextTreasurerAction(userText, toolCount);
+  const lastUser = input.messages.map((message) => message.role).lastIndexOf("user");
+  const toolCount = toolMessageCount(input.messages.slice(lastUser + 1));
+  const action = nextTreasurerAction(userText, toolCount, language);
   const stamp = `${input.runId}-${input.messages.length}`;
   if (action.kind === "delegate-data") {
-    yield* say(stamp, treasurerSpeech(userText, toolCount));
+    yield* say(stamp, treasurerSpeech(userText, toolCount, language));
     yield* callTool(`delegate-${stamp}`, "delegate_to", {
       type: { id: "data" },
       instructions: action.instructions,
     });
     return;
   }
-  if (action.kind === "add-validation-widget") {
-    yield* say(stamp, treasurerSpeech(userText, toolCount));
+  if (action.kind === "add-validation-widget" || action.kind === "add-funding-widget") {
+    const funding = action.kind === "add-funding-widget";
+    yield* say(stamp, treasurerSpeech(userText, toolCount, language));
     yield* callTool(`add-${stamp}`, "add_widget", {
-      widgetId: VALIDATION_NOTE_ID,
-      type: VALIDATION_WIDGET_TYPE,
+      widgetId: funding ? FUNDING_WIDGET_ID : VALIDATION_NOTE_ID,
+      type: funding ? FUNDING_WIDGET_TYPE : VALIDATION_WIDGET_TYPE,
       xTrack: 0,
-      yTrack: 27,
+      yTrack: funding ? 38 : 27,
       xSpan: 24,
-      ySpan: 11,
+      ySpan: funding ? 14 : 11,
     });
     return;
   }
-  yield* say(stamp, treasurerSpeech(userText, toolCount));
+  yield* say(stamp, treasurerSpeech(userText, toolCount, language));
 }
 
 /** Runs one treasurer turn and returns the text the reader sees. */
@@ -116,8 +129,8 @@ export async function spokenTreasurerReply(userText: string, priorToolMessages =
   return text;
 }
 
-async function* runBuiltInData(input: AgAiRunInput): AsyncGenerator<AgAiEvent> {
-  const action = nextDataAgentAction(toolMessageCount(input.messages), lastToolText(input.messages));
+async function* runBuiltInData(input: AgAiRunInput, language?: string): AsyncGenerator<AgAiEvent> {
+  const action = nextDataAgentAction(toolMessageCount(input.messages), lastToolText(input.messages), language);
   const stamp = `${input.runId}-${input.messages.length}`;
   if (action.kind === "view-schema") {
     yield* callTool(`schema-${stamp}`, "view_schema", {});
@@ -136,7 +149,7 @@ export function createTreasurerHarness(endpoint: string | undefined, language?: 
             ...builtIn.data,
             schema: (shape) => shape.undefined(),
             maxTurns: 4,
-            run: runBuiltInData,
+            run: (input) => runBuiltInData(input, language),
           });
       const llmSpecialists = adapter
         ? (["page", "planning", "widget"] as const).map((id) =>
@@ -156,7 +169,7 @@ export function createTreasurerHarness(endpoint: string | undefined, language?: 
           tools.studio.addWidget(),
           tools.delegateTo(["data"]),
         ],
-        run: runTreasurer,
+        run: (input) => runTreasurer(input, language),
       });
       return {
         agents: [tresorier, dataAgent, ...llmSpecialists],

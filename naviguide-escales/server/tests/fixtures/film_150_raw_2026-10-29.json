@@ -145,7 +145,7 @@
    "id": "leg-7",
    "tA": "2027-01-20T07:42:44Z",
    "tB": "2027-01-20T21:40:45Z",
-   "text": "Le 20 janvier, à Halifax (Nouvelle-Écosse), l'équipage embarque sur un second voilier pour Saint-Pierre (Saint-Pierre-et-Miquelon). 497 milles, trois jours de mer. Arrivée à Saint-Pierre (Saint-Pierre-et-Miquelon) le 20 janvier.",
+   "text": "Le 20 janvier, à Halifax (Nouvelle-Écosse), l'équipage embarque sur un second voilier pour Saint-Pierre (Saint-Pierre-et-Miquelon). 497 milles, moins d'un jour de mer. Arrivée à Saint-Pierre (Saint-Pierre-et-Miquelon) le 20 janvier.",
    "anchors": [
     {
      "charIdx": 0,
@@ -153,7 +153,7 @@
      "kind": "depart"
     },
     {
-     "charIdx": 164,
+     "charIdx": 168,
      "t": "2027-01-20T21:40:45Z",
      "place": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
      "kind": "escale"
@@ -166,7 +166,7 @@
    "id": "leg-8",
    "tA": "2027-01-20T21:40:45Z",
    "tB": "2027-01-22T11:53:40Z",
-   "text": "Le 20 janvier, à Saint-Pierre (Saint-Pierre-et-Miquelon), l'équipage reprend un second voilier pour Halifax (Nouvelle-Écosse). 417 milles, cinq jours de mer. Arrivée à Halifax (Nouvelle-Écosse) le 22 janvier.",
+   "text": "Le 20 janvier, à Saint-Pierre (Saint-Pierre-et-Miquelon), l'équipage reprend un second voilier pour Halifax (Nouvelle-Écosse). 417 milles, deux jours de mer. Arrivée à Halifax (Nouvelle-Écosse) le 22 janvier.",
    "anchors": [
     {
      "charIdx": 0,

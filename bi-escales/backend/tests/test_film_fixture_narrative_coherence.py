@@ -65,13 +65,13 @@ def _leg_days(t_a: str, t_b: str) -> float:
 
 
 def _cabin_sea_bounds(cabin: dict) -> dict[str, tuple[str, str]]:
+    """Sea window per film leg. Legs 6–9 (Halifax side trip) use their slice of the Cayenne hold."""
     bounds = film_leg_bounds(cabin)
-    out: dict[str, tuple[str, str]] = {}
-    for leg_id, (_, _, dep, arr) in bounds.items():
-        if leg_id in {"leg-6", "leg-7", "leg-8", "leg-9"}:
-            continue
-        out[leg_id] = (dep, arr)
-    return out
+    return {leg_id: (dep, arr) for leg_id, (_, _, dep, arr) in bounds.items()}
+
+
+# Halifax ↔ Saint-Pierre passages on the second boat: the spoken sea days must match the window.
+HALIFAX_PASSAGES = {"leg-7", "leg-8"}
 
 
 def _anchor_dt(leg: dict, kind: str) -> datetime | None:
@@ -299,11 +299,20 @@ def run_film_fixture_narrative_coherence(
                     f"{fixture_name}:{source} {leg_id}: integral fuzzy sea {expected_phrase!r}"
                 )
 
-        if leg_id in cabin_bounds and leg_id not in {"leg-6", "leg-7", "leg-8", "leg-9"}:
+        if leg_id in cabin_bounds:
             dep_iso, arr_iso = cabin_bounds[leg_id]
             sea_days = _leg_days(dep_iso, arr_iso)
             expected_phrase = spoken_sea_days(sea_days, "en" if en else "fr")
-            strict_sea = source == "raw" or leg_id in {f"leg-{n}" for n in range(13, 18)}
+            strict_sea = (
+                source == "raw"
+                or leg_id in {f"leg-{n}" for n in range(13, 18)}
+                or leg_id in HALIFAX_PASSAGES
+            )
+            if leg_id in HALIFAX_PASSAGES:
+                assert expected_phrase in text, (
+                    f"{fixture_name}:{source} {leg_id}: expected {expected_phrase!r} "
+                    f"(window {sea_days:.2f}d) in {text!r}"
+                )
             if strict_sea and ("de mer" in text or "at sea" in text):
                 quoted = _parse_sea_days_numeric(text, en=en)
                 fuzzy = any(
@@ -366,10 +375,22 @@ def run_film_fixture_narrative_coherence(
             assert dep_cited == (dep_anchor.month, dep_anchor.day)
 
         if leg_id == "leg-7":
-            if en:
-                assert "497 miles" in text and "three days at sea" in text
-            else:
-                assert "497 milles" in text and "trois jours de mer" in text
+            assert ("497 miles" if en else "497 milles") in text
+
+        # Spoken sea days never exceed the calendar days between the cited departure and arrival.
+        if "de mer" in text or "at sea" in text:
+            quoted = _parse_sea_days_numeric(text, en=en)
+            dep_cited = _en_departure_date(text) if en else _fr_departure_date(text)
+            arr_cited = _en_arrival_date(text) if en else _fr_arrival_date(text)
+            if quoted is not None and dep_cited and arr_cited and dep_cited[0] == arr_cited[0]:
+                span = arr_cited[1] - dep_cited[1]
+                assert quoted <= span + 1, (
+                    f"{fixture_name}:{source} {leg_id}: {quoted:g} days at sea between "
+                    f"{dep_cited} and {arr_cited} in {text!r}"
+                )
+
+        if not en and re.search(r"\bde Halifax\b", text):
+            raise AssertionError(f"{fixture_name}:{source} {leg_id}: 'de Halifax' instead of 'd'Halifax'")
 
         if leg_id == "leg-17":
             blob = text.lower()

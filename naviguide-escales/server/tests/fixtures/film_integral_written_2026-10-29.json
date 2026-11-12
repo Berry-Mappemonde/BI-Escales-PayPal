@@ -149,7 +149,7 @@
     "tB": "2027-01-20T21:40:45Z",
     "fromName": "Halifax (Nouvelle-Écosse)",
     "toName": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
-    "text": "Le 20 janvier, à Halifax (Nouvelle-Écosse), l'équipage embarque sur un second voilier pour Saint-Pierre (Saint-Pierre-et-Miquelon). 497 milles, trois jours de mer. Puis, le vent tourne à l'ouest : huit nœuds, la moyenne de saison. Puis, les vents d'ouest s'installent : douze nœuds, la moyenne de saison. Arrivée à Saint-Pierre (Saint-Pierre-et-Miquelon) le 20 janvier, amarré au port de Saint-Pierre (Saint-Pierre-et-Miquelon).",
+    "text": "Le 20 janvier, à Halifax (Nouvelle-Écosse), l'équipage embarque sur un second voilier pour Saint-Pierre (Saint-Pierre-et-Miquelon). 497 milles, moins d'un jour de mer. Puis, le vent tourne à l'ouest : huit nœuds, la moyenne de saison. Puis, les vents d'ouest s'installent : douze nœuds, la moyenne de saison. Arrivée à Saint-Pierre (Saint-Pierre-et-Miquelon) le 20 janvier, amarré au port de Saint-Pierre (Saint-Pierre-et-Miquelon).",
     "anchors": [
      {
       "charIdx": 0,
@@ -157,7 +157,7 @@
       "kind": "depart"
      },
      {
-      "charIdx": 164,
+      "charIdx": 168,
       "t": "2027-01-20T21:40:45Z",
       "place": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
       "kind": "escale"
@@ -170,7 +170,7 @@
     "tB": "2027-01-22T11:53:40Z",
     "fromName": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
     "toName": "Halifax (Nouvelle-Écosse)",
-    "text": "Le 20 janvier, à Saint-Pierre (Saint-Pierre-et-Miquelon), l'équipage reprend un second voilier pour Halifax (Nouvelle-Écosse). 417 milles, cinq jours de mer. Arrivée à Halifax (Nouvelle-Écosse) le 22 janvier, amarré au port d'Halifax (Nouvelle-Écosse).",
+    "text": "Le 20 janvier, à Saint-Pierre (Saint-Pierre-et-Miquelon), l'équipage reprend un second voilier pour Halifax (Nouvelle-Écosse). 417 milles, deux jours de mer. Arrivée à Halifax (Nouvelle-Écosse) le 22 janvier, amarré au port d'Halifax (Nouvelle-Écosse).",
     "anchors": [
      {
       "charIdx": 0,
@@ -191,7 +191,7 @@
     "tB": "2027-01-22T13:41:36Z",
     "fromName": "Halifax (Nouvelle-Écosse)",
     "toName": "Cayenne (Guyane)",
-    "text": "Le 22 janvier, l'équipage s'envole de Halifax pour Cayenne.",
+    "text": "Le 22 janvier, l'équipage s'envole d'Halifax pour Cayenne.",
     "anchors": [
      {
       "charIdx": 0,
@@ -519,7 +519,7 @@
     "tB": "2027-01-20T21:40:45Z",
     "fromName": "Halifax (Nouvelle-Écosse)",
     "toName": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
-    "text": "On January 20, in Halifax (Nova Scotia), the crew boards a second vessel for Saint-Pierre (Saint Pierre and Miquelon). 497 miles, three days at sea. Then, the wind turns west: eight knots, the seasonal average. Then, the westerly winds set in: twelve knots, the seasonal average. Arrival at Saint-Pierre (Saint Pierre and Miquelon) on January 20, moored at Saint-Pierre (Saint Pierre and Miquelon) port.",
+    "text": "On January 20, in Halifax (Nova Scotia), the crew boards a second vessel for Saint-Pierre (Saint Pierre and Miquelon). 497 miles, less than a day at sea. Then, the wind turns west: eight knots, the seasonal average. Then, the westerly winds set in: twelve knots, the seasonal average. Arrival at Saint-Pierre (Saint Pierre and Miquelon) on January 20, moored at Saint-Pierre (Saint Pierre and Miquelon) port.",
     "anchors": [
      {
       "charIdx": 0,
@@ -527,7 +527,7 @@
       "kind": "depart"
      },
      {
-      "charIdx": 164,
+      "charIdx": 168,
       "t": "2027-01-20T21:40:45Z",
       "place": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
       "kind": "escale"
@@ -540,7 +540,7 @@
     "tB": "2027-01-22T11:53:40Z",
     "fromName": "Saint-Pierre (Saint-Pierre-et-Miquelon)",
     "toName": "Halifax (Nouvelle-Écosse)",
-    "text": "On January 20, at Saint-Pierre (Saint-Pierre-et-Miquelon), the crew takes on a second vessel for Halifax (Nova Scotia). 417 miles, five days at sea. Arrival in Halifax (Nova Scotia) on January 22, moored at the Halifax (Nova Scotia) port.",
+    "text": "On January 20, at Saint-Pierre (Saint Pierre and Miquelon), the crew takes on a second vessel for Halifax (Nova Scotia). 417 miles, two days at sea. Arrival in Halifax (Nova Scotia) on January 22, moored at the Halifax (Nova Scotia) port.",
     "anchors": [
      {
       "charIdx": 0,

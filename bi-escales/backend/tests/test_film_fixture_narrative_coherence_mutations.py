@@ -80,9 +80,27 @@ def _leg(payload: dict, lang: str, leg_id: str) -> dict:
             lambda p: _leg(p, "fr", "leg-6").update({"tA": "2027-01-18T00:00:00Z"}),
         ),
         (
-            "reintroduce_2027_01_20_split",
+            "reintroduce_leg7_three_days_fr",
             lambda p: _leg(p, "fr", "leg-7").update(
-                {"text": _leg(p, "fr", "leg-7")["text"].replace("trois jours de mer", "un jour de mer", 1)}
+                {"text": _leg(p, "fr", "leg-7")["text"].replace("moins d'un jour de mer", "trois jours de mer", 1)}
+            ),
+        ),
+        (
+            "reintroduce_leg7_three_days_en",
+            lambda p: _leg(p, "en", "leg-7").update(
+                {"text": _leg(p, "en", "leg-7")["text"].replace("less than a day at sea", "three days at sea", 1)}
+            ),
+        ),
+        (
+            "reintroduce_leg8_five_days",
+            lambda p: _leg(p, "fr", "leg-8").update(
+                {"text": _leg(p, "fr", "leg-8")["text"].replace("deux jours de mer", "cinq jours de mer", 1)}
+            ),
+        ),
+        (
+            "reintroduce_de_halifax",
+            lambda p: _leg(p, "fr", "leg-9").update(
+                {"text": _leg(p, "fr", "leg-9")["text"].replace("d'Halifax", "de Halifax", 1)}
             ),
         ),
         (

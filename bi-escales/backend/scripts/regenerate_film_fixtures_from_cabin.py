@@ -49,6 +49,11 @@ _EN_MONTHS = (
     "December",
 )
 
+# The Halifax side trip (legs 6–9) and leg 10 templates below keep their original August
+# wording. Their dates ("Le 18 août", "On August 19", "le 14 octobre"…) and sea-day counts
+# ("trois jours de mer", "five days at sea", "46 jours de mer"…) are PLACEHOLDERS: apply_leg
+# rewrites them at run time from the cabin schedule (patch_halifax_text, replace_sea_days_in_text,
+# scrub_integral_dates). Fix the schedule or those functions, not the numbers in these strings.
 RAW_HALIFAX_FR: dict[str, str] = {
     "leg-6": "Le 18 août, l'équipage s'envole de Cayenne pour Halifax ; le catamaran attend à Cayenne.",
     "leg-7": (
@@ -81,7 +86,7 @@ INTEGRAL_HALIFAX_FR: dict[str, str] = {
         "Halifax (Nouvelle-Écosse). 417 milles, cinq jours de mer. "
         "Arrivée à Halifax (Nouvelle-Écosse) le 28 août, amarré au port d'Halifax (Nouvelle-Écosse)."
     ),
-    "leg-9": "Le 28 août, l'équipage s'envole de Halifax pour Cayenne.",
+    "leg-9": "Le 28 août, l'équipage s'envole d'Halifax pour Cayenne.",
 }
 
 INTEGRAL_HALIFAX_EN: dict[str, str] = {
@@ -98,7 +103,7 @@ INTEGRAL_HALIFAX_EN: dict[str, str] = {
         "moored at Saint-Pierre (Saint Pierre and Miquelon) port."
     ),
     "leg-8": (
-        "On August 23, at Saint-Pierre (Saint-Pierre-et-Miquelon), the crew takes on a second vessel "
+        "On August 23, at Saint-Pierre (Saint Pierre and Miquelon), the crew takes on a second vessel "
         "for Halifax (Nova Scotia). 417 miles, five days at sea. "
         "Arrival in Halifax (Nova Scotia) on August 28, moored at the Halifax (Nova Scotia) port."
     ),
@@ -430,12 +435,17 @@ def apply_leg(
                 f"Arrival at Ajaccio (Corsica) on {en_day_month(arr_dt)}, moored at Ajaccio (Corsica) marina. "
                 "Three days' stopover."
             )
-    elif leg_id in RAW_HALIFAX_FR and not integral:
-        leg["text"] = patch_halifax_text(RAW_HALIFAX_FR[leg_id], parse_iso(t_a), parse_iso(t_b), lang="fr")
-    elif leg_id in INTEGRAL_HALIFAX_FR and integral and lang == "fr":
-        leg["text"] = patch_halifax_text(INTEGRAL_HALIFAX_FR[leg_id], parse_iso(t_a), parse_iso(t_b), lang="fr")
-    elif leg_id in INTEGRAL_HALIFAX_EN and integral and lang == "en":
-        leg["text"] = patch_halifax_text(INTEGRAL_HALIFAX_EN[leg_id], parse_iso(t_a), parse_iso(t_b), lang="en")
+    elif leg_id in RAW_HALIFAX_FR:
+        # Halifax ↔ Saint-Pierre: the sea days are the passage's own window in the schedule
+        # (NAVIGUIDE's _side_hop_metrics caps them the same way), never the template's count.
+        if not integral:
+            template, text_lang = RAW_HALIFAX_FR[leg_id], "fr"
+        elif lang == "fr":
+            template, text_lang = INTEGRAL_HALIFAX_FR[leg_id], "fr"
+        else:
+            template, text_lang = INTEGRAL_HALIFAX_EN[leg_id], "en"
+        template = replace_sea_days_in_text(template, sea, en=text_lang == "en")
+        leg["text"] = patch_halifax_text(template, parse_iso(t_a), parse_iso(t_b), lang=text_lang)
     elif leg_id == "leg-10" and not integral and lang == "fr":
         text = RAW_LEG10_FR
         text = replace_sea_days_in_text(text, sea, en=False)

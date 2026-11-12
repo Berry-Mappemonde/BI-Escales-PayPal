@@ -238,6 +238,28 @@ describe("stop panel", () => {
     });
   });
 
+  describe("mile certificate", () => {
+    it("says before paying that a certificate follows a miles pledge", async () => {
+      await show();
+      const note = screen.getByTestId("mile-certificate-promise");
+      expect(note).toHaveTextContent(/personal certificate appears here to download/);
+      expect(note).toHaveTextContent(/a note written by the AI Captain/);
+      // Nothing to download yet: that block only comes with a successful pledge.
+      expect(screen.queryByTestId("mile-certificate-receipt")).toBeNull();
+    });
+
+    it("says it in French too", async () => {
+      await i18n.changeLanguage("fr");
+      await show();
+      expect(screen.getByTestId("mile-certificate-promise")).toHaveTextContent(/un mot rédigé par le Capitaine IA/);
+    });
+
+    it("says nothing about a certificate for the other kinds", async () => {
+      await show({ pledge: pledge("berth_night") });
+      expect(screen.queryByTestId("mile-certificate-promise")).toBeNull();
+    });
+  });
+
   describe("logbook", () => {
     const logbookSection = () => screen.getByTestId("escale-logbook");
 

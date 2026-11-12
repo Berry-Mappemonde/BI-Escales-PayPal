@@ -1,9 +1,10 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { captainChat, createPayPalInvoice } from "../api/escales";
 import { isCaptainRateLimitMessage } from "../api/captainRateLimit";
 import type { CaptainChatResponse, PublicPledge } from "../api/types";
 import { CaptainToolTrace } from "./captain/CaptainToolTrace";
+import { MileCertificateDownload } from "./MileCertificateDownload";
 import { PledgeButton } from "./PledgeButton";
 
 export interface EscalesPanelProps {
@@ -30,6 +31,16 @@ export function EscalesPanel({
   const [agenticNote, setAgenticNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A miles pledge made from the cart: its certificate is offered right under the cart.
+  const [mileReceipt, setMileReceipt] = useState<PublicPledge | null>(null);
+  // Stable, because the PayPal buttons are drawn again whenever this function changes.
+  const onCartAuthorized = useCallback(
+    (pledge: PublicPledge) => {
+      if (pledge?.kind === "mile") setMileReceipt(pledge);
+      onAuthorized?.(pledge);
+    },
+    [onAuthorized],
+  );
 
   const onChat = async (event: FormEvent) => {
     event.preventDefault();
@@ -104,11 +115,12 @@ export function EscalesPanel({
                   {line.pledge ? (
                     <PledgeButton
                       values={{ ...line.pledge, quantity: Number.isInteger(Number(line.quantity)) ? Number(line.quantity) : undefined, lang: line.pledge.lang || lang }}
-                      onAuthorized={onAuthorized}
+                      onAuthorized={onCartAuthorized}
                     />
                   ) : null}
                 </div>
               ))}
+              <MileCertificateDownload pledge={mileReceipt} contributor={mileReceipt?.contributor || undefined} />
             </div>
           ) : null}
         </div>

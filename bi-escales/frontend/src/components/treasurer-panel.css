@@ -138,7 +138,7 @@
 }
 
 .treasurer-panel .treasurer-panel-body .treasurer-webhooks caption {
-  padding: 0 0 var(--space-1);
+  padding: var(--space-3) 0 var(--space-1);
   text-align: start;
 }
 

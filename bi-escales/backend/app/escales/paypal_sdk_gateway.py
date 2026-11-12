@@ -18,7 +18,7 @@ from __future__ import annotations
 import datetime as dt
 import importlib
 import logging
-from collections.abc import MutableMapping
+from collections.abc import Callable, MutableMapping
 import math
 import os
 import random
@@ -115,7 +115,12 @@ class _PassthroughHeaders:
             self._inner.on_after_response(http_response)
 
 
-def _with_passthrough(run: Any, *, mock_response: str | None = None, request_id: str | None = None) -> dict[str, Any]:
+def _with_passthrough(
+    run: Callable[[], dict[str, Any]],
+    *,
+    mock_response: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
     headers: dict[str, str] = {}
     mock = (mock_response or "").strip()
     if mock:

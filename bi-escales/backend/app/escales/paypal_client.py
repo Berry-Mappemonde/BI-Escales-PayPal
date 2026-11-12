@@ -431,6 +431,15 @@ class PayPalClient:
     ) -> Any:
         if not path.startswith("/") or path.startswith("//"):
             raise ValueError("PayPal requests must use a sandbox-relative path")
+        if method == "POST" and path == "/v2/checkout/orders" and content is None:
+            # Select the transport before OAuth. A failed SDK write is never replayed.
+            idempotency_key = idempotency_key or str(uuid.uuid4())
+            delegated = self._sdk_writes(
+                "create_order", json, idempotency_key=idempotency_key,
+                mock_response=self.mock_response,
+            )
+            if delegated is not None:
+                return delegated
         headers = {
             "Authorization": f"Bearer {self._access_token()}",
             "Content-Type": "application/json",

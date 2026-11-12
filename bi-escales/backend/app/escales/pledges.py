@@ -992,8 +992,6 @@ async def _create_capture_pledge(
     pledge_id = uuid.uuid4().hex
     idempotency_key = key or uuid.uuid4().hex
     method = _normalize_checkout_method(checkout_method)
-    if method == "card":
-        raise ValueError("project_pledge uses PayPal wallet checkout only")
     back = _callback_url(
         _http_url(return_url, order_return_url(), "return_url", caller_origin=caller_origin),
         pledge_id,
@@ -1008,6 +1006,7 @@ async def _create_capture_pledge(
     from app.channel3_paypal import format_paypal_amount_value
 
     paypal_amount = format_paypal_amount_value(amount, pledge_currency)
+    method_options = {"checkout_method": "card"} if method == "card" else {}
     order = _create_capture_order(
         client,
         amount_eur=paypal_amount,
@@ -1018,6 +1017,7 @@ async def _create_capture_pledge(
         cancel_url=cancel,
         checkout_locale=checkout_locale,
         currency_code=pledge_currency,
+        **method_options,
     )
     order_id = order.get("id")
     if not order_id:
@@ -1357,11 +1357,37 @@ def _require_status(pledge: dict, expected: str | tuple[str, ...], target: str) 
         raise IllegalTransition(str(current), target)
 
 
+def _require_card_capture_approval(order: dict) -> None:
+    """Fail closed on unknown/failed 3DS; use PayPal's server response matrix."""
+    if str(order.get("status") or "").upper() not in {"APPROVED", "COMPLETED"}:
+        raise ValueError("card order not approved yet")
+    card = (order.get("payment_source") or {}).get("card") or {}
+    auth = card.get("authentication_result") or {}
+    # SCA_WHEN_REQUIRED may not request authentication. PayPal then returns an
+    # approved card source without authentication_result, not an UNKNOWN result.
+    if ("authentication_result" not in card and str(order.get("status") or "").upper() == "APPROVED"
+            and card.get("last_digits") and card.get("brand")):
+        return
+    three_ds = auth.get("three_d_secure") or {}
+    enrolled = str(three_ds.get("enrollment_status") or "").upper()
+    status = str(three_ds.get("authentication_status") or "").upper()
+    liability = str(auth.get("liability_shift") or "").upper()
+    authenticated = enrolled == "Y" and status in {"Y", "A"} and liability == "POSSIBLE"
+    exempt = enrolled in {"N", "U", "B"} and not status and liability == "NO"
+    if not (authenticated or exempt):
+        raise ValueError("card authentication incomplete or declined; retry or choose another payment method")
+
+
 async def _capture_order_pledge(pledge_id: str, client: Any, pledge: dict) -> dict:
     """Capture a CAPTURE-intent order after the buyer approved on PayPal."""
     _require_status(pledge, "created", "captured")
     order_id = str(pledge.get("order_id") or "")
-    if not _buyer_approved(client, order_id):
+    if pledge.get("checkout_method") == "card":
+        getter = getattr(client, "get_card_order", None) or getattr(client, "get_order", None)
+        if not callable(getter):
+            raise ValueError("card approval cannot be verified")
+        _require_card_capture_approval(getter(order_id) or {})
+    elif not _buyer_approved(client, order_id):
         raise ValueError("order not approved yet")
     capture = getattr(client, "capture_order", None)
     if capture is None:
@@ -1423,7 +1449,13 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     pledge = await require_pledge(pledge_id)
     mode = str(pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE")
     if mode == "CAPTURE":
-        return await _capture_order_pledge(pledge_id, client, pledge)
+        async with _serialize_pledge_authorize(pledge_id):
+            pledge = await require_pledge(pledge_id)
+            if pledge.get("status") == "pending":
+                return await _refresh_pending_capture(pledge, client)
+            if pledge.get("status") in {"captured", "settled"}:
+                return pledge
+            return await _capture_order_pledge(pledge_id, client, pledge)
     async with _serialize_pledge_authorize(pledge_id):
         pledge = await require_pledge(pledge_id)
         if str(pledge.get("status") or "") == "authorized":
@@ -1691,7 +1723,38 @@ async def mark_token_delete_pending(pledge_id: str, detail: str) -> dict:
     return saved
 
 
+async def _refresh_pending_capture(pledge: dict, client: Any) -> dict:
+    """Reconcile the existing capture; PENDING never permits a second charge."""
+    capture_id = str(pledge.get("capture_id") or "")
+    if not capture_id:
+        raise ValueError("pending payment has no capture ID; await PayPal reconciliation")
+    payload = client.get_capture(capture_id)
+    status, returned_id, _ = read_capture_result(payload)
+    if returned_id != capture_id:
+        raise PayPalError(502, "Pending capture identity mismatch")
+    if status == "PENDING":
+        return pledge
+    if status not in {"COMPLETED", "DECLINED", "FAILED", "DENIED"}:
+        raise PayPalError(502, "Pending capture returned an unresolved status")
+    await _record_capture_attempt_outcome(pledge, payload)
+    return await _finish_capture(
+        pledge, payload,
+        finance={"payment_mode": pledge.get("payment_mode") or "AUTHORIZE"},
+        client=client,
+    )
+
+
 async def capture_pledge(
+    pledge_id: str,
+    client: Any,
+    *,
+    effective_at: Optional[dt.datetime] = None,
+) -> dict:
+    async with _serialize_pledge_authorize(pledge_id):
+        return await _capture_pledge_locked(pledge_id, client, effective_at=effective_at)
+
+
+async def _capture_pledge_locked(
     pledge_id: str,
     client: Any,
     *,
@@ -1699,6 +1762,9 @@ async def capture_pledge(
 ) -> dict:
     pledge = await require_pledge(pledge_id)
     from .departure_clock import refuse_early_capture
+
+    if pledge.get("status") == "pending":
+        return await _refresh_pending_capture(pledge, client)
 
     mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
     if mode == "VAULT":

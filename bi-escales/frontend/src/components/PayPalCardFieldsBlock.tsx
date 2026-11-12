@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./PayPalCardFieldsBlock.css";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { authorizePledge, createPledge, fetchPledgeMode, fetchPledgeStatus, isVaultPledge, registerVault } from "../api/escales";
@@ -332,11 +333,11 @@ export function PayPalCardFieldsBlock({
       ) : null}
       <div data-testid="paypal-card-checkout" hidden={Boolean(confirmed)}>
         <p className="hint">{t(immediateDonation ? "pledge.cardFieldsImmediateHint" : "pledge.cardFieldsHint")}</p>
-        <div className="card-field-row">
-          <div ref={numberRef} data-testid="paypal-card-number" />
-          <div ref={expiryRef} data-testid="paypal-card-expiry" />
-          <div ref={cvvRef} data-testid="paypal-card-cvv" />
-          <div ref={nameRef} data-testid="paypal-card-name" />
+        <div className="card-field-hosts">
+          <div ref={numberRef} className="card-field-host" data-testid="paypal-card-number" />
+          <div ref={expiryRef} className="card-field-host" data-testid="paypal-card-expiry" />
+          <div ref={cvvRef} className="card-field-host" data-testid="paypal-card-cvv" />
+          <div ref={nameRef} className="card-field-host" data-testid="paypal-card-name" />
         </div>
         <label className="card-field-row">
           {t("pledge.cardPostalLabel")}

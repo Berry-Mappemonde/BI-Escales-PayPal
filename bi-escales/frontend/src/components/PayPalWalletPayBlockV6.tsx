@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "./PayPalWalletPayBlockV6.css";
 import { authorizePledge, createPledge } from "../api/escales";
 import {
   safePayPalClose,

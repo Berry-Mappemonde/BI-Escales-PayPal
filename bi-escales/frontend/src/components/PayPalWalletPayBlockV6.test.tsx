@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,6 +19,16 @@ function show(paypal: Record<string, unknown>, onAuthorized = vi.fn()) {
     </I18nextProvider>,
   );
 }
+
+describe("Google Pay button artwork", () => {
+  it("draws the PayPal artwork once instead of tiling it", () => {
+    const css = readFileSync(resolve(process.cwd(), "src/components/PayPalWalletPayBlockV6.css"), "utf8");
+    expect(css).toMatch(/background-repeat:\s*no-repeat/);
+    expect(css).toMatch(/background-size:\s*contain/);
+    expect(css).toMatch(/background-position:\s*center/);
+    expect(css).not.toMatch(/background-repeat:\s*repeat/);
+  });
+});
 
 describe("PayPalWalletPayBlockV6", () => {
   beforeEach(async () => {

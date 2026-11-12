@@ -728,6 +728,8 @@
   },
   "projectOnboarding": {
     "featureOff": "Onboard-after-payment is disabled (ESCALES_ONBOARD_AFTER_PAYMENT_ENABLED).",
+    "notFound": "This project was not found. Check the link or return to the map.",
+    "loadError": "Could not load the project. Reload the page to try again.",
     "loading": "Loading project…",
     "sandboxBanner": "Sandbox test — no real funds movement.",
     "walletOnly": "PayPal wallet only (card fields hidden for this project).",

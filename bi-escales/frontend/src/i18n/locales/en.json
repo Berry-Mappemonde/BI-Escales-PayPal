@@ -142,7 +142,8 @@
     "projectTotals": "Project pledges",
     "boatTotals": "Common fund",
     "publicCommon": "Common fund · {{balance}}",
-    "publicCommonEmpty": "Common fund · Be the first to give"
+    "publicCommonEmpty": "Common fund · Be the first to give",
+    "publicCommonUsed": "Common fund · {{balance}} · {{received}} received, all put to use"
   },
   "cabinLegPicker": {
     "label": "Choose a voyage leg",

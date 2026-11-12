@@ -142,7 +142,8 @@
     "projectTotals": "Promesses projet",
     "boatTotals": "Fonds commun",
     "publicCommon": "Caisse commune · {{balance}}",
-    "publicCommonEmpty": "Caisse commune · Soyez le premier à donner"
+    "publicCommonEmpty": "Caisse commune · Soyez le premier à donner",
+    "publicCommonUsed": "Caisse commune · {{balance}} · {{received}} reçus, entièrement utilisés"
   },
   "cabinLegPicker": {
     "label": "Choisir une jambe de voyage",

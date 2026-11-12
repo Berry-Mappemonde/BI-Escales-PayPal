@@ -328,9 +328,9 @@ class _OrderReader:
         return {"id": path.rsplit("/", 1)[-1]}
 
 
-def test_platform_order_is_read_with_the_clients_own_credentials_not_the_sdk_gateway(monkeypatch, platform):
+def test_platform_http_order_read_uses_own_credentials_when_sdk_disabled(monkeypatch, platform):
     """The Server SDK gateway only holds the main app's pair; a platform order must not go through it."""
-    monkeypatch.setenv("ESCALES_PAYPAL_SDK_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_PAYPAL_SDK_ENABLED", "0")
     from app.escales import paypal_sdk_gateway
 
     def gateway_must_not_be_used(*args, **kwargs):

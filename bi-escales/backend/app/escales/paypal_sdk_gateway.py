@@ -87,13 +87,16 @@ def build_sandbox_client(
     *,
     http_client_instance: Any = None,
     http_call_back: Any = None,
+    client_id: str | None = None,
+    client_secret: str | None = None,
 ) -> Any:
     """Build a sandbox client. Does not replace the cached client."""
     if not _flag_enabled():
         raise RuntimeError("PayPal SDK reads are disabled")
     _require_sandbox()
-    client_id = os.environ.get("PAYPAL_CLIENT_ID") or ""
-    client_secret = os.environ.get("PAYPAL_CLIENT_SECRET") or ""
+    if client_id is None and client_secret is None:
+        client_id = os.environ.get("PAYPAL_CLIENT_ID") or ""
+        client_secret = os.environ.get("PAYPAL_CLIENT_SECRET") or ""
     if not client_id or not client_secret:
         raise RuntimeError(
             "PayPal SDK gateway needs PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET"
@@ -264,8 +267,8 @@ def _retry_delay(exc: Exception, attempt: int) -> float | None:
     return float(min(10.0, max(0.25 * (2 ** attempt), retry_after) + random.uniform(0, 0.25)))
 
 
-def _execute(controller_name: str, operation: str, *args: Any) -> dict[str, Any]:
-    sdk = client()
+def _execute(controller_name: str, operation: str, *args: Any, sdk: Any = None) -> dict[str, Any]:
+    sdk = sdk if sdk is not None else client()
     controller = getattr(sdk, controller_name)
     operation_fn = getattr(controller, operation)
     last_error: Exception | None = None

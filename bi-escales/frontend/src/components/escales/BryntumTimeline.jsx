@@ -27,7 +27,69 @@ export const BRYNTUM_TIMELINE_IMPORTS = [
   "@bryntum/scheduler-community/locales/scheduler.locale.FrFr.js",
   "@bryntum/scheduler-community/scheduler.css",
   "@bryntum/scheduler-community/svalbard-light.css",
+  // Loaded on its own, only while the shell is dark (loadBryntumDarkThemeCss).
+  "@bryntum/scheduler-community/svalbard-dark.css?inline",
 ];
+
+/**
+ * A Bryntum theme is a set of variables for the whole page, so the light and the
+ * dark set cannot both apply. The light set is loaded with the widget; the dark
+ * one is added after it as its own style element while the shell is dark, and
+ * removed again for the light shell.
+ */
+const DARK_THEME_STYLE = "style[data-bryntum-theme=\"dark\"]";
+let darkThemeCss;
+
+export function loadBryntumDarkThemeCss() {
+  darkThemeCss ??= import("@bryntum/scheduler-community/svalbard-dark.css?inline")
+    .then((mod) => String(mod.default || ""))
+    .catch(() => {
+      darkThemeCss = undefined;
+      return "";
+    });
+  return darkThemeCss;
+}
+
+/** Puts the page's Bryntum theme in line with the shell theme. Returns when it is applied. */
+export async function applyBryntumTheme(theme, loadCss = loadBryntumDarkThemeCss) {
+  if (typeof document === "undefined") return;
+  const existing = document.head.querySelector(DARK_THEME_STYLE);
+  if (theme !== "dark") {
+    existing?.remove();
+    return;
+  }
+  if (existing) return;
+  const css = await loadCss();
+  // The shell may have switched back while the file was on its way.
+  if (!css || document.documentElement.dataset.theme === "light" || document.head.querySelector(DARK_THEME_STYLE)) return;
+  const style = document.createElement("style");
+  style.dataset.bryntumTheme = "dark";
+  style.textContent = css;
+  document.head.appendChild(style);
+}
+
+function shellTheme() {
+  return typeof document !== "undefined" && document.documentElement.dataset.theme === "light" ? "light" : "dark";
+}
+
+/** The shell theme lives on <html data-theme>; follow it. */
+function useShellTheme() {
+  const [theme, setTheme] = useState(shellTheme);
+  useEffect(() => {
+    if (typeof MutationObserver === "undefined") return undefined;
+    const observer = new MutationObserver(() => setTheme(shellTheme()));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  }, []);
+  return theme;
+}
+
+/** Row and header heights of the timeline, and the tallest it may grow before it scrolls. */
+const ROW_HEIGHT = 32;
+const HEADER_HEIGHT = 64;
+const MAX_HEIGHT = 420;
+/** Width of the stop-name column where the timeline is narrow (the rail). */
+const NAME_WIDTH = 132;
 
 export function loadBryntumTimelineModules() {
   if (!timelineModulesPromise) {
@@ -79,10 +141,24 @@ export function resolveSchedulerWidget(schedulerRef, hostRef) {
 }
 
 /**
+ * The date the timeline opens on. The voyage clock (`ESCALES_CLOCK_NOW`, via
+ * the API clock) keeps the current stops on screen. Without a clock, the first
+ * stop is used so the axis does not open on the middle of the voyage.
+ */
+export function timelineCenterDate(clockNow, events) {
+  const parsed = clockNow instanceof Date ? clockNow : clockNow ? new Date(clockNow) : null;
+  if (parsed && !Number.isNaN(parsed.getTime())) return parsed;
+  const first = events?.[0]?.startDate;
+  return first instanceof Date && !Number.isNaN(first.getTime()) ? first : null;
+}
+
+/**
  * Regenerate every time-axis header cell after a locale switch.
  * `refreshTimeAxis(true)` alone can leave the last partial day cell in the previous language (e.g. `16 nov.`).
+ * Reapplying the preset with both span dates and no center date scrolls to the
+ * middle of the voyage, so the center date is the voyage clock (or the axis start).
  */
-export function rebuildTimelineTimeAxisHeaders(widget) {
+export function rebuildTimelineTimeAxisHeaders(widget, centerDate) {
   if (!widget) return;
 
   if (widget.isPainted && typeof widget.onLocaleChange === "function") {
@@ -110,13 +186,19 @@ export function rebuildTimelineTimeAxisHeaders(widget) {
     if (presetRecord) {
       const startDate = widget.startDate;
       const endDate = widget.endDate;
-      presetRecord.options = { ...(presetRecord.options ?? {}), startDate, endDate };
+      const center = centerDate instanceof Date && !Number.isNaN(centerDate.getTime()) ? centerDate : startDate;
+      presetRecord.options = {
+        ...(presetRecord.options ?? {}),
+        startDate,
+        endDate,
+        ...(center ? { centerDate: center } : {}),
+      };
       widget.viewPreset = presetRecord;
     }
   }
 }
 
-export async function syncTimelineLocale({ schedulerRef, hostRef, modules, i18n, lng }) {
+export async function syncTimelineLocale({ schedulerRef, hostRef, modules, i18n, lng, centerDate }) {
   const localeName = bryntumLocaleForLanguage(lng);
   const widget = resolveSchedulerWidget(schedulerRef, hostRef);
   const localeManager = widget?.localeManager ?? modules?.LocaleManager;
@@ -126,7 +208,7 @@ export async function syncTimelineLocale({ schedulerRef, hostRef, modules, i18n,
       await applyResult;
     }
   }
-  rebuildTimelineTimeAxisHeaders(widget);
+  rebuildTimelineTimeAxisHeaders(widget, centerDate);
   const heading = i18n.t("scheduler.heading", { lng });
   const column = widget?.columns?.first;
   if (column) {
@@ -146,7 +228,7 @@ export function runTimelineLocaleSyncWithRetries(ctx) {
 
   const trySync = () => {
     if (cancelled) return;
-    void syncTimelineLocale(ctx).then(({ widget }) => {
+    void syncTimelineLocale({ ...ctx, centerDate: ctx.centerRef?.current ?? ctx.centerDate }).then(({ widget }) => {
       if (cancelled) return;
       if (widget || attempt >= TIMELINE_LOCALE_SYNC_MAX_ATTEMPTS - 1) {
         return;
@@ -166,12 +248,25 @@ export function runTimelineLocaleSyncWithRetries(ctx) {
   };
 }
 
-export default function BryntumTimeline({ events, onSelect, fallback }) {
+const NO_EXTRA_COLUMNS = [];
+
+export default function BryntumTimeline({
+  events,
+  onSelect,
+  fallback,
+  nameWidth = NAME_WIDTH,
+  maxHeight = MAX_HEIGHT,
+  // More text columns beside the stop's name: [{ text, field, width }], the field read from each event.
+  extraColumns = NO_EXTRA_COLUMNS,
+  /** Voyage clock (`ESCALES_CLOCK_NOW`). The visible window opens around this instant. */
+  clockNow = null,
+}) {
   const { t, i18n } = useTranslation();
   const [modules, setModules] = useState(null);
   const [failed, setFailed] = useState(false);
   const schedulerRef = useRef(null);
   const hostRef = useRef(null);
+  const centerRef = useRef(null);
   const loadGenerationRef = useRef(0);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -196,7 +291,7 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
 
   useEffect(() => {
     if (!modules) return undefined;
-    const ctx = { schedulerRef, hostRef, modules, i18n };
+    const ctx = { schedulerRef, hostRef, modules, i18n, centerRef };
 
     let cancelActiveSync = runTimelineLocaleSyncWithRetries({ ...ctx, lng: i18n.language });
 
@@ -211,14 +306,29 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
     };
   }, [modules, i18n]);
 
-  const resources = useMemo(() => [{ id: "route", name: "BI Escales" }], []);
+  // The widget takes the shell's theme, and follows a switch.
+  const theme = useShellTheme();
+  useEffect(() => {
+    if (modules) void applyBryntumTheme(theme);
+  }, [modules, theme]);
+
+  // One row per stop, in route order: its name on the left, its stay as a bar.
+  const resources = useMemo(
+    () =>
+      events.map((event) => ({
+        id: event.id,
+        name: event.name,
+        ...Object.fromEntries(extraColumns.map((column) => [column.field, event[column.field] ?? ""])),
+      })),
+    [events, extraColumns],
+  );
 
   const timelineEvents = useMemo(
     () =>
       events.map((event) => ({
         id: event.id,
         name: event.name,
-        resourceId: "route",
+        resourceId: event.id,
         startDate: event.startDate,
         endDate: event.endDate,
         milestoneId: event.milestoneId,
@@ -236,6 +346,8 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
       endDate: events[events.length - 1].endDate,
     };
   }, [events]);
+  const centerDate = timelineCenterDate(clockNow, events);
+  centerRef.current = centerDate;
 
   const listeners = useMemo(
     () => ({
@@ -251,8 +363,11 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
   );
 
   const columns = useMemo(
-    () => [{ text: t("scheduler.heading"), field: "name", width: 160 }],
-    [i18n.language, t],
+    () => [
+      { text: t("scheduler.heading"), field: "name", width: nameWidth },
+      ...extraColumns.map((column) => ({ text: column.text, field: column.field, width: column.width })),
+    ],
+    [i18n.language, t, nameWidth, extraColumns],
   );
 
   const bryntumLocaleKey = bryntumLocaleForLanguage(i18n.language);
@@ -260,16 +375,23 @@ export default function BryntumTimeline({ events, onSelect, fallback }) {
   const schedulerProps = useMemo(
     () => ({
       readOnly: true,
-      height: 220,
+      rowHeight: ROW_HEIGHT,
+      height: Math.min(maxHeight, HEADER_HEIGHT + ROW_HEIGHT * Math.max(1, events.length)),
+      // Solid bars: a stay of a day or two is only a few pixels wide at this scale.
+      eventStyle: "filled",
       startDate,
       endDate,
-      viewPreset: "weekAndMonth",
+      // Opens on the voyage clock. Without this, reapplying the preset scrolls
+      // to the middle of the voyage (February–May 2027 when the clock is 12 Nov 2026).
+      ...(centerDate ? { visibleDate: { date: centerDate, block: "center" } } : {}),
+      // Months over years: the voyage lasts most of a year.
+      viewPreset: "monthAndYear",
       columns,
       resources,
       events: timelineEvents,
       listeners,
     }),
-    [startDate, endDate, columns, resources, timelineEvents, listeners],
+    [startDate, endDate, centerDate, columns, resources, timelineEvents, listeners, events.length, maxHeight],
   );
 
   if (!events.length) return fallback;

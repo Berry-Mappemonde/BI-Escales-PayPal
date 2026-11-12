@@ -41,6 +41,8 @@ class PlanSpy:
 
 
 def test_en_crew_plan_fallback_when_catalog_missing(monkeypatch):
+    """With no catalog the app offers no plan. The old hard-coded id is the 5 EUR per
+    month plan: it must not be sold under the "10 EUR per year" label (it still verifies)."""
     async def empty_hydrate(*_a, **_k):
         return None
 
@@ -50,8 +52,11 @@ def test_en_crew_plan_fallback_when_catalog_missing(monkeypatch):
     )
 
     async def body():
+        from app.escales.paypal_subscriptions import legacy_crew_plan_ids
+
         plan_id = await resolve_crew_supporter_plan_id(PlanSpy(), lang="en")
-        assert plan_id == CREW_PLAN_ID_EN_FALLBACK
+        assert plan_id is None
+        assert CREW_PLAN_ID_EN_FALLBACK in await legacy_crew_plan_ids()
 
     asyncio.run(body())
 

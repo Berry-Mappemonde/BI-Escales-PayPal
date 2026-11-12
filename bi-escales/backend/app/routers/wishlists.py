@@ -22,6 +22,7 @@ from app.channel3_wishlists import (
     set_wishlist_published,
 )
 from app.escales.config import channel3_enabled, wishlists_enabled
+from app.escales.ledger import list_finance_entries
 
 router = APIRouter(tags=["channel3-wishlists"])
 
@@ -91,7 +92,11 @@ async def get_channel3_item_fund(project_id: str):
 async def get_public_wishlists():
     _require_flags()
     rows = await list_wishlists(published_only=True)
-    return {"wishlists": [await public_wishlist_payload(row) for row in rows]}
+    # One read of the finance journal for every list and every line.
+    finance_entries = await list_finance_entries() if rows else []
+    return {
+        "wishlists": [await public_wishlist_payload(row, finance_entries=finance_entries) for row in rows]
+    }
 
 
 @router.get("/wishlists/{wishlist_id}")

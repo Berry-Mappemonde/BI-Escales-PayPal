@@ -982,11 +982,11 @@ def test_prices_and_clock(api, monkeypatch):
     assert catalogue["label"] == "prix simulé"
     kinds = [row["kind"] for row in catalogue["prices"]]
     assert kinds == [
-        "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "common_fund",
+        "mile", "project_pledge", "berth", "night", "meal", "care", "cabin_leg", "common_fund", "stop_gift",
     ]
     by_kind = {row["kind"]: row for row in catalogue["prices"]}
     fixed_kinds = ("mile", "berth", "night", "meal", "care", "cabin_leg")
-    free_kinds = ("project_pledge", "common_fund")
+    free_kinds = ("project_pledge", "common_fund", "stop_gift")
     assert all(by_kind[k]["label"] == "prix fixe" for k in fixed_kinds)
     assert all(by_kind[k]["label"] == "montant libre" for k in free_kinds)
     assert all(by_kind[k]["free_amount"] is False for k in fixed_kinds)
@@ -1359,9 +1359,7 @@ def test_unplaced_project_and_fund_totals_are_readable(api, monkeypatch):
         "milestone_id": "",
         "kind": "common_fund",
     })
-    assert client.post(
-        f"/api/escales/pledges/{boat['id']}/capture", headers=ADMIN
-    ).status_code == 200
+    assert boat["status"] == "captured"
     fund = client.get("/api/escales/milestones/fonds-commun/fund", headers=ADMIN).json()
     assert fund["income_eur"] == "12.00"
     assert fund["spending_eur"] == "0.00"
@@ -1378,10 +1376,7 @@ def test_unplaced_project_and_fund_totals_are_readable(api, monkeypatch):
         "amount_eur": "9.00",
         "description": "caisse de l'escale",
     })
-    _approve_capture(stop["milestone_id"])
-    assert client.post(
-        f"/api/escales/pledges/{stop['id']}/capture", headers=ADMIN
-    ).status_code == 200
+    assert stop["status"] == "captured"
     assert client.get("/api/escales/milestones/mayotte/fund").json()["income_eur"] == "9.00"
     assert client.get("/api/escales/milestones/fund/fund", headers=ADMIN).json()["income_eur"] == "12.00"
 
@@ -1409,19 +1404,14 @@ def _capture_open_and_stopover(client, monkeypatch):
         "milestone_id": "",
         "kind": "common_fund",
     })
-    assert client.post(
-        f"/api/escales/pledges/{boat['id']}/capture", headers=ADMIN
-    ).status_code == 200
+    assert boat["status"] == "captured"
     _created_s, stop = _ready_mayotte(client, "chat-stop", monkeypatch, {
         **MAYOTTE_PLEDGE,
         "kind": "common_fund",
         "amount_eur": "9.00",
         "description": "caisse de l'escale",
     })
-    _approve_capture(stop["milestone_id"])
-    assert client.post(
-        f"/api/escales/pledges/{stop['id']}/capture", headers=ADMIN
-    ).status_code == 200
+    assert stop["status"] == "captured"
 
 
 def test_public_chat_withholds_project_and_common_fund_totals(api, monkeypatch):
@@ -1711,3 +1701,35 @@ def test_vault_stays_off_unless_escales_vault_enabled(monkeypatch):
     assert 'value: "true"' in window
     assert "ESCALES_VAULT_RETURN_URL" in text
     assert "bi-escales-api.onrender.com/?vault=return" in text
+
+
+def test_treasurer_cannot_capture_an_already_paid_common_fund_again(api):
+    client, fake = api
+    _created, paid = _ready(client, "fund-capture-once", {
+        "amount_eur": "12.00", "description": "Common fund", "milestone_id": "", "kind": "common_fund",
+    })
+    assert paid["status"] == "captured"
+    before = len([c for c in fake.calls if c[0] == "orders.capture"])
+    response = client.post(f"/api/escales/pledges/{paid['id']}/capture", headers=ADMIN)
+    assert response.status_code == 409
+    assert len([c for c in fake.calls if c[0] == "orders.capture"]) == before == 1
+    assert client.get(f"/api/escales/pledges/{paid['id']}").json()["status"] == "captured"
+
+
+def test_scoped_clock_settle_requires_key_and_never_runs_global_settlement(api, monkeypatch):
+    client, _fake = api
+    calls = []
+    async def one(_client, milestone_id, *, now=None):
+        calls.append(milestone_id)
+        return {"milestone_id": milestone_id, "actions": []}
+    async def all_stops(*args, **kwargs):
+        raise AssertionError("scoped settlement must not touch other stops")
+    monkeypatch.setattr("app.escales.departure_clock.run_departure_clock_for_milestone", one)
+    monkeypatch.setattr("app.escales.departure_clock.run_departure_clock", all_stops)
+    body = {"milestone_id": "dep-cursor-agent-test-cancel"}
+    assert client.post("/api/escales/clock/settle", json=body).status_code == 401
+    assert calls == []
+    response = client.post("/api/escales/clock/settle", json=body, headers=ADMIN)
+    assert response.status_code == 200
+    assert response.json()["settled"]["milestone_id"] == body["milestone_id"]
+    assert calls == [body["milestone_id"]]

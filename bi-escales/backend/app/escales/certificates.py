@@ -36,7 +36,7 @@ _DEPARTURE_LABEL = "12 Nov 2026"
 
 _CAPTAIN_FALLBACK = {
     "fr": (
-        "Le Capitaine atteste que ce mil marin soutient l'expédition BI Escales. "
+        "Le Capitaine atteste que ce mille marin soutient l'expédition BI Escales. "
         "Merci pour votre confiance — nous naviguons ensemble, un mile après l'autre."
     ),
     "en": (
@@ -53,8 +53,11 @@ _LABELS = {
         "route": "Segment officiel",
         "issued": "Date d'émission",
         "departure": "Départ",
+        "project": "Projet marin le plus proche",
+        "project_distance": "({nm} milles)",
         "captain": "Mot du Capitaine",
         "footer": "BI Escales — Pay Only If We Sail · PayPal sandbox",
+        "colon": " : ",
     },
     "en": {
         "title": "Sponsored mile certificate",
@@ -63,10 +66,18 @@ _LABELS = {
         "route": "Official segment",
         "issued": "Issue date",
         "departure": "Departure",
+        "project": "Nearest marine project",
+        "project_distance": "({nm} nm)",
         "captain": "Captain's word",
         "footer": "BI Escales — Pay Only If We Sail · PayPal sandbox",
+        "colon": ": ",
     },
 }
+
+# Longest project title kept on the certificate; longer ones end with "…".
+_PROJECT_TITLE_MAX = 90
+# How long issuing waits for the live projects catalogue before using the bundled copy.
+_PROJECTS_TIMEOUT_S = 5.0
 
 _flat_route_cache: Optional[dict[str, Any]] = None
 _store: Any = None
@@ -301,6 +312,60 @@ def segment_for_miles(mile_number: int, quantity: int) -> dict[str, float]:
     }
 
 
+def nearest_project(segment: dict[str, float], features: list[Any]) -> Optional[dict[str, Any]]:
+    """Marine project closest to the sponsored segment (start, middle or end), or None.
+
+    ``features`` is the projects FeatureCollection the map shows (BI catalogue).
+    """
+    start = (float(segment["segment_start_lon"]), float(segment["segment_start_lat"]))
+    end = (float(segment["segment_end_lon"]), float(segment["segment_end_lat"]))
+    mid = (start[0] + (_unwrap_lon(start[0], end[0]) - start[0]) / 2, (start[1] + end[1]) / 2)
+    best: Optional[tuple[float, dict]] = None
+    for feature in features or []:
+        if not isinstance(feature, dict):
+            continue
+        geometry = feature.get("geometry") or {}
+        props = feature.get("properties") or {}
+        coords = geometry.get("coordinates") or []
+        title = str(props.get("title") or "").strip()
+        if geometry.get("type") != "Point" or len(coords) < 2 or not title:
+            continue
+        try:
+            lon, lat = float(coords[0]), float(coords[1])
+        except (TypeError, ValueError):
+            continue
+        if not (math.isfinite(lon) and math.isfinite(lat)):
+            continue
+        distance = min(_haversine_nm(p[0], p[1], lon, lat) for p in (start, mid, end))
+        if best is None or distance < best[0]:
+            best = (distance, props)
+    if best is None:
+        return None
+    distance, props = best
+    return {
+        "id": str(props.get("id") or ""),
+        "title": str(props.get("title") or "").strip(),
+        "funder": str(props.get("funder") or "").strip(),
+        "distance_nm": round(distance, 1),
+    }
+
+
+async def _project_features() -> list[Any]:
+    """Projects shown on the map: live BI catalogue (cached), else the bundled snapshot."""
+    from app.bi_projects_catalog import get_bi_projects_geojson, load_bundled_projects
+
+    try:
+        payload = await asyncio.wait_for(get_bi_projects_geojson(), timeout=_PROJECTS_TIMEOUT_S)
+    except Exception as exc:  # noqa: BLE001 — a certificate never fails for want of projects
+        log.info("certificate projects fallback (%s)", type(exc).__name__)
+        try:
+            payload = load_bundled_projects()
+        except Exception:  # noqa: BLE001
+            return []
+    features = payload.get("features") if isinstance(payload, dict) else None
+    return features if isinstance(features, list) else []
+
+
 def _issue_date_iso(moment: Optional[dt.datetime] = None) -> str:
     when = moment or dt.datetime.now(dt.timezone.utc)
     if when.tzinfo is None:
@@ -320,13 +385,15 @@ async def _captain_text(
     mile_number: int,
     milestone_id: str,
     lang: str,
+    project_title: str = "",
 ) -> str:
     from app.core import llm
 
     port = escale_display_name(str(milestone_id or ""))
+    nearby = f" Nearest marine project: {project_title}." if project_title else ""
     prompt = (
         f"Write 1-3 short sentences in {lang.upper()} for a mile sponsorship certificate. "
-        f"Supporter name: {display_name}. Mile number: {mile_number}. Port: {port}. "
+        f"Supporter name: {display_name}. Mile number: {mile_number}. Port: {port}.{nearby} "
         "Tone: warm, nautical, no payment amounts, no email, no PayPal."
     )
     if not llm.has_llm() or not await _consume_llm_budget():
@@ -406,11 +473,13 @@ async def ensure_certificate(
     quantity = mile_quantity_from_pledge(pledge)
     mile_number = await allocated_mile_number(pledge_id)
     segment = segment_for_miles(mile_number, quantity)
+    project = nearest_project(segment, await _project_features())
     captain_text = await _captain_text(
         display_name=label,
         mile_number=mile_number,
         milestone_id=str(pledge.get("milestone_id") or ""),
         lang=resolved_lang,
+        project_title=str((project or {}).get("title") or ""),
     )
     token = secrets.token_urlsafe(24)
     doc = {
@@ -425,6 +494,7 @@ async def ensure_certificate(
         "issue_date": _issue_date_iso(),
         "lang": resolved_lang,
         "captain_text": captain_text,
+        "nearby_project": project,
         "created_at": now_iso(),
     }
     stored = await get_certificate_store().insert_once(doc)
@@ -444,8 +514,28 @@ def captain_text_for_render(doc: dict, lang: str) -> str:
     return _CAPTAIN_FALLBACK.get(lang, _CAPTAIN_FALLBACK["en"])
 
 
-def _render_lines(doc: dict, lang: str) -> list[str]:
+def _project_line(doc: dict, lang: str) -> Optional[str]:
+    """"Nearest marine project: <title> — <n> nm away", or None when the certificate has none."""
+    project = doc.get("nearby_project")
+    if not isinstance(project, dict):
+        return None
+    title = str(project.get("title") or "").strip()
+    if not title:
+        return None
+    if len(title) > _PROJECT_TITLE_MAX:
+        title = title[: _PROJECT_TITLE_MAX - 1].rstrip() + "…"
     labels = _LABELS.get(lang, _LABELS["en"])
+    line = f"{labels['project']}{labels['colon']}{title}"
+    distance = project.get("distance_nm")
+    if isinstance(distance, (int, float)) and math.isfinite(distance):
+        line += f" {labels['project_distance'].format(nm=int(round(distance)))}"
+    return line
+
+
+def _render_lines(doc: dict, lang: str) -> list[tuple[str, str]]:
+    """(style, text) pairs; style is title, body, small or gap."""
+    labels = _LABELS.get(lang, _LABELS["en"])
+    colon = labels["colon"]
     qty = int(doc.get("mile_quantity") or 1)
     mile_label = f"{labels['mile']} {doc.get('mile_number')}"
     if qty > 1:
@@ -454,48 +544,68 @@ def _render_lines(doc: dict, lang: str) -> list[str]:
         f"{_format_coords(doc['segment_start_lat'], doc['segment_start_lon'])} → "
         f"{_format_coords(doc['segment_end_lat'], doc['segment_end_lon'])}"
     )
-    return [
-        labels["title"],
-        "",
-        f"{labels['name']}: {doc.get('display_name')}",
-        mile_label,
-        f"{labels['route']}: {seg}",
-        f"{labels['issued']}: {doc.get('issue_date')}",
-        f"{labels['departure']}: {_DEPARTURE_LABEL}",
-        "",
-        labels["captain"],
-        captain_text_for_render(doc, lang),
-        "",
-        labels["footer"],
+    lines = [
+        ("title", labels["title"]),
+        ("gap", ""),
+        ("body", f"{labels['name']}{colon}{doc.get('display_name')}"),
+        ("body", mile_label),
+        ("body", f"{labels['route']}{colon}{seg}"),
     ]
+    project = _project_line(doc, lang)
+    if project:
+        lines.append(("body", project))
+    lines += [
+        ("body", f"{labels['issued']}{colon}{doc.get('issue_date')}"),
+        ("body", f"{labels['departure']}{colon}{_DEPARTURE_LABEL}"),
+        ("gap", ""),
+        ("small", labels["captain"]),
+        ("body", captain_text_for_render(doc, lang)),
+        ("gap", ""),
+        ("small", labels["footer"]),
+    ]
+    return lines
+
+
+def _wrap(text: str, fits) -> list[str]:
+    """Split ``text`` on spaces so each piece satisfies ``fits``; a single long word stays whole."""
+    words = text.split(" ")
+    out: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}" if current else word
+        if current and not fits(candidate):
+            out.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        out.append(current)
+    return out or [""]
 
 
 def render_certificate_png(doc: dict, lang: str) -> bytes:
     from PIL import Image, ImageDraw, ImageFont
 
     width, height = 1200, 848
+    left, right = 80, width - 80
     image = Image.new("RGB", (width, height), (247, 251, 255))
     draw = ImageDraw.Draw(image)
     draw.rectangle((40, 40, width - 40, height - 40), outline=(12, 76, 110), width=4)
     font_path = str(_FONT_PATH)
-    title_font = ImageFont.truetype(font_path, 42)
-    body_font = ImageFont.truetype(font_path, 28)
-    small_font = ImageFont.truetype(font_path, 22)
+    fonts = {
+        "title": (ImageFont.truetype(font_path, 42), (12, 76, 110), 58),
+        "body": (ImageFont.truetype(font_path, 28), (20, 32, 48), 40),
+        "small": (ImageFont.truetype(font_path, 22), (40, 60, 80), 34),
+    }
     y = 80
-    for line in _render_lines(doc, lang):
-        if not line:
+    for style, text in _render_lines(doc, lang):
+        if style == "gap":
             y += 18
             continue
-        if line == _LABELS.get(lang, _LABELS["en"])["title"]:
-            draw.text((80, y), line, fill=(12, 76, 110), font=title_font)
-            y += 58
-            continue
-        if line in {_LABELS.get(lang, _LABELS["en"])["captain"], _LABELS.get(lang, _LABELS["en"])["footer"]}:
-            draw.text((80, y), line, fill=(40, 60, 80), font=small_font)
-            y += 34
-            continue
-        draw.text((80, y), line, fill=(20, 32, 48), font=body_font)
-        y += 40
+        font, fill, step = fonts[style]
+        for piece in _wrap(text, lambda s, f=font: draw.textlength(s, font=f) <= right - left):
+            draw.text((left, y), piece, fill=fill, font=font)
+            y += step
     buffer = io.BytesIO()
     image.save(buffer, format="PNG", optimize=True)
     return buffer.getvalue()
@@ -518,24 +628,20 @@ def render_certificate_pdf(doc: dict, lang: str) -> bytes:
     pdf.setDateFormatter(None)
     pdf._doc.info.CreationDate = fixed
     pdf._doc.info.ModDate = fixed
+    left = 56
+    usable = page_w - 2 * left
+    sizes = {"title": (22, 36), "body": (14, 24), "small": (11, 20)}
     y = page_h - 72
-    for line in _render_lines(doc, lang):
-        if not line:
+    for style, text in _render_lines(doc, lang):
+        if style == "gap":
             y -= 14
             continue
-        if line == _LABELS.get(lang, _LABELS["en"])["title"]:
-            pdf.setFont("DejaVuSans", 22)
-            pdf.drawString(56, y, line)
-            y -= 36
-            continue
-        if line in {_LABELS.get(lang, _LABELS["en"])["captain"], _LABELS.get(lang, _LABELS["en"])["footer"]}:
-            pdf.setFont("DejaVuSans", 11)
-            pdf.drawString(56, y, line)
-            y -= 20
-            continue
-        pdf.setFont("DejaVuSans", 14)
-        pdf.drawString(56, y, line)
-        y -= 24
+        size, step = sizes[style]
+        pdf.setFont("DejaVuSans", size)
+        fits = lambda s, n=size: pdfmetrics.stringWidth(s, "DejaVuSans", n) <= usable  # noqa: E731
+        for piece in _wrap(text, fits):
+            pdf.drawString(left, y, piece)
+            y -= step
     pdf.showPage()
     pdf.save()
     return buffer.getvalue()

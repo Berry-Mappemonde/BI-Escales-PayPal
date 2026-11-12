@@ -17,7 +17,7 @@ from typing import Any, Optional
 
 import httpx
 
-from .config import SANDBOX_BASE, EscalesConfig, order_cancel_url, order_return_url
+from .config import SANDBOX_BASE, EscalesConfig, card_sca_method, order_cancel_url, order_return_url
 from .paypal_idempotency import paypal_request_id
 from .paypal_limits import PayPalCallBudget
 
@@ -314,14 +314,19 @@ class PayPalClient:
         cancel_url: str,
         *,
         locale: Optional[str] = None,
+        user_action: str = "CONTINUE",
     ) -> dict:
-        """Checkout experience_context shared by orders and vault setup."""
+        """Checkout experience_context shared by orders and vault setup.
+
+        CAPTURE orders pass PAY_NOW so the PayPal button says Pay Now.
+        AUTHORIZE orders and vault setup stay CONTINUE.
+        """
         return {
             "brand_name": VAULT_BRAND_NAME,
             "locale": paypal_checkout_locale(locale),
             "return_url": return_url,
             "cancel_url": cancel_url,
-            "user_action": "CONTINUE",
+            "user_action": user_action,
             "shipping_preference": "NO_SHIPPING",
         }
 
@@ -431,6 +436,15 @@ class PayPalClient:
     ) -> Any:
         if not path.startswith("/") or path.startswith("//"):
             raise ValueError("PayPal requests must use a sandbox-relative path")
+        if method == "POST" and path == "/v2/checkout/orders" and content is None:
+            # Select the transport before OAuth. A failed SDK write is never replayed.
+            idempotency_key = idempotency_key or str(uuid.uuid4())
+            delegated = self._sdk_writes(
+                "create_order", json, idempotency_key=idempotency_key,
+                mock_response=self.mock_response,
+            )
+            if delegated is not None:
+                return delegated
         headers = {
             "Authorization": f"Bearer {self._access_token()}",
             "Content-Type": "application/json",
@@ -469,6 +483,7 @@ class PayPalClient:
         cancel_url: Optional[str] = None,
         checkout_locale: Optional[str] = None,
         currency_code: Optional[str] = None,
+        checkout_method: str = "paypal",
     ) -> dict:
         """Classic CAPTURE order (immediate payment after buyer approval)."""
         back = (return_url or "").strip() or order_return_url()
@@ -478,7 +493,7 @@ class PayPalClient:
             "payment_source": {
                 "paypal": {
                     "experience_context": self._experience_context(
-                        back, cancel, locale=checkout_locale,
+                        back, cancel, locale=checkout_locale, user_action="PAY_NOW",
                     ),
                 },
             },
@@ -491,6 +506,15 @@ class PayPalClient:
                 )
             ],
         }
+        if checkout_method == "card":
+            body["payment_source"] = {"card": {
+                "attributes": {"verification": {"method": card_sca_method()}},
+                "experience_context": self._experience_context(
+                    back, cancel, locale=checkout_locale, user_action="PAY_NOW",
+                ),
+            }}
+        elif checkout_method != "paypal":
+            raise ValueError("unsupported checkout method")
         return self._req(
             "POST",
             "/v2/checkout/orders",
@@ -588,7 +612,7 @@ class PayPalClient:
             "intent": "AUTHORIZE",
             "payment_source": {
                 "card": {
-                    "attributes": {"verification": {"method": "SCA_WHEN_REQUIRED"}},
+                    "attributes": {"verification": {"method": card_sca_method()}},
                     "experience_context": self._experience_context(
                         return_url, cancel_url, locale=checkout_locale,
                     ),
@@ -680,11 +704,20 @@ class PayPalClient:
 
     def reauthorize(self, authorization_id: str, *, pledge_id: Optional[str] = None) -> dict:
         ref = pledge_id or authorization_id
+        key = paypal_request_id(ref, "reauthorize")
+        delegated = self._sdk_writes(
+            "reauthorize_payment",
+            authorization_id,
+            idempotency_key=key,
+            mock_response=self.mock_response,
+        )
+        if delegated is not None:
+            return delegated
         return self._req(
             "POST",
             f"/v2/payments/authorizations/{authorization_id}/reauthorize",
             {},
-            idempotency_key=paypal_request_id(ref, "reauthorize"),
+            idempotency_key=key,
         )
 
     def _sdk_delegate(self, method: str, *args: Any, **kwargs: Any) -> Optional[dict]:
@@ -695,7 +728,7 @@ class PayPalClient:
             return None
         from . import paypal_sdk_gateway
 
-        result = getattr(paypal_sdk_gateway, method)(*args, **kwargs)
+        result = paypal_sdk_gateway._sdk_reads(self.captain_budget, method, *args, **kwargs)
         if not isinstance(result, dict):
             raise PayPalError(502, "PayPal SDK response was not an object")
         return result
@@ -723,6 +756,22 @@ class PayPalClient:
         if delegated is not None:
             return delegated
         return self._req("GET", f"/v2/checkout/orders/{order_id}")
+
+    def get_card_order(self, order_id: str) -> dict:
+        """Keep order state and explicitly request the 3DS payment-source projection."""
+        order = self.get_order(order_id)
+        source = self._sdk_reads("get_order", order_id, fields="payment_source")
+        if source is None:
+            source = self._req("GET", f"/v2/checkout/orders/{order_id}?fields=payment_source")
+        if order.get("id") != order_id or source.get("id") != order_id:
+            raise PayPalError(502, "Card approval order identity mismatch")
+        return {**order, "payment_source": source.get("payment_source") or {}}
+
+    def get_capture(self, capture_id: str) -> dict:
+        delegated = self._sdk_reads("get_captured_payment", capture_id)
+        if delegated is not None:
+            return delegated
+        return self._req("GET", f"/v2/payments/captures/{capture_id}")
 
     def get_authorization(self, authorization_id: str) -> dict:
         delegated = self._sdk_reads("get_authorized_payment", authorization_id)
@@ -786,18 +835,27 @@ class PayPalClient:
                     "usage_type": "MERCHANT",
                     "usage_pattern": "UNSCHEDULED_POSTPAID",
                     "permit_multiple_payment_tokens": False,
-                    "attributes": {"verification": {"method": "SCA_WHEN_REQUIRED"}},
+                    "attributes": {"verification": {"method": card_sca_method()}},
                     "experience_context": self._experience_context(
                         return_url, cancel_url, locale=checkout_locale,
                     ),
                 },
             },
         }
+        key = idempotency_key or paypal_request_id(customer_id, "card-setup-token")
+        delegated = self._sdk_writes(
+            "create_card_setup_token",
+            body,
+            idempotency_key=key,
+            mock_response=self.mock_response,
+        )
+        if delegated is not None:
+            return delegated
         return self._req(
             "POST",
             "/v3/vault/setup-tokens",
             body,
-            idempotency_key=idempotency_key or paypal_request_id(customer_id, "card-setup-token"),
+            idempotency_key=key,
         )
 
     def create_payment_token(self, setup_token_id: str, *, pledge_id: Optional[str] = None) -> dict:
@@ -833,6 +891,7 @@ class PayPalClient:
                 "payment_type": "UNSCHEDULED",
                 "usage": "SUBSEQUENT",
             }
+            # Merchant-initiated charge: the payer is absent, so a challenge cannot be answered.
             source_body["attributes"] = {"verification": {"method": "SCA_WHEN_REQUIRED"}}
         body = {
             "intent": "CAPTURE",
@@ -1031,6 +1090,9 @@ class PayPalClient:
                 "payment_failure_threshold": 3,
             },
         }
+        delegated = self._sdk_writes("create_billing_plan", body, idempotency_key=idempotency_key)
+        if delegated is not None:
+            return delegated
         return self._req("POST", "/v1/billing/plans", body, idempotency_key=idempotency_key)
 
     def get_subscription(self, subscription_id: str) -> dict:
@@ -1178,6 +1240,14 @@ class PayPalClient:
         return self._req("GET", f"/v2/invoicing/invoices?page={page}&page_size={page_size}&total_required=true")
 
     def delete_payment_token(self, vault_id: str) -> dict:
+        delegated = self._sdk_writes(
+            "delete_payment_token",
+            vault_id,
+            idempotency_key=paypal_request_id(vault_id, "delete-payment-token"),
+            mock_response=self.mock_response,
+        )
+        if delegated is not None:
+            return delegated
         return self._req("DELETE", f"/v3/vault/payment-tokens/{vault_id}")
 
     def verify_webhook_signature(

@@ -1,4 +1,4 @@
-import { render, screen, cleanup } from "@testing-library/react";
+import { fireEvent, render, screen, cleanup } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
 import i18n from "../../i18n";
@@ -60,6 +60,11 @@ describe("EscalesScheduler", () => {
         <EscalesScheduler schedule={schedule} planningEnabled onAuthorized={() => {}} />
       </I18nextProvider>,
     );
+    // The cabin checkouts are mounted when the visitor opens "Book a cabin on a leg".
+    expect(screen.queryByTestId("schedule-leg")).toBeNull();
+    const cabins = screen.getByTestId("schedule-cabins");
+    cabins.open = true;
+    fireEvent(cabins, new Event("toggle"));
     expect(screen.getByTestId("schedule-leg").textContent).toContain("Ajaccio");
     const cabin = screen.getByRole("button", { name: "cabin_leg" });
     expect(cabin.getAttribute("data-kind")).toBe("cabin_leg");

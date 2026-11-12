@@ -73,8 +73,10 @@ async def preview_payment_mode(milestone_id: str, kind: str = "mile") -> Payment
 
     milestone_id = milestone_id.strip()
     pledge_kind = _kind(kind)
+    if pledge_kind == "common_fund":
+        return "CAPTURE"
     if pledge_kind == "project_pledge":
-        raise ValueError("project_pledge uses PayPal wallet checkout only")
+        return "CAPTURE"
     canonical = (
         "" if pledge_kind == "common_fund" and not milestone_id
         else resolve_milestone(milestone_id)

@@ -68,6 +68,33 @@ describe("TreasurerQueue", () => {
       expect(screen.getByTestId("pledge-milestone-p-4")).not.toHaveAttribute("title");
     });
 
+    it("makes the stop name the row's main line when the pledge has no description", () => {
+      vi.mocked(captainReview).mockResolvedValue({ milestone_id: "dep-la-rochelle", proposal: "wait", pledge_ids: [] });
+      render(
+        <I18nextProvider i18n={i18n}>
+          <TreasurerQueue
+            pledges={[pledge, { ...pledge, id: "p-6", description: "" }, { ...pledge, id: "p-7", capture_id: "CAP-1" }]}
+            adminKey="key"
+            stopNames={stopNames}
+            onRefresh={() => {}}
+            onUpdated={() => {}}
+          />
+        </I18nextProvider>,
+      );
+      // With a description: description in bold, stop name as the footnote.
+      expect(within(screen.getByTestId("queue-row-p-1")).getByText("milles").tagName).toBe("STRONG");
+      expect(screen.getByTestId("pledge-milestone-p-1")).not.toHaveClass("queue-stop-primary");
+      // Without: no empty bold line, the stop name takes its place.
+      expect(screen.getByTestId("queue-row-p-6").querySelector("td:nth-child(3) strong")).toBeNull();
+      expect(screen.getByTestId("pledge-milestone-p-6")).toHaveClass("queue-stop-primary");
+      expect(screen.getByTestId("pledge-milestone-p-6")).toHaveTextContent(/^La Rochelle$/);
+      // No lone dash for a pledge PayPal has not captured; the capture id shows once there is one.
+      expect(screen.queryByTestId("capture-id-p-1")).toBeNull();
+      const descriptionCell = screen.getByTestId("queue-row-p-1").querySelector("td:nth-child(3)") as HTMLElement;
+      expect(descriptionCell.textContent).toBe("millesLa Rochelle");
+      expect(screen.getByTestId("capture-id-p-7")).toHaveTextContent("CAP-1");
+    });
+
     it("shows ids when no stop names are known yet", () => {
       show(undefined);
       expect(screen.getByTestId("pledge-milestone-p-1")).toHaveTextContent(/^dep-la-rochelle$/);

@@ -52,6 +52,21 @@ describe("DemoStopMoment", () => {
     await waitFor(() => expect(screen.queryByTestId("demo-stop-working")).toBeNull());
   });
 
+  it("names the stop, not its id, in both languages", async () => {
+    for (const lang of ["en", "fr"]) {
+      await i18n.changeLanguage(lang);
+      const { unmount } = render(
+        <I18nextProvider i18n={i18n}>
+          <DemoStopMoment adminKey="tk" onRefresh={refresh} />
+        </I18nextProvider>,
+      );
+      const section = screen.getByTestId("demo-stop-moment");
+      expect(section).toHaveTextContent("La Rochelle");
+      expect(section).not.toHaveTextContent("dep-la-rochelle");
+      unmount();
+    }
+  });
+
   it("shows FR and EN labels and wires actions", async () => {
     const user = userEvent.setup();
     await i18n.changeLanguage("fr");

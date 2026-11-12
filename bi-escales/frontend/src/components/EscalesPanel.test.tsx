@@ -20,7 +20,7 @@ describe("EscalesPanel cart", () => {
   });
 
   it.each([
-    ["fr", "20 milles près de Mayotte", "Demander au capitaine"],
+    ["fr", "Parrainer 20 milles près de Mayotte", "Demander au capitaine"],
     ["en", "Sponsor 20 miles near Mayotte", "Ask the Captain"],
   ])("starts empty with a localized placeholder in %s and refuses blank submissions", async (lang, placeholder, action) => {
     await i18n.changeLanguage(lang);
@@ -36,9 +36,13 @@ describe("EscalesPanel cart", () => {
     expect(screen.getByText(lang === "en" ? "What happens if a stop is cancelled?" : "Que se passe-t-il si une escale est annulée ?")).toBeInTheDocument();
     expect(screen.getByText(lang === "en" ? "Where is the boat?" : "Où est le bateau ?")).toBeInTheDocument();
     const prompts = screen.getByRole("list", { name: lang === "en" ? "Example questions" : "Exemples de questions" });
-    expect(prompts.querySelectorAll("li")).toHaveLength(3);
-    // Every example is a real control: the first two fill the field without sending.
-    expect(prompts.querySelectorAll("li > button")).toHaveLength(3);
+    expect(prompts.querySelectorAll("li")).toHaveLength(4);
+    // Every example is a real control: all but "Where is the boat?" fill the field without sending.
+    expect(prompts.querySelectorAll("li > button")).toHaveLength(4);
+    // The last example asks for a priced pledge: the one whose answer carries a cart.
+    fireEvent.click(screen.getByTestId("captain-example-pledge"));
+    expect(input).toHaveValue(placeholder);
+    expect(captainChat).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: lang === "en" ? "When am I charged?" : "Quand suis-je débité ?" }));
     expect(input).toHaveValue(lang === "en" ? "When am I charged?" : "Quand suis-je débité ?");
     expect(captainChat).not.toHaveBeenCalled();
@@ -100,6 +104,7 @@ describe("EscalesPanel cart", () => {
     const line = await screen.findByTestId("cart-line");
     expect(line).toHaveTextContent("20 milles parrainés — 20.00 EUR");
     expect(line).toHaveTextContent("prix simulé");
+    expect(screen.getByRole("heading", { name: "Votre panier, prêt à payer" })).toBeInTheDocument();
     expect(screen.getByTestId("paypal-buttons")).toHaveAttribute("data-kind", "mile");
     expect(screen.queryByTestId("pledge-authorize")).toBeNull();
     expect(screen.queryByRole("button", { name: /preuve/i })).toBeNull();
@@ -125,6 +130,10 @@ describe("EscalesPanel cart", () => {
     const line = await screen.findByTestId("captain-paypal-tools");
     expect(line).toHaveTextContent("transactions.search");
     expect(line).toHaveTextContent("paypal-agent-toolkit");
+    // Who answered is the first line of the trace, and the one set apart from it.
+    const model = screen.getByTestId("captain-model-label");
+    expect(model).toHaveTextContent("NVIDIA NIM — test");
+    expect(model).toHaveClass("captain-trace-model");
   });
 
   it("affiche un message convivial sur HTTP 429", async () => {

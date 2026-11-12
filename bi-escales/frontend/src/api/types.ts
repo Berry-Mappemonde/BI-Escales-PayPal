@@ -6,6 +6,8 @@ export type PledgeStatus =
   | "captured"
   | "settled"
   | "failed"
+  | "capture_failed"
+  | "charge_failed"
   | "voided"
   | "partially_refunded"
   | "refunded";
@@ -39,6 +41,10 @@ export interface PublicPledge {
   refunded_amount_eur?: string;
   pending_refund?: { key: string; amount: string } | null;
   created_at?: string;
+  /** Set by the server when an authorisation (or a saved payment method) is released, or a capture refunded. */
+  voided_at?: string;
+  vault_voided_at?: string;
+  refunded_at?: string;
   history?: string[];
 }
 
@@ -62,6 +68,8 @@ export interface FundView {
   refunded_eur?: string;
   spending_eur: string;
   balance_eur: string;
+  /** Captured minus refunded, when the server sends it. */
+  received_net_eur?: string;
   overdrawn?: boolean;
   income?: FundLine[];
   spending?: FundLine[];
@@ -292,6 +300,12 @@ export interface CaptainProposal extends CaptainTrace {
   model_source?: { provider?: string; model?: string };
   llm_proposal?: { proposal?: string | null; reason?: string | null };
   at?: string;
+  /** The schedule dates the review read for this stop or leg. */
+  naviguide_eta?: { arrival_iso?: string; departure_iso?: string };
+  /** The stop's NAVIGUIDE logbook as the review read it, cut at `at`. Absent for a cabin leg. */
+  logbook?: LogbookEntry[];
+  /** Read-only NAVIGUIDE reads behind the review. */
+  naviguide_tool_calls?: { tool: string; resource_id?: string; read_only?: boolean; status?: string; entries?: number }[];
 }
 
 export interface CartPledge {
@@ -351,6 +365,8 @@ export interface CaptainChatResponse extends CaptainTrace {
 
 export interface PledgeGaugeRow {
   milestone_id: string;
+  /** Set on the line that holds a stop's free-amount gifts (kept apart from its other pledges). */
+  kind?: "stop_gift";
   authorized_count: number;
   authorized_total_eur: number;
   captured_count: number;

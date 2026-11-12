@@ -65,6 +65,7 @@ from .paypal_client import (
 )
 
 HONOR_DAYS = 3
+STOP_GIFT_MAX_EUR = Decimal("1000.00")
 log = logging.getLogger(__name__)
 _authorize_guard = asyncio.Lock()
 _authorize_locks: dict[str, asyncio.Lock] = {}
@@ -213,7 +214,7 @@ async def _call_with_capture_idempotency(
     key = await _persist_capture_attempt(pledge)
     saved = await get_ledger().save_pledge(pledge)
     try:
-        payload = call(key)
+        payload = await asyncio.to_thread(call, key)
     except Exception as exc:
         if _is_transport_retry(exc):
             raise
@@ -304,6 +305,7 @@ PLEDGE_KINDS = (
     "care",
     "cabin_leg",
     "common_fund",
+    "stop_gift",
 )
 
 
@@ -384,7 +386,7 @@ def _kind(raw: Optional[str]) -> str:
 
 
 _TARGET_SLUG = re.compile(r"^[a-z0-9-]+$")
-_TARGET_MUST_BE_KNOWN = {"mile", "berth", "night", "meal", "care"}
+_TARGET_MUST_BE_KNOWN = {"mile", "berth", "night", "meal", "care", "stop_gift"}
 # Escale kinds and the common fund name this stopover. A project pledge does not.
 _TARGET_MUST_MATCH_MILESTONE = _TARGET_MUST_BE_KNOWN | {"common_fund"}
 # No stopover required. An empty milestone keeps this default target.
@@ -424,7 +426,7 @@ async def _known_stopover(slug: str) -> bool:
     return resolve_milestone(slug) is not None
 
 
-def _cabin_target(explicit: str, milestone_id: str) -> str:
+async def _cabin_target(explicit: str, milestone_id: str) -> str:
     """A cabin names the leg milestone. The stored target is that leg id."""
     from .naviguide_bridge import leg_by_id
 
@@ -432,6 +434,14 @@ def _cabin_target(explicit: str, milestone_id: str) -> str:
     if not _TARGET_SLUG.fullmatch(chosen):
         raise ValueError("target_id must match [a-z0-9-]+")
     leg = leg_by_id(chosen)
+    if leg is None and chosen.startswith("leg-"):
+        # Persisted legs use the same departure metadata as the timing resolver.
+        known = await get_ledger().get_milestone(chosen)
+        meta = (known or {}).get("meta") or {}
+        if meta.get("capture_on") == "departure":
+            from .departure_clock import _parse_moment
+            if _parse_moment(str(meta.get("departure_iso") or "")) is not None:
+                leg = {"id": chosen}
     if leg is None:
         raise ValueError("target_id must name a cabin leg")
     if milestone_id != leg["id"]:
@@ -450,6 +460,13 @@ async def _resolve_target(target_id: Optional[str], milestone_id: str, kind: str
     from .naviguide_bridge import resolve_milestone
 
     explicit = (target_id or "").strip()
+    if kind == "stop_gift":
+        from .departure_clock import arrival_milestone
+        arrival = await arrival_milestone(
+            {"kind": kind, "milestone_id": milestone_id}, read_only=True,
+        )
+        if arrival is None:
+            raise ValueError("stop_gift requires a known stop arrival milestone")
     if kind in _UNPLACED_TARGET and not (milestone_id or "").strip():
         if not explicit:
             return _UNPLACED_TARGET[kind]
@@ -459,7 +476,7 @@ async def _resolve_target(target_id: Optional[str], milestone_id: str, kind: str
         resolved = resolve_milestone(explicit)
         return _bare_canonical(resolved) if resolved else slug
     if kind == "cabin_leg":
-        return _cabin_target(explicit, milestone_id)
+        return await _cabin_target(explicit, milestone_id)
     if explicit and not _TARGET_SLUG.fullmatch(_target_slug(explicit)):
         raise ValueError("target_id must match [a-z0-9-]+")
     milestone_resolved = resolve_milestone(milestone_id)
@@ -824,6 +841,8 @@ async def _create_pledge(
     amount: Optional[str] = None
     if pledge_kind != "project_pledge":
         amount = normalize_amount(raw_amount)
+        if pledge_kind == "stop_gift" and Decimal(amount) > STOP_GIFT_MAX_EUR:
+            raise ValueError(f"stop_gift amount must not exceed {STOP_GIFT_MAX_EUR:.2f} EUR")
         exact = _EXACT_PRICE.get(pledge_kind)
         if exact is not None:
             exact *= quantity or 1
@@ -869,6 +888,14 @@ async def _create_pledge(
         from .naviguide_bridge import resolve_schedule_milestone
 
         await resolve_schedule_milestone(milestone_id)
+    if pledge_kind == "common_fund":
+        return await _create_capture_pledge(
+            amount=amount, description=description, milestone_id=milestone_id,
+            client=client, client_key=client_key, contributor=contributor,
+            target_id=resolved_target, kind=pledge_kind, return_url=return_url,
+            cancel_url=cancel_url, caller_origin=caller_origin,
+            checkout_locale=checkout_locale, checkout_method=checkout_method,
+        )
     if pledge_kind == "project_pledge":
         pledge_currency = "EUR"
         from app.channel3_catalog import catalog_needs_confirmation, lookup_catalog_by_project_id
@@ -972,6 +999,7 @@ async def _create_capture_pledge(
     caller_origin: Optional[str] = None,
     checkout_locale: Optional[str] = None,
     checkout_method: Optional[str] = None,
+    kind: str = "project_pledge",
     currency: str = "EUR",
 ) -> dict:
     """Project crowdfunding: CAPTURE intent, charged when the buyer approves on return."""
@@ -984,8 +1012,6 @@ async def _create_capture_pledge(
     pledge_id = uuid.uuid4().hex
     idempotency_key = key or uuid.uuid4().hex
     method = _normalize_checkout_method(checkout_method)
-    if method == "card":
-        raise ValueError("project_pledge uses PayPal wallet checkout only")
     back = _callback_url(
         _http_url(return_url, order_return_url(), "return_url", caller_origin=caller_origin),
         pledge_id,
@@ -1000,7 +1026,8 @@ async def _create_capture_pledge(
     from app.channel3_paypal import format_paypal_amount_value
 
     paypal_amount = format_paypal_amount_value(amount, pledge_currency)
-    order = _create_capture_order(
+    method_options = {"checkout_method": "card"} if method == "card" else {}
+    order = await asyncio.to_thread(_create_capture_order,
         client,
         amount_eur=paypal_amount,
         description=description,
@@ -1010,6 +1037,7 @@ async def _create_capture_pledge(
         cancel_url=cancel,
         checkout_locale=checkout_locale,
         currency_code=pledge_currency,
+        **method_options,
     )
     order_id = order.get("id")
     if not order_id:
@@ -1028,7 +1056,7 @@ async def _create_capture_pledge(
         "amount_eur": amount,
         "description": description,
         "milestone_id": milestone_id,
-        "kind": "project_pledge",
+        "kind": kind,
         "target_id": target_id,
         "contributor": (contributor or "").strip() or None,
         "order_id": order_id,
@@ -1110,9 +1138,9 @@ async def _create_authorize_pledge(
     )
     platform_fees_on_order = False
     if method == "card":
-        order = _create_card_authorize_order(client, **order_kwargs)
+        order = await asyncio.to_thread(_create_card_authorize_order, client, **order_kwargs)
     elif vault_on_purchase_enabled():
-        order = _create_authorize_vault_order(client, **order_kwargs)
+        order = await asyncio.to_thread(_create_authorize_vault_order, client, **order_kwargs)
     else:
         from .config import (
             paypal_berth_platform_fees_on_order,
@@ -1122,7 +1150,7 @@ async def _create_authorize_pledge(
         )
 
         if kind == "berth" and paypal_berth_platform_fees_on_order(target_id):
-            order = client.create_authorize_order(
+            order = await asyncio.to_thread(client.create_authorize_order,
                 **order_kwargs,
                 payee_merchant_id=marina_seller_merchant_id(target_id),
                 platform_fee_eur=platform_fee_eur(),
@@ -1130,7 +1158,7 @@ async def _create_authorize_pledge(
             )
             platform_fees_on_order = True
         else:
-            order = _create_authorize_order(client, **order_kwargs)
+            order = await asyncio.to_thread(_create_authorize_order, client, **order_kwargs)
     order_id = order.get("id")
     if not order_id:
         raise PayPalError(502, "order id missing")
@@ -1212,7 +1240,7 @@ async def _create_vault_pledge(
     back = _vault_callback_url(vault_return_url(), pledge_id, "return")
     cancel = _vault_callback_url(vault_cancel_url(), pledge_id, "cancel")
     if method == "card":
-        setup = _create_card_setup_token(
+        setup = await asyncio.to_thread(_create_card_setup_token,
             client,
             return_url=back,
             cancel_url=cancel,
@@ -1221,7 +1249,7 @@ async def _create_vault_pledge(
             checkout_locale=checkout_locale,
         )
     else:
-        setup = client.create_setup_token(
+        setup = await asyncio.to_thread(client.create_setup_token,
             back,
             cancel,
             customer_id=sponsor_customer_id(pledge_id, contributor),
@@ -1294,7 +1322,7 @@ async def admin_reauthorize_pledge(
         raise ValueError("pledge must be authorized")
     if not pledge.get("authorization_id"):
         raise ValueError("authorization_id missing")
-    changed = _prepare_authorization_capture(pledge, client, now=effective_at)
+    changed = await asyncio.to_thread(_prepare_authorization_capture, pledge, client, now=effective_at)
     if not changed:
         raise ValueError("authorization is still inside the honor period")
     return await get_ledger().save_pledge(pledge)
@@ -1318,10 +1346,10 @@ async def register_vault_pledge(
     if supplied and supplied != stored_token:
         raise ValueError("setup_token_id does not match this pledge")
     token_id = stored_token
-    shown = client.get_setup_token(token_id)
+    shown = await asyncio.to_thread(client.get_setup_token, token_id)
     if str((shown or {}).get("status") or "").upper() != "APPROVED":
         raise ValueError("setup token is not approved")
-    payment_token = client.create_payment_token(token_id, pledge_id=pledge_id)
+    payment_token = await asyncio.to_thread(client.create_payment_token, token_id, pledge_id=pledge_id)
     vault_id = vault_id_from_token(payment_token)
     pledge["status"] = "vaulted"
     pledge["vault_id"] = vault_id
@@ -1349,12 +1377,74 @@ def _require_status(pledge: dict, expected: str | tuple[str, ...], target: str) 
         raise IllegalTransition(str(current), target)
 
 
+_CARD_AUTH_DECLINED = (
+    "card authentication incomplete or declined; retry or choose another payment method"
+)
+
+
+_CARD_ORDER_READY = frozenset({"APPROVED", "COMPLETED"})
+# Card confirm (including v6 card-fields submit) can leave a succeeded 3DS order CREATED.
+_CARD_ORDER_WITH_SUCCESSFUL_3DS = _CARD_ORDER_READY | {"CREATED"}
+
+
+def _require_card_capture_approval(order: dict) -> None:
+    """Accept an approved card, or a confirmed card whose 3DS attempt succeeded."""
+    order_status = str(order.get("status") or "").upper()
+    if order_status in {"DECLINED", "DENIED", "VOIDED"}:
+        raise ValueError("card order not approved yet")
+    card = (order.get("payment_source") or {}).get("card") or {}
+    if "authentication_result" not in card:
+        if order_status not in _CARD_ORDER_READY:
+            raise ValueError("card order not approved yet")
+        return
+    auth = card.get("authentication_result") or {}
+    if not auth:
+        if order_status not in _CARD_ORDER_READY:
+            raise ValueError("card order not approved yet")
+        return
+    three_ds = auth.get("three_d_secure") or {}
+    enrolled = str(three_ds.get("enrollment_status") or "").upper()
+    status = str(three_ds.get("authentication_status") or "").upper()
+    liability = str(auth.get("liability_shift") or "").upper()
+    if liability == "UNKNOWN":
+        raise ValueError(_CARD_AUTH_DECLINED)
+    if status in {"N", "R"} or enrolled == "R":
+        raise ValueError(_CARD_AUTH_DECLINED)
+    # Liability stays with the merchant after an authentication was attempted.
+    if status and liability == "NO":
+        raise ValueError(_CARD_AUTH_DECLINED)
+    if status in {"Y", "A"} and liability in {"POSSIBLE", "YES"}:
+        if order_status not in _CARD_ORDER_WITH_SUCCESSFUL_3DS:
+            raise ValueError("card order not approved yet")
+        return
+    # Not enrolled, 3DS unavailable, or bypassed: no authentication was attempted.
+    if enrolled in {"N", "U", "B"} and not status and liability == "NO":
+        if order_status not in _CARD_ORDER_READY:
+            raise ValueError("card order not approved yet")
+        return
+    if order_status not in _CARD_ORDER_READY:
+        raise ValueError("card order not approved yet")
+    if not enrolled and not status and not liability:
+        return
+    raise ValueError(_CARD_AUTH_DECLINED)
+
+
+async def _require_buyer_approval(pledge: dict, client: Any, order_id: str) -> None:
+    """Apply the same card approval rule before capture or authorization."""
+    if pledge.get("checkout_method") == "card":
+        getter = getattr(client, "get_card_order", None) or getattr(client, "get_order", None)
+        if not callable(getter):
+            raise ValueError("card approval cannot be verified")
+        _require_card_capture_approval(await asyncio.to_thread(getter, order_id) or {})
+    elif not await asyncio.to_thread(_buyer_approved, client, order_id):
+        raise ValueError("order not approved yet")
+
+
 async def _capture_order_pledge(pledge_id: str, client: Any, pledge: dict) -> dict:
     """Capture a CAPTURE-intent order after the buyer approved on PayPal."""
     _require_status(pledge, "created", "captured")
     order_id = str(pledge.get("order_id") or "")
-    if not _buyer_approved(client, order_id):
-        raise ValueError("order not approved yet")
+    await _require_buyer_approval(pledge, client, order_id)
     capture = getattr(client, "capture_order", None)
     if capture is None:
         raise PayPalError(502, "order capture unavailable")
@@ -1385,7 +1475,7 @@ async def _finish_pledge_authorization(
         if not vault_id:
             order_id = str(pledge.get("order_id") or "")
             try:
-                refreshed = client.get_order(order_id) or {}
+                refreshed = await asyncio.to_thread(client.get_order, order_id) or {}
             except Exception:
                 refreshed = {}
             vault_id = vault_id_from_order(refreshed)
@@ -1415,7 +1505,13 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
     pledge = await require_pledge(pledge_id)
     mode = str(pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE")
     if mode == "CAPTURE":
-        return await _capture_order_pledge(pledge_id, client, pledge)
+        async with _serialize_pledge_authorize(pledge_id):
+            pledge = await require_pledge(pledge_id)
+            if pledge.get("status") == "pending":
+                return await _refresh_pending_capture(pledge, client)
+            if pledge.get("status") in {"captured", "settled", "partially_refunded", "refunded"}:
+                return pledge
+            return await _capture_order_pledge(pledge_id, client, pledge)
     async with _serialize_pledge_authorize(pledge_id):
         pledge = await require_pledge(pledge_id)
         if str(pledge.get("status") or "") == "authorized":
@@ -1424,17 +1520,16 @@ async def authorize_pledge(pledge_id: str, client: Any) -> dict:
                 return pledge
         _require_status(pledge, "created", "authorized")
         order_id = str(pledge.get("order_id") or "")
-        if not _buyer_approved(client, order_id):
-            raise ValueError("order not approved yet")
+        await _require_buyer_approval(pledge, client, order_id)
         from .departure_clock import refuse_cancelled_departure
 
         await refuse_cancelled_departure(pledge)
         try:
-            order = client.authorize_order(order_id, pledge_id=pledge_id)
+            order = await asyncio.to_thread(client.authorize_order, order_id, pledge_id=pledge_id)
         except PayPalError as exc:
             if not paypal_error_has_issue(exc, "ORDER_ALREADY_AUTHORIZED"):
                 raise
-            refreshed = client.get_order(order_id) or {}
+            refreshed = await asyncio.to_thread(client.get_order, order_id) or {}
             mismatch = adopted_authorization_mismatch(refreshed, pledge)
             if mismatch:
                 log.warning(
@@ -1683,7 +1778,38 @@ async def mark_token_delete_pending(pledge_id: str, detail: str) -> dict:
     return saved
 
 
+async def _refresh_pending_capture(pledge: dict, client: Any) -> dict:
+    """Reconcile the existing capture; PENDING never permits a second charge."""
+    capture_id = str(pledge.get("capture_id") or "")
+    if not capture_id:
+        raise ValueError("pending payment has no capture ID; await PayPal reconciliation")
+    payload = await asyncio.to_thread(client.get_capture, capture_id)
+    status, returned_id, _ = read_capture_result(payload)
+    if returned_id != capture_id:
+        raise PayPalError(502, "Pending capture identity mismatch")
+    if status == "PENDING":
+        return pledge
+    if status not in {"COMPLETED", "DECLINED", "FAILED", "DENIED"}:
+        raise PayPalError(502, "Pending capture returned an unresolved status")
+    await _record_capture_attempt_outcome(pledge, payload)
+    return await _finish_capture(
+        pledge, payload,
+        finance={"payment_mode": pledge.get("payment_mode") or "AUTHORIZE"},
+        client=client,
+    )
+
+
 async def capture_pledge(
+    pledge_id: str,
+    client: Any,
+    *,
+    effective_at: Optional[dt.datetime] = None,
+) -> dict:
+    async with _serialize_pledge_authorize(pledge_id):
+        return await _capture_pledge_locked(pledge_id, client, effective_at=effective_at)
+
+
+async def _capture_pledge_locked(
     pledge_id: str,
     client: Any,
     *,
@@ -1691,6 +1817,9 @@ async def capture_pledge(
 ) -> dict:
     pledge = await require_pledge(pledge_id)
     from .departure_clock import refuse_early_capture
+
+    if pledge.get("status") == "pending":
+        return await _refresh_pending_capture(pledge, client)
 
     mode = pledge.get("payment_mode") or pledge.get("intent") or "AUTHORIZE"
     if mode == "VAULT":
@@ -1734,7 +1863,7 @@ async def capture_pledge(
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "captured")
     await refuse_early_capture(pledge, now=effective_at)
-    if _prepare_authorization_capture(pledge, client):
+    if await asyncio.to_thread(_prepare_authorization_capture, pledge, client):
         pledge = await get_ledger().save_pledge(pledge)
     pledge, payload = await _call_with_capture_idempotency(
         pledge,
@@ -1826,7 +1955,7 @@ async def release_vault_token_if_unused(
     vid = str(vault_id or "").strip()
     if not vid:
         return False
-    client.delete_payment_token(vid)
+    await asyncio.to_thread(client.delete_payment_token, vid)
     await mark_vault_token_deleted_for_vault_id(vid)
     return True
 
@@ -1934,7 +2063,7 @@ async def void_pledge(
     _require_status(pledge, "authorized", "voided")
     if not pledge.get("authorization_id"):
         raise IllegalTransition("authorized", "voided")
-    released = client.void_authorization(pledge["authorization_id"], pledge_id=pledge_id)
+    released = await asyncio.to_thread(client.void_authorization, pledge["authorization_id"], pledge_id=pledge_id)
     _stamp_void(
         pledge,
         released,
@@ -2060,7 +2189,7 @@ async def refund_pledge(
         pledge["pending_refund"] = new_pending_row
         pledge = await get_ledger().save_pledge(pledge)
     try:
-        payload = client.refund_capture(
+        payload = await asyncio.to_thread(client.refund_capture,
             capture_id,
             amount_eur=refund_value,
             currency_code=pledge_currency,

@@ -36,6 +36,7 @@ describe("I18N-LEAKS-2 guards", () => {
     });
     expect(document.title).toBe(fr.app.title);
     expect(document.title).not.toMatch(/Pay Only If We Sail/i);
+    expect(document.title).not.toMatch(/Payez seulement si nous partons/i);
 
     await act(async () => {
       setLanguage("en");

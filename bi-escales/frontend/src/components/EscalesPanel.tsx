@@ -1,9 +1,10 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { captainChat, createPayPalInvoice } from "../api/escales";
 import { isCaptainRateLimitMessage } from "../api/captainRateLimit";
 import type { CaptainChatResponse, PublicPledge } from "../api/types";
 import { CaptainToolTrace } from "./captain/CaptainToolTrace";
+import { MileCertificateDownload } from "./MileCertificateDownload";
 import { PledgeButton } from "./PledgeButton";
 
 export interface EscalesPanelProps {
@@ -27,9 +28,23 @@ export function EscalesPanel({
   const lang = String(i18n.language || "fr").startsWith("en") ? "en" : "fr";
   const [chatMessage, setChatMessage] = useState("");
   const [chatResult, setChatResult] = useState<CaptainChatResponse | null>(null);
+  // The question the reply on screen answers: shown above it, since the field is free to change.
+  const [askedQuestion, setAskedQuestion] = useState("");
   const [agenticNote, setAgenticNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Miles pledges made from this cart: each one's certificate is offered right under the cart.
+  const [mileReceipts, setMileReceipts] = useState<PublicPledge[]>([]);
+  // Stable, because the PayPal buttons are drawn again whenever this function changes.
+  const onCartAuthorized = useCallback(
+    (pledge: PublicPledge) => {
+      if (pledge?.kind === "mile") {
+        setMileReceipts((list) => [...list.filter((row) => row.id !== pledge.id), pledge]);
+      }
+      onAuthorized?.(pledge);
+    },
+    [onAuthorized],
+  );
 
   const onChat = async (event: FormEvent) => {
     event.preventDefault();
@@ -37,8 +52,12 @@ export function EscalesPanel({
     setBusy(true);
     setError(null);
     try {
+      const asked = chatMessage.trim();
       const res = await captainChat(chatMessage, lang, adminKey);
+      // A new answer brings a new cart: certificates from the previous cart do not belong under it.
+      setMileReceipts([]);
       setChatResult(res);
+      setAskedQuestion(asked);
       if (res.suggested_pledge) {
         onSuggested?.(res.suggested_pledge);
         onMilestoneId?.(res.suggested_pledge.milestone_id);
@@ -60,6 +79,11 @@ export function EscalesPanel({
       {error ? <p className="notice error">{error}</p> : null}
       {chatResult ? (
         <div className="chat-result">
+          {askedQuestion ? (
+            <p className="hint captain-asked" data-testid="captain-question">
+              {t("escales.youAsked", { question: askedQuestion })}
+            </p>
+          ) : null}
           <h3>{t("escales.chatReply")}</h3>
           <p className="captain-bubble">{chatResult.reply}</p>
           <CaptainToolTrace trace={chatResult} modelTestId="captain-model-label" />
@@ -95,6 +119,10 @@ export function EscalesPanel({
           {chatResult.cart?.lines?.length ? (
             <div data-testid="captain-cart">
               <h3>{t("escales.cartHeading")}</h3>
+              {!mileReceipts.length
+                && chatResult.cart.lines.some((line) => (line.pledge?.kind || line.kind) === "mile") ? (
+                <p className="stop-note" data-testid="captain-cart-certificate-promise">{t("certificate.promise")}</p>
+              ) : null}
               {chatResult.cart.lines.map((line, index) => (
                 <div key={`${line.kind || "line"}-${index}`} data-testid="cart-line">
                   <p>
@@ -104,17 +132,21 @@ export function EscalesPanel({
                   {line.pledge ? (
                     <PledgeButton
                       values={{ ...line.pledge, quantity: Number.isInteger(Number(line.quantity)) ? Number(line.quantity) : undefined, lang: line.pledge.lang || lang }}
-                      onAuthorized={onAuthorized}
+                      onAuthorized={onCartAuthorized}
                     />
                   ) : null}
                 </div>
+              ))}
+              {mileReceipts.map((receipt) => (
+                <MileCertificateDownload key={receipt.id} pledge={receipt} contributor={receipt.contributor || undefined} />
               ))}
             </div>
           ) : null}
         </div>
       ) : null}
       {busy ? <p className="captain-thinking" role="status">{t("escales.working")}</p> : null}
-      {!chatResult && !busy ? (
+      {/* The example questions stay after an answer, so the next one is one click away. */}
+      {!busy ? (
         <ul className="captain-prompts" aria-label={t("escales.exampleQuestions")}>
           {/* Example questions fill the field; the visitor still chooses to send. */}
           <li>
@@ -138,6 +170,18 @@ export function EscalesPanel({
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 11h12l-2 3H4zM8 2v8M8 3l4 5H8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" /></svg>
               {t("escales.whereIsBoat")}
+            </button>
+          </li>
+          <li>
+            {/* The one example that returns a priced cart: the model's name and the PayPal button follow. */}
+            <button
+              type="button"
+              className="captain-prompt-chip"
+              data-testid="captain-example-pledge"
+              onClick={() => setChatMessage(t("escales.chatPlaceholder"))}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 3h2l1.5 7h6l1.5-5H5M6.5 13h.01M11 13h.01" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              {t("escales.chatPlaceholder")}
             </button>
           </li>
         </ul>

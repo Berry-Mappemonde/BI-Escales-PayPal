@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { PublicPledge } from "../api/types";
 import { formatCardFieldError, PayPalCardFieldsBlock } from "./PayPalCardFieldsBlock";
-import { authorizePledge, createPledge, fetchPledgeMode, registerVault } from "../api/escales";
+import { authorizePledge, createPledge, fetchPledgeMode, fetchPledgeStatus, registerVault } from "../api/escales";
 import i18n from "../i18n";
 
 function stubPledge(partial: Partial<PublicPledge> & Pick<PublicPledge, "id">): PublicPledge {
@@ -16,10 +16,11 @@ function stubPledge(partial: Partial<PublicPledge> & Pick<PublicPledge, "id">): 
     ...partial,
   };
 }
-vi.mock("../api/escales", () => ({createPledge: vi.fn(), fetchPledgeMode: vi.fn(), authorizePledge: vi.fn(), registerVault: vi.fn(), isVaultPledge: (p: {payment_mode?: string}) => p.payment_mode === "VAULT"}));
+vi.mock("../api/escales", () => ({createPledge: vi.fn(), fetchPledgeMode: vi.fn(), fetchPledgeStatus: vi.fn(), authorizePledge: vi.fn(), registerVault: vi.fn(), isVaultPledge: (p: {payment_mode?: string}) => p.payment_mode === "VAULT"}));
 const values = {amount_eur: "5.00", description: "5 miles", milestone_id: "dep-mayotte", kind: "mile"};
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(fetchPledgeStatus).mockRejectedValue(new Error("Status unavailable"));
   vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "AUTHORIZE" });
   void i18n.changeLanguage("en");
 });
@@ -46,8 +47,10 @@ describe("Card Fields checkout", () => {
     const s = sdk(); const onAuthorized = vi.fn();
     render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={s.paypal} onAuthorized={onAuthorized} />);
     await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+    expect(screen.getByTestId("paypal-card-number")).toHaveClass("card-field-host");
+    expect(screen.getByTestId("paypal-card-name")).toHaveClass("card-field-host");
     const config = s.CardFields.mock.calls[0][0];
-    expect(Object.keys(config)).toEqual([mode === "VAULT" ? "createVaultSetupToken" : "createOrder", "onApprove", "onError"]);
+    expect(Object.keys(config)).toEqual([mode === "VAULT" ? "createVaultSetupToken" : "createOrder", "onApprove", "onError", "onCancel", "billingAddress"]);
     await expect(config[mode === "VAULT" ? "createVaultSetupToken" : "createOrder"]()).rejects.toThrow("Press Pay");
     expect(createPledge).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("paypal-card-submit"));
@@ -56,6 +59,68 @@ describe("Card Fields checkout", () => {
     expect(createPledge).toHaveBeenCalledWith(expect.objectContaining({checkout_method:"card"}), expect.any(String));
     if (mode === "VAULT") {expect(registerVault).toHaveBeenCalledWith("P", "S");expect(authorizePledge).not.toHaveBeenCalled();}
     else {expect(authorizePledge).toHaveBeenCalledWith("P");expect(registerVault).not.toHaveBeenCalled();}
+  });
+  it("shows try again when card authentication is dismissed and sends the billing address", async () => {
+    vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "AUTHORIZE" });
+    const pledge = stubPledge({ id: "P", payment_mode: "AUTHORIZE", order_id: "O", intent: "AUTHORIZE" });
+    vi.mocked(createPledge).mockResolvedValue(pledge);
+    let callbacks: Record<string, any> = {};
+    const name = { render: vi.fn().mockResolvedValue(undefined), close: vi.fn() };
+    const CardFields = vi.fn((config) => {
+      callbacks = config;
+      return {
+        isEligible: () => true,
+        NumberField: () => ({ render: vi.fn().mockResolvedValue(undefined), close: vi.fn() }),
+        ExpiryField: () => ({ render: vi.fn().mockResolvedValue(undefined), close: vi.fn() }),
+        CVVField: () => ({ render: vi.fn().mockResolvedValue(undefined), close: vi.fn() }),
+        NameField: () => name,
+        submit: async () => { callbacks.onCancel(); },
+      };
+    });
+    render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={{ CardFields } as never} />);
+    await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+    expect(name.render).toHaveBeenCalledOnce();
+    fireEvent.change(screen.getByTestId("paypal-card-postal"), { target: { value: "17000" } });
+    fireEvent.change(screen.getByTestId("paypal-card-country"), { target: { value: "fr" } });
+    fireEvent.click(screen.getByTestId("paypal-card-submit"));
+    await waitFor(() => expect(screen.getByTestId("paypal-card-retry")).toHaveTextContent("Please try again"));
+    expect(screen.queryByText(/Pledge error/)).toBeNull();
+    expect(authorizePledge).not.toHaveBeenCalled();
+    expect(callbacks.billingAddress()).toEqual({ countryCode: "FR", postalCode: "17000" });
+    fireEvent.change(screen.getByTestId("paypal-card-country"), { target: { value: "9" } });
+    expect(callbacks.billingAddress().countryCode).toBe("FR");
+  });
+  it("shows one decline message and accepts a later card", async () => {
+    vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "AUTHORIZE" });
+    const pledge = stubPledge({ id: "P", payment_mode: "AUTHORIZE", order_id: "O", intent: "AUTHORIZE" });
+    vi.mocked(createPledge).mockResolvedValue(pledge);
+    vi.mocked(authorizePledge).mockResolvedValue(pledge);
+    let attempt = 0;
+    const CardFields = vi.fn((config) => ({
+      isEligible: () => true,
+      NumberField: () => ({ render: vi.fn().mockResolvedValue(undefined), close: vi.fn() }),
+      ExpiryField: () => ({ render: vi.fn().mockResolvedValue(undefined), close: vi.fn() }),
+      CVVField: () => ({ render: vi.fn().mockResolvedValue(undefined), close: vi.fn() }),
+      submit: async () => {
+        await config.createOrder();
+        attempt += 1;
+        if (attempt === 1) {
+          const error = new Error("INSTRUMENT_DECLINED");
+          config.onError(error);
+          throw error;
+        }
+      },
+    }));
+    render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={{ CardFields } as never} />);
+    await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+    fireEvent.click(screen.getByTestId("paypal-card-submit"));
+    await waitFor(() => expect(screen.getAllByText(/Pledge error/)).toHaveLength(1));
+    expect(screen.getByText(/INSTRUMENT_DECLINED/)).toBeTruthy();
+    expect(authorizePledge).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("paypal-card-submit"));
+    await waitFor(() => expect(authorizePledge).toHaveBeenCalledWith("P"));
+    expect(screen.queryByText(/Pledge error/)).toBeNull();
+    expect(createPledge).toHaveBeenCalledTimes(2);
   });
   it("closes all rendered fields on unmount", async () => {
     vi.mocked(createPledge).mockResolvedValue(stubPledge({ id: "P", order_id: "O" }));
@@ -305,4 +370,134 @@ describe("card confirm UI", () => {
     expect(createPledge).toHaveBeenCalledTimes(1);
     expect(authorizePledge).toHaveBeenCalledTimes(1);
   });
+});
+
+it.each(["en", "fr"])("shows paid-now confirmation for an immediate card donation in %s", async lang => {
+  await i18n.changeLanguage(lang);
+  vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "CAPTURE" });
+  vi.mocked(createPledge).mockResolvedValue(stubPledge({ id: "DONATION", kind: "project_pledge", payment_mode: "CAPTURE", order_id: "CARD-ORDER" }));
+  vi.mocked(authorizePledge).mockResolvedValue(stubPledge({ id: "DONATION", kind: "project_pledge", payment_mode: "CAPTURE", status: "captured" }));
+  const s = sdk();
+  render(<PayPalCardFieldsBlock values={{ ...values, kind: "project_pledge" }} appLang={lang} paypal={s.paypal} />);
+  expect(await screen.findByText(lang === "en" ? /charged immediately after approval/ : /débité immédiatement après approbation/)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+  fireEvent.click(screen.getByTestId("paypal-card-submit"));
+  expect(await screen.findByText(lang === "en" ? "Donation paid" : "Don payé")).toBeInTheDocument();
+  expect(screen.getByTestId("paypal-card-confirm-next")).toHaveTextContent(lang === "en" ? "Charged now" : "Débité maintenant");
+  expect(screen.queryByText(/pledge authorized|promesse autorisée/i)).toBeNull();
+});
+
+it("never presents a declined capture receipt as paid", async () => {
+  vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "CAPTURE" });
+  vi.mocked(createPledge).mockResolvedValue(stubPledge({ id: "DECLINED", kind: "project_pledge", payment_mode: "CAPTURE", order_id: "CARD-ORDER" }));
+  vi.mocked(authorizePledge).mockResolvedValue(stubPledge({ id: "DECLINED", kind: "project_pledge", payment_mode: "CAPTURE", status: "capture_failed" }));
+  const done = vi.fn(); const s = sdk();
+  render(<PayPalCardFieldsBlock values={{ ...values, kind: "project_pledge" }} appLang="en" paypal={s.paypal} onAuthorized={done} />);
+  await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+  fireEvent.click(screen.getByTestId("paypal-card-submit"));
+  await screen.findByText(/Donation payment has not completed/);
+  expect(screen.queryByTestId("paypal-card-confirm")).toBeNull();
+  expect(done).not.toHaveBeenCalled();
+});
+
+it("does not capture after a card SDK error even if submit resolves", async () => {
+  vi.mocked(createPledge).mockResolvedValue(stubPledge({ id: "ERROR", order_id: "CARD-ORDER" }));
+  const fields = { render: async () => {}, close: async () => {} };
+  const CardFields = (config: Record<string, (...args: any[]) => any>) => ({ isEligible: () => true,
+    NumberField: () => fields, ExpiryField: () => fields, CVVField: () => fields,
+    submit: async () => { await config.createOrder(); config.onError(); } });
+  render(<PayPalCardFieldsBlock values={values} appLang="en" paypal={{ CardFields } as never} />);
+  await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+  fireEvent.click(screen.getByTestId("paypal-card-submit"));
+  await screen.findByText(/Card confirmation failed/);
+  expect(authorizePledge).not.toHaveBeenCalled();
+});
+
+it.each(["en", "fr"])("keeps a pending payment distinct from paid and prevents repaying in %s", async lang => {
+  await i18n.changeLanguage(lang);
+  vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "CAPTURE" });
+  vi.mocked(createPledge).mockResolvedValue(stubPledge({ id: "PENDING", payment_mode: "CAPTURE", order_id: "PENDING-ORDER" }));
+  vi.mocked(authorizePledge).mockResolvedValue(stubPledge({ id: "PENDING", payment_mode: "CAPTURE", status: "pending" }));
+  const s = sdk();
+  render(<PayPalCardFieldsBlock values={{ ...values, kind: "project_pledge" }} appLang={lang} paypal={s.paypal} />);
+  await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+  fireEvent.click(screen.getByTestId("paypal-card-submit"));
+  expect(await screen.findByText(lang === "en" ? "Payment pending" : "Paiement en attente")).toBeInTheDocument();
+  expect(screen.getByTestId("paypal-card-confirm-next")).toHaveTextContent(lang === "en" ? "Do not pay again" : "Ne payez pas à nouveau");
+  expect(screen.getByTestId("paypal-card-confirm")).not.toHaveTextContent(/try again|réessay|Donation paid|Don payé/i);
+  expect(screen.getByTestId("paypal-card-submit")).not.toBeVisible();
+  expect(createPledge).toHaveBeenCalledTimes(1);
+});
+
+it.each([true, false])("starts a new order and request ID after an explicit decline (HTTP error: %s)", async httpError => {
+  vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "CAPTURE" });
+  const first = stubPledge({ id: "DECLINED", payment_mode: "CAPTURE", order_id: "ORDER-OLD" });
+  const second = stubPledge({ id: "RETRY", payment_mode: "CAPTURE", order_id: "ORDER-NEW" });
+  vi.mocked(createPledge).mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+  if (httpError) {
+    vi.mocked(authorizePledge).mockRejectedValueOnce(new Error("PayPal capture status DECLINED"));
+    vi.mocked(fetchPledgeStatus).mockResolvedValue({ status: "capture_failed" });
+  } else {
+    vi.mocked(authorizePledge).mockResolvedValueOnce({ ...first, status: "capture_failed" });
+  }
+  vi.mocked(authorizePledge).mockResolvedValueOnce({ ...second, status: "captured" });
+  const s = sdk();
+  render(<PayPalCardFieldsBlock values={{ ...values, kind: "project_pledge" }} appLang="en" paypal={s.paypal} />);
+  const button = screen.getByTestId("paypal-card-submit");
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+  await screen.findByText(/Donation payment has not completed/);
+  fireEvent.click(button);
+  await screen.findByText("Donation paid");
+  expect(createPledge).toHaveBeenCalledTimes(2);
+  expect(vi.mocked(createPledge).mock.calls[0][1]).not.toBe(vi.mocked(createPledge).mock.calls[1][1]);
+  expect(vi.mocked(authorizePledge).mock.calls).toEqual([["DECLINED"], ["RETRY"]]);
+});
+
+it("resolves a lost capture response as pending without offering another payment", async () => {
+  vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "CAPTURE" });
+  vi.mocked(createPledge).mockResolvedValue(stubPledge({ id: "LOST", payment_mode: "CAPTURE", order_id: "ORDER" }));
+  vi.mocked(authorizePledge).mockRejectedValue(new Error("Network unavailable"));
+  vi.mocked(fetchPledgeStatus).mockResolvedValue({ status: "pending" });
+  const s = sdk();
+  render(<PayPalCardFieldsBlock values={{ ...values, kind: "project_pledge" }} appLang="en" paypal={s.paypal} />);
+  await waitFor(() => expect(screen.getByTestId("paypal-card-submit")).toBeEnabled());
+  fireEvent.click(screen.getByTestId("paypal-card-submit"));
+  await screen.findByText("Payment pending");
+  expect(screen.getByTestId("paypal-card-submit")).not.toBeVisible();
+  expect(createPledge).toHaveBeenCalledTimes(1);
+});
+
+it("creates a fresh order after the card SDK reports an instrument decline", async () => {
+  vi.mocked(fetchPledgeMode).mockResolvedValue({ payment_mode: "CAPTURE" });
+  vi.mocked(createPledge)
+    .mockResolvedValueOnce(stubPledge({ id: "DECLINED-SDK", payment_mode: "CAPTURE", order_id: "OLD" }))
+    .mockResolvedValueOnce(stubPledge({ id: "NEW-SDK", payment_mode: "CAPTURE", order_id: "NEW" }));
+  vi.mocked(authorizePledge).mockResolvedValue(stubPledge({ id: "NEW-SDK", payment_mode: "CAPTURE", status: "captured" }));
+  const fields = { render: async () => {}, close: async () => {} };
+  let attempts = 0;
+  const orders: string[] = [];
+  const CardFields = (config: Record<string, (...args: any[]) => any>) => ({ isEligible: () => true,
+    NumberField: () => fields, ExpiryField: () => fields, CVVField: () => fields,
+    submit: async () => {
+      orders.push(await config.createOrder());
+      if (attempts++ === 0) config.onError({ details: [{ issue: "INSTRUMENT_DECLINED" }] });
+    } });
+  render(<PayPalCardFieldsBlock values={{ ...values, kind: "project_pledge" }} appLang="en" paypal={{ CardFields } as never} />);
+  const button = screen.getByTestId("paypal-card-submit");
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+  await screen.findByText(/Card confirmation failed/);
+  fireEvent.click(button);
+  await screen.findByText("Donation paid");
+  expect(orders).toEqual(["OLD", "NEW"]);
+  expect(vi.mocked(createPledge).mock.calls[0][1]).not.toBe(vi.mocked(createPledge).mock.calls[1][1]);
+  expect(authorizePledge).toHaveBeenCalledTimes(1);
+  expect(authorizePledge).toHaveBeenCalledWith("NEW-SDK");
+});
+
+
+it.each([["en", "Card verification was not completed"], ["fr", "La vérification de la carte n’a pas abouti"]])("translates missing card authentication evidence in %s", async (lang, text) => {
+  await i18n.changeLanguage(lang);
+  expect(formatCardFieldError("card authentication incomplete or declined; retry or choose another payment method", i18n.t)).toContain(text);
 });

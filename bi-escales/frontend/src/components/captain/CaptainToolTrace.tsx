@@ -12,7 +12,7 @@ export function CaptainToolTrace({ trace, modelTestId }: { trace: CaptainTrace; 
     ? `${Math.round(ms)} ms` : t("captainTrace.unavailable");
   return (
     <div className="captain-tool-trace">
-      <p data-testid={modelTestId}>
+      <p className="captain-trace-model" data-testid={modelTestId}>
         {label === "rules"
           ? t(trace.rule_by_design
             ? (trace.rule_source === "voyage_schedule" ? "captainTrace.voyageSchedule" : "captainTrace.fixedRule")

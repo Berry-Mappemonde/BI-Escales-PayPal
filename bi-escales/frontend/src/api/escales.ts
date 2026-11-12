@@ -14,6 +14,7 @@ import type {
   PublicWishlist,
   TreasurerWishlistDoc,
 } from "./types";
+import { rememberPledgeKey } from "../demo/ownPledges";
 import { captainSessionHeaders } from "./escalesSession";
 
 function treasurerAccessHeaders(
@@ -144,12 +145,12 @@ export async function fetchHealthRetrying(
   throw last instanceof Error ? last : new Error(String(last ?? "health failed"));
 }
 
-export async function fetchPledgeMode(milestoneId: string, kind = "mile"): Promise<{ payment_mode: "AUTHORIZE" | "VAULT" }> {
+export async function fetchPledgeMode(milestoneId: string, kind = "mile"): Promise<{ payment_mode: "AUTHORIZE" | "VAULT" | "CAPTURE" }> {
   const params = new URLSearchParams({ milestone_id: milestoneId, kind });
   const res = await fetch(url(`/api/escales/pledges/mode?${params}`));
   if (!res.ok) throw new Error(await parseError(res));
   const body = await res.json();
-  if (!["AUTHORIZE", "VAULT"].includes(body.payment_mode)) throw new Error("Invalid card payment mode");
+  if (!["AUTHORIZE", "VAULT", "CAPTURE"].includes(body.payment_mode)) throw new Error("Invalid card payment mode");
   return body;
 }
 
@@ -176,13 +177,24 @@ export async function createPledge(
     body: JSON.stringify({ ...paypalPageUrls(), ...body }),
   });
   if (!res.ok) throw new Error(await parseError(res));
-  return res.json();
+  const pledge = (await res.json()) as PublicPledge;
+  // The demo treasurer lets a visitor act on the pledges their own browser made. The
+  // request id above is the proof; remembered here, checked by the server each time.
+  rememberPledgeKey(pledge?.id, paypalRequestId);
+  return pledge;
 }
 
 export async function authorizePledge(pledgeId: string): Promise<PublicPledge> {
   const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}/authorize`), {
     method: "POST",
   });
+  if (!res.ok) throw new Error(await parseError(res));
+  return res.json();
+}
+
+/** Public status read used to resolve an uncertain capture response. */
+export async function fetchPledgeStatus(pledgeId: string): Promise<{ status: PublicPledge["status"] }> {
+  const res = await fetch(url(`/api/escales/pledges/${encodeURIComponent(pledgeId)}`));
   if (!res.ok) throw new Error(await parseError(res));
   return res.json();
 }
@@ -269,10 +281,22 @@ export async function fetchPrices(lang?: string): Promise<PriceCatalog> {
 }
 
 /** Public voyage clock. ``now`` is the simulated instant, real UTC unless pinned. */
-export async function fetchClock(): Promise<{ start?: string; now?: string }> {
-  const res = await fetch(url("/api/escales/clock"));
-  if (!res.ok) throw new Error(await parseError(res));
-  return res.json();
+/** A sleeping host can hold a request for most of a minute; the clock gives up before that. */
+export const CLOCK_TIMEOUT_MS = 55000;
+
+export async function fetchClock(timeoutMs = CLOCK_TIMEOUT_MS): Promise<{ start?: string; now?: string }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url("/api/escales/clock"), { signal: controller.signal });
+    if (!res.ok) throw new Error(await parseError(res));
+    return await res.json();
+  } catch (err) {
+    if (controller.signal.aborted) throw new Error(`Clock request timed out after ${timeoutMs} ms`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function fetchFeatures(): Promise<FeatureFlags> {
@@ -466,6 +490,43 @@ export async function fetchPublicCommonFund(): Promise<FundView | null> {
   } catch {
     return null;
   }
+}
+
+/** One stopover or cabin-leg row of GET /funds/public. Amounts only. */
+export interface PublicFundRow {
+  milestone_id: string;
+  fund_id: string;
+  authorized_eur: string;
+  captured_eur: string;
+  refunded_eur: string;
+}
+
+export interface PublicProjectRow {
+  project_id: string;
+  amount_eur: string;
+  donation_count: number;
+  refunded_eur: string;
+}
+
+export interface PublicFunds {
+  currency: string;
+  stops: PublicFundRow[];
+  legs: PublicFundRow[];
+  projects: PublicProjectRow[];
+  common_fund: { authorized_eur: string; captured_eur: string; refunded_eur: string };
+  truncated?: boolean;
+}
+
+/** Public GET /funds/public: every public total in one read. Throws when it cannot be read. */
+export async function fetchPublicFunds(): Promise<PublicFunds> {
+  const res = await fetch(url("/api/escales/funds/public"));
+  if (!res.ok) throw new Error(await parseError(res));
+  const body = await res.json();
+  // An answer of another shape (an older API, a proxy page) is "not available", not a crash.
+  if (!body || !Array.isArray(body.stops) || !Array.isArray(body.legs) || !Array.isArray(body.projects)) {
+    throw new Error("Unexpected public funds answer");
+  }
+  return { ...body, common_fund: body.common_fund ?? { authorized_eur: "0.00", captured_eur: "0.00", refunded_eur: "0.00" } };
 }
 
 export interface DemoStopAction {

@@ -131,6 +131,17 @@
   overflow-x: auto;
 }
 
+/* PayPal notifications: the status line above the list. */
+.treasurer-panel .treasurer-panel-body .webhook-status {
+  margin: var(--space-2) 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.treasurer-panel .treasurer-panel-body .treasurer-webhooks caption {
+  padding: var(--space-3) 0 var(--space-1);
+  text-align: start;
+}
+
 /* Gauges */
 .treasurer-panel .treasurer-panel-body .gauge {
   margin-top: var(--space-1);
@@ -148,6 +159,91 @@
   background: var(--color-selected);
 }
 
+/* Crew memberships: a sub-list of the PayPal section, same table as the others.
+   The section may shrink below its table, which then scrolls inside its own box
+   (the panel itself is allowed to shrink in naviguide-shell.css). */
+.treasurer-panel .treasurer-panel-body .treasurer-paypal {
+  min-width: 0;
+}
+.treasurer-panel .treasurer-panel-body .treasurer-crew {
+  min-width: 0;
+  margin: var(--space-3) 0;
+}
+.treasurer-panel .treasurer-panel-body .treasurer-crew h4 {
+  margin: 0 0 var(--space-1);
+  color: var(--color-fg);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 600;
+}
+.treasurer-panel .treasurer-panel-body .treasurer-crew-table {
+  overflow-x: auto;
+  margin: var(--space-2) 0;
+}
+.treasurer-panel .treasurer-panel-body .treasurer-crew-table td {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.treasurer-panel .treasurer-panel-body .treasurer-crew-table td[data-status="ACTIVE"] {
+  color: var(--color-st-done);
+}
+
+/* Demo treasurer (#145): a visitor's own pledges, and how to play with them. */
+.treasurer-panel .treasurer-panel-body .demo-play-hint {
+  margin: 0 0 var(--space-3);
+}
+.treasurer-panel .treasurer-panel-body .demo-play-hint .hint {
+  margin: 0 0 var(--space-1);
+}
+.treasurer-panel .treasurer-panel-body .demo-play-hint ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: demo-step;
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 600;
+}
+.treasurer-panel .treasurer-panel-body .demo-play-hint li {
+  counter-increment: demo-step;
+}
+.treasurer-panel .treasurer-panel-body .demo-play-hint li::before {
+  content: counter(demo-step) ". ";
+  color: var(--color-fg-3);
+  font-weight: 500;
+}
+.treasurer-panel .treasurer-panel-body .demo-own-tag {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-chip);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent-fg);
+  font-size: var(--text-micro);
+  line-height: var(--text-meta--line-height);
+  font-weight: 600;
+}
+.treasurer-panel .treasurer-panel-body .demo-own-actions {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+.treasurer-panel .treasurer-panel-body .demo-own-step {
+  margin: 0;
+  max-width: 32ch;
+  text-align: end;
+}
+.treasurer-panel .treasurer-panel-body .demo-own-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
 /* Lists and forms */
 .treasurer-panel .treasurer-panel-body .treasurer-paypal-list {
   display: grid;
@@ -161,6 +257,21 @@
 .treasurer-panel .treasurer-panel-body .stack-form {
   gap: var(--space-3);
   margin: var(--space-3) 0 0;
+}
+
+/* "Settle at this date" sits like "Run departure-day settle" above it: its own width, at the end. */
+.treasurer-panel .treasurer-panel-body [data-testid="settle-at-chosen"] > button:not(.captain-card button) {
+  /* The form is a column, whether it is laid out as a grid or as a flex box. */
+  justify-self: end;
+  align-self: flex-end;
+  width: auto;
+}
+
+/* The three demo actions: a gap between them, and they wrap on a narrow page. */
+.treasurer-panel .treasurer-panel-body .demo-stop-moment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 /* The spending form has no .panel of its own, so it gets the same frame. */
@@ -200,3 +311,6 @@
     transform: none;
   }
 }
+
+/* A stop's gift line in the ledger: the stop name, then what the line holds. */
+.treasurer-panel .treasurer-panel-body .ledger-line-kind { display: block; color: var(--color-fg-2); font-size: var(--text-meta); line-height: var(--text-meta--line-height); }

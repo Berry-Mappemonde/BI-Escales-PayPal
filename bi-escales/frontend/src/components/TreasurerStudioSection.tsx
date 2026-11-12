@@ -1,6 +1,6 @@
-import { Component, lazy, Suspense, useRef, useState, type ReactNode } from "react";
+import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { PublicPledge } from "../api/types";
+import type { StopNames } from "../utils/milestoneLabel";
 import { featureAgStudioEnabled } from "../config/features";
 
 // Compared inline so the build drops this import, and the Studio chunk, at 0 or unset.
@@ -22,43 +22,46 @@ class StudioErrorBoundary extends Component<BoundaryProps, { failed: boolean }> 
     return { failed: true };
   }
 
-  componentDidCatch(error: Error) {
-    console.warn("AG Studio failed; app kept running:", error);
-  }
-
   render() {
     return this.state.failed ? this.props.fallback : this.props.children;
   }
 }
 
 /** Renders nothing while the flag is off, so the Studio chunk is never requested. */
-export function TreasurerStudioSection({ pledges }: { pledges: PublicPledge[] }) {
-  const { t, i18n } = useTranslation();
-  const [open, setOpen] = useState(false);
+export function TreasurerStudioSection({ adminKey, demo, stopNames }: {
+  adminKey: string;
+  demo: boolean;
+  stopNames?: StopNames;
+}) {
+  const { t } = useTranslation();
+  const key = demo ? "" : adminKey.trim();
+  const [session, setSession] = useState<{ key: string; demo: boolean } | null>(null);
+  const open = session?.key === key && session.demo === demo;
+  useEffect(() => { setSession(null); }, [key, demo]);
   const openRef = useRef<HTMLButtonElement>(null);
 
-  if (!featureAgStudioEnabled()) return null;
+  if (!featureAgStudioEnabled() || (!key && !demo)) return null;
 
   const close = () => {
-    setOpen(false);
+    setSession(null);
     openRef.current?.focus();
   };
 
   return (
-    <section className="panel" data-testid="treasurer-studio-section">
+    <section data-testid="treasurer-studio-section">
       <button
         ref={openRef}
         type="button"
         data-testid="treasurer-studio-open"
         aria-haspopup="dialog"
-        onClick={() => setOpen(true)}
+        onClick={() => setSession({ key, demo })}
       >
         {t("studio.open")}
       </button>
       {open ? (
-        <StudioErrorBoundary fallback={<p className="notice error">{t("studio.loadError")}</p>}>
+        <StudioErrorBoundary fallback={<p className="notice error" role="alert">{t("studio.loadError")}</p>}>
           <Suspense fallback={<p className="rail-loading" role="status">{t("studio.loading")}</p>}>
-            <TreasurerStudio key={i18n.language} pledges={pledges} onClose={close} />
+            <TreasurerStudio adminKey={key} demo={demo} stopNames={stopNames} onClose={close} />
           </Suspense>
         </StudioErrorBoundary>
       ) : null}

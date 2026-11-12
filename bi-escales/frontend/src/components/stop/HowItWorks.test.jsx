@@ -39,7 +39,7 @@ describe("HowItWorks", () => {
   it("explains the pledge, cancellation, and cabin rules", () => {
     show();
     expect(screen.getByText("STOP PLEDGES")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /^Back a stop\.\s+Pay only if we arrive\.$/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^Back a stop\.\s+Pay only when we arrive\.$/ })).toBeInTheDocument();
     expect(screen.getByText(en.howItWorks.credit)).toBeInTheDocument();
     expect(screen.getByText(/Your pledge is authorised now/)).toBeInTheDocument();
     expect(screen.getByText("Cancelled stop? The authorisation is voided. No charge.")).toBeInTheDocument();
@@ -78,7 +78,7 @@ describe("HowItWorks", () => {
   it("shows in French", async () => {
     await i18n.changeLanguage("fr");
     show();
-    expect(screen.getByRole("heading", { name: /^Soutenez une escale\.\s+Vous ne payez que si nous arrivons\.$/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^Soutenez une escale\.\s+Payez seulement à notre arrivée\.$/ })).toBeInTheDocument();
     expect(screen.getByText(fr.howItWorks.credit)).toBeInTheDocument();
     expect(screen.getByText("Autorisation de votre promesse")).toBeInTheDocument();
   });
@@ -88,5 +88,33 @@ describe("HowItWorks", () => {
     for (const block of [en.howItWorks, fr.howItWorks]) {
       expect(JSON.stringify(block)).not.toMatch(/20\d\d/);
     }
+  });
+
+  it("shows the main button as not yet usable while the next stop is unknown", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <HowItWorks nextStopPending />
+      </I18nextProvider>,
+    );
+    const pending = screen.getByTestId("back-next-stop-pending");
+    expect(pending).toBeDisabled();
+    expect(pending).toHaveAttribute("aria-busy", "true");
+    expect(pending).toHaveTextContent(en.howItWorks.backNext);
+    expect(pending).toHaveTextContent(en.howItWorks.backNextLoading);
+    expect(screen.queryByTestId("back-next-stop")).toBeNull();
+  });
+
+  it("prefers the named button over the waiting one", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <HowItWorks nextStopName="La Rochelle" onBackNextStop={() => undefined} nextStopPending />
+      </I18nextProvider>,
+    );
+    expect(screen.getByTestId("back-next-stop")).toBeEnabled();
+    expect(screen.queryByTestId("back-next-stop-pending")).toBeNull();
+  });
+
+  it("has the waiting label in French too", () => {
+    expect(fr.howItWorks.backNextLoading).toBe("Recherche de la prochaine escale…");
   });
 });

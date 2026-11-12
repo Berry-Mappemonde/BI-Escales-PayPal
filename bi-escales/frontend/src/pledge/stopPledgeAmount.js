@@ -29,7 +29,21 @@ export function defaultAmountForKind(kind, catalog) {
   const exact = catalogExactPrice(kind, catalog);
   if (exact) return exact;
   if (kind === "mile" || kind === "common_fund") return "1.00";
+  // A gift to a stop: a round starting amount the supporter changes.
+  if (kind === "stop_gift") return "10.00";
   return null;
+}
+
+/**
+ * Unit price to show beside a kind: the fixed catalogue price, 1.00 for a mile,
+ * null when the supporter chooses the amount (common fund, project donation).
+ * @param {string} kind @param {PriceCatalog | null | undefined} catalog
+ */
+export function unitPriceForKind(kind, catalog) {
+  const key = String(kind || "").trim();
+  const row = (catalog?.prices || []).find((item) => item.kind === key);
+  if (row?.free_amount) return null;
+  return catalogExactPrice(key, catalog) || (key === "mile" ? "1.00" : null);
 }
 
 /** Montant réellement envoyé à l'API (tarif fixe prioritaire). */
@@ -38,7 +52,11 @@ export function pledgeOrderAmount(kind, userAmount, catalog, quantity) {
     const unit = catalogExactPrice(kind, catalog) || (kind === "mile" ? "1.00" : null);
     if (unit) return (Math.round(Number(unit) * 100) * quantity / 100).toFixed(2);
   }
-  return catalogExactPrice(kind, catalog) || String(userAmount ?? "").trim() || "1.00";
+  const exact = catalogExactPrice(kind, catalog);
+  if (exact) return exact;
+  const normalized = String(userAmount ?? "").trim().replace(",", ".");
+  // A cleared gift must fail validation rather than silently donating one euro.
+  return normalized || (kind === "stop_gift" ? "" : "1.00");
 }
 
 export function pledgeAmountReadOnly(kind, catalog) {

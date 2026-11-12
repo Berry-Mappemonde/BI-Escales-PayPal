@@ -56,17 +56,24 @@ export function countByStatus(pledges: PublicPledge[], status: PublicPledge["sta
   return pledges.filter((p) => p.status === status).length;
 }
 
+/**
+ * One line per stop, and a separate line for that stop's free-amount gifts
+ * (``stop_gift``, held until arrival), right after it.
+ */
 export function buildGaugeRows(pledges: PublicPledge[]): PledgeGaugeRow[] {
-  const byMilestone = new Map<string, PublicPledge[]>();
+  const byLine = new Map<string, { milestone_id: string; gift: boolean; list: PublicPledge[] }>();
   for (const p of pledges) {
-    const list = byMilestone.get(p.milestone_id) ?? [];
-    list.push(p);
-    byMilestone.set(p.milestone_id, list);
+    const gift = p.kind === "stop_gift";
+    const key = JSON.stringify([p.milestone_id, gift]);
+    const line = byLine.get(key) ?? { milestone_id: p.milestone_id, gift, list: [] };
+    line.list.push(p);
+    byLine.set(key, line);
   }
-  return [...byMilestone.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([milestone_id, list]) => ({
+  return [...byLine.values()]
+    .sort((a, b) => a.milestone_id.localeCompare(b.milestone_id) || Number(a.gift) - Number(b.gift))
+    .map(({ milestone_id, gift, list }) => ({
       milestone_id,
+      ...(gift ? { kind: "stop_gift" as const } : {}),
       authorized_count: countByStatus(list, "authorized"),
       authorized_total_eur: sumAmount(list, "authorized"),
       captured_count: countByStatus(list, "captured"),

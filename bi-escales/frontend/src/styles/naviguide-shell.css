@@ -589,10 +589,87 @@ body.ng-naviguide-shell {
   font-weight: 600;
 }
 
+/* "Where the money goes": the same disclosure as the project list (its section
+   spacing and title come from rails.css), with rows of name and amount.
+   Tokens only; no new colour or type size. */
+.ng-sidebar .public-totals {
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.public-totals-body { display: grid; gap: var(--space-3); }
+.ng-shell .ng-sidebar .public-totals-body h3 {
+  margin: 0 0 var(--space-1);
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  line-height: var(--text-meta--line-height);
+  font-weight: 500;
+}
+.public-totals-body ul { margin: 0; padding: 0; list-style: none; }
+.public-totals-body li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-line);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+}
+.public-totals-body li:last-child { border-bottom: 0; }
+.public-totals-body li > :first-child { min-width: 0; overflow-wrap: anywhere; text-align: start; }
+/* A stop's name opens the stop: a text button, not a boxed one. */
+.ng-shell .ng-sidebar .public-totals-body li > button {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: none;
+  box-shadow: none;
+  color: var(--color-fg);
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  text-decoration: underline;
+  text-decoration-color: var(--color-line-strong);
+  text-underline-offset: 3px;
+}
+.ng-shell .ng-sidebar .public-totals-body li > button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .ng-shell .ng-sidebar .public-totals-body li > button:hover { background: none; text-decoration-color: currentColor; }
+}
+/* One amount per line, right-aligned, so two amounts never wrap mid-phrase. */
+.public-totals-amount {
+  flex: none;
+  display: grid;
+  justify-items: end;
+  color: var(--color-fg-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* The separator between two amounts is read out, not drawn. */
+.public-totals-amount .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.public-totals-note { margin: 0; }
+
 .ng-sidebar .project-list-total {
   color: var(--color-fg-3);
   font-size: var(--text-meta);
   line-height: var(--text-meta--line-height);
+}
+
+/* The question the reply answers, kept above it. */
+.ng-sidebar .captain-chat .captain-asked {
+  margin: 0 0 var(--space-2);
+  overflow-wrap: anywhere;
 }
 
 .ng-sidebar .captain-chat .captain-draft {
@@ -671,7 +748,7 @@ body.ng-naviguide-shell {
   min-width: 0;
 }
 
-.ng-sidebar .project-pledge button {
+.ng-sidebar .project-pledge button:not([data-testid="paypal-google-pay"] button) {
   width: auto;
   min-height: 32px;
   margin: 0;
@@ -740,6 +817,10 @@ body.ng-naviguide-shell {
   font-size: var(--text-meta);
   line-height: var(--text-meta--line-height);
 }
+/* Where the boat is: the one line of the clock block a visitor is looking for. */
+.ng-shell .ng-clock-line .voyage-boat-position {
+  color: var(--color-fg);
+}
 .ng-shell .ng-tools-panel .escale-popup-card { background: var(--color-panel); padding: var(--space-4); }
 .ng-shell .ng-sidebar, .ng-shell .ng-tools-panel { transition-duration: var(--duration-base); }
 
@@ -782,8 +863,15 @@ body.ng-naviguide-shell {
 .treasurer-queue-table td { overflow-wrap: anywhere; }
 .treasurer-queue-table td > strong, .treasurer-queue-table td > small { display: block; }
 .treasurer-queue-table td > small { font: var(--text-micro)/var(--text-meta--line-height) var(--font-mono); color: var(--color-fg-2); }
+.treasurer-queue-table td > small.queue-stop-primary { font: inherit; color: var(--color-fg); }
 .treasurer-queue-table .queue-value { text-align: end; font-variant-numeric: tabular-nums; }
 .queue-value > button { display: block; margin-inline: auto 0; max-width: 100%; white-space: normal; }
+/* What each status means, in words, above the rows that carry them. */
+.queue-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-5); margin: var(--space-3) 0; padding: 0; list-style: none; color: var(--color-fg-2); font-size: var(--text-meta); line-height: var(--text-meta--line-height); }
+.queue-legend li { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.queue-legend .pledge-chip { flex: none; }
+.queue-closed { margin-top: var(--space-5); }
+.queue-closed > h4 { margin: 0 0 var(--space-1); }
 .treasurer-queue .captain-decision { background: var(--color-raised); border-block-start: 1px solid var(--color-line-strong); }
 .captain-chat .captain-draft { gap: var(--space-1); color: var(--color-fg-2); font-size: var(--text-meta); }
 .ng-sidebar .treasurer-panel .treasurer-queue,
@@ -823,7 +911,8 @@ body.ng-naviguide-shell {
 }
 
 .crew-supporter-heading .crew-sandbox-note {
-  white-space: nowrap;
+  /* The line now names what the membership is and its price, so it may wrap in the rail. */
+  white-space: normal;
   color: var(--color-fg-3);
   font-size: var(--text-meta);
   line-height: var(--text-meta--line-height);
@@ -1026,7 +1115,24 @@ body.ng-naviguide-shell {
   display: grid;
   gap: var(--space-4);
 }
+/* The panel may shrink below its widest table, which then scrolls inside its own
+   section instead of widening the whole page on a phone. */
+.treasurer-page-inner > .treasurer-panel {
+  min-width: 0;
+}
 .treasurer-page-back { justify-self: start; }
+@media (pointer: coarse) {
+  .treasurer-page-back { min-height: 44px; }
+}
+/* Top bar of the treasurer page: the way back on one side, the app settings on the other. */
+.treasurer-page-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.treasurer-page-bar .ng-controls { flex: none; }
+.treasurer-page-bar .lang-switch { flex: none; }
 .treasurer-page-intro {
   display: grid;
   gap: var(--space-3);
@@ -1191,4 +1297,47 @@ body.ng-naviguide-shell {
 /* Already in the demo: the button that starts it has nothing left to do. */
 .treasurer-page:has(.demo-treasurer-banner) .demo-treasurer-entry {
   display: none;
+}
+
+/* Stopover calendar (Bryntum, flag on only): the widget keeps its own theme, taken
+   from the shell's; around it, the rail's own type and spacing. */
+.escales-scheduler-lead { margin: 0 0 var(--space-2); }
+.escales-scheduler-bryntum {
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+}
+.escales-scheduler .escales-cabins { margin-top: var(--space-3); }
+.escales-scheduler .escales-cabins h3 {
+  margin: 0;
+  color: var(--color-fg);
+  font-size: var(--text-ui);
+  line-height: var(--text-ui--line-height);
+  font-weight: 600;
+}
+.escales-scheduler .escales-legs {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.escales-scheduler .escales-legs > li {
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-line);
+}
+.escales-scheduler .escales-legs > li:last-child { padding-bottom: 0; border-bottom: 0; }
+
+/* The stopover calendar on the treasurer page: a panel like the others, as wide as the page. */
+.treasurer-page-inner > .escales-scheduler {
+  min-width: 0;
+  padding: var(--space-3);
+}
+.treasurer-page-inner > .escales-scheduler h2 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-panel-heading);
+  line-height: var(--text-panel-heading--line-height);
+  font-weight: 600;
 }

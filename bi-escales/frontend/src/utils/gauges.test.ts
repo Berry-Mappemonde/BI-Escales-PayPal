@@ -42,6 +42,27 @@ describe("buildGaugeRows", () => {
   });
 });
 
+describe("buildGaugeRows with gifts to a stop", () => {
+  const row = (id: string, kind: string, status: PublicPledge["status"], amount: string): PublicPledge => ({
+    id, kind, status, intent: "AUTHORIZE", currency: "EUR", amount_eur: amount, description: id, milestone_id: "dep-brest",
+  });
+
+  it("puts a stop's gifts on their own line, right after the stop's other pledges", () => {
+    const rows = buildGaugeRows([
+      row("g1", "stop_gift", "authorized", "17.35"),
+      row("m1", "mile", "captured", "20.00"),
+      row("g2", "stop_gift", "voided", "5.00"),
+      row("c1", "common_fund", "captured", "10.00"),
+    ]);
+    expect(rows.map((r) => [r.milestone_id, r.kind ?? null])).toEqual([
+      ["dep-brest", null],
+      ["dep-brest", "stop_gift"],
+    ]);
+    expect(rows[0]).toMatchObject({ captured_count: 2, captured_total_eur: 30, authorized_count: 0 });
+    expect(rows[1]).toMatchObject({ authorized_count: 1, authorized_total_eur: 17.35, captured_count: 0, voided_count: 1 });
+  });
+});
+
 describe("sumAmount", () => {
   it("n'additionne pas les montants non-EUR dans le total EUR", () => {
     const pledges: PublicPledge[] = [

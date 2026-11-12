@@ -7,6 +7,7 @@ import {
   fetchPayPalSubscriptions,
   setupCrewSubscription,
 } from "../api/escales";
+import { TreasurerCrewMemberships } from "./TreasurerCrewMemberships";
 
 export interface TreasurerPayPalPanelProps {
   adminKey: string;
@@ -17,6 +18,8 @@ export function TreasurerPayPalPanel({ adminKey }: TreasurerPayPalPanelProps) {
   const [disputeCount, setDisputeCount] = useState<number | null>(null);
   const [invoiceCount, setInvoiceCount] = useState<number | null>(null);
   const [subscriptions, setSubscriptions] = useState<number | null>(null);
+  // The same answer as the count above, kept to list who is subscribed (read-only).
+  const [memberships, setMemberships] = useState<unknown[] | null>(null);
   const [setupNote, setSetupNote] = useState<string | null>(null);
   const [crewPlanConfigured, setCrewPlanConfigured] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +30,7 @@ export function TreasurerPayPalPanel({ adminKey }: TreasurerPayPalPanelProps) {
       setDisputeCount(null);
       setInvoiceCount(null);
       setSubscriptions(null);
+      setMemberships(null);
       return;
     }
     setError(null);
@@ -41,6 +45,7 @@ export function TreasurerPayPalPanel({ adminKey }: TreasurerPayPalPanelProps) {
       const iItems = invoices.paypal?.items;
       setInvoiceCount(Array.isArray(iItems) ? iItems.length : 0);
       setSubscriptions(Array.isArray(subs.items) ? subs.items.length : 0);
+      setMemberships(Array.isArray(subs.items) ? subs.items : []);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -92,6 +97,7 @@ export function TreasurerPayPalPanel({ adminKey }: TreasurerPayPalPanelProps) {
           {t("treasurer.paypal.subscriptions", { count: subscriptions ?? "—" })}
         </li>
       </ul>
+      {memberships ? <TreasurerCrewMemberships items={memberships} /> : null}
       {crewPlanConfigured === false ? (
         <p className="hint" data-testid="treasurer-crew-plan-missing-hint">
           {t("treasurer.paypal.crewPlanMissingHint")}

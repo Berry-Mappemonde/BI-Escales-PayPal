@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "./PayPalWalletPayBlockV6.css";
 import { authorizePledge, createPledge } from "../api/escales";
 import {
   safePayPalClose,
@@ -38,8 +39,7 @@ export function PayPalWalletPayBlockV6({
   const { t } = useTranslation();
   const googleHost = useRef<HTMLDivElement | null>(null);
   const appleHost = useRef<HTMLDivElement | null>(null);
-  const valuesRef = useRef(values);
-  valuesRef.current = values;
+  const attemptRef = useRef<{ fingerprint: string; key: string; pledge?: Promise<import("../api/types").PublicPledge> } | null>(null);
   const [walletVisible, setWalletVisible] = useState(false);
   const [walletError, setWalletError] = useState(false);
 
@@ -59,8 +59,15 @@ export function PayPalWalletPayBlockV6({
     setWalletVisible(false);
 
     const makeOrder = async () => {
-      const v = valuesRef.current;
-      const pledge = await createPledge(
+      // Bind the displayed native-sheet amount and target to this generation.
+      if (closed) throw new Error("Wallet checkout closed");
+      const v = values;
+      const fingerprint = JSON.stringify([v, appLang, sdkIntent]);
+      if (!attemptRef.current || attemptRef.current.fingerprint !== fingerprint) {
+        attemptRef.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      const attempt = attemptRef.current;
+      if (!attempt.pledge) attempt.pledge = createPledge(
         {
           amount_eur: v.amount_eur,
             quantity: v.quantity,
@@ -71,14 +78,17 @@ export function PayPalWalletPayBlockV6({
           target_id: v.target_id,
           lang: v.lang || appLang,
         },
-        crypto.randomUUID(),
-      );
+        attempt.key,
+      ).catch(error => { attempt.pledge = undefined; throw error; });
+      const pledge = await attempt.pledge;
+      if (closed) throw new Error("Wallet checkout closed");
       if (!pledge.order_id) throw new Error("order_id missing");
       return { orderId: pledge.order_id, pledgeId: pledge.id };
     };
 
     const onApprove = async (pledgeId: string) => {
       const done = await authorizePledge(pledgeId);
+      attemptRef.current = null;
       onAuthorized?.(done);
     };
 
@@ -93,7 +103,7 @@ export function PayPalWalletPayBlockV6({
         factory,
         {
           amount: values.amount_eur,
-          currencyCode: "EUR",
+          currencyCode: values.currency?.trim().toUpperCase() || "EUR",
           createOrder: async () => {
             const row = await makeOrder();
             pledgeId = row.pledgeId;
@@ -126,7 +136,7 @@ export function PayPalWalletPayBlockV6({
       safePayPalClose(googleButtons);
       safePayPalClose(appleButtons);
     };
-  }, [appLang, disabled, sdkReady, paypal, sdkIntent, onAuthorized, values.amount_eur, values.currency, values.quantity, values.kind, values.milestone_id]);
+  }, [appLang, disabled, sdkReady, paypal, sdkIntent, onAuthorized, values.amount_eur, values.currency, values.quantity, values.kind, values.milestone_id, values.target_id, values.description, values.contributor]);
 
   return (
     <div className="paypal-wallet-pay" data-testid="paypal-wallet-pay">

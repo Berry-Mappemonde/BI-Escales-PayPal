@@ -10,12 +10,29 @@ import {
 import { isCaptainRateLimitMessage } from "../api/captainRateLimit";
 import type { CaptainProposal, PublicPledge, ScheduleResponse } from "../api/types";
 import { isQueuedPledge, isRefundablePledge, isTreasurerQueueRow } from "../hooks/queueFilter";
+import { demoPlay, fetchOwnDemoPledges, type DemoPlay, type DemoPlayAction } from "../api/demoPlay";
+import { DemoOwnPledgeActions } from "./DemoOwnPledgeActions";
 import { CaptainReviewCard } from "./captain/CaptainReviewCard";
 import { releasableHolds, stopOnSchedule } from "./captain/captainEvidence";
 import { PledgeStatusChip } from "./captain/PledgeStatusChip";
 import { useHoldRelease } from "./captain/useHoldRelease";
 import { milestoneLabel } from "../utils/milestoneLabel";
 import type { StopNames } from "../utils/milestoneLabel";
+
+/** Statuses the legend explains, in the order a pledge goes through them. */
+const LEGEND_STATUSES = [
+  "authorized",
+  "vaulted",
+  "pending",
+  "captured",
+  "voided",
+  "partially_refunded",
+  "refunded",
+] as const;
+/** A pledge in one of these needs no decision any more. */
+const CLOSED_STATUSES = new Set(["voided", "refunded"]);
+/** Closed pledges listed; older ones are counted, not listed. */
+const CLOSED_SHOWN = 8;
 
 export function shortPledgeId(id: string): string {
   return id.length > 8 ? id.slice(0, 8) : id;
@@ -32,6 +49,22 @@ export function formatPledgeCreatedAt(iso: string | undefined, language: string)
 function comparePledgesNewestFirst(a: PublicPledge, b: PublicPledge): number {
   const ta = Date.parse(a.created_at ?? "");
   const tb = Date.parse(b.created_at ?? "");
+  const safeA = Number.isFinite(ta) ? ta : 0;
+  const safeB = Number.isFinite(tb) ? tb : 0;
+  if (safeB !== safeA) return safeB - safeA;
+  return b.id.localeCompare(a.id);
+}
+
+/** When a closed pledge was released or refunded, if the list carries it (the keyed list does). */
+function closedAtIso(p: PublicPledge): string | undefined {
+  const at = (p.refunded_at || p.voided_at || p.vault_voided_at || "").trim();
+  return at && Number.isFinite(Date.parse(at)) ? at : undefined;
+}
+
+/** Newest closure first; a pledge without a closure time is placed by its creation. */
+function compareClosedNewestFirst(a: PublicPledge, b: PublicPledge): number {
+  const ta = Date.parse(closedAtIso(a) ?? a.created_at ?? "");
+  const tb = Date.parse(closedAtIso(b) ?? b.created_at ?? "");
   const safeA = Number.isFinite(ta) ? ta : 0;
   const safeB = Number.isFinite(tb) ? tb : 0;
   if (safeB !== safeA) return safeB - safeA;
@@ -86,12 +119,61 @@ export function TreasurerQueue({
     requestAnimationFrame(() => refundTrigger.current?.querySelector<HTMLButtonElement>("button")?.focus());
   };
   const [approvedMilestones, setApprovedMilestones] = useState<Record<string, boolean>>({});
+  // Demo treasurer: the pledges this browser made itself, which it may play with (#145).
+  // The server says which they are and what may be done next on each.
+  const [ownPlays, setOwnPlays] = useState<Record<string, DemoPlay>>({});
+  const [playNote, setPlayNote] = useState<string | null>(null);
+  const ownKey = demoTreasurer ? pledges.map((p) => `${p.id}:${p.status}`).sort().join("|") : "";
+  useEffect(() => {
+    if (!demoTreasurer) {
+      setOwnPlays({});
+      return undefined;
+    }
+    let cancelled = false;
+    fetchOwnDemoPledges()
+      .then((rows) => {
+        if (!cancelled) setOwnPlays(Object.fromEntries(rows.map((row) => [row.pledge_id, row])));
+      })
+      .catch(() => {
+        // Not knowing is view-only: no live button is shown on a guess.
+        if (!cancelled) setOwnPlays({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [demoTreasurer, ownKey]);
+
+  const runPlay = async (pledgeId: string, action: DemoPlayAction) => {
+    if (actionRunning.current) return;
+    actionRunning.current = true;
+    setBusyId(pledgeId);
+    setActionError(null);
+    setPlayNote(null);
+    try {
+      const result = await demoPlay(pledgeId, action);
+      setOwnPlays((all) => ({ ...all, [pledgeId]: result.play }));
+      setPlayNote(t(result.pledge.status === "pending" ? "pledge.cardConfirmPendingNext" : `treasurer.demoPlay.done.${action}`, { ref: shortPledgeId(pledgeId) }));
+      onUpdated(result.pledge);
+      onRefresh();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      actionRunning.current = false;
+      setBusyId(null);
+    }
+  };
 
   const queue = useMemo(
     () => pledges.filter((p) => isTreasurerQueueRow(p.status)).sort(comparePledgesNewestFirst),
     [pledges],
   );
   const pending = queue.filter((p) => isQueuedPledge(p.status));
+  // Released and refunded pledges need no decision, so they leave the queue above;
+  // they are still listed, read-only, so every status a pledge can end in is visible.
+  const closed = useMemo(
+    () => pledges.filter((p) => CLOSED_STATUSES.has(p.status)).sort(compareClosedNewestFirst),
+    [pledges],
+  );
   // Capture, void, refund and review approval always need the treasurer key, even in demo.
   const canMoveMoney = Boolean(adminKey.trim());
   /** A missing key means the review is still loading; null means it failed. */
@@ -238,8 +320,11 @@ export function TreasurerQueue({
 
       {demoTreasurer && !canMoveMoney && queue.length ? (
         <p className="hint" data-testid="treasurer-demo-readonly">
-          {t("treasurer.moneyNeedsKey")}
+          {t("treasurer.demoPlay.othersViewOnly")}
         </p>
+      ) : null}
+      {playNote ? (
+        <p className="notice" role="status" data-testid="demo-play-note">{playNote}</p>
       ) : null}
       {!needsKey && cardIds.length ? (
         <div className="captain-cards">
@@ -265,6 +350,16 @@ export function TreasurerQueue({
             );
           })}
         </div>
+      ) : null}
+      {!needsKey ? (
+        <ul className="queue-legend" data-testid="queue-status-legend" aria-label={t("treasurer.statusLegend")}>
+          {LEGEND_STATUSES.map((status) => (
+            <li key={status}>
+              <PledgeStatusChip status={status} />
+              <span>{t(`treasurer.statusMeaning.${status}`)}</span>
+            </li>
+          ))}
+        </ul>
       ) : null}
       {needsKey ? (
         <p className="hint">{t("treasurer.queueNeedsKey")}</p>
@@ -292,6 +387,9 @@ export function TreasurerQueue({
                   >
                     {shortPledgeId(p.id)}
                   </span>
+                  {ownPlays[p.id] ? (
+                    <span className="demo-own-tag" data-testid={`own-tag-${p.id}`}>{t("treasurer.demoPlay.yours")}</span>
+                  ) : null}
                 </td>
                 <td>
                   <time
@@ -302,32 +400,48 @@ export function TreasurerQueue({
                   </time>
                 </td>
                 <td>
-                  <strong>{p.description}</strong>
-                  {/* The stop's name; the raw id stays one hover away, like the pledge reference. */}
-                  <small data-testid={`pledge-milestone-${p.id}`} title={p.milestone_id || undefined}>
+                  {p.description ? <strong>{p.description}</strong> : null}
+                  {/* The stop's name; the raw id stays one hover away, like the pledge reference.
+                      With no description it is the row's main line, not a footnote. */}
+                  <small
+                    className={p.description ? undefined : "queue-stop-primary"}
+                    data-testid={`pledge-milestone-${p.id}`}
+                    title={p.milestone_id || undefined}
+                  >
                     {milestoneLabel(stopNames, p.milestone_id, t)}
                   </small>
-                  <small data-testid={`capture-id-${p.id}`} aria-label={t("treasurer.captureId")}>{p.capture_id || "—"}</small>
+                  {/* Shown once PayPal has captured; a held pledge has no capture id to show. */}
+                  {p.capture_id ? (
+                    <small data-testid={`capture-id-${p.id}`} aria-label={t("treasurer.captureId")}>{p.capture_id}</small>
+                  ) : null}
                 </td>
                 <td className="actions queue-value">
                   <strong>{p.amount_eur} {p.currency}</strong>
                   <PledgeStatusChip status={p.status} />
-                  {isQueuedPledge(p.status) && reviews[p.milestone_id]?.proposal === "capture" ? (
+                  {/* This browser's own pledge in the demo: its own live controls, checked by the server. */}
+                  {ownPlays[p.id] && !canMoveMoney ? (
+                    <DemoOwnPledgeActions
+                      play={ownPlays[p.id]}
+                      busy={busyId !== null}
+                      onRun={(action) => void runPlay(p.id, action)}
+                    />
+                  ) : null}
+                  {!(ownPlays[p.id] && !canMoveMoney) && isQueuedPledge(p.status) && (p.status === "pending" || reviews[p.milestone_id]?.proposal === "capture") ? (
                     <button
                       type="button"
                       data-testid={`capture-${p.id}`}
                       disabled={
                         !canMoveMoney ||
                         busyId !== null ||
-                        !approvedMilestones[p.milestone_id] ||
+                        (p.status !== "pending" && !approvedMilestones[p.milestone_id]) ||
                         releaseRunning(p.milestone_id)
                       }
                       onClick={() => void runAction(p.id, "capture")}
                     >
-                      {t("treasurer.capturePledge")}
+                      {t(p.status === "pending" ? "treasurer.checkPaymentStatus" : "treasurer.capturePledge")}
                     </button>
                   ) : null}
-                  {isRefundablePledge(p.status) ? (
+                  {!(ownPlays[p.id] && !canMoveMoney) && isRefundablePledge(p.status) ? (
                     refundConfirmation?.id === p.id && refundConfirmation.amount === refundableAmount(p) ? (
                       <div className="treasurer-confirmation" role="group" aria-labelledby={`refund-question-${p.id}`}>
                         <p id={`refund-question-${p.id}`}>
@@ -370,6 +484,60 @@ export function TreasurerQueue({
         </table>
         </div>
       )}
+      {!needsKey && closed.length ? (
+        <section className="queue-closed" data-testid="queue-closed">
+          <h4>{t("treasurer.closedHeading")}</h4>
+          <p className="hint">{t("treasurer.closedLead")}</p>
+          <div className="treasurer-queue-table">
+            <table className="fallback-table">
+              <thead>
+                <tr>
+                  <th scope="col">{t("treasurer.pledgeRef")}</th>
+                  <th scope="col">{t("treasurer.closedOn")}</th>
+                  <th scope="col">{t("treasurer.description")}</th>
+                  <th scope="col">{t("treasurer.amount")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {closed.slice(0, CLOSED_SHOWN).map((p) => {
+                  const closedAt = closedAtIso(p);
+                  return (
+                  <tr key={p.id} data-testid={`closed-row-${p.id}`}>
+                    <td>
+                      <span className="treasurer-pledge-ref" title={p.id}>{shortPledgeId(p.id)}</span>
+                    </td>
+                    <td>
+                      {closedAt ? (
+                        <time dateTime={closedAt}>{formatPledgeCreatedAt(closedAt, i18n.language)}</time>
+                      ) : (
+                        <time dateTime={p.created_at || undefined}>
+                          {t("treasurer.closedCreated", { date: formatPledgeCreatedAt(p.created_at, i18n.language) })}
+                        </time>
+                      )}
+                    </td>
+                    <td>
+                      {p.description ? <strong>{p.description}</strong> : null}
+                      <small className={p.description ? undefined : "queue-stop-primary"} title={p.milestone_id || undefined}>
+                        {milestoneLabel(stopNames, p.milestone_id, t)}
+                      </small>
+                    </td>
+                    <td className="actions queue-value">
+                      <strong>{p.amount_eur} {p.currency}</strong>
+                      <PledgeStatusChip status={p.status} />
+                    </td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {closed.length > CLOSED_SHOWN ? (
+            <p className="hint" data-testid="queue-closed-more">
+              {t("treasurer.closedMore", { count: closed.length - CLOSED_SHOWN })}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
     </section>
   );
 }

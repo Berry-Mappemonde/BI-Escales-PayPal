@@ -11,7 +11,7 @@ import { TreasurerGrid } from "./TreasurerGrid";
 import { TreasurerStudioSection } from "./TreasurerStudioSection";
 import { DemoStopMoment } from "./DemoStopMoment";
 import { TreasurerWishlistsPanel } from "../wishlists/TreasurerWishlistsPanel";
-import type { StopNames } from "../utils/milestoneLabel";
+import { milestoneLabel, type StopNames } from "../utils/milestoneLabel";
 import "./treasurer-panel.css";
 
 function OpenFundTotals({
@@ -149,6 +149,15 @@ export function TreasurerPanel({
             <p className="notice demo-treasurer-banner" data-testid="demo-treasurer-banner">
               {t("treasurer.demoBanner")}
             </p>
+            {/* How a visitor plays the treasurer on a pledge of their own (#145). */}
+            <div className="demo-play-hint" data-testid="demo-play-hint">
+              <p className="hint">{t("treasurer.demoPlay.hintLead")}</p>
+              <ol>
+                <li>{t("treasurer.demoPlay.hintStep1")}</li>
+                <li>{t("treasurer.demoPlay.hintStep2")}</li>
+                <li>{t("treasurer.demoPlay.hintStep3")}</li>
+              </ol>
+            </div>
             </>
           ) : (
             <>
@@ -166,7 +175,7 @@ export function TreasurerPanel({
           ) : (
           <>
           <p className="hint" data-testid="treasurer-milestone-hint">
-            {t("treasurer.milestoneFromStop", { id: milestoneId.trim() || "—" })}
+            {t("treasurer.milestoneFromStop", { name: milestoneLabel(stopNames, milestoneId, t) || "—" })}
           </p>
           <button
             type="button"
@@ -219,6 +228,7 @@ export function TreasurerPanel({
           )}
             </>
           )}
+          <TreasurerStudioSection adminKey={adminKey} demo={demoMode} stopNames={stopNames} />
           {showQueue ? (
           <TreasurerQueue
             pledges={pledges}
@@ -250,7 +260,6 @@ export function TreasurerPanel({
             onPledgeUpdated={onPledgeUpdated}
             stopNames={stopNames}
           />
-          <TreasurerStudioSection pledges={pledges} />
           <form className="stack-form" onSubmit={onSpendSubmit}>
             <h3>{t("fund.heading")}</h3>
             <label>

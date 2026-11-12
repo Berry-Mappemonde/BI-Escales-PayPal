@@ -11,6 +11,7 @@ import {
   cabinLegMilestoneId,
   pledgeAmountReadOnly,
   pledgeOrderAmount,
+  unitPriceForKind,
 } from "../pledge/stopPledgeAmount.js";
 import {
   formatEurAmount,
@@ -27,7 +28,19 @@ import { MileCertificateDownload } from "./MileCertificateDownload";
 import { useStopContext } from "./stop/useStopContext.js";
 import { evaluateGooglePlaceLink, googleMapsSearchUrl } from "../marinas/marinaPlaceLink.js";
 
-const STOP_KINDS = ["mile", "berth", "night", "meal", "care", "cabin_leg", "common_fund"];
+// stop_gift (held until the boat arrives) sits beside common_fund (charged at once): two different promises.
+const STOP_KINDS = ["mile", "berth", "night", "meal", "care", "cabin_leg", "stop_gift", "common_fund"];
+
+/** Largest gift to a stop the server accepts (pledges.STOP_GIFT_MAX_EUR). */
+export const STOP_GIFT_MAX_EUR = 1000;
+
+/** A stop gift is a positive EUR amount with at most two decimals, up to the maximum. */
+export function stopGiftAmountValid(raw) {
+  const text = String(raw ?? "").trim().replace(",", ".");
+  if (!/^\d+(\.\d{1,2})?$/.test(text)) return false;
+  const amount = Number(text);
+  return amount > 0 && amount <= STOP_GIFT_MAX_EUR;
+}
 
 const SECTION_KEYS = [
   "mooring",
@@ -127,6 +140,8 @@ export const EscaleSheet = memo(function EscaleSheet({
   const perUnit = pledge && ["mile", "night", "meal", "care", "berth", "cabin_leg"].includes(pledge.kind);
   const orderAmount = pledge ? pledgeOrderAmount(pledge.kind, pledge.amount, priceCatalog, perUnit ? quantity : undefined) : "";
   const readOnlyAmount = pledge ? perUnit || pledgeAmountReadOnly(pledge.kind, priceCatalog) : false;
+  const isStopGift = pledge?.kind === "stop_gift";
+  const giftInvalid = isStopGift && !stopGiftAmountValid(orderAmount);
   const pledgeMilestoneId = pledge
     ? (pledge.kind === "cabin_leg"
       ? cabinLegMilestoneId(schedule, pledge.milestoneId, stop.name) || pledge.milestoneId
@@ -142,6 +157,16 @@ export const EscaleSheet = memo(function EscaleSheet({
     ? stopStatus({ now: context.now, arrivalIso, startIso, cancelled })
     : null;
   const { heldEur, capturedEur } = fundTotals(context.fund);
+  // Known and zero: say so. Unknown (the call failed, is on its way, or a field is
+  // missing or redacted): say nothing.
+  const knownZero = (value) => value !== null && value !== undefined && String(value).trim() !== "" && Number(value) === 0;
+  const nothingPledged = knownZero(context.fund?.authorized_eur) && knownZero(context.fund?.captured_eur);
+  // The fixed price of each thing a visitor can fund here, from the same catalogue as the amount.
+  const unitPriceLabel = (kind) => {
+    const unit = unitPriceForKind(kind, priceCatalog);
+    return unit ? formatEurAmount(Number(unit), lang) : null;
+  };
+  const fixedPrices = STOP_KINDS.map((kind) => ({ kind, price: unitPriceLabel(kind) })).filter((row) => row.price);
   const logLines = logbookUpTo(logbookEntries, context.now).map((entry) => logbookLine(entry, lang));
 
   return (
@@ -163,7 +188,7 @@ export const EscaleSheet = memo(function EscaleSheet({
           </button>
         ) : null}
       </div>
-      {arrivalLabel || departureLabel || heldEur || capturedEur ? (
+      {arrivalLabel || departureLabel || heldEur || capturedEur || nothingPledged ? (
         <div className="stop-section stop-summary">
           {arrivalLabel || departureLabel ? (
             <dl className="stop-rows">
@@ -188,6 +213,9 @@ export const EscaleSheet = memo(function EscaleSheet({
               {capturedEur ? t("stopPanel.captured", { amount: formatEurAmount(capturedEur, lang) }) : null}
             </p>
           ) : null}
+          {nothingPledged ? (
+            <p className="stop-money stop-money-none" data-testid="stop-money-none">{t("stopPanel.nothingPledged")}</p>
+          ) : null}
         </div>
       ) : null}
       {pledge && !cancelled ? (
@@ -201,11 +229,22 @@ export const EscaleSheet = memo(function EscaleSheet({
                 value={pledge.kind}
                 onChange={(event) => pledge.onKind(event.target.value)}
               >
-                {STOP_KINDS.map((kind) => (
-                  <option key={kind} value={kind}>{t(`pledge.kinds.${kind}`)}</option>
-                ))}
+                {STOP_KINDS.map((kind) => {
+                  const price = unitPriceLabel(kind);
+                  const name = t(`pledge.kinds.${kind}`);
+                  return (
+                    <option key={kind} value={kind}>
+                      {price ? t("pledge.kindWithPrice", { kind: name, price }) : name}
+                    </option>
+                  );
+                })}
               </select>
             </label>
+            {/* Every fixed price at a glance, without opening the list. */}
+            <p className="stop-note stop-fixed-prices" data-testid="stop-fixed-prices">
+              {t("pledge.fixedPrices")}{" "}
+              {fixedPrices.map(({ kind, price }) => t("pledge.kindPrice", { kind: t(`pledge.kindShort.${kind}`), price })).join(" · ")}
+            </p>
             <div className="pledge-calculation">
               {perUnit ? <label>
                 {t("pledge.quantity")}
@@ -218,6 +257,9 @@ export const EscaleSheet = memo(function EscaleSheet({
                   data-testid="pledge-amount"
                   value={orderAmount}
                   readOnly={readOnlyAmount}
+                  inputMode={isStopGift ? "decimal" : undefined}
+                  aria-invalid={giftInvalid || undefined}
+                  aria-describedby={isStopGift ? "stop-gift-note" : undefined}
                   onChange={(event) => {
                     if (!readOnlyAmount) pledge.onAmount(event.target.value);
                   }}
@@ -228,8 +270,21 @@ export const EscaleSheet = memo(function EscaleSheet({
               {t("pledge.contributor")}
               <input value={pledge.contributor} onChange={(event) => pledge.onContributor(event.target.value)} />
             </label>
+            {isStopGift ? (
+              <p className="stop-note" id="stop-gift-note" data-testid="stop-gift-note">
+                {t("stopPanel.stopGiftNote", { max: formatEurAmount(STOP_GIFT_MAX_EUR, lang) })}
+              </p>
+            ) : null}
+            {pledge.kind === "mile" && !receiptPledge ? (
+              <p className="stop-note" data-testid="mile-certificate-promise">{t("certificate.promise")}</p>
+            ) : null}
             <div className="stop-checkout">
               <h4>{t("stopPanel.checkout")}</h4>
+              {giftInvalid ? (
+                <p className="notice error" role="alert" data-testid="stop-gift-invalid">
+                  {t("stopPanel.stopGiftInvalid", { max: formatEurAmount(STOP_GIFT_MAX_EUR, lang) })}
+                </p>
+              ) : (
               <PledgeButton
                 values={{
                   amount_eur: orderAmount,
@@ -242,6 +297,7 @@ export const EscaleSheet = memo(function EscaleSheet({
                 }}
                 onAuthorized={onAuthorized}
               />
+              )}
             </div>
           </div>
           <MileCertificateDownload pledge={receiptPledge} contributor={pledge.contributor} />
@@ -308,12 +364,12 @@ export const EscaleSheet = memo(function EscaleSheet({
                               {Number.isFinite(item.nm) ? <span className="hint"> {item.nm} nm</span> : null}
                               {item.phone ? <a href={`tel:${item.phone}`}>{item.phone}</a> : null}
                               {site ? (
-                                <a href={site} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.website")}>
+                                <a href={site} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.websiteOf", { name: item.name })}>
                                   ↗
                                 </a>
                               ) : null}
                               {maps ? (
-                                <a href={maps} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.maps")}>
+                                <a href={maps} target="_blank" rel="noopener noreferrer" aria-label={t("sheet.marina.mapsOf", { name: item.name })}>
                                   ◎
                                 </a>
                               ) : null}

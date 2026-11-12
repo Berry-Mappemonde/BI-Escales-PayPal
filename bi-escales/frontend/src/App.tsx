@@ -18,15 +18,19 @@ import { TreasurerPanel } from "./components/TreasurerPanel";
 import { CrewSupporterPublicSection } from "./components/CrewSubscribeButton";
 import { HowItWorks } from "./components/stop/HowItWorks.jsx";
 import EscalesScheduler from "./components/escales/EscalesScheduler.jsx";
+import { PublicTotals } from "./components/PublicTotals";
 import { ToastContainer } from "./components/Toast";
+import { ShellSettings } from "./components/ShellSettings";
 import type { ToastItem } from "./components/Toast";
 import { usePledgeQueue } from "./hooks/usePledgeQueue";
 import { useTheme } from "./hooks/useTheme";
-import { setLanguage } from "./i18n";
+import { boatPosition, departureDate } from "./voyage/boatPosition.js";
 import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { resolveBoatStop } from "./voyage/boatStop.js";
+import { publicCommonFundMessage } from "./utils/publicCommonFund";
 import { nextOpenStop } from "./voyage/nextStop.js";
+import { treasurerStopOverview } from "./voyage/treasurerStopOverview.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
 import { isNarrowScreen } from "./utils/narrowScreen";
@@ -54,7 +58,7 @@ type VoyageStop = {
   flags?: string[];
 };
 
-type FlyTarget = { lat: number; lon: number; ts: number };
+type FlyTarget = { id?: string; lat: number; lon: number; ts: number };
 
 /** Matches GET /milestones/{id}/fund treasurer gate (aggregate project + per-project ids). */
 function milestoneFundRequiresAdminKey(milestoneId: string): boolean {
@@ -65,6 +69,8 @@ function milestoneFundRequiresAdminKey(milestoneId: string): boolean {
 // Gear tab (Channel3 items placed on the map) stays hidden until local products tied to
 // stops are built (Clément, 10 Nov). The code is kept; the wishlist link stays visible.
 const GEAR_TAB_VISIBLE = false;
+/** Retry delay for the voyage clock while it has never answered (e.g. the API host is waking up). */
+const CLOCK_RETRY_MS = 10000;
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -100,6 +106,8 @@ export default function App() {
 
   const [routeFc, setRouteFc] = useState<unknown>(null);
   const [projects, setProjects] = useState<{ features?: unknown[] }>({ features: [] });
+  // True until the projects file has answered or failed: "0 projects" is not yet known.
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [devT0, setDevT0] = useState("");
   const [now, setNow] = useState(() => new Date());
   const [stop, setStop] = useState<VoyageStop | null>(null);
@@ -140,20 +148,36 @@ export default function App() {
   const [bryntumEnabled, setBryntumEnabled] = useState(false);
   const [wishlistsEnabled, setWishlistsEnabled] = useState(false);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
+  // False until the schedule request has answered or failed: until then the next
+  // open stop is not known, and "Back the next stop" must not name one.
+  const [scheduleSettled, setScheduleSettled] = useState(false);
   // The API's clock and milestones: what the stop sheet's status chip is built from.
   const [apiNow, setApiNow] = useState<string | null>(null);
+  // False until the clock request has answered or failed. Until then the voyage
+  // clock shows a placeholder: with a demo clock the browser's own time would
+  // flash a date and a distance that the answer then replaces.
   const [milestones, setMilestones] = useState<Milestone[] | null>(null);
 
   const prod = Boolean(import.meta.env.PROD);
   const t0 = resolveDepartureT0(prod, devT0 || undefined);
   const lang = i18n.language?.startsWith("en") ? "en" : "fr";
   const voyage = useMemo(
-    () => (routeFc ? voyageFromRoute(routeFc, t0) : null),
-    [routeFc, t0],
+    () => (routeFc ? voyageFromRoute(routeFc, t0, schedule) : null),
+    // Not `schedule` itself: a price refresh copies it without changing the times.
+    [routeFc, t0, schedule?.export, schedule?.legs],
   );
+  // The left rail follows the API's clock, so it cannot contradict the stop
+  // statuses, which are computed from that same clock. No time at all while the
+  // API clock is unavailable. Browser time must never stand in for a pinned demo clock.
+  const voyageNow = useMemo(() => {
+    const fromApi = apiNow ? new Date(apiNow) : null;
+    if (fromApi && Number.isFinite(fromApi.getTime())) return fromApi;
+    return null;
+  }, [apiNow]);
+  const voyageClockReady = voyageNow !== null;
   const sample = useMemo(
-    () => (voyage ? sampleAt(voyage.clock, now) : null),
-    [voyage, now],
+    () => (voyage && voyageNow ? sampleAt(voyage.clock, voyageNow) : null),
+    [voyage, voyageNow],
   );
   const cumNm = Number(sample?.sailNm ?? sample?.cumNm ?? 0);
   const countdownHours =
@@ -161,6 +185,9 @@ export default function App() {
       ? Math.max(0, Math.round(Number(sample.countdownHours)))
       : null;
   const sailedNm = Number.isFinite(cumNm) ? cumNm.toFixed(1).replace(/\.0$/, "") : "—";
+  // Where the boat is, in words: the map shows it, this line says it. The clock
+  // keeps the schedule's times once it is loaded, as the stop statuses do.
+  const boatWhere = useMemo(() => boatPosition(voyage?.stops, sample), [voyage?.stops, sample]);
   const sheetArrivalIso = useMemo(
     () => (stop?.milestoneId && schedule ? escaleArrivalIso(schedule, stop.milestoneId) : ""),
     [stop?.milestoneId, schedule],
@@ -202,6 +229,9 @@ export default function App() {
     void fetchJson("/bi-projects.geojson")
       .then((base) => {
         if (cancelled) return;
+        // Show the base projects at once; the gear projects join them when they arrive.
+        setProjects(base as { features?: unknown[] });
+        setProjectsLoading(false);
         void fetchGearProjects().then((gear) => {
           if (cancelled) return;
           const baseFeatures = Array.isArray((base as { features?: unknown[] })?.features)
@@ -225,7 +255,11 @@ export default function App() {
           if (!cancelled) setProjects(base as { features?: unknown[] });
         });
       })
-      .catch(() => setProjects({ features: [] }));
+      .catch(() => {
+        if (cancelled) return;
+        setProjects({ features: [] });
+        setProjectsLoading(false);
+      });
     void fetchFeatures()
       .then((flags) => {
         // Tells the PayPal buttons which browser SDK to use (v5 unless paypal_js_v6 is on).
@@ -256,6 +290,9 @@ export default function App() {
       })
       .catch(() => {
         if (!cancelled) setSchedule(null);
+      })
+      .finally(() => {
+        if (!cancelled) setScheduleSettled(true);
       });
     return () => {
       cancelled = true;
@@ -264,14 +301,27 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const sync = () => {
+    // Until the API clock has answered once, a failed or timed-out request
+    // (a host waking up) is retried sooner than the regular minute.
+    let answered = false;
+    let retry: number | undefined;
+    const syncClock = () => {
+      window.clearTimeout(retry);
       void fetchClock()
         .then((clock) => {
-          if (!cancelled && clock?.now) setApiNow(clock.now);
+          if (cancelled) return;
+          if (!clock?.now || !Number.isFinite(Date.parse(clock.now))) throw new Error("Voyage clock unavailable");
+          setApiNow(clock.now);
+          answered = true;
         })
         .catch(() => {
-          /* keep the last answer; the wall clock stands in until the first one */
+          // Keep the last API answer, or the placeholder until the host wakes up.
+          if (cancelled) return;
+          if (!answered) retry = window.setTimeout(syncClock, CLOCK_RETRY_MS);
         });
+    };
+    const sync = () => {
+      syncClock();
       void listMilestones()
         .then((rows) => {
           if (!cancelled && Array.isArray(rows)) setMilestones(rows);
@@ -285,6 +335,7 @@ export default function App() {
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      window.clearTimeout(retry);
     };
   }, []);
 
@@ -423,13 +474,19 @@ export default function App() {
 
   // The default target of "back a stop": the first stop the boat has not reached and
   // that is not cancelled, by the same clock and schedule as the sheet's status chip.
-  // Without a schedule there is no status to contradict, so the boat's stop stands in.
+  // If the schedule request failed there is no status to contradict, so the boat's
+  // stop stands in. While it is still on its way, no stop is named at all: the boat's
+  // stop is often one the schedule says is already reached.
   const nextStop = useMemo(
     () =>
-      (schedule
-        ? nextOpenStop(voyage?.stops, schedule, apiNow ?? now.toISOString(), milestones)
-        : resolveBoatStop(voyage?.stops, sample)) as VoyageStop | null,
-    [voyage?.stops, schedule, apiNow, now, milestones, sample],
+      (!voyageNow
+        ? null // the clock is on its way: no stop is named from the browser's time
+        : schedule
+          ? nextOpenStop(voyage?.stops, schedule, apiNow ?? voyageNow.toISOString(), milestones)
+          : scheduleSettled
+            ? resolveBoatStop(voyage?.stops, sample)
+            : null) as VoyageStop | null,
+    [voyage?.stops, schedule, scheduleSettled, apiNow, voyageNow, milestones, sample],
   );
 
   const locateBoat = useCallback(() => {
@@ -456,9 +513,12 @@ export default function App() {
     });
   };
 
+  // Bumped after each pledge, so "Where the money goes" reads its totals again if it is open.
+  const [totalsRefresh, setTotalsRefresh] = useState(0);
   const onAuthorized = useCallback((pledge: PublicPledge) => {
     updatePledge(pledge);
     setPaypalNote("authorized");
+    setTotalsRefresh((count) => count + 1);
     void refresh();
   }, [refresh, updatePledge]);
 
@@ -700,8 +760,8 @@ export default function App() {
     Array.isArray(allMarinas?.features) && allMarinas.features.length > 0
       ? allMarinas
       : stopMarinaFeatures;
-  const onFlyTo = (_id: string, lat: number, lon: number) => {
-    setFlyTo({ lat, lon, ts: Date.now() });
+  const onFlyTo = (id: string, lat: number, lon: number) => {
+    setFlyTo({ id, lat, lon, ts: Date.now() });
   };
 
   const dismissToast = useCallback((id: string) => {
@@ -772,8 +832,29 @@ export default function App() {
     return out;
   }, [projects]);
 
+  // The treasurer's calendar: has the boat reached each stop, and which held pledges wait there.
+  const stopOverview = useMemo(
+    () => (schedule ? treasurerStopOverview(schedule, apiNow ?? now.toISOString(), milestones, pledges) : null),
+    [schedule, apiNow, now, milestones, pledges],
+  );
+
   // The treasurer reads stop names, not milestone ids; the voyage already has them.
   const stopNames = useMemo(() => stopNamesFromStops(voyage?.stops), [voyage?.stops]);
+
+  // For the public totals: a project's title by id, and a stop's sheet by milestone id.
+  const projectTitles = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const row of Array.isArray(projects?.features) ? projects.features : []) {
+      const props = (row as { properties?: { id?: string; title?: string } })?.properties;
+      if (props?.id && props.title) out.set(String(props.id), String(props.title));
+    }
+    return out;
+  }, [projects]);
+  const projectTitle = useCallback((id: string) => projectTitles.get(id), [projectTitles]);
+  const openStopById = (id: string) => {
+    const match = (voyage?.stops || []).find((row: VoyageStop) => row.milestoneId === id);
+    if (match) chooseStop(match);
+  };
 
   const treasurerPanel = (
     <TreasurerPanel
@@ -853,6 +934,16 @@ export default function App() {
             if (props?.id) setSelectedProjectId(props.id);
           }}
         />
+        {/* Phone only, while the rail is closed (CSS): the first screen is the map, and
+            without this nothing on it says which product this is. */}
+        <p className="ng-map-brand" data-testid="ng-map-brand">
+          <svg width="16" height="16" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M16 3v19H5L16 3Z" fill="currentColor" />
+            <path d="m19 8 8 14h-8V8Z" fill="currentColor" opacity=".6" />
+            <path d="M4 25h24l-5 4H9l-5-4Z" fill="currentColor" />
+          </svg>
+          <span>BI Escales</span>
+        </p>
         <button
           type="button"
           className={`ng-sidebar-toggle ng-sidebar-toggle--left${sidebarOpen ? " is-open" : ""}`}
@@ -898,53 +989,8 @@ export default function App() {
             </svg>
             <h1 aria-label={t("app.title")}>BI Escales</h1>
           </div>
-          <div className="ng-controls">
-            <div className="lang-switch" role="group" aria-label={t("app.language")}>
-              <button
-                type="button"
-                className={i18n.language === "fr" ? "active" : ""}
-                aria-label={t("app.langFrSwitch")}
-                aria-pressed={i18n.language === "fr"}
-                onClick={() => setLanguage("fr")}
-              >
-                FR
-              </button>
-              <button
-                type="button"
-                className={i18n.language === "en" ? "active" : ""}
-                aria-label={t("app.langEnSwitch")}
-                aria-pressed={i18n.language === "en"}
-                onClick={() => setLanguage("en")}
-              >
-                EN
-              </button>
-            </div>
-            <div className="theme-switch" data-testid="theme-switch">
-              <button
-                type="button"
-                data-testid="theme-toggle"
-                aria-label={theme === "light" ? t("app.themeDark") : t("app.themeLight")}
-                aria-pressed={theme === "light"}
-                onClick={() => toggleTheme()}
-              >
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  {theme === "light" ? (
-                    <path
-                      d="M20.2 15.1A8.4 8.4 0 0 1 8.9 3.8 8.5 8.5 0 1 0 20.2 15.1Z"
-                      stroke="currentColor"
-                      strokeWidth="1.7"
-                      strokeLinejoin="round"
-                    />
-                  ) : (
-                    <>
-                      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.7" />
-                      <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                    </>
-                  )}
-                </svg>
-              </button>
-            </div>
-          </div>
+          {/* App settings: their own group, outside the visitor tools below. */}
+          <ShellSettings theme={theme} onToggleTheme={toggleTheme} />
           <p className="rail-tagline">{t("app.subtitle")}</p>
         </header>
         <div className="ng-tab-bar" role="tablist">
@@ -965,8 +1011,13 @@ export default function App() {
             <a href="/escales/wishlists">{t("wishlists.navLink")}</a>
           </p>
         ) : null}
-        <p className="ng-clock-line voyage-clock" data-testid="voyage-clock">
-          {countdownHours !== null ? (
+        <p
+          className="ng-clock-line voyage-clock"
+          data-testid="voyage-clock"
+          aria-busy={voyageClockReady ? undefined : true}
+          aria-label={voyageClockReady ? undefined : t("clock.pending")}
+        >
+          {voyageClockReady && countdownHours !== null ? (
             <span className="voyage-clock-countdown">
               {t("clock.waiting", {
                 days: Math.floor(countdownHours / 24),
@@ -974,9 +1025,21 @@ export default function App() {
               })}
             </span>
           ) : null}
-          <span className="voyage-clock-date">{formatCivilDate(sample?.iso, lang)}</span>
+          <span className="voyage-clock-date">{voyageClockReady ? formatCivilDate(sample?.iso, lang) : "—"}</span>
           <span className="voyage-clock-distance">
-            {t("clock.sailed", { nm: sailedNm })} · {t("clock.simulated")}
+            {voyageClockReady ? `${t("clock.sailed", { nm: sailedNm })} · ${t("clock.simulated")}` : "—"}
+          </span>
+        </p>
+        <p className="ng-clock-line voyage-where" data-testid="voyage-where">
+          {boatWhere ? (
+            <span className="voyage-clock-date voyage-boat-position" data-testid="voyage-boat-position">
+              {boatWhere.kind === "underway"
+                ? t("clock.boatUnderway", { from: boatWhere.from, to: boatWhere.to })
+                : t(boatWhere.kind === "waiting" ? "clock.boatWaiting" : "clock.boatAtStop", { stop: boatWhere.stop })}
+            </span>
+          ) : null}
+          <span className="voyage-clock-date" data-testid="voyage-departure">
+            {t("clock.departure", { date: departureDate(schedule, t0, lang) })}
           </span>
         </p>
         {!prod ? (
@@ -1002,6 +1065,7 @@ export default function App() {
             />
             <ProjectList
               projects={projects}
+              loading={projectsLoading}
               featureScope="projects"
               selectedProjectId={selectedProjectId}
               onSelectProject={setSelectedProjectId}
@@ -1009,10 +1073,17 @@ export default function App() {
               onFlyTo={onFlyTo}
               onAuthorized={onAuthorized}
             />
+            <PublicTotals
+              stopNames={stopNames}
+              projectTitle={projectTitle}
+              onSelectStop={openStopById}
+              refreshToken={totalsRefresh}
+            />
             {bryntumEnabled && schedule ? (
               <EscalesScheduler
                 schedule={schedule}
                 planningEnabled
+                clockNow={voyageNow}
                 onSelectEscale={onSchedulePick}
                 onAuthorized={onAuthorized}
               />
@@ -1049,14 +1120,7 @@ export default function App() {
               <CrewSupporterPublicSection adminKey={adminKey.trim() || undefined} />
               {publicCommonFund ? (
                 <p className="hint public-common-fund" data-testid="public-common-fund">
-                  {t("fund.publicCommon", {
-                    balance: Number.isFinite(Number(publicCommonFund.balance_eur))
-                      ? new Intl.NumberFormat(lang, {
-                          style: "currency",
-                          currency: publicCommonFund.currency,
-                        }).format(Number(publicCommonFund.balance_eur))
-                      : `${publicCommonFund.balance_eur} ${publicCommonFund.currency}`,
-                  })}
+                  {publicCommonFundMessage(publicCommonFund, lang, t)}
                 </p>
               ) : null}
             </>
@@ -1115,6 +1179,7 @@ export default function App() {
         ) : (
           <HowItWorks
             nextStopName={nextStop?.name}
+            nextStopPending={!scheduleSettled || !voyageClockReady}
             onBackNextStop={nextStop ? () => chooseStop(nextStop) : undefined}
           />
         )}
@@ -1131,15 +1196,19 @@ export default function App() {
           }}
         >
           <div className="treasurer-page-inner">
-            <button
-              type="button"
-              ref={treasurerBackRef}
-              className="secondary treasurer-page-back"
-              data-testid="treasurer-page-back"
-              onClick={() => onTreasurerOpenChange(false)}
-            >
-              {t("treasurer.page.back")}
-            </button>
+            <div className="treasurer-page-bar">
+              <button
+                type="button"
+                ref={treasurerBackRef}
+                className="secondary treasurer-page-back"
+                data-testid="treasurer-page-back"
+                onClick={() => onTreasurerOpenChange(false)}
+              >
+                {t("treasurer.page.back")}
+              </button>
+              {/* The same app settings as on the map, outside the treasurer tools below. */}
+              <ShellSettings theme={theme} onToggleTheme={toggleTheme} place="treasurer-page" />
+            </div>
             <section className="treasurer-page-intro" data-testid="treasurer-page-intro">
               <p className="treasurer-page-eyebrow">{t("treasurer.page.eyebrow")}</p>
               <ol className="treasurer-page-steps">
@@ -1152,6 +1221,20 @@ export default function App() {
               </ol>
               <p className="hint">{t("treasurer.page.keyNote")}</p>
             </section>
+            {/* The treasurer's view of the voyage (flag on only): which stops are coming, and when. */}
+            {bryntumEnabled && schedule ? (
+              <EscalesScheduler
+                schedule={schedule}
+                planningEnabled
+                clockNow={voyageNow}
+                showCabins={false}
+                // Full names and every row where the page is wide; the compact timeline on a phone.
+                wide={!isNarrowScreen()}
+                stopOverview={stopOverview}
+                onSelectEscale={undefined}
+                onAuthorized={undefined}
+              />
+            ) : null}
             {treasurerPanel}
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { currentPayPalJsVersion, notePayPalJsFeatures, resetPayPalJsVersionForTests } from "../paypalJsVersion";
 import {
   buildV6Adapter,
   loadPayPalSdk,
@@ -62,7 +63,7 @@ describe("PayPal Web SDK v6 core", () => {
     await first;
     await loadSub("new-client", "fr");
     expect(document.querySelectorAll('script[data-paypal-web-sdk="v6"]')).toHaveLength(1);
-    expect(createInstance).toHaveBeenCalledTimes(2);
+    expect(createInstance).toHaveBeenCalledOnce();
     expect(sdk.findEligibleMethods).toHaveBeenLastCalledWith({ currencyCode: "EUR", paymentFlow: "RECURRING_PAYMENT" });
   });
 
@@ -75,6 +76,69 @@ describe("PayPal Web SDK v6 core", () => {
     } finally {
       script.remove();
     }
+  });
+
+  it("uses v5 only when the v6 core fails to load", async () => {
+    resetPayPalJsVersionForTests();
+    notePayPalJsFeatures({ paypal_js_v6: true });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    v6Window.paypal = { createInstance: vi.fn().mockRejectedValue(new Error("createInstance down")) };
+    await expect(loadPayPalSdk("load-fail-client", "en")).rejects.toThrow(/createInstance down/);
+    expect(currentPayPalJsVersion()).toBe("v5");
+    expect(warn).toHaveBeenCalledOnce();
+    resetPayPalJsVersionForTests();
+  });
+
+  it("stays on v6 when eligibility fails", async () => {
+    resetPayPalJsVersionForTests();
+    notePayPalJsFeatures({ paypal_js_v6: true });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    v6Window.paypal = {
+      createInstance: vi.fn().mockResolvedValue({
+        findEligibleMethods: vi.fn().mockRejectedValue(new Error("eligibility down")),
+      }),
+    };
+    await expect(loadPayPalSdk("eligibility-client", "en", "capture", false, "EUR")).rejects.toThrow(/eligibility down/);
+    expect(currentPayPalJsVersion()).toBe("v6");
+    expect(warn).not.toHaveBeenCalled();
+    resetPayPalJsVersionForTests();
+  });
+
+  it("stays on v6 when adapter construction fails", async () => {
+    resetPayPalJsVersionForTests();
+    notePayPalJsFeatures({ paypal_js_v6: true });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    v6Window.paypal = { createInstance: vi.fn().mockResolvedValue({
+      findEligibleMethods: async () => ({ isEligible: () => true }),
+      get createPayPalMessages(): never { throw new Error("adapter failed"); },
+    }) };
+    await expect(loadPayPalSdk("adapter-failure", "en")).rejects.toThrow("adapter failed");
+    expect(currentPayPalJsVersion()).toBe("v6");
+    expect(warn).not.toHaveBeenCalled();
+    resetPayPalJsVersionForTests();
+  });
+
+  it("keeps an open checkout on v6 when a different instance fails", async () => {
+    resetPayPalJsVersionForTests();
+    notePayPalJsFeatures({ paypal_js_v6: true });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const start = vi.fn().mockResolvedValue(undefined);
+    v6Window.paypal = { createInstance: vi.fn().mockResolvedValue({
+      findEligibleMethods: async () => ({ isEligible: () => true }),
+      createPayPalOneTimePaymentSession: () => ({ start, destroy: vi.fn() }),
+    }) };
+    const ns = await loadPayPalSdk("already-open", "en");
+    const button = ns.Buttons!({ createOrder: () => "ORDER" });
+    const host = document.createElement("div");
+    await button.render(host);
+    host.firstElementChild!.dispatchEvent(new MouseEvent("click"));
+    await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
+    v6Window.paypal = { createInstance: vi.fn().mockRejectedValue(new Error("another merchant failed")) };
+    await expect(loadPayPalSdk("another-merchant", "en")).rejects.toThrow("another merchant failed");
+    expect(currentPayPalJsVersion()).toBe("v6");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("keeping the open v6 checkout"), expect.any(Error));
+    await button.close!();
+    resetPayPalJsVersionForTests();
   });
 
   it("requires a client ID", async () => {
@@ -111,13 +175,41 @@ describe("v6 payment session adapters", () => {
     expect(result.ok).toBe(true);
     expect(host.querySelector("paypal-button")).toBeTruthy();
     host.querySelector("paypal-button")!.dispatchEvent(new MouseEvent("click"));
-    expect(start).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
     expect(start.mock.calls[0][0]).toEqual({ presentationMode: "auto" });
     await expect(start.mock.calls[0][1]).resolves.toEqual({ orderId: "TEST-ORDER" });
     await sessionCallbacks.onApprove({ orderId: "TEST-ORDER" });
     expect(onApprove).toHaveBeenCalledOnce();
     safePayPalClose(result.instance);
     expect(destroy).toHaveBeenCalledOnce();
+    host.remove();
+  });
+
+  it("falls back from app switch to popup on a phone, and stops when the buyer cancels", async () => {
+    const agent = vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X)");
+    const start = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error("switch unavailable"), { isRecoverable: true, code: "APP_SWITCH_FAILED" }))
+      .mockResolvedValueOnce(undefined);
+    const sdk = { createPayPalOneTimePaymentSession: vi.fn(() => ({ start, destroy: vi.fn() })) };
+    const adapter = buildV6Adapter(sdk as never, eligible);
+    const host = document.createElement("div");
+    const result = await safePayPalRender(adapter.Buttons, { createOrder: vi.fn().mockResolvedValue("TEST-ORDER") }, host);
+    host.querySelector("paypal-button")!.dispatchEvent(new MouseEvent("click"));
+    await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+    expect(start.mock.calls[0][0]).toEqual({ presentationMode: "direct-app-switch", autoRedirect: { enabled: true } });
+    expect(start.mock.calls[1][0]).toEqual({ presentationMode: "popup" });
+    await expect(start.mock.calls[1][1]).resolves.toEqual({ orderId: "TEST-ORDER" });
+    safePayPalClose(result.instance);
+
+    const cancelled = vi.fn().mockRejectedValueOnce(Object.assign(new Error("cancelled"), { name: "CheckoutCancelled", isRecoverable: true }));
+    const onError = vi.fn();
+    const again = buildV6Adapter({ createPayPalOneTimePaymentSession: () => ({ start: cancelled, destroy: vi.fn() }) } as never, eligible);
+    const second = await safePayPalRender(again.Buttons, { createOrder: () => "TEST-ORDER", onError }, host);
+    host.querySelector("paypal-button")!.dispatchEvent(new MouseEvent("click"));
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce());
+    expect(cancelled).toHaveBeenCalledOnce();
+    safePayPalClose(second.instance);
+    agent.mockRestore();
     host.remove();
   });
 
@@ -188,13 +280,37 @@ describe("v6 payment session adapters", () => {
     await number.render(host);
     await cards.ExpiryField().render(host);
     await cards.CVVField().render(host);
+    await cards.NameField().render(host);
     expect([...host.querySelectorAll("[data-field]")].map((node) => (node as HTMLElement).dataset.field))
-      .toEqual(["number", "expiry", "cvv"]);
+      .toEqual(["number", "expiry", "cvv", "name"]);
     const field = host.firstElementChild as HTMLElement & { destroy: ReturnType<typeof vi.fn> };
     await number.close();
     expect(field.destroy).toHaveBeenCalledOnce();
     await cards.submit();
     expect(submit).toHaveBeenCalledWith("C-ORDER");
+  });
+
+  it("sends billing address and lets a dismissed card challenge be retried", async () => {
+    const submit = vi.fn()
+      .mockResolvedValueOnce({ state: "canceled", data: {} })
+      .mockResolvedValueOnce({ state: "succeeded", data: { orderId: "C-ORDER" } });
+    const adapter = buildV6Adapter({
+      createCardFieldsOneTimePaymentSession: () => ({ createCardFieldsComponent: vi.fn(), submit, destroy: vi.fn() }),
+    } as never, eligible);
+    const onApprove = vi.fn();
+    const onCancel = vi.fn();
+    const cards = adapter.CardFields!({
+      createOrder: async () => "C-ORDER",
+      onApprove,
+      onCancel,
+      billingAddress: () => ({ countryCode: "FR", postalCode: "17000", addressLine1: "" }),
+    }) as Record<string, any>;
+    await cards.submit();
+    expect(onCancel).toHaveBeenCalledOnce();
+    expect(onApprove).not.toHaveBeenCalled();
+    expect(submit).toHaveBeenCalledWith("C-ORDER", { billingAddress: { countryCode: "FR", postalCode: "17000" } });
+    await cards.submit();
+    expect(onApprove).toHaveBeenCalledOnce();
   });
 
   it("checks vault card session result before calling approval", async () => {
@@ -238,7 +354,9 @@ describe("locale and price guards", () => {
 });
 
 it("renders v6 Pay Later messages using the native element and currency", async () => {
-  const createPayPalMessages = vi.fn();
+  const open = vi.fn();
+  const createLearnMore = vi.fn(() => ({ open }));
+  const createPayPalMessages = vi.fn(() => ({ createLearnMore }));
   const adapter = buildV6Adapter({ createPayPalMessages } as never, { isEligible: () => true });
   const host = document.createElement("div");
   const message = adapter.Messages!({ amount: "50.00", currencyCode: "EUR" });
@@ -246,7 +364,27 @@ it("renders v6 Pay Later messages using the native element and currency", async 
   const element = host.querySelector("paypal-message")!;
   expect(element.amount).toBe("50.00");
   expect(element.currencyCode).toBe("EUR");
-  expect(createPayPalMessages).toHaveBeenCalledWith({ currencyCode: "EUR" });
+  expect(element.textColor).toBe("WHITE");
+  expect(element.buyerCountry).toBe("FR");
+  expect(createPayPalMessages).toHaveBeenCalledWith({ currencyCode: "EUR", buyerCountry: "FR" });
+  expect(createLearnMore).toHaveBeenCalledWith({
+    currencyCode: "EUR", buyerCountry: "FR", presentationMode: "MODAL",
+  });
+  expect(element.presentationMode).toBe("MODAL");
+  expect(element.getAttribute("presentation-mode")).toBe("MODAL");
+  element.dispatchEvent(new MouseEvent("click"));
+  expect(open).not.toHaveBeenCalled();
+  const learnMoreClick = new CustomEvent("paypal-message-click", {
+    cancelable: true,
+    detail: { config: { amount: "50.00" } },
+  });
+  element.dispatchEvent(learnMoreClick);
+  expect(learnMoreClick.defaultPrevented).toBe(true);
+  expect(open).toHaveBeenCalledTimes(1);
+  expect(open).toHaveBeenCalledWith(expect.objectContaining({ amount: "50.00" }));
+  document.documentElement.dataset.theme = "light";
+  await vi.waitFor(() => expect(element.textColor).toBe("BLACK"));
+  delete document.documentElement.dataset.theme;
   await message.close!(); expect(host.children).toHaveLength(0);
 });
 
@@ -325,12 +463,21 @@ describe("v6 lifecycle and legacy callback parity", () => {
 it.each(["succeeded", "canceled", "failed"])("card vault %s result preserves approval gating", async state => {
   const submit = vi.fn().mockResolvedValue({ state, data: { vaultSetupToken: "SETUP", message: "not completed" } });
   const onApprove = vi.fn();
+  const onCancel = vi.fn();
   const adapter = buildV6Adapter({ createCardFieldsSavePaymentSession: () => ({ submit, destroy: vi.fn() }) } as never, { isEligible: () => true });
-  const cards = adapter.CardFields!({ createVaultSetupToken: () => "SETUP", onApprove }) as any;
+  const cards = adapter.CardFields!({ createVaultSetupToken: () => "SETUP", onApprove, onCancel }) as any;
   if (state === "succeeded") {
-    await cards.submit(); expect(onApprove).toHaveBeenCalledWith({ vaultSetupToken: "SETUP", message: "not completed" });
+    await cards.submit();
+    expect(onApprove).toHaveBeenCalledWith({ vaultSetupToken: "SETUP", message: "not completed" });
+    expect(onCancel).not.toHaveBeenCalled();
+  } else if (state === "canceled") {
+    await cards.submit();
+    expect(onApprove).not.toHaveBeenCalled();
+    expect(onCancel).toHaveBeenCalledOnce();
   } else {
-    await expect(cards.submit()).rejects.toThrow(/not completed/); expect(onApprove).not.toHaveBeenCalled();
+    await expect(cards.submit()).rejects.toThrow(/not completed/);
+    expect(onApprove).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
   }
   expect(submit).toHaveBeenCalledWith("SETUP");
 });
@@ -340,4 +487,69 @@ it("a mismatched card confirmation cannot approve another order", async () => {
   const adapter = buildV6Adapter({ createCardFieldsOneTimePaymentSession: () => ({ submit: async () => ({ state: "succeeded", data: { orderId: "OTHER" } }), destroy: vi.fn() }) } as never, { isEligible: () => true });
   const cards = adapter.CardFields!({ createOrder: () => "EXPECTED", onApprove }) as any;
   await expect(cards.submit()).rejects.toThrow(/mismatch/); expect(onApprove).not.toHaveBeenCalled();
+});
+
+
+it("initializes a light-theme Pay Later message with BLACK text", async () => {
+  document.documentElement.dataset.theme = "light";
+  const message = buildV6Adapter({ createPayPalMessages: () => ({}) } as never, { isEligible: () => true }).Messages!({ amount: "40.00" });
+  const host = document.createElement("div");
+  try {
+    await message.render(host);
+    expect(host.querySelector("paypal-message")!.textColor).toBe("BLACK");
+  } finally { await message.close!(); delete document.documentElement.dataset.theme; }
+});
+
+it("reuses the message data layer and Learn more controller after amount changes", async () => {
+  const open = vi.fn();
+  const createLearnMore = vi.fn(() => ({ open }));
+  const createPayPalMessages = vi.fn(() => ({ createLearnMore }));
+  const createInstance = vi.fn().mockResolvedValue({ createPayPalMessages, findEligibleMethods: async () => ({ isEligible: () => true }) });
+  v6Window.paypal = { createInstance };
+  try {
+    for (const amount of ["40.00", "50.00"]) {
+      const ns = await loadPayPalSdk("message-reuse-client", "fr", "capture", false, "EUR", "ONE_TIME_PAYMENT", amount);
+      const message = ns.Messages!({ amount });
+      const host = document.createElement("div");
+      await message.render(host);
+      await message.render(host);
+      host.firstElementChild!.dispatchEvent(new CustomEvent("paypal-message-click", { cancelable: true }));
+      expect(open).toHaveBeenLastCalledWith(expect.objectContaining({ amount }));
+      await message.close!();
+    }
+    expect(createInstance).toHaveBeenCalledOnce();
+    expect(createPayPalMessages).toHaveBeenCalledOnce();
+    expect(createLearnMore).toHaveBeenCalledOnce();
+    expect(open).toHaveBeenCalledTimes(2);
+  } finally { delete v6Window.paypal; }
+});
+
+it("keeps the message and native click behavior when Learn more initialization rejects", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const error = new Error("Learn more unavailable");
+  const message = buildV6Adapter({ createPayPalMessages: () => ({ createLearnMore: async () => { throw error; } }) } as never, { isEligible: () => true }).Messages!({ amount: "40.00" });
+  const host = document.createElement("div");
+  await expect(message.render(host)).resolves.toBeUndefined();
+  const click = new CustomEvent("paypal-message-click", { cancelable: true });
+  host.firstElementChild!.dispatchEvent(click);
+  expect(click.defaultPrevented).toBe(false);
+  expect(host.querySelector("paypal-message")).not.toBeNull();
+  expect(warn).toHaveBeenCalledWith("PayPal Learn more unavailable", error);
+  await message.close!(); warn.mockRestore();
+});
+
+it.each(["reject", "throw"])("logs a Learn more open %s without losing the message", async mode => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const error = new Error("modal unavailable");
+  const open = vi.fn(() => { if (mode === "throw") throw error; return Promise.reject(error); });
+  const message = buildV6Adapter({ createPayPalMessages: () => ({ createLearnMore: () => ({ open }) }) } as never, { isEligible: () => true }).Messages!({ amount: "40.00" });
+  const host = document.createElement("div");
+  await message.render(host);
+  const click = new CustomEvent("paypal-message-click", { cancelable: true });
+  host.firstElementChild!.dispatchEvent(click);
+  await vi.waitFor(() => expect(warn).toHaveBeenCalledWith("PayPal Learn more failed", error));
+  expect(click.defaultPrevented).toBe(true);
+  expect(open).toHaveBeenCalledOnce();
+  expect(host.querySelector("paypal-message")).not.toBeNull();
+  await message.close!(); warn.mockRestore();
 });

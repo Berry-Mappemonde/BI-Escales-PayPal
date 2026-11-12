@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../i18n/locales/en.json";
 import fr from "../i18n/locales/fr.json";
 import i18n from "../i18n";
+import { dashboardCopy } from "./dashboardLocale";
 import { nextDataAgentAction, nextTreasurerAction } from "./agentPlan";
 import { treasurerInitialState } from "./initialReport";
 import { formatPledgeAmount, formatPledgeStatus } from "./locale";
@@ -64,14 +65,14 @@ describe("copies studio", () => {
 
     const source = pledgeStudioData([], language).sources[0] as StudioSource | undefined;
     expect(source?.name).toBe(copy.sourceName);
+    const dashboard = dashboardCopy(language);
     expect(source?.fields?.map((field) => field.name)).toEqual([
       copy.colPledge,
-      copy.colStatus,
-      copy.colMilestone,
-      copy.colAmount,
+      dashboard.status,
+      dashboard.target,
+      dashboard.type,
+      dashboard.pledged,
       copy.colNet,
-      copy.colContributor,
-      copy.colDescription,
     ]);
     expect(fieldFormatter(language, "amount_eur")?.(120)).toBe(
       language === "fr" ? "120,00 €" : "120.00 EUR",
@@ -79,7 +80,7 @@ describe("copies studio", () => {
     expect(fieldFormatter(language, "net_eur")?.(120)).toBe(
       language === "fr" ? "120,00 €" : "120.00 EUR",
     );
-    expect(fieldFormatter(language, "status")?.("authorized")).toBe(copy.held);
+    expect(fieldFormatter(language, "status")?.("authorized")).toBe(dashboard.authorized);
     expect(formatPledgeStatus("created", language)).toBe(copy.statusCreated);
     expect(formatPledgeStatus("vaulted", language)).toBe(copy.saved);
     expect(formatPledgeStatus("voided", language)).toBe(copy.released);
@@ -101,7 +102,7 @@ describe("copies studio", () => {
     const copy = language === "fr" ? fr.studio : en.studio;
     const other = language === "fr" ? en.studio : fr.studio;
     const starters = treasurerPromptStarters(language);
-    expect(starters.map((starter) => starter.label)).toEqual([copy.promptTotals, copy.promptWidget]);
+    expect(starters.map((starter) => starter.label)).toEqual([copy.promptTotals, copy.promptWidget, dashboardCopy(language).promptFunding]);
     expect(starters[0]?.prompt).toBe(copy.promptTotalsText);
     expect(nextTreasurerAction(starters[1]?.prompt ?? "", 1, language).kind).toBe("add-validation-widget");
     expect(treasurerSpeech(starters[1]?.prompt ?? "", 1, language)).toBe(copy.agentAdding);

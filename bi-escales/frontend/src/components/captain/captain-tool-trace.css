@@ -11,6 +11,11 @@
   margin: var(--space-1) 0;
 }
 
+/* Who answered: the line a reader looks for, above the technical trace. */
+.captain-tool-trace .captain-trace-model {
+  color: var(--color-fg);
+}
+
 .captain-tool-trace ul {
   margin: var(--space-1) 0;
   padding-left: var(--space-4);

@@ -170,7 +170,7 @@ def test_n26_subscription_approve_rejects_foreign_plan_id():
     async def run():
         spy = WrongPlanSpy()
         await ensure_crew_supporter_catalog(spy)
-        with pytest.raises(ValueError, match="Crew supporter plan"):
+        with pytest.raises(ValueError, match="Crew membership plan"):
             await approve_crew_subscription(
                 spy,
                 subscription_id="I-BUYER-1",

@@ -88,7 +88,9 @@ describe("Captain review card", () => {
     it("cites each claim, built only from the review and schedule", async () => {
       await openCard();
       await card().findByText(/Scheduled arrival: 28 Nov/);
-      expect(card().getByRole("button", { name: "Source 1: Schedule" })).toBeInTheDocument();
+      expect(card().getByRole("button", { name: "Source 1: NAVIGUIDE schedule (ETA)" })).toBeInTheDocument();
+      // The claims have a heading of their own, beside the proposal.
+      expect(within(screen.getByTestId(`captain-basis-${STOP}`)).getByText("What the Captain looked at")).toBeInTheDocument();
       expect(card().getByText(/2 holds · €32\.50 total/)).toBeInTheDocument();
       expect(card().getByText(/Valid to 3 Dec/)).toBeInTheDocument();
       expect(card().getAllByRole("button", { name: "Source 2: pending_authorizations" })).toHaveLength(2);
@@ -96,6 +98,91 @@ describe("Captain review card", () => {
       expect(card().getByRole("button", { name: "Source 4: orders.get" })).toBeInTheDocument();
       expect(within(screen.getByTestId(`captain-card-${STOP}`).querySelector(".captain-sources") as HTMLElement).getByText("7AG23904")).toBeInTheDocument();
       expect(within(screen.getByTestId(`captain-card-${STOP}`).querySelector(".captain-sources") as HTMLElement).getByText("ORDER-1")).toBeInTheDocument();
+    });
+
+    describe("what the review read from NAVIGUIDE", () => {
+      // Shapes from test2's review and schedule (Ajaccio, local export): the
+      // server cuts the logbook at the review clock before sending it.
+      const reached = [
+        {
+          t: "2026-11-27T02:02:52Z",
+          pos: { lat: 43.8249, lon: 4.2811 },
+          label_fr: "Position — en route vers Ajaccio (Corse)",
+          label_en: "Position — underway for Ajaccio (Corse)",
+          kind: "position",
+        },
+        {
+          t: "2026-11-28T14:02:52Z",
+          pos: { lat: 42.4274, lon: 7.5499 },
+          label_fr: "Position — en route vers Ajaccio (Corse)",
+          label_en: "Position — underway for Ajaccio (Corse)",
+          kind: "position",
+        },
+      ];
+      const arrived = {
+        t: "2026-11-29T02:02:52Z",
+        pos: { lat: 41.9192, lon: 8.7386 },
+        label_fr: "Escale — arrivée Ajaccio (Corse)",
+        label_en: "Stopover — arrival at Ajaccio (Corse)",
+        kind: "stop",
+      };
+      const reviewRead = (at: string, logbook: unknown[] | undefined, eta = "2026-11-29T02:02:52+00:00") =>
+        vi.mocked(captainReview).mockResolvedValue({
+          ...review,
+          at,
+          naviguide_eta: { arrival_iso: eta },
+          ...(logbook ? { logbook } : {}),
+        } as CaptainProposal);
+
+      it("quotes the latest logbook entry the review read, and cites the logbook", async () => {
+        reviewRead("2026-11-28T15:00:00+00:00", reached);
+        await openCard();
+        await card().findByText("Logbook, 28 Nov: Position — underway for Ajaccio (Corse)");
+        expect(card().getByRole("button", { name: "Source 2: NAVIGUIDE logbook" })).toBeInTheDocument();
+        // The other sources follow, renumbered.
+        expect(card().getAllByRole("button", { name: "Source 3: pending_authorizations" })).toHaveLength(2);
+      });
+
+      it("quotes the arrival entry once the review has read it", async () => {
+        reviewRead("2026-11-29T08:00:00+00:00", [...reached, arrived]);
+        await openCard();
+        await card().findByText("Logbook, 29 Nov: Stopover — arrival at Ajaccio (Corse)");
+      });
+
+      it("says so when the review read an empty logbook", async () => {
+        reviewRead("2026-11-12T08:00:00+00:00", []);
+        await openCard();
+        await card().findByText("Logbook: no entry for this stop yet");
+        expect(card().getByRole("button", { name: "Source 2: NAVIGUIDE logbook" })).toBeInTheDocument();
+      });
+
+      it("quotes the entry in French", async () => {
+        await i18n.changeLanguage("fr");
+        reviewRead("2026-11-28T15:00:00+00:00", reached);
+        await openCard();
+        await card().findByText(/Journal de bord, 28 nov\. : Position — en route vers Ajaccio \(Corse\)/);
+        expect(card().getByRole("button", { name: /^Source 2\s: Journal de bord NAVIGUIDE$/ })).toBeInTheDocument();
+      });
+
+      it("never takes the logbook from the browser's schedule", async () => {
+        // The schedule carries a logbook, the review does not (a cabin leg): no claim.
+        vi.mocked(fetchSchedule).mockResolvedValue({
+          export: { escales: [{ milestone_id: STOP, name: "Ajaccio (Corse)", arrival_iso: "2026-11-29T02:02:52+00:00" }] },
+          logbook: { [STOP]: [...reached, arrived] },
+        } as never);
+        reviewRead("2026-11-29T08:00:00+00:00", undefined);
+        await openCard();
+        await card().findByText(/Scheduled arrival: 29 Nov/);
+        expect(card().queryByText(/Logbook/)).toBeNull();
+      });
+
+      it("cites the ETA the review read, not the queue's schedule", async () => {
+        // The queue's schedule says 28 Nov (beforeEach); the review read 29 Nov.
+        reviewRead("2026-11-28T15:00:00+00:00", reached);
+        await openCard();
+        await card().findByText(/Scheduled arrival: 29 Nov/);
+        expect(card().queryByText(/Scheduled arrival: 28 Nov/)).toBeNull();
+      });
     });
 
     it("says PayPal was read, never what it answered", async () => {

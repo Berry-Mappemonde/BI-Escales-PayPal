@@ -13,6 +13,7 @@ import {
 } from "./voyageClock.js";
 import { getFlagsForWaypoint } from "../../../../naviguide-escales/src/constants/waypoints.js";
 import { milestoneIdFromName } from "./milestoneId.js";
+import { alignClockToSchedule } from "./scheduleTimes.js";
 
 export function segmentsFromRoute(fc) {
   const lines = (fc?.features || []).filter(
@@ -59,11 +60,20 @@ export function stopsFromRoute(fc, flat) {
   return dropRepeatedStops(mapped);
 }
 
-export function voyageFromRoute(fc, t0) {
+/**
+ * With the API schedule, the clock keeps the schedule's arrival and departure
+ * times (scheduleTimes.js), so the boat on the map agrees with the stop statuses.
+ *
+ * @param {any} fc
+ * @param {string} t0
+ * @param {any} [schedule]
+ */
+export function voyageFromRoute(fc, t0, schedule = null) {
   const segments = segmentsFromRoute(fc);
   const flat = flattenRoute(segments);
   const stops = stopsFromRoute(fc, flat);
-  const clock = buildVoyageClock({ flat, marks: stops, stops, t0 });
+  const built = buildVoyageClock({ flat, marks: stops, stops, t0 });
+  const clock = schedule ? alignClockToSchedule(built, stops, schedule) : built;
   return { segments, flat, stops, clock };
 }
 

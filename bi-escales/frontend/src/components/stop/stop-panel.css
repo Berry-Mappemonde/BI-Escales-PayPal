@@ -84,6 +84,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Nothing pledged yet: the same line, without the held chip. */
+.stop-money-none {
+  color: var(--color-fg-3);
+  font-size: var(--text-meta);
+  font-weight: 400;
+}
+
 .stop-next-title {
   margin: 0 0 var(--space-3);
   font-size: var(--text-title);
@@ -143,7 +150,7 @@
   line-height: var(--text-meta--line-height);
 }
 
-.escale-sheet .pledge-form button {
+.escale-sheet .pledge-form button:not([data-testid="paypal-google-pay"] button) {
   width: 100%;
   min-height: var(--space-10);
   margin-top: var(--space-1);
@@ -157,8 +164,8 @@
   transition: transform var(--duration-fast) var(--ease-out);
 }
 
-.escale-sheet .pledge-form button:active:not(:disabled),
-.how-it-works-cta:active {
+.escale-sheet .pledge-form button:active:not(:disabled):not([data-testid="paypal-google-pay"] button),
+.how-it-works-cta:active:not(:disabled) {
   transform: scale(0.97);
 }
 
@@ -256,7 +263,7 @@
 }
 
 .escale-sheet .escale-sheet-head button:focus-visible,
-.escale-sheet .pledge-form button:focus-visible,
+.escale-sheet .pledge-form button:focus-visible:not([data-testid="paypal-google-pay"] button),
 .stop-more summary:focus-visible,
 .stop-more-body a:focus-visible {
   outline: 2px solid var(--color-accent);
@@ -269,8 +276,8 @@
     color: var(--color-fg);
   }
 
-  .escale-sheet .pledge-form button:hover:not(:disabled),
-  .how-it-works-cta:hover {
+  .escale-sheet .pledge-form button:hover:not(:disabled):not([data-testid="paypal-google-pay"] button),
+  .how-it-works-cta:hover:not(:disabled) {
     background: color-mix(in oklab, var(--color-accent) 86%, var(--color-fg));
   }
 
@@ -289,7 +296,7 @@
     height: 44px;
   }
 
-  .escale-sheet .pledge-form button {
+  .escale-sheet .pledge-form button:not([data-testid="paypal-google-pay"] button) {
     min-height: 44px;
   }
 
@@ -302,7 +309,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .escale-sheet .pledge-form button:active:not(:disabled),
+  .escale-sheet .pledge-form button:active:not(:disabled):not([data-testid="paypal-google-pay"] button),
   .how-it-works-cta:active {
     transform: none;
   }
@@ -528,6 +535,12 @@
   transition: transform var(--duration-fast) var(--ease-out);
 }
 .how-it-works-cta > span { display: block; }
+/* Waiting for the schedule: the same button, not yet usable. */
+.how-it-works-cta:disabled {
+  opacity: 0.6;
+  cursor: progress;
+  transform: none;
+}
 .how-it-works-cta-stop { font-weight: 400; }
 .how-it-works-cta:focus-visible {
   outline: 2px solid var(--color-accent);

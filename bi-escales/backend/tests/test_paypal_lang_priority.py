@@ -226,8 +226,14 @@ def test_paypal_client_subscription_locale_and_brand():
 
 
 def test_crew_catalog_bilingual_labels():
-    assert CREW_LABELS["fr"]["plan_name"] == "Soutien d'équipage (mensuel)"
-    assert CREW_LABELS["en"]["plan_name"] == "Crew supporter (monthly)"
+    from app.escales.paypal_subscriptions import CREW_LEGACY_LABELS
+
+    # Crew membership is the association membership: 10 EUR per year.
+    assert CREW_LABELS["fr"]["plan_name"] == "Adhésion Crew (10 EUR par an)"
+    assert CREW_LABELS["en"]["plan_name"] == "Crew membership (10 EUR per year)"
+    # The first catalog's names are kept on record; nothing is created with them any more.
+    assert CREW_LEGACY_LABELS["fr"]["plan_name"] == "Soutien d'équipage (mensuel)"
+    assert CREW_LEGACY_LABELS["en"]["plan_name"] == "Crew supporter (monthly)"
 
 
 class CatalogSpy:

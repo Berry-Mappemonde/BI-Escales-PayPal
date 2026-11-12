@@ -53,6 +53,7 @@ from app.escales.config import (
     webhooks_enabled,
 )
 from app.escales.ledger import (
+    _leg_id,
     _project_fund_target,
     _unplaced_bucket,
     fund_for_milestone,
@@ -293,6 +294,7 @@ class VaultRegisterIn(BaseModel):
 
 class ClockSettleIn(BaseModel):
     now: Optional[str] = None
+    milestone_id: Optional[str] = Field(None, description="Settle only this milestone; omitted settles all milestones.")
 
 
 class InvoiceCreateIn(BaseModel):
@@ -322,6 +324,7 @@ class SubscriptionRecordIn(BaseModel):
 
 
 class SubscriptionCreateIn(BaseModel):
+    plan_id: Optional[str] = None
     return_url: Optional[str] = None
     cancel_url: Optional[str] = None
     lang: Optional[str] = None
@@ -656,8 +659,8 @@ async def get_features():
 
 
 @router.get("/prices")
-async def get_prices():
-    return simulated_prices()
+async def get_prices(lang: Optional[str] = None):
+    return simulated_prices(lang)
 
 
 def _clock_body() -> dict:
@@ -676,7 +679,7 @@ async def get_clock():
 @router.post("/clock/settle")
 async def post_clock_settle(request: Request, payload: ClockSettleIn = ClockSettleIn()):
     """Settle departure pledges. Treasurer key. Uses the simulated clock."""
-    from app.escales.departure_clock import run_departure_clock
+    from app.escales.departure_clock import run_departure_clock, run_departure_clock_for_milestone
 
     _require_treasurer(request)
     settle_at = None
@@ -690,7 +693,11 @@ async def post_clock_settle(request: Request, payload: ClockSettleIn = ClockSett
     body = _clock_body()
     if settle_at is not None:
         body["now"] = settle_at.replace(microsecond=0).isoformat()
-    body["settled"] = await run_departure_clock(_paypal(), now=settle_at)
+    milestone_id = (payload.milestone_id or "").strip()
+    if milestone_id:
+        body["settled"] = await run_departure_clock_for_milestone(_paypal(), milestone_id, now=settle_at)
+    else:
+        body["settled"] = await run_departure_clock(_paypal(), now=settle_at)
     return body
 
 
@@ -752,6 +759,12 @@ async def post_pledge(body: PledgeIn, request: Request):
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc, lang=body.lang) from exc
+    # Demo treasurer mode: a pledge made without the treasurer key may later be played
+    # with by the browser that made it (and by no one else). Nothing else changes here.
+    if demo_treasurer_enabled() and (client_key or "").strip() and not _has_admin_key_header(request):
+        from app.escales.demo_play import mark_playable
+
+        doc = await mark_playable(doc)
     return await _public_pledge_with_fund(doc, lang=resolve_app_language(body.lang))
 
 
@@ -1063,7 +1076,11 @@ async def delete_invoice_route(invoice_id: str, request: Request):
 
 @router.post("/paypal/subscriptions/setup")
 async def post_subscription_setup(request: Request):
-    """Idempotent Crew supporter product + monthly EUR plan (admin)."""
+    """Idempotent Crew membership product and 10 EUR per year plan, in both languages (admin).
+
+    This is the action that creates the current plans on a host. The earlier
+    5 EUR per month catalog is not touched.
+    """
     _require_treasurer(request)
     try:
         return await ensure_crew_supporter_catalog(_paypal())
@@ -1073,7 +1090,7 @@ async def post_subscription_setup(request: Request):
 
 @router.get("/paypal/subscriptions/plan")
 async def get_crew_subscription_plan(lang: Optional[str] = None):
-    """Public read-only Crew supporter billing plan id (hydrates from PayPal when needed)."""
+    """Public read-only Crew membership plan id (10 EUR per year); ``null`` until setup has run."""
     app_lang = resolve_app_language(lang)
     try:
         plan_id = await resolve_crew_supporter_plan_id(_paypal(app_lang), lang=app_lang)
@@ -1106,6 +1123,7 @@ async def post_subscription_create(request: Request, body: SubscriptionCreateIn 
             cancel_url=cancel,
             client_key=request.headers.get("paypal-request-id"),
             lang=app_lang,
+            expected_plan_id=body.plan_id,
         )
     except (PayPalError, ValueError) as exc:
         raise _as_http(exc, lang=app_lang) from exc
@@ -1257,6 +1275,115 @@ async def get_public_common_fund():
         return to_public_fund(await fund_for_milestone("fonds-commun"))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="Common fund not found") from exc
+
+
+# Upper bound on the funds one public summary reads, so the cost stays bounded.
+_PUBLIC_FUNDS_MAX = 60
+_PUBLIC_TOTAL_FIELDS = ("authorized_eur", "captured_eur", "refunded_eur")
+
+
+def _has_money(row: dict, fields: tuple[str, ...]) -> bool:
+    for field in fields:
+        try:
+            if float(str(row.get(field) or "0").replace(",", ".")) != 0:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+@router.get("/funds/public")
+async def get_public_funds():
+    """Every public total in one read: stopovers, cabin legs, donated-to projects, common fund.
+
+    Read-only, no key. It adds nothing that is not already public one fund at a
+    time: each row is built by the same code as ``GET /milestones/{id}/fund``
+    (``to_public_fund``), ``GET /projects/{id}/fund`` and ``GET /common-fund/fund``,
+    and carries amounts only: no pledge id, no name, no journal line. Only funds
+    that a pledge refers to are read, so the cost follows activity, not the
+    length of the route; funds with no money in them are left out.
+    """
+    stop_ids: list[str] = []
+    leg_ids: list[str] = []
+    project_ids: list[str] = []
+    for row in await get_ledger().list_pledges():
+        if not row:
+            continue
+        if str(row.get("kind") or "") == "project_pledge":
+            target = str(row.get("target_id") or "").strip()
+            if target and target not in project_ids:
+                project_ids.append(target)
+            continue
+        milestone = str(row.get("milestone_id") or "").strip()
+        if not milestone or _unplaced_bucket(milestone):
+            continue  # the common fund is always listed below
+        if milestone in stop_ids or milestone in leg_ids:
+            continue
+        (leg_ids if _leg_id(milestone) else stop_ids).append(milestone)
+
+    budget = _PUBLIC_FUNDS_MAX
+    truncated = False
+
+    async def fund_rows(ids: list[str]) -> list[dict]:
+        nonlocal budget, truncated
+        rows: dict[str, dict] = {}
+        for milestone in ids:
+            if budget <= 0:
+                truncated = True
+                break
+            # The single-fund route keeps a project fund behind the key; so does this one.
+            if await _project_fund_target(milestone):
+                continue
+            budget -= 1
+            try:
+                public = to_public_fund(await fund_for_milestone(milestone))
+            except LookupError:
+                continue
+            fund_id = str(public.get("milestone_id") or milestone)
+            if fund_id in rows or not _has_money(public, _PUBLIC_TOTAL_FIELDS):
+                continue  # two spellings of one stopover are one fund
+            rows[fund_id] = {
+                "milestone_id": milestone,
+                "fund_id": fund_id,
+                **{field: public[field] for field in _PUBLIC_TOTAL_FIELDS},
+            }
+        return sorted(rows.values(), key=lambda item: item["fund_id"])
+
+    stops = await fund_rows(stop_ids)
+    legs = await fund_rows(leg_ids)
+
+    projects: list[dict] = []
+    for project_id in project_ids:
+        if budget <= 0:
+            truncated = True
+            break
+        budget -= 1
+        try:
+            public = await get_public_project_fund(project_id)
+        except HTTPException:
+            continue
+        row = {
+            "project_id": project_id,
+            "amount_eur": str(public.get("amount_eur") or "0.00"),
+            "donation_count": int(public.get("donation_count") or 0),
+            "refunded_eur": str(public.get("refunded_eur") or "0.00"),
+        }
+        if row["donation_count"] or _has_money(row, ("amount_eur", "refunded_eur")):
+            projects.append(row)
+    projects.sort(key=lambda item: item["project_id"])
+
+    try:
+        common = to_public_fund(await fund_for_milestone("fonds-commun"))
+    except LookupError:
+        common = {}
+    return {
+        "currency": "EUR",
+        "stops": stops,
+        "legs": legs,
+        "projects": projects,
+        "common_fund": {field: str(common.get(field) or "0.00") for field in _PUBLIC_TOTAL_FIELDS},
+        "truncated": truncated,
+    }
 
 
 @router.post("/projects/{project_id}/payouts")

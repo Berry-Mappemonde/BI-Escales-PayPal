@@ -1,6 +1,7 @@
 """Onboarding Orders use an isolated Platform SDK at its HTTP boundary."""
 import base64
 import json
+import threading
 from urllib.parse import urlparse
 import pytest
 import requests
@@ -34,9 +35,13 @@ def sdk_transport(monkeypatch):
             else:
                 assert request.headers['Authorization']=='Bearer platform-token'
                 status=422 if state['error'] else 200
-                if state.get('transient',0):
+                needle=state.get('transient_path')
+                if state.get('transient',0) and (not needle or needle in path):
                     state['transient']-=1;status=503
+                state.setdefault('threads',[]).append(threading.get_ident())
                 payload={'name':'UNPROCESSABLE_ENTITY','details':[{'issue':'INSTRUMENT_DECLINED'}]} if state['error'] else {'id':'ORDER-PLATFORM','status':'COMPLETED'}
+                if status < 400 and isinstance(state.get('by_method'), dict):
+                    payload = state['by_method'].get(request.method, payload)
             response=requests.Response();response.status_code=status;response._content=json.dumps(payload).encode();response.headers['Content-Type']='application/json';response.request=request;response.url=request.url
             return response
     original=module.PaypalServersdkClient
@@ -88,3 +93,87 @@ def test_platform_uses_shared_gateway_transient_retry(sdk_transport,monkeypatch)
     resources=[r for r in rows if urlparse(r.url).path!='/v1/oauth2/token']
     assert len(resources)==2 and len(pauses)==1
     assert resources[0].headers['PayPal-Request-Id']==resources[1].headers['PayPal-Request-Id']
+
+
+def test_onboarding_create_and_capture_leave_the_event_loop(sdk_transport, monkeypatch):
+    """Project donation order create and capture must not run the SDK on the event loop."""
+    import asyncio
+
+    from app.escales import paypal_sdk_gateway as gateway
+    from app.project_onboarding import service
+    from app.project_onboarding.store import reset_onboarding_store, save_project
+
+    client, _, _, state = sdk_transport
+    monkeypatch.setenv("ESCALES_ONBOARD_AFTER_PAYMENT_ENABLED", "1")
+    monkeypatch.setenv("ESCALES_STORE", "memory")
+    reset_onboarding_store()
+
+    async def link(*_args, **_kwargs):
+        return {"action_url": "https://example.test/onboard"}
+
+    monkeypatch.setattr(service, "ensure_onboarding_link", link)
+    main = threading.get_ident()
+    waiting = threading.Event()
+    heartbeat = threading.Event()
+
+    def backoff(_delay):
+        assert threading.get_ident() != main, "SDK retry blocked the event loop"
+        waiting.set()
+        assert heartbeat.wait(2), "event loop could not run while PayPal waited"
+
+    monkeypatch.setattr(gateway.time, "sleep", backoff)
+
+    async def drive(task):
+        while not waiting.is_set():
+            await asyncio.sleep(0.001)
+        heartbeat.set()
+        return await task
+
+    async def run():
+        await save_project({
+            "_id": "project-off-loop",
+            "title_fr": "Projet",
+            "onboarding_status": "pending",
+        })
+        state["transient"] = 1
+        state["threads"] = []
+        created = await drive(asyncio.create_task(service.create_donation_order(
+            "project-off-loop",
+            amount_eur="5.00",
+            client=client,
+            return_url="https://example.test/return",
+            cancel_url="https://example.test/cancel",
+        )))
+        assert created["order_id"] == "ORDER-PLATFORM"
+        assert state["threads"] and main not in state["threads"]
+
+        waiting.clear()
+        heartbeat.clear()
+        state["transient"] = 1
+        state["transient_path"] = "/capture"
+        state["threads"] = []
+        state["by_method"] = {
+            "GET": {
+                "id": "ORDER-PLATFORM",
+                "status": "APPROVED",
+                "purchase_units": [{
+                    "reference_id": created["_id"],
+                    "custom_id": "project-off-loop",
+                }],
+            },
+            "POST": {
+                "id": "ORDER-PLATFORM",
+                "status": "COMPLETED",
+                "purchase_units": [{
+                    "payments": {"captures": [{"id": "CAP-OFF", "status": "COMPLETED"}]},
+                }],
+            },
+        }
+        captured = await drive(asyncio.create_task(service.finalize_donation_capture(
+            created["_id"], client=client,
+        )))
+        assert captured["capture_id"] == "CAP-OFF"
+        assert state["threads"] and main not in state["threads"]
+        reset_onboarding_store()
+
+    asyncio.run(asyncio.wait_for(run(), timeout=4))

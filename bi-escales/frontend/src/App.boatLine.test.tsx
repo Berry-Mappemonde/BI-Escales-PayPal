@@ -1,8 +1,10 @@
 /** Brief item A1: the rail says in words where the boat is and when the voyage departs. */
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as escalesApi from "./api/escales";
 import * as loadVoyage from "./voyage/loadVoyage.js";
+import realSchedule from "./voyage/fixtures/schedule-test2-2026-11-12.json";
 import i18n from "./i18n";
 import App from "./App";
 
@@ -65,6 +67,7 @@ function renderApp() {
 describe("boat position and departure in the rail", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
+    vi.mocked(escalesApi.fetchSchedule).mockRejectedValue(new Error("no schedule"));
   });
 
   afterEach(() => {
@@ -96,10 +99,23 @@ describe("boat position and departure in the rail", () => {
     expect(screen.getByTestId("voyage-departure")).toHaveTextContent(/^Départ : 12 nov\. 2026$/);
   });
 
-  it("shows no position line until the boat's position is known", async () => {
+  it("still shows the departure date while the boat's position is unknown", async () => {
     vi.mocked(loadVoyage.sampleAt).mockReturnValue(null);
     renderApp();
-    await screen.findByTestId("voyage-clock");
-    expect(screen.queryByTestId("voyage-where")).toBeNull();
+    expect(await screen.findByTestId("voyage-departure")).toHaveTextContent(/^Departure: 12 Nov 2026$/);
+    expect(screen.queryByTestId("voyage-boat-position")).toBeNull();
+  });
+
+  it("times the boat by the schedule once it is loaded, and takes the departure from it", async () => {
+    vi.mocked(escalesApi.fetchSchedule).mockResolvedValue(realSchedule as never);
+    vi.mocked(loadVoyage.sampleAt).mockReturnValue({ status: "live", atQuay: false, filmNm: 60, sailNm: 60, iso: "2026-11-12T10:00:00.000Z" });
+    renderApp();
+    expect(await screen.findByTestId("voyage-boat-position")).toHaveTextContent(
+      "Boat now: under way, Saint-Maur (Berry, Indre) → La Rochelle",
+    );
+    await waitFor(() =>
+      expect(vi.mocked(loadVoyage.voyageFromRoute).mock.calls.some((call) => call[2] === realSchedule)).toBe(true),
+    );
+    expect(screen.getByTestId("voyage-departure")).toHaveTextContent(/^Departure: 12 Nov 2026$/);
   });
 });

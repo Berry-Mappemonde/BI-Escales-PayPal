@@ -563,7 +563,7 @@ export function PledgeButtonV6Inner({ values, disabled, onAuthorized }: PledgeBu
         </button>
       ) : null}
       <div ref={buttonsHost} data-testid="paypal-smart-buttons" />
-      {walletPayEnabled && !isProjectPledge && modeMatchesValues && pledgeMode?.paymentMode !== "VAULT" ? (
+      {walletPayEnabled && (isProjectPledge || (modeMatchesValues && pledgeMode?.paymentMode !== "VAULT")) ? (
         <PayPalWalletPayBlockV6
           values={effectiveValues}
           appLang={appLang}

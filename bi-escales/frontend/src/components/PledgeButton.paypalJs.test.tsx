@@ -25,6 +25,8 @@ vi.mock("../api/escales", () => ({
 vi.mock("../paypal/paypalSdk", async (load) => ({ ...(await load<object>()), loadPayPalSdk: vi.fn() }));
 vi.mock("../paypal/v6/paypalSdkV6", async (load) => ({ ...(await load<object>()), loadPayPalSdk: vi.fn() }));
 
+vi.mock("./PayPalWalletPayBlockV6", () => ({ PayPalWalletPayBlockV6: () => <div data-testid="wallet-capture-entry" /> }));
+
 type Callbacks = Record<string, (...args: never[]) => unknown> & { style?: unknown; offerPayLater?: boolean };
 const seen: { v5: Callbacks[]; v6: Callbacks[] } = { v5: [], v6: [] };
 const fakeSdk = (bucket: Callbacks[]) => ({
@@ -53,6 +55,15 @@ describe("PledgeButton and features.paypal_js_v6", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     resetPayPalJsVersionForTests();
+  });
+
+  it("offers v6 native wallets on immediate project donations", async () => {
+    notePayPalJsFeatures({ paypal_js_v6: true });
+    vi.mocked(fetchFeatures).mockResolvedValue({ wallet_pay: true });
+    render(<PledgeButton values={{ ...values, kind: "project_pledge", milestone_id: "", target_id: "projet-ecole" }} />);
+    expect(await screen.findByTestId("wallet-capture-entry")).toBeInTheDocument();
+    await waitFor(() => expect(loadV6).toHaveBeenCalled());
+    expect(vi.mocked(loadV6).mock.calls[0][2]).toBe("capture");
   });
 
   describe("flag off", () => {

@@ -63,7 +63,7 @@ describe("PayPal Web SDK v6 core", () => {
     await first;
     await loadSub("new-client", "fr");
     expect(document.querySelectorAll('script[data-paypal-web-sdk="v6"]')).toHaveLength(1);
-    expect(createInstance).toHaveBeenCalledTimes(2);
+    expect(createInstance).toHaveBeenCalledOnce();
     expect(sdk.findEligibleMethods).toHaveBeenLastCalledWith({ currencyCode: "EUR", paymentFlow: "RECURRING_PAYMENT" });
   });
 
@@ -368,7 +368,7 @@ it("renders v6 Pay Later messages using the native element and currency", async 
   expect(element.buyerCountry).toBe("FR");
   expect(createPayPalMessages).toHaveBeenCalledWith({ currencyCode: "EUR", buyerCountry: "FR" });
   expect(createLearnMore).toHaveBeenCalledWith({
-    amount: "50.00", currencyCode: "EUR", buyerCountry: "FR", presentationMode: "MODAL",
+    currencyCode: "EUR", buyerCountry: "FR", presentationMode: "MODAL",
   });
   expect(element.presentationMode).toBe("MODAL");
   expect(element.getAttribute("presentation-mode")).toBe("MODAL");
@@ -381,7 +381,7 @@ it("renders v6 Pay Later messages using the native element and currency", async 
   element.dispatchEvent(learnMoreClick);
   expect(learnMoreClick.defaultPrevented).toBe(true);
   expect(open).toHaveBeenCalledTimes(1);
-  expect(open).toHaveBeenCalledWith({ amount: "50.00" });
+  expect(open).toHaveBeenCalledWith(expect.objectContaining({ amount: "50.00" }));
   document.documentElement.dataset.theme = "light";
   await vi.waitFor(() => expect(element.textColor).toBe("BLACK"));
   delete document.documentElement.dataset.theme;
@@ -487,4 +487,69 @@ it("a mismatched card confirmation cannot approve another order", async () => {
   const adapter = buildV6Adapter({ createCardFieldsOneTimePaymentSession: () => ({ submit: async () => ({ state: "succeeded", data: { orderId: "OTHER" } }), destroy: vi.fn() }) } as never, { isEligible: () => true });
   const cards = adapter.CardFields!({ createOrder: () => "EXPECTED", onApprove }) as any;
   await expect(cards.submit()).rejects.toThrow(/mismatch/); expect(onApprove).not.toHaveBeenCalled();
+});
+
+
+it("initializes a light-theme Pay Later message with BLACK text", async () => {
+  document.documentElement.dataset.theme = "light";
+  const message = buildV6Adapter({ createPayPalMessages: () => ({}) } as never, { isEligible: () => true }).Messages!({ amount: "40.00" });
+  const host = document.createElement("div");
+  try {
+    await message.render(host);
+    expect(host.querySelector("paypal-message")!.textColor).toBe("BLACK");
+  } finally { await message.close!(); delete document.documentElement.dataset.theme; }
+});
+
+it("reuses the message data layer and Learn more controller after amount changes", async () => {
+  const open = vi.fn();
+  const createLearnMore = vi.fn(() => ({ open }));
+  const createPayPalMessages = vi.fn(() => ({ createLearnMore }));
+  const createInstance = vi.fn().mockResolvedValue({ createPayPalMessages, findEligibleMethods: async () => ({ isEligible: () => true }) });
+  v6Window.paypal = { createInstance };
+  try {
+    for (const amount of ["40.00", "50.00"]) {
+      const ns = await loadPayPalSdk("message-reuse-client", "fr", "capture", false, "EUR", "ONE_TIME_PAYMENT", amount);
+      const message = ns.Messages!({ amount });
+      const host = document.createElement("div");
+      await message.render(host);
+      await message.render(host);
+      host.firstElementChild!.dispatchEvent(new CustomEvent("paypal-message-click", { cancelable: true }));
+      expect(open).toHaveBeenLastCalledWith(expect.objectContaining({ amount }));
+      await message.close!();
+    }
+    expect(createInstance).toHaveBeenCalledOnce();
+    expect(createPayPalMessages).toHaveBeenCalledOnce();
+    expect(createLearnMore).toHaveBeenCalledOnce();
+    expect(open).toHaveBeenCalledTimes(2);
+  } finally { delete v6Window.paypal; }
+});
+
+it("keeps the message and native click behavior when Learn more initialization rejects", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const error = new Error("Learn more unavailable");
+  const message = buildV6Adapter({ createPayPalMessages: () => ({ createLearnMore: async () => { throw error; } }) } as never, { isEligible: () => true }).Messages!({ amount: "40.00" });
+  const host = document.createElement("div");
+  await expect(message.render(host)).resolves.toBeUndefined();
+  const click = new CustomEvent("paypal-message-click", { cancelable: true });
+  host.firstElementChild!.dispatchEvent(click);
+  expect(click.defaultPrevented).toBe(false);
+  expect(host.querySelector("paypal-message")).not.toBeNull();
+  expect(warn).toHaveBeenCalledWith("PayPal Learn more unavailable", error);
+  await message.close!(); warn.mockRestore();
+});
+
+it.each(["reject", "throw"])("logs a Learn more open %s without losing the message", async mode => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const error = new Error("modal unavailable");
+  const open = vi.fn(() => { if (mode === "throw") throw error; return Promise.reject(error); });
+  const message = buildV6Adapter({ createPayPalMessages: () => ({ createLearnMore: () => ({ open }) }) } as never, { isEligible: () => true }).Messages!({ amount: "40.00" });
+  const host = document.createElement("div");
+  await message.render(host);
+  const click = new CustomEvent("paypal-message-click", { cancelable: true });
+  host.firstElementChild!.dispatchEvent(click);
+  await vi.waitFor(() => expect(warn).toHaveBeenCalledWith("PayPal Learn more failed", error));
+  expect(click.defaultPrevented).toBe(true);
+  expect(open).toHaveBeenCalledOnce();
+  expect(host.querySelector("paypal-message")).not.toBeNull();
+  await message.close!(); warn.mockRestore();
 });

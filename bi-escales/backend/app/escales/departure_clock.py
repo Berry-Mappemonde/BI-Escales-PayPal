@@ -8,7 +8,7 @@ Common fund pledges are captured at once.
 
 The simulated clock is ``simulated_now`` (``ESCALES_CLOCK_NOW``, else UTC).
 Authorizations are not opened more than 29 days before the relevant arrival or
-departure date.
+departure instant, with one hour reserved for capture scheduling.
 """
 from __future__ import annotations
 
@@ -41,6 +41,16 @@ from .pledges import (
     void_pledge,
 )
 
+AUTHORIZATION_SAFETY_MARGIN = dt.timedelta(hours=1)
+
+
+def _utc(moment: dt.datetime) -> dt.datetime:
+    """Treat legacy naive clock values as UTC, consistently across guards."""
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=dt.timezone.utc)
+    return moment.astimezone(dt.timezone.utc)
+
+
 _ARRIVAL_KINDS = frozenset({
     "mile",
     "miles",
@@ -64,10 +74,6 @@ def _parse_moment(value: Optional[str]) -> Optional[dt.datetime]:
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=dt.timezone.utc)
     return moment.astimezone(dt.timezone.utc)
-
-
-def _days_before(anchor: dt.datetime, now: dt.datetime) -> int:
-    return (anchor.date() - now.date()).days
 
 
 def _cancelled(milestone: dict) -> bool:
@@ -163,7 +169,7 @@ async def refuse_cancelled_departure(pledge: dict) -> None:
 
 
 async def refuse_early_authorization(pledge: dict, *, now: Optional[dt.datetime] = None, read_only: bool = False) -> None:
-    """An authorization lasts at most 29 days, so it is not opened earlier."""
+    """Reserve one hour of the provider's 696-hour authorization lifetime."""
     doc = await timing_milestone(pledge, read_only=True) if read_only else await timing_milestone(pledge)
     if not doc:
         return
@@ -175,9 +181,13 @@ async def refuse_early_authorization(pledge: dict, *, now: Optional[dt.datetime]
     anchor = _parse_moment(str(anchor_raw or ""))
     if anchor is None:
         return
-    moment = now or simulated_now()
-    if _days_before(anchor, moment) > AUTH_MAX_DAYS:
-        raise ValueError("authorization is more than 29 days before departure")
+    moment = _utc(now or simulated_now())
+    window = dt.timedelta(days=AUTH_MAX_DAYS) - AUTHORIZATION_SAFETY_MARGIN
+    if anchor - moment > window:
+        rule = "leg departure" if meta.get("capture_on") == "departure" else "stop arrival"
+        raise ValueError(
+            f"authorization exceeds 29 days minus one-hour safety margin before {rule}"
+        )
 
 
 async def refuse_early_capture(pledge: dict, *, now: Optional[dt.datetime] = None) -> None:
@@ -195,7 +205,7 @@ async def refuse_early_capture(pledge: dict, *, now: Optional[dt.datetime] = Non
     anchor = _parse_moment(str(anchor_raw or ""))
     if anchor is None:
         return
-    moment = now or simulated_now()
+    moment = _utc(now or simulated_now())
     if moment < anchor:
         raise ValueError(f"capture is before {rule}")
 

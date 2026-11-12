@@ -537,6 +537,15 @@ are available in development or CI.
 Skills used: `python-getting-started` under the vendored
 `.cursor/skills/paypal-server-sdk` directory. No PayPal operation or SDK call is added.
 
+## PAY-05 exact authorization window
+
+Before implementation: AUTHORIZE is permitted when arrival (stop) or departure
+(cabin) minus the UTC voyage instant is at most timedelta(hours=695), exactly 695 h (inclusive).
+Beyond that instant the existing resolver selects VAULT or refuses before order
+creation. No provider methods, request IDs, capture rules or Render clock change.
+Naive supplied instants retain the existing UTC interpretation.
+Skills: python-getting-started, python-calling-endpoints, python-testing.
+
 ## Order creation SDK completion (payment workstream)
 
 Before implementation: route PayPalClient POST /v2/checkout/orders through
@@ -556,3 +565,80 @@ SDK source inspection: from_dictionary injects PayPal defaults and drops card ex
 ## SDK review follow-up: budget and transient retries
 
 Keep one merchant SDK gateway. All resource attempts, reads and writes, consume the optional Captain budget before dispatch; OAuth is excluded. Disable SDK-internal retries and retry ApiException 429/5xx at most three attempts with stable arguments and request IDs, exponential backoff and Retry-After up to ten seconds. Do not replay uncertain transport/auth failures or fall back to httpx after dispatch. Map OrderRequest constructor TypeError to PayPalError. Test generated HTTP-boundary retry/accounting/identity and no-replay cases, plus full suites and strict gateway mypy.
+
+## PAY-05 review: one-hour capture safety margin
+
+AUTHORIZE opens at most 695 hours before the UTC arrival/departure anchor (29 days minus one hour). Later anchors select Vault through the existing resolver. Provider expiry remains 696 hours. Naive clock values are UTC in both authorization and capture guards. Arrival/departure wording follows the actual anchor. No provider operation, flags or scheduler changes. Validate exact boundaries, offsets, naive clocks, preview/creation parity and the full suites.
+
+## Card coverage for immediate donations
+
+Before code: allow Card Fields on CAPTURE-intent project donations. The shared
+capture creator accepts checkout_method=card, sends card attributes with
+SCA_WHEN_REQUIRED, and preserves immediate capture on approval. The existing
+mode-preview GET returns CAPTURE for project donations without ledger writes.
+Both JS version entry points render the existing card component. This adds no
+new page or layout. Common-fund CAPTURE uses the same creator after PAY-03 merges.
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-error-handling, python-configuration-resilience, python-testing.
+
+Card review: before CAPTURE, reread the order through PayPalClient.get_order
+(the generated SDK when enabled), require approval and a card authentication
+result permitting continuation under the PayPal 3DS response matrix. Unknown,
+failed, rejected or still-challenged authentication fails closed without capture.
+Only a completed capture receipt may render the immediate-donation paid text.
+Reference: https://developer.paypal.com/platforms/checkout/advanced/customize/3d-secure/response-parameters
+
+
+### Card review: request server authentication fields explicitly
+
+The official Orders 3DS flow requires GET order with fields=payment_source to retrieve authentication_result. Include this query on the SDK and HTTP read paths before the existing 3DS gate. Test the generated request query, not just a permissive response fixture. Real sandbox SCA_ALWAYS confirmation returns PAYER_ACTION_REQUIRED until device authentication; do not capture while unresolved.
+
+Sandbox observation: fields=payment_source returns only id/payment_source, omitting status. A dedicated get_card_order combines the normal state read with that projection after verifying both order IDs. Other order reads stay unchanged; the card gate uses the combined response.
+
+Real local MongoDB + PayPal observation: SCA_WHEN_REQUIRED confirmation can be APPROVED with a persisted card (brand/last_digits), and no authentication_result when PayPal does not request 3DS. Permit that explicit approved-card case; keep explicit unknown/failed 3DS and absent card data blocked. Capture outcome still determines paid status. Recheck completed and processor-declined cards against the real sandbox, using local bi_escales_test2 and scoped tagged cleanup.
+
+## PR #255 continuation: pending capture and declined-card retry
+
+Before application changes: PENDING is an existing capture awaiting settlement,
+never permission to submit another charge. Add PayPalClient.get_capture and the
+shared gateway get_captured_payment(capture_id), using SDK 2.4.0
+PaymentsController.get_captured_payment({"capture_id": capture_id}); its ApiResponse
+body is CapturedPayment and failures map through the existing ApiException /
+transport handling. A pending capture action reads that exact resource, verifies
+its ID, and updates the existing pledge only on a known terminal outcome. Repeated
+PENDING reads do not append finance events or advance capture_attempt. Serialize
+capture/approval for one pledge so concurrent clicks cannot submit two writes.
+
+The card receipt distinguishes PENDING from paid and hides further payment entry.
+After a definite declined capture, fetch the stored status and clear the checkout
+attempt; the next submission uses a new pledge, order and PayPal-Request-Id.
+Transport uncertainty keeps the original attempt/key. Mode preview accepts CAPTURE
+as returned by the API. Keep the original 3DS gate and common-fund merge contract.
+
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-error-handling, python-configuration-resilience, python-testing.
+
+The same fresh-attempt rule applies when Card Fields reports an explicit
+INSTRUMENT_DECLINED/CARD_DECLINED before the capture route is reached. Other SDK
+errors keep the original order because their financial outcome is uncertain.
+
+## SDK retry continuation: keep the event loop available
+
+Before code: the generated SDK is synchronous, including its backoff. Offload
+PayPal calls from the async pledge state machine with asyncio.to_thread, including
+creation, approval reads, capture, pending reconciliation, vault registration,
+reauthorization, void and refund. Keep asynchronous ledger work on its original
+event loop and preserve per-pledge serialization and idempotency keys. The worker
+owns both the SDK request and retry wait; no blocking join runs on the event loop.
+Onboarding transport calls will receive the same treatment in #266.
+
+Keep the optional Captain budget scoped to its client and ContextVar, with normal
+route clients unbudgeted. Add a generated-HTTP-boundary regression proving a
+normal capture retries after another client's budget is exhausted. If a Captain
+budget interrupts a transient retry, chain the last PayPal exception and log its
+HTTP status only. No secrets or bodies in logs. Preserve three total attempts,
+stable request IDs/bodies, bounded Retry-After and no uncertain-write transport
+replay. Verify a live event-loop heartbeat while a generated-SDK retry waits.
+
+Skills: python-getting-started, python-calling-endpoints, python-models,
+python-error-handling, python-configuration-resilience, python-testing.

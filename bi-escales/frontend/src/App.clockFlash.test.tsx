@@ -108,22 +108,25 @@ describe("voyage clock before the API clock answers", () => {
     expect(await screen.findByTestId("voyage-clock")).toHaveAccessibleName("Chargement de l’horloge du voyage");
   });
 
-  it("falls back to the browser's time only once the clock request has failed", async () => {
+  it("retains the placeholder when the API clock request fails", async () => {
     vi.mocked(escalesApi.fetchClock).mockRejectedValue(new Error("clock down"));
     renderApp();
     const clock = await screen.findByTestId("voyage-clock");
-    await waitFor(() => expect(clock).toHaveTextContent("15 Jun 2030"));
-    expect(clock).not.toHaveAttribute("aria-busy");
+    expect(clock).toHaveTextContent("—");
+    expect(clock).toHaveAttribute("aria-busy", "true");
+    expect(clock).not.toHaveTextContent("2030");
   });
 
-  it("asks the clock again soon after a failure, and the API's time then replaces the browser's", async () => {
+  it("retries after a failure and replaces the placeholder directly with API time", async () => {
     const setTimeoutSpy = vi.spyOn(window, "setTimeout");
     vi.mocked(escalesApi.fetchClock)
-      .mockRejectedValueOnce(new Error("Clock request timed out after 12000 ms"))
+      .mockRejectedValueOnce(new Error("Clock request timed out after 55000 ms"))
       .mockResolvedValue({ start: "2026-11-12", now: "2026-11-12T10:00:00+00:00" });
     renderApp();
     const clock = await screen.findByTestId("voyage-clock");
-    await waitFor(() => expect(clock).toHaveTextContent("15 Jun 2030"));
+    expect(clock).toHaveTextContent("—");
+    expect(clock).not.toHaveTextContent("2030");
+    await waitFor(() => expect(setTimeoutSpy.mock.calls.some(([, delay]) => delay === 10000)).toBe(true));
 
     // The retry is scheduled well before the regular one-minute re-sync.
     const retry = setTimeoutSpy.mock.calls.find(([, delay]) => delay === 10000);

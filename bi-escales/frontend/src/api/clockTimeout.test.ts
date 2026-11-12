@@ -30,8 +30,8 @@ describe("fetchClock", () => {
     await expect(fetchClock()).resolves.toEqual({ start: "2026-11-12", now: "2026-11-12T10:00:00+00:00" });
   });
 
-  it("waits well under a minute by default", () => {
-    expect(CLOCK_TIMEOUT_MS).toBeGreaterThan(0);
-    expect(CLOCK_TIMEOUT_MS).toBeLessThanOrEqual(15000);
+  it("allows a sleeping host 45–60 seconds to wake by default", () => {
+    expect(CLOCK_TIMEOUT_MS).toBeGreaterThanOrEqual(45000);
+    expect(CLOCK_TIMEOUT_MS).toBeLessThanOrEqual(60000);
   });
 });

@@ -156,7 +156,6 @@ export default function App() {
   // False until the clock request has answered or failed. Until then the voyage
   // clock shows a placeholder: with a demo clock the browser's own time would
   // flash a date and a distance that the answer then replaces.
-  const [clockSettled, setClockSettled] = useState(false);
   const [milestones, setMilestones] = useState<Milestone[] | null>(null);
 
   const prod = Boolean(import.meta.env.PROD);
@@ -169,12 +168,12 @@ export default function App() {
   );
   // The left rail follows the API's clock, so it cannot contradict the stop
   // statuses, which are computed from that same clock. No time at all while the
-  // first clock request is on its way; the browser's time only if that request failed.
+  // API clock is unavailable. Browser time must never stand in for a pinned demo clock.
   const voyageNow = useMemo(() => {
     const fromApi = apiNow ? new Date(apiNow) : null;
     if (fromApi && Number.isFinite(fromApi.getTime())) return fromApi;
-    return clockSettled ? now : null;
-  }, [apiNow, clockSettled, now]);
+    return null;
+  }, [apiNow]);
   const voyageClockReady = voyageNow !== null;
   const sample = useMemo(
     () => (voyage && voyageNow ? sampleAt(voyage.clock, voyageNow) : null),
@@ -311,16 +310,13 @@ export default function App() {
       void fetchClock()
         .then((clock) => {
           if (cancelled) return;
-          if (clock?.now) {
-            setApiNow(clock.now);
-            answered = true;
-          }
-          setClockSettled(true);
+          if (!clock?.now || !Number.isFinite(Date.parse(clock.now))) throw new Error("Voyage clock unavailable");
+          setApiNow(clock.now);
+          answered = true;
         })
         .catch(() => {
-          /* keep the last answer; with none, the browser's time stands in until one arrives */
+          // Keep the last API answer, or the placeholder until the host wakes up.
           if (cancelled) return;
-          setClockSettled(true);
           if (!answered) retry = window.setTimeout(syncClock, CLOCK_RETRY_MS);
         });
     };

@@ -282,7 +282,7 @@ export async function fetchPrices(lang?: string): Promise<PriceCatalog> {
 
 /** Public voyage clock. ``now`` is the simulated instant, real UTC unless pinned. */
 /** A sleeping host can hold a request for most of a minute; the clock gives up before that. */
-export const CLOCK_TIMEOUT_MS = 12000;
+export const CLOCK_TIMEOUT_MS = 55000;
 
 export async function fetchClock(timeoutMs = CLOCK_TIMEOUT_MS): Promise<{ start?: string; now?: string }> {
   const controller = new AbortController();

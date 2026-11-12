@@ -140,6 +140,18 @@ export function EscalesPanel({
               {t("escales.whereIsBoat")}
             </button>
           </li>
+          <li>
+            {/* The one example that returns a priced cart: the model's name and the PayPal button follow. */}
+            <button
+              type="button"
+              className="captain-prompt-chip"
+              data-testid="captain-example-pledge"
+              onClick={() => setChatMessage(t("escales.chatPlaceholder"))}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 3h2l1.5 7h6l1.5-5H5M6.5 13h.01M11 13h.01" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              {t("escales.chatPlaceholder")}
+            </button>
+          </li>
         </ul>
       ) : null}
       <form className="stack-form" onSubmit={onChat}>

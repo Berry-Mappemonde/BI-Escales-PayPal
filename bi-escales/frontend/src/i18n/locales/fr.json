@@ -171,7 +171,7 @@
     "chatPlaceholder": "20 milles près de Mayotte",
     "sendChat": "Demander au capitaine",
     "agenticConfirmInvoice": "Confirmer — créer la facture PayPal (bac à sable)",
-    "cartHeading": "Panier",
+    "cartHeading": "Votre panier, prêt à payer",
     "chatReply": "Réponse du capitaine",
     "rateLimit": "Trop de requêtes vers le capitaine. Patientez une minute ou réessayez demain.",
     "paypalToolLine": "Outil PayPal : {{tools}} ({{client}})",

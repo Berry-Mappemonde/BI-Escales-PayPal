@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import FileResponse, RedirectResponse, Response
 
@@ -14,6 +14,7 @@ from app.bi_marinas_catalog import build_escale_fiche, get_all_escale_marinas_ge
 from app.bi_projects_catalog import BROWSER_MAX_AGE, get_bi_projects_geojson, projects_geojson_body
 from app.escales.config import cors_origins, resolve_apple_pay_domain_association_path
 from app.middleware.security_headers import install_security_headers
+from app.spa_client_routes import page_head
 
 app = FastAPI(title="BI Escales — Pay Only If We Sail")
 
@@ -174,10 +175,12 @@ def attach_frontend(application: FastAPI) -> None:
         candidate = (dist / full_path).resolve() if full_path else index
         if full_path and candidate.is_file() and str(candidate).startswith(str(dist)):
             return FileResponse(candidate)
+        # Old /en and /fr links and unknown paths: Codex's redirects (#272), none answers 404.
         target = language_or_unknown_redirect(full_path, list(request.query_params.multi_items()))
         if target is not None:
             return RedirectResponse(url=target, status_code=_REDIRECT_STATUS)
-        return FileResponse(index)
+        # The page, with this page's own canonical address and language alternates.
+        return HTMLResponse(page_head(index.read_text(encoding="utf-8"), full_path, request.url.query))
 
 
 attach_frontend(app)

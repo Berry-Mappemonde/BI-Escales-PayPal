@@ -728,6 +728,8 @@
   },
   "projectOnboarding": {
     "featureOff": "Le parcours « onboard after payment » est désactivé (ESCALES_ONBOARD_AFTER_PAYMENT_ENABLED).",
+    "notFound": "Ce projet est introuvable. Vérifiez le lien ou revenez à la carte.",
+    "loadError": "Le projet n’a pas pu être chargé. Rechargez la page pour réessayer.",
     "loading": "Chargement du projet démo…",
     "sandboxBanner": "Test bac à sable — aucun mouvement réel de fonds.",
     "walletOnly": "Paiement PayPal uniquement (pas de saisie carte sur ce projet).",

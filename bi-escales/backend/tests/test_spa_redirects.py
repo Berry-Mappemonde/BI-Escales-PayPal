@@ -76,3 +76,9 @@ def test_language_redirects_never_leave_the_site(tmp_path: Path, monkeypatch):
             response = client.get(f"/{lang}{suffix}?paypal=return&paypal=again", follow_redirects=False)
             assert response.status_code == 302
             assert response.headers["location"] == f"/evil.example?paypal=return&paypal=again&lang={lang}"
+
+
+def test_backslash_project_path_is_not_a_page(tmp_path: Path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    response = client.get("/projects/a%5Cg/onboarding", follow_redirects=False)
+    assert response.status_code == 404

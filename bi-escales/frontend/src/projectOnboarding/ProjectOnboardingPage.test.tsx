@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import i18n from "../i18n";
+import { fetchProjectOnboarding } from "../api/projectOnboarding";
 import { ProjectOnboardingPage } from "./ProjectOnboardingPage";
 
 vi.mock("../api/projectOnboarding", () => ({
@@ -54,4 +55,20 @@ describe("ProjectOnboardingPage", () => {
     expect(screen.getByTestId("project-onboarding-location")).toHaveTextContent("Saint-Maur (Indre), France");
     expect(screen.getByText(/travelling exhibition\./)).toBeInTheDocument();
   });
+});
+
+
+it.each([ ["en", "This project was not found"], ["fr", "Ce projet est introuvable"] ])("shows a clear %s message for a missing project", async (lang, message) => {
+  await i18n.changeLanguage(lang);
+  vi.mocked(fetchProjectOnboarding).mockResolvedValueOnce(null);
+  render(<I18nextProvider i18n={i18n}><ProjectOnboardingPage projectId="demo" /></I18nextProvider>);
+  expect(await screen.findByRole("alert")).toHaveTextContent(message);
+  expect(screen.queryByText(/Loading project|Chargement du projet/)).not.toBeInTheDocument();
+});
+
+it("shows a recoverable error when the project request fails", async () => {
+  await i18n.changeLanguage("en");
+  vi.mocked(fetchProjectOnboarding).mockRejectedValueOnce(new Error("unavailable"));
+  render(<I18nextProvider i18n={i18n}><ProjectOnboardingPage projectId="demo" /></I18nextProvider>);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Could not load the project");
 });

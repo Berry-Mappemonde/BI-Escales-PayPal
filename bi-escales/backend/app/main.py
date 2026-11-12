@@ -172,6 +172,8 @@ def attach_frontend(application: FastAPI) -> None:
     def spa(full_path: str, request: Request):
         if full_path == "api" or full_path.startswith("api/"):
             raise HTTPException(status_code=404)
+        if "\\" in full_path and not full_path.startswith(("en/", "fr/")):
+            raise HTTPException(status_code=404)
         candidate = (dist / full_path).resolve() if full_path else index
         if full_path and candidate.is_file() and str(candidate).startswith(str(dist)):
             return FileResponse(candidate)

@@ -19,6 +19,7 @@ export function ProjectOnboardingPage({ projectId }: { projectId: string }) {
   const { t, i18n } = useTranslation();
   const lang = currentLang(i18n.language);
   const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [loadError, setLoadError] = useState<"notFound" | "loadError" | null>(null);
   const [view, setView] = useState<ProjectOnboardingStatus | null>(null);
   const [amount, setAmount] = useState("10.00");
   const [contributor, setContributor] = useState("");
@@ -28,6 +29,7 @@ export function ProjectOnboardingPage({ projectId }: { projectId: string }) {
   const reload = useCallback(async () => {
     const data = await fetchProjectOnboarding(projectId, lang);
     setView(data);
+    setLoadError(data ? null : "notFound");
   }, [projectId, lang]);
 
   useEffect(() => {
@@ -38,7 +40,9 @@ export function ProjectOnboardingPage({ projectId }: { projectId: string }) {
     if (!enabled) {
       return;
     }
-    void reload();
+    setLoadError(null);
+    setView(null);
+    void reload().catch(() => setLoadError("loadError"));
   }, [enabled, reload]);
 
   useEffect(() => {
@@ -96,6 +100,9 @@ export function ProjectOnboardingPage({ projectId }: { projectId: string }) {
 
   if (enabled === false) {
     return <p className="notice warn">{t("projectOnboarding.featureOff")}</p>;
+  }
+  if (loadError) {
+    return <p className="notice error" role="alert">{t(`projectOnboarding.${loadError}`)}</p>;
   }
   if (!view) {
     return <p>{t("projectOnboarding.loading")}</p>;

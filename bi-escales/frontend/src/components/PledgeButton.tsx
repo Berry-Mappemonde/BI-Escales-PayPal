@@ -93,10 +93,12 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   const sdkHost = useRef<HTMLDivElement | null>(null);
   const activePledgeIdRef = useRef<string | null>(null);
   const vault = created ? isVaultPledge(created) : false;
-  const isProjectPledge = ["project_pledge", "common_fund"].includes(values.kind || "");
+  const isProjectPledge = values.kind === "project_pledge";
+  const isCommonFund = values.kind === "common_fund";
+  const isImmediateCapture = isProjectPledge || isCommonFund;
   const isCabinLeg = (values.kind || "") === "cabin_leg";
   const [cabinLegId, setCabinLegId] = useState("");
-  const sdkIntent = isProjectPledge ? "capture" : "authorize";
+  const sdkIntent = isImmediateCapture ? "capture" : "authorize";
   const sdkCurrency =
     isProjectPledge && values.currency?.trim()
       ? values.currency.trim().toUpperCase()
@@ -118,14 +120,16 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   const modeMatchesValues =
     pledgeMode?.milestoneId === effectiveMilestoneId && pledgeMode.kind === values.kind;
   const sdkVault = checkoutSdkUseVault({
-    isProjectPledge,
+    isProjectPledge: isImmediateCapture,
     paymentMode: modeMatchesValues ? pledgeMode?.paymentMode : null,
   });
   const shouldRenderSmartButtons =
-    isProjectPledge
+    isImmediateCapture
     || (modeMatchesValues && pledgeMode.paymentMode === "AUTHORIZE")
     || (isCabinLeg && modeMatchesValues && pledgeMode.paymentMode === "VAULT");
-  const intentLabel = isProjectPledge
+  const intentLabel = isCommonFund
+    ? t("pledge.intentCommonFund")
+    : isProjectPledge
     ? t("pledge.intentProject")
     : modeMatchesValues
       ? t(pledgeMode.paymentMode === "VAULT" ? "pledge.intentVault" : "pledge.intent")
@@ -203,7 +207,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
   useEffect(() => {
     let cancelled = false;
     setPledgeMode(null);
-    if (isProjectPledge) {
+    if (isImmediateCapture) {
       return () => {
         cancelled = true;
       };
@@ -229,7 +233,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     return () => {
       cancelled = true;
     };
-  }, [isProjectPledge, isCabinLeg, effectiveMilestoneId, values.kind]);
+  }, [isImmediateCapture, isCabinLeg, effectiveMilestoneId, values.kind]);
 
   useEffect(() => {
     if (!created?.approve_link || !vault || smartButtonsReady) return;
@@ -288,8 +292,8 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
       setCreated(pledge);
       if (isVaultPledge(pledge)) {
         setStatus(t("pledge.vaultRedirect"));
-      } else if (isProjectPledge) {
-        setStatus(t("pledge.returnPendingProject"));
+      } else if (isImmediateCapture) {
+        setStatus(t(isCommonFund ? "pledge.returnPendingCommonFund" : "pledge.returnPendingProject"));
       } else {
         setStatus(t("pledge.returnPending"));
       }
@@ -455,6 +459,8 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
     shouldRenderSmartButtons,
     smartButtonsBlocked,
     isProjectPledge,
+    isImmediateCapture,
+    isCommonFund,
     isCabinLeg,
     modeMatchesValues,
     pledgeMode?.paymentMode,

@@ -1701,3 +1701,16 @@ def test_vault_stays_off_unless_escales_vault_enabled(monkeypatch):
     assert 'value: "true"' in window
     assert "ESCALES_VAULT_RETURN_URL" in text
     assert "bi-escales-api.onrender.com/?vault=return" in text
+
+
+def test_treasurer_cannot_capture_an_already_paid_common_fund_again(api):
+    client, fake = api
+    _created, paid = _ready(client, "fund-capture-once", {
+        "amount_eur": "12.00", "description": "Common fund", "milestone_id": "", "kind": "common_fund",
+    })
+    assert paid["status"] == "captured"
+    before = len([c for c in fake.calls if c[0] == "orders.capture"])
+    response = client.post(f"/api/escales/pledges/{paid['id']}/capture", headers=ADMIN)
+    assert response.status_code == 409
+    assert len([c for c in fake.calls if c[0] == "orders.capture"]) == before == 1
+    assert client.get(f"/api/escales/pledges/{paid['id']}").json()["status"] == "captured"

@@ -561,3 +561,8 @@ provider write. Project capture behavior stays on the same path. SDK operations:
 OrdersController.create_order and capture_order; PayPalError mapping unchanged.
 Skills: python-getting-started, python-calling-endpoints, python-models,
 python-error-handling, python-configuration-resilience, python-testing.
+
+PAY-03 review: preserve common-fund Card Fields and one-time Apple/Google wallets;
+use CAPTURE with card SCA_WHEN_REQUIRED for card donations. Distinguish common
+fund copy from project copy. A keyed treasurer capture after immediate capture
+must return a conflict and never issue a second provider capture.

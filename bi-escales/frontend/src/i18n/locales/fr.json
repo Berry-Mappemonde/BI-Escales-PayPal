@@ -222,6 +222,8 @@
     "authorizing": "Confirmation de votre promesse auprès de PayPal…",
     "intentVault": "Bac à sable PayPal : vous n’êtes pas débité en argent réel. PayPal enregistre votre moyen de paiement ; rien n’est débité maintenant.",
     "intent": "Autorisation PayPal (bac à sable) : vous n’êtes pas débité en argent réel.",
+    "intentCommonFund": "Don au fonds commun — débité immédiatement après votre approbation.",
+    "returnPendingCommonFund": "Approuvez dans PayPal. Votre don au fonds commun est débité au retour.",
     "intentProject": "Débité immédiatement lors de votre approbation dans PayPal (bac à sable : aucun argent réel ne circule).",
     "create": "Continuer avec PayPal",
     "approve": "Approuver dans PayPal",

@@ -27,6 +27,7 @@ import { useTheme } from "./hooks/useTheme";
 import { MapScene } from "./map/MapScene.jsx";
 import { ficheMarinas, loadAllEscalesMarinasGeojson, loadEscaleFiche, loadEscaleMarinasGeojson } from "./marinas/escaleFiche.js";
 import { resolveBoatStop } from "./voyage/boatStop.js";
+import { boatPosition } from "./voyage/boatPosition.js";
 import { nextOpenStop } from "./voyage/nextStop.js";
 import { fetchJson, sampleAt, voyageFromRoute } from "./voyage/loadVoyage.js";
 import { resolveDepartureT0 } from "./voyage/departureT0.js";
@@ -171,6 +172,8 @@ export default function App() {
       ? Math.max(0, Math.round(Number(sample.countdownHours)))
       : null;
   const sailedNm = Number.isFinite(cumNm) ? cumNm.toFixed(1).replace(/\.0$/, "") : "—";
+  // Where the boat is, in words: the map shows it, this line says it.
+  const boatWhere = useMemo(() => boatPosition(voyage?.stops, sample), [voyage?.stops, sample]);
   const sheetArrivalIso = useMemo(
     () => (stop?.milestoneId && schedule ? escaleArrivalIso(schedule, stop.milestoneId) : ""),
     [stop?.milestoneId, schedule],
@@ -981,6 +984,18 @@ export default function App() {
             {t("clock.sailed", { nm: sailedNm })} · {t("clock.simulated")}
           </span>
         </p>
+        {boatWhere ? (
+          <p className="ng-clock-line voyage-where" data-testid="voyage-where">
+            <span className="voyage-clock-date voyage-boat-position" data-testid="voyage-boat-position">
+              {boatWhere.kind === "underway"
+                ? t("clock.boatUnderway", { from: boatWhere.from, to: boatWhere.to })
+                : t(boatWhere.kind === "waiting" ? "clock.boatWaiting" : "clock.boatAtStop", { stop: boatWhere.stop })}
+            </span>
+            <span className="voyage-clock-date" data-testid="voyage-departure">
+              {t("clock.departure", { date: formatCivilDate(t0, lang).split(" · ")[0] })}
+            </span>
+          </p>
+        ) : null}
         {!prod ? (
           <label className="dev-t0">
             {t("clock.devT0")}

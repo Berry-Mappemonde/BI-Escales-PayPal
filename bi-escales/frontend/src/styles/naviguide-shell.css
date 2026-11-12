@@ -811,6 +811,10 @@ body.ng-naviguide-shell {
   font-size: var(--text-meta);
   line-height: var(--text-meta--line-height);
 }
+/* Where the boat is: the one line of the clock block a visitor is looking for. */
+.ng-shell .ng-clock-line .voyage-boat-position {
+  color: var(--color-fg);
+}
 .ng-shell .ng-tools-panel .escale-popup-card { background: var(--color-panel); padding: var(--space-4); }
 .ng-shell .ng-sidebar, .ng-shell .ng-tools-panel { transition-duration: var(--duration-base); }
 

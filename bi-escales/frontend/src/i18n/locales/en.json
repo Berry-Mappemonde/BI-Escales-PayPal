@@ -221,6 +221,8 @@
     "cancelled": "Approval cancelled. Nothing is authorized.",
     "intentVault": "PayPal sandbox: no real money moves. PayPal saves your payment method; nothing is charged now.",
     "intent": "PayPal sandbox: no real money moves.",
+    "intentCommonFund": "Common fund donation — charged immediately after your approval.",
+    "returnPendingCommonFund": "Approve in PayPal. Your common fund donation is charged on return.",
     "intentProject": "Charged immediately when you approve in PayPal (sandbox: no real money moves).",
     "create": "Continue with PayPal",
     "approve": "Approve in PayPal",

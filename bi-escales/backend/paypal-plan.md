@@ -570,7 +570,7 @@ AUTHORIZE opens at most 695 hours before the UTC arrival/departure anchor (29 da
 
 Add a free positive EUR amount with kind=stop_gift, required known arrival milestone and no quantity. Reuse AUTHORIZE/Vault resolution (PAY-05 margin follows #249), order creation and human-reviewed arrival capture/cancellation void. Do not route this kind to immediate CAPTURE. Existing unit stop pledges and common_fund remain unchanged. Existing pledge fields/statuses and finance pledge_kind expose attribution; existing aggregate captured_eur/refunded_eur/authorized_eur keep held money out of Net. No row or donor/payment identifier is added to any LLM prompt. No UI, Studio, treasurer or dashboard changes. Test target validation, free amounts, preview/creation mode, arrival/human gate, cancellation, refund totals and model payload boundaries.
 
-The feature branch includes #249 as a prerequisite so the 695-hour policy is testable before integration. Merge #249 first; its prerequisite diff then disappears from this PR. No integration/main PR was merged by this agent.
+#249 is merged into test/integration-2. This feature branch includes that integration merge, so the prerequisite diff is no longer part of the stop-gift PR. The remaining diff implements stop_gift only.
 
 ## Card coverage for immediate donations
 

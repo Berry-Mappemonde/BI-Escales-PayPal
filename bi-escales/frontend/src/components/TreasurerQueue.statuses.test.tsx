@@ -35,6 +35,8 @@ const everyStatus = [
   row("p-captured", "captured", 3, { capture_id: "CAP-1" }),
   row("p-released", "voided", 4),
   row("p-refunded", "refunded", 5, { capture_id: "CAP-2" }),
+  row("p-pending", "pending", 6),
+  row("p-partly", "partially_refunded", 7, { capture_id: "CAP-3" }),
 ];
 
 function show(pledges: PublicPledge[], props: { needsKey?: boolean; adminKey?: string } = {}) {
@@ -59,17 +61,25 @@ describe("pledge statuses in the treasurer queue", () => {
     await i18n.changeLanguage("en");
   });
 
-  it("explains the five statuses in plain words", () => {
+  it("explains every status the queue can show, in plain words", () => {
     show(everyStatus);
     const legend = screen.getByRole("list", { name: "What each status means" });
     const lines = within(legend).getAllByRole("listitem").map((item) => item.textContent);
     expect(lines).toEqual([
       "Heldauthorised by PayPal, not charged yet",
-      "Savedwaiting: payment method saved with PayPal for a stop more than 29 days away, charged on arrival",
+      "Savedwaiting: payment method saved with PayPal for a stop or cabin more than 29 days away; charged when the boat arrives (stops) or at leg departure (cabins)",
+      "Pendingcapture asked, PayPal is still processing the payment",
       "Capturedcharged",
       "Releasedauthorisation voided, nothing was charged",
+      "Partly refundedpart of a captured payment returned; the rest can still be refunded",
       "Refundedmoney returned after a capture",
     ]);
+    // Every chip the queue shows is explained in the legend.
+    const explained = within(legend).getAllByRole("listitem").map((item) => item.firstElementChild?.textContent);
+    for (const id of ["p-held", "p-saved", "p-pending", "p-captured", "p-partly"]) {
+      const chip = within(screen.getByTestId(`queue-row-${id}`)).getByText(/Held|Saved|Pending|Captured|Partly refunded/);
+      expect(explained).toContain(chip.textContent);
+    }
   });
 
   it("explains them in French too", async () => {
@@ -78,11 +88,15 @@ describe("pledge statuses in the treasurer queue", () => {
     const legend = screen.getByRole("list", { name: "Ce que signifie chaque statut" });
     expect(legend).toHaveTextContent("autorisée par PayPal, pas encore débitée");
     expect(legend).toHaveTextContent("argent rendu après un encaissement");
+    // A saved payment method is charged at leg departure for a cabin, not on arrival.
+    expect(legend).toHaveTextContent("débité à l’arrivée du bateau (escales) ou au départ de l’étape (cabines)");
+    expect(legend).toHaveTextContent("encaissement demandé, PayPal traite encore le paiement");
+    expect(legend).toHaveTextContent("une partie de l’encaissement rendue ; le reste peut encore être remboursé");
   });
 
   it("keeps open pledges in the queue and lists released and refunded ones under it, read-only", () => {
     show(everyStatus);
-    for (const id of ["p-held", "p-saved", "p-captured"]) {
+    for (const id of ["p-held", "p-saved", "p-captured", "p-pending", "p-partly"]) {
       expect(screen.getByTestId(`queue-row-${id}`)).toBeInTheDocument();
     }
     expect(screen.queryByTestId("queue-row-p-released")).toBeNull();
@@ -108,7 +122,29 @@ describe("pledge statuses in the treasurer queue", () => {
     expect(screen.getByTestId("queue-closed-more")).toHaveTextContent("And 3 older closed pledges.");
   });
 
-  it("shows no closed list when nothing is closed, and neither list nor legend without access", () => {
+  it("dates closed pledges by their release or refund when the list says, newest closure first", () => {
+    show([
+      // Created first but refunded last: it comes first.
+      row("p-old-refunded", "refunded", 1, { capture_id: "CAP-9", refunded_at: "2026-11-12T08:30:00Z" }),
+      row("p-new-released", "voided", 9, { voided_at: "2026-11-10T10:00:00Z" }),
+      // A list without closure times (the demo list): its creation date, said as such.
+      row("p-no-time", "voided", 5),
+    ]);
+    const closed = screen.getByTestId("queue-closed");
+    expect(within(closed).getByRole("columnheader", { name: "Released or refunded" })).toBeInTheDocument();
+    const rows = within(closed).getAllByRole("row").slice(1);
+    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual([
+      "closed-row-p-old-refunded",
+      "closed-row-p-new-released",
+      "closed-row-p-no-time",
+    ]);
+    expect(rows[0].querySelector("time")).toHaveAttribute("datetime", "2026-11-12T08:30:00Z");
+    expect(rows[1].querySelector("time")).toHaveAttribute("datetime", "2026-11-10T10:00:00Z");
+    expect(rows[2].querySelector("time")).toHaveTextContent(/^created /);
+    expect(rows[2].querySelector("time")).toHaveAttribute("datetime", "2026-11-05T09:00:00Z");
+  });
+
+  it("shows no closed list when nothing is closed", () => {
     show([row("p-held", "authorized", 1)]);
     expect(screen.queryByTestId("queue-closed")).toBeNull();
     expect(screen.getByTestId("queue-status-legend")).toBeInTheDocument();

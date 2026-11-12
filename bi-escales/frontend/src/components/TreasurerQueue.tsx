@@ -20,7 +20,15 @@ import { milestoneLabel } from "../utils/milestoneLabel";
 import type { StopNames } from "../utils/milestoneLabel";
 
 /** Statuses the legend explains, in the order a pledge goes through them. */
-const LEGEND_STATUSES = ["authorized", "vaulted", "captured", "voided", "refunded"] as const;
+const LEGEND_STATUSES = [
+  "authorized",
+  "vaulted",
+  "pending",
+  "captured",
+  "voided",
+  "partially_refunded",
+  "refunded",
+] as const;
 /** A pledge in one of these needs no decision any more. */
 const CLOSED_STATUSES = new Set(["voided", "refunded"]);
 /** Closed pledges listed; older ones are counted, not listed. */
@@ -41,6 +49,22 @@ export function formatPledgeCreatedAt(iso: string | undefined, language: string)
 function comparePledgesNewestFirst(a: PublicPledge, b: PublicPledge): number {
   const ta = Date.parse(a.created_at ?? "");
   const tb = Date.parse(b.created_at ?? "");
+  const safeA = Number.isFinite(ta) ? ta : 0;
+  const safeB = Number.isFinite(tb) ? tb : 0;
+  if (safeB !== safeA) return safeB - safeA;
+  return b.id.localeCompare(a.id);
+}
+
+/** When a closed pledge was released or refunded, if the list carries it (the keyed list does). */
+function closedAtIso(p: PublicPledge): string | undefined {
+  const at = (p.refunded_at || p.voided_at || p.vault_voided_at || "").trim();
+  return at && Number.isFinite(Date.parse(at)) ? at : undefined;
+}
+
+/** Newest closure first; a pledge without a closure time is placed by its creation. */
+function compareClosedNewestFirst(a: PublicPledge, b: PublicPledge): number {
+  const ta = Date.parse(closedAtIso(a) ?? a.created_at ?? "");
+  const tb = Date.parse(closedAtIso(b) ?? b.created_at ?? "");
   const safeA = Number.isFinite(ta) ? ta : 0;
   const safeB = Number.isFinite(tb) ? tb : 0;
   if (safeB !== safeA) return safeB - safeA;
@@ -147,7 +171,7 @@ export function TreasurerQueue({
   // Released and refunded pledges need no decision, so they leave the queue above;
   // they are still listed, read-only, so every status a pledge can end in is visible.
   const closed = useMemo(
-    () => pledges.filter((p) => CLOSED_STATUSES.has(p.status)).sort(comparePledgesNewestFirst),
+    () => pledges.filter((p) => CLOSED_STATUSES.has(p.status)).sort(compareClosedNewestFirst),
     [pledges],
   );
   // Capture, void, refund and review approval always need the treasurer key, even in demo.
@@ -469,19 +493,27 @@ export function TreasurerQueue({
               <thead>
                 <tr>
                   <th scope="col">{t("treasurer.pledgeRef")}</th>
-                  <th scope="col">{t("treasurer.createdAt")}</th>
+                  <th scope="col">{t("treasurer.closedOn")}</th>
                   <th scope="col">{t("treasurer.description")}</th>
                   <th scope="col">{t("treasurer.amount")}</th>
                 </tr>
               </thead>
               <tbody>
-                {closed.slice(0, CLOSED_SHOWN).map((p) => (
+                {closed.slice(0, CLOSED_SHOWN).map((p) => {
+                  const closedAt = closedAtIso(p);
+                  return (
                   <tr key={p.id} data-testid={`closed-row-${p.id}`}>
                     <td>
                       <span className="treasurer-pledge-ref" title={p.id}>{shortPledgeId(p.id)}</span>
                     </td>
                     <td>
-                      <time dateTime={p.created_at || undefined}>{formatPledgeCreatedAt(p.created_at, i18n.language)}</time>
+                      {closedAt ? (
+                        <time dateTime={closedAt}>{formatPledgeCreatedAt(closedAt, i18n.language)}</time>
+                      ) : (
+                        <time dateTime={p.created_at || undefined}>
+                          {t("treasurer.closedCreated", { date: formatPledgeCreatedAt(p.created_at, i18n.language) })}
+                        </time>
+                      )}
                     </td>
                     <td>
                       {p.description ? <strong>{p.description}</strong> : null}
@@ -494,7 +526,8 @@ export function TreasurerQueue({
                       <PledgeStatusChip status={p.status} />
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

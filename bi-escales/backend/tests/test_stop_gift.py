@@ -107,3 +107,16 @@ def test_captain_model_prompts_do_not_receive_gift_rows(monkeypatch):
         for forbidden in (created['_id'],held['authorization_id'],'Private donor description','17.35'):
             assert forbidden not in encoded
     asyncio.run(run())
+
+
+def test_stop_gift_maximum_and_rejection_before_provider():
+    async def run():
+        await schedule()
+        spy = Spy()
+        accepted = await gift(spy, amount_eur="1000.00")
+        assert accepted["amount_eur"] == "1000.00"
+        calls = list(spy.calls)
+        with pytest.raises(ValueError, match="must not exceed 1000.00 EUR"):
+            await gift(spy, amount_eur="1000.01")
+        assert spy.calls == calls
+    asyncio.run(run())

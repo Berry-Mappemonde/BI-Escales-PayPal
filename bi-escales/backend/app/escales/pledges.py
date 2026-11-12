@@ -65,6 +65,7 @@ from .paypal_client import (
 )
 
 HONOR_DAYS = 3
+STOP_GIFT_MAX_EUR = Decimal("1000.00")
 log = logging.getLogger(__name__)
 _authorize_guard = asyncio.Lock()
 _authorize_locks: dict[str, asyncio.Lock] = {}
@@ -832,6 +833,8 @@ async def _create_pledge(
     amount: Optional[str] = None
     if pledge_kind != "project_pledge":
         amount = normalize_amount(raw_amount)
+        if pledge_kind == "stop_gift" and Decimal(amount) > STOP_GIFT_MAX_EUR:
+            raise ValueError(f"stop_gift amount must not exceed {STOP_GIFT_MAX_EUR:.2f} EUR")
         exact = _EXACT_PRICE.get(pledge_kind)
         if exact is not None:
             exact *= quantity or 1

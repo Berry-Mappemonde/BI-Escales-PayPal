@@ -181,7 +181,7 @@
     "chatPlaceholder": "Sponsor 20 miles near Mayotte",
     "sendChat": "Ask the Captain",
     "agenticConfirmInvoice": "Confirm — create PayPal invoice (sandbox)",
-    "cartHeading": "Cart",
+    "cartHeading": "Your cart, ready to pay",
     "chatReply": "Captain reply",
     "rateLimit": "Too many requests to the Captain. Wait a minute or try again tomorrow.",
     "paypalToolLine": "PayPal tool: {{tools}} ({{client}})",

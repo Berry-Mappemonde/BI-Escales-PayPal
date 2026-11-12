@@ -17,7 +17,7 @@ from typing import Any, Optional
 
 import httpx
 
-from .config import SANDBOX_BASE, EscalesConfig, order_cancel_url, order_return_url
+from .config import SANDBOX_BASE, EscalesConfig, card_sca_method, order_cancel_url, order_return_url
 from .paypal_idempotency import paypal_request_id
 from .paypal_limits import PayPalCallBudget
 
@@ -508,7 +508,7 @@ class PayPalClient:
         }
         if checkout_method == "card":
             body["payment_source"] = {"card": {
-                "attributes": {"verification": {"method": "SCA_WHEN_REQUIRED"}},
+                "attributes": {"verification": {"method": card_sca_method()}},
                 "experience_context": self._experience_context(
                     back, cancel, locale=checkout_locale, user_action="PAY_NOW",
                 ),
@@ -612,7 +612,7 @@ class PayPalClient:
             "intent": "AUTHORIZE",
             "payment_source": {
                 "card": {
-                    "attributes": {"verification": {"method": "SCA_WHEN_REQUIRED"}},
+                    "attributes": {"verification": {"method": card_sca_method()}},
                     "experience_context": self._experience_context(
                         return_url, cancel_url, locale=checkout_locale,
                     ),
@@ -835,7 +835,7 @@ class PayPalClient:
                     "usage_type": "MERCHANT",
                     "usage_pattern": "UNSCHEDULED_POSTPAID",
                     "permit_multiple_payment_tokens": False,
-                    "attributes": {"verification": {"method": "SCA_WHEN_REQUIRED"}},
+                    "attributes": {"verification": {"method": card_sca_method()}},
                     "experience_context": self._experience_context(
                         return_url, cancel_url, locale=checkout_locale,
                     ),
@@ -891,7 +891,7 @@ class PayPalClient:
                 "payment_type": "UNSCHEDULED",
                 "usage": "SUBSEQUENT",
             }
-            source_body["attributes"] = {"verification": {"method": "SCA_WHEN_REQUIRED"}}
+            source_body["attributes"] = {"verification": {"method": card_sca_method()}}
         body = {
             "intent": "CAPTURE",
             "payment_source": {kind: source_body},

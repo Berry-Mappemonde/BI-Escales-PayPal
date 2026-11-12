@@ -92,9 +92,29 @@ export function usePayPalJsVersion(): PayPalJsVersion | null {
   return useSyncExternalStore(subscribe, currentPayPalJsVersion, () => "v5" as const);
 }
 
+let v6LoadFailureLogged = false;
+
+/**
+ * The v6 script or createInstance failed. Log once and use v5 for this page load.
+ * Other checkout errors must not call this: the judge path stays on v6.
+ */
+export function reportPayPalV6LoadFailure(reason: unknown): void {
+  if (!v6LoadFailureLogged) {
+    v6LoadFailureLogged = true;
+    console.warn("PayPal Web SDK v6 failed to load; using the v5 checkout", reason);
+  }
+  if (waiting !== null) clearTimeout(waiting);
+  waiting = null;
+  if (decided !== "v5") {
+    decided = "v5";
+    notify();
+  }
+}
+
 /** Tests only: forget the decision and any pending wait. */
 export function resetPayPalJsVersionForTests(): void {
   decided = null;
+  v6LoadFailureLogged = false;
   if (waiting !== null) clearTimeout(waiting);
   waiting = null;
   notify();

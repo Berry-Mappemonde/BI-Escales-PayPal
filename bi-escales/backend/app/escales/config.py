@@ -222,6 +222,19 @@ def card_fields_enabled() -> bool:
     return os.environ.get("ESCALES_CARD_FIELDS_ENABLED", "").strip().lower() in _TRUTHY
 
 
+def card_sca_method() -> str:
+    """3DS method sent on card orders.
+
+    The judge path stays SCA_WHEN_REQUIRED. Sandbox-only ``ESCALES_CARD_SCA_ALWAYS``
+    forces SCA_ALWAYS so a challenge can be exercised. A non-sandbox PayPal env ignores it.
+    """
+    forced = os.environ.get("ESCALES_CARD_SCA_ALWAYS", "").strip().lower() in _TRUTHY
+    env = (os.environ.get("PAYPAL_ENV") or "sandbox").strip().lower()
+    if forced and env == "sandbox":
+        return "SCA_ALWAYS"
+    return "SCA_WHEN_REQUIRED"
+
+
 def vault_on_purchase_enabled() -> bool:
     """Save the payer method during an AUTHORIZE checkout (store_in_vault ON_SUCCESS). Off by default."""
     return os.environ.get("ESCALES_VAULT_ON_PURCHASE_ENABLED", "").strip().lower() in _TRUTHY

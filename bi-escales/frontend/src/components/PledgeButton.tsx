@@ -537,6 +537,7 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
           {t("pledge.vaultConfirm")}
         </button>
       ) : null}
+      <div ref={sdkHost} data-testid="paypal-sdk-host" />
       <div ref={buttonsHost} data-testid="paypal-smart-buttons" />
       {walletPayEnabled && !isProjectPledge ? (
         <PayPalWalletPayBlock
@@ -558,7 +559,6 @@ function PledgeButtonInner({ values, disabled, onAuthorized }: PledgeButtonProps
           onAuthorized={onAuthorized}
         />
       ) : null}
-      <div ref={sdkHost} data-testid="paypal-sdk-host" />
       {status ? <p className="status">{status}</p> : null}
       {error ? (
         <div className="notice error">

@@ -327,6 +327,8 @@ it("renders v6 Pay Later messages using the native element and currency", async 
   const element = host.querySelector("paypal-message")!;
   expect(element.amount).toBe("50.00");
   expect(element.currencyCode).toBe("EUR");
+  expect(element.textColor).toBe("WHITE");
+  expect(element.buyerCountry).toBe("FR");
   expect(createPayPalMessages).toHaveBeenCalledWith({ currencyCode: "EUR", buyerCountry: "FR" });
   expect(createLearnMore).toHaveBeenCalledWith({
     amount: "50.00", currencyCode: "EUR", buyerCountry: "FR", presentationMode: "MODAL",
